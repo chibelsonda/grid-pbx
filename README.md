@@ -13,7 +13,9 @@ repository. GridPBX integrates with an independently running Kazoo Crossbar API
 through `grid-api-switch`; it does not embed or publish the legacy platform.
 
 The implementation roadmap and architecture decisions live in
-[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md).
+[docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). The PBX capability
+catalog and delivery priorities live in
+[docs/KAZOO_FEATURE_ROADMAP.md](docs/KAZOO_FEATURE_ROADMAP.md).
 
 All published ports bind to `127.0.0.1`.
 

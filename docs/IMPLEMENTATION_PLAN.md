@@ -6,8 +6,12 @@ Last updated: 2026-08-28
 ## 1. Objective
 
 Build a fresh GridPBX management application that replaces Monster UI with a
-simpler, task-oriented interface while using the local Kazoo Crossbar API as
-the PBX source of truth.
+simpler, task-oriented interface while using the configured Kazoo Crossbar API
+as the PBX source of truth.
+
+The planned Kazoo capabilities, priorities, resource mappings, and delivery
+checklist are maintained in
+[KAZOO_FEATURE_ROADMAP.md](KAZOO_FEATURE_ROADMAP.md).
 
 The application will preserve the legacy three-project boundary:
 
