@@ -1,0 +1,54 @@
+import axios from 'axios'
+import { defineStore } from 'pinia'
+import { sessionApi } from '../api/sessionApi'
+import type { LoginCredentials, SessionUser } from '../types/session'
+
+export const useAuthStore = defineStore('auth', {
+  state: () => ({
+    user: null as SessionUser | null,
+    initialized: false,
+    loading: false,
+    error: null as string | null,
+  }),
+  getters: {
+    authenticated: (state) => state.user !== null,
+  },
+  actions: {
+    async restore(): Promise<void> {
+      if (this.initialized) return
+
+      try {
+        this.user = (await sessionApi.current()).user
+      } catch (error) {
+        if (!axios.isAxiosError(error) || error.response?.status !== 401) throw error
+        this.user = null
+      } finally {
+        this.initialized = true
+      }
+    },
+    async login(credentials: LoginCredentials): Promise<void> {
+      this.loading = true
+      this.error = null
+
+      try {
+        this.user = (await sessionApi.login(credentials)).user
+        this.initialized = true
+      } catch (error) {
+        this.error = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'The provided credentials are incorrect.')
+          : 'Unable to sign in right now.'
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    async logout(): Promise<void> {
+      try {
+        await sessionApi.logout()
+      } finally {
+        this.user = null
+        this.initialized = true
+      }
+    },
+  },
+})

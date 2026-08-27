@@ -2,6 +2,8 @@
 
 namespace App\Providers;
 
+use App\Domains\KazooSynchronization\Application\Contracts\KazooUserGateway;
+use App\Domains\KazooSynchronization\Infrastructure\Gateways\CrossbarKazooUserGateway;
 use GridPbx\Kazoo\ApiKeyTokenProvider;
 use GridPbx\Kazoo\Contracts\TokenProvider;
 use GridPbx\Kazoo\KazooClient;
@@ -14,6 +16,8 @@ class KazooServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(KazooUserGateway::class, CrossbarKazooUserGateway::class);
+
         $this->app->singleton(ClientInterface::class, fn () => new Client);
 
         $this->app->singleton(KazooConfig::class, fn () => new KazooConfig(

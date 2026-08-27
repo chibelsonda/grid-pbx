@@ -3,6 +3,15 @@
 Status: Active
 Last updated: 2026-08-28
 
+Implemented checkpoint:
+
+- Laravel and Vue domain-oriented application structures
+- Sanctum first-party SPA login and protected routing
+- Organization-scoped Kazoo account selection
+- MySQL extension projection with search and pagination
+- Queued, idempotent Kazoo user synchronization with run/checkpoint status
+- ArchitectUI-inspired Tailwind application shell and extension directory
+
 ## 1. Objective
 
 Build a fresh GridPBX management application that replaces Monster UI with a

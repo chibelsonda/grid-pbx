@@ -23,7 +23,7 @@ All published ports bind to `127.0.0.1`.
 
 ```bash
 cp .env.example .env
-docker compose up -d mysql redis grid-api grid-ui
+docker compose up -d mysql redis grid-api grid-worker grid-ui
 bash scripts/status.sh
 ```
 
@@ -45,8 +45,9 @@ The initial local Laravel account is:
 - Email: `admin@gridpbx.local`
 - Password: `admin-change-me`
 
-The current UI is the verified foundation/dashboard preview. Secure UI login,
-account selection, and live Kazoo resource screens are the next vertical slice.
+The current vertical slice includes secure UI login, tenant-scoped account
+selection, a searchable MySQL extension projection, manual Kazoo sync, sync
+status, and a dedicated Redis queue worker.
 
 ## Start or resume
 
@@ -77,7 +78,7 @@ credentials remain server-side and must never be added to the repository.
 ```bash
 docker compose down
 docker compose ps
-docker compose logs -f grid-api grid-ui mysql
+docker compose logs -f grid-api grid-worker grid-ui mysql
 ```
 
 `docker compose down` preserves MySQL and Redis volumes. Running

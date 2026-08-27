@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
-import StatCard from '@/components/StatCard.vue'
+import StatCard from '@/shared/components/StatCard.vue'
 import { UserGroupIcon } from '@heroicons/vue/24/outline'
 
 describe('StatCard', () => {

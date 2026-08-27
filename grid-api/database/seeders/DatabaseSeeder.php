@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\KazooAccount;
-use App\Models\Organization;
-use App\Models\User;
+use App\Domains\IdentityAccess\Infrastructure\Models\User;
+use App\Domains\Organizations\Infrastructure\Models\KazooAccount;
+use App\Domains\Organizations\Infrastructure\Models\Organization;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -23,23 +23,23 @@ class DatabaseSeeder extends Seeder
         );
 
         $user = User::query()->firstOrCreate([
-            'email' => env('GRID_ADMIN_EMAIL', 'admin@gridpbx.local'),
+            'email' => config('gridpbx.admin.email'),
         ], [
-            'name' => 'Grid Admin',
-            'password' => env('GRID_ADMIN_PASSWORD', 'admin-change-me'),
+            'name' => config('gridpbx.admin.name'),
+            'password' => config('gridpbx.admin.password'),
         ]);
 
         $organization->users()->syncWithoutDetaching([
             $user->getKey() => ['role' => 'platform_administrator'],
         ]);
 
-        if ($accountId = env('KAZOO_ACCOUNT_ID')) {
+        if ($accountId = config('gridpbx.kazoo_account.id')) {
             KazooAccount::query()->updateOrCreate([
                 'organization_id' => $organization->getKey(),
                 'kazoo_account_id' => $accountId,
             ], [
-                'name' => env('KAZOO_ACCOUNT_NAME', 'GridPBX'),
-                'realm' => env('KAZOO_ACCOUNT_REALM', 'gridpbx.local'),
+                'name' => config('gridpbx.kazoo_account.name'),
+                'realm' => config('gridpbx.kazoo_account.realm'),
                 'is_enabled' => true,
             ]);
         }

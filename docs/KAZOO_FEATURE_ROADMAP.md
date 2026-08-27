@@ -1,6 +1,6 @@
 # Kazoo Feature Implementation Roadmap
 
-Status: Planning baseline
+Status: Active delivery roadmap
 Last updated: 2026-08-28
 
 ## 1. Purpose
@@ -41,9 +41,10 @@ Implementation status:
 | Deferred | Explicitly outside the current delivery commitment |
 | Complete | Implemented, synchronized, tested, documented, and accepted |
 
-No Kazoo-backed product feature is currently marked complete. The repository
-contains the Laravel/Vue foundation, authentication endpoints, Kazoo client
-boundary, MySQL application schema, and dashboard preview.
+No Kazoo-backed product feature is currently marked complete pending target
+Kazoo credentials and client acceptance. The People and Extensions list/search
+workflow is at Foundation status: its MySQL projection, queued synchronization,
+freshness state, account authorization, API, and Vue screen are implemented.
 
 ## 3. Feature architecture rules
 
@@ -71,9 +72,9 @@ Every Kazoo feature follows these rules:
 | Account mapping | Accounts | Organization-to-Kazoo-account mapping and authorization | P0 | Foundation |
 | Account hierarchy | Accounts and descendants | Searchable account projection and allowed account tree | P1 | Planned |
 | Capability discovery | Enabled Crossbar modules and account capabilities | Per-account feature flags | P1 | Planned |
-| Initial import | Account-scoped resource APIs | Sync runs, checkpoints, counts, errors, and timestamps | P1 | Planned |
+| Initial import | Account-scoped resource APIs | Sync runs, checkpoints, counts, errors, and timestamps | P1 | Foundation (extensions) |
 | Incremental synchronization | Events/webhooks where supported; polling otherwise | Queue jobs, idempotency, locks, tombstones | P1 | Planned |
-| Full reconciliation | Account-scoped list/detail APIs | Repair projections and detect deletions | P1 | Planned |
+| Full reconciliation | Account-scoped list/detail APIs | Repair projections and detect deletions | P1 | Foundation (extensions) |
 | Global search | Multiple account resources | Authorized MySQL search index/projections | P2 | Planned |
 
 Acceptance baseline:
