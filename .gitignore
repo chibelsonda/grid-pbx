@@ -1,0 +1,22 @@
+.env
+
+# Local build and dependency output
+grid-api/vendor/
+grid-api/database/*.sqlite
+grid-api/storage/logs/*.log
+grid-api/AGENTS.md
+grid-api/CLAUDE.md
+grid-api-switch/vendor/
+grid-ui/dist/
+grid-ui/node_modules/
+grid-ui/playwright-report/
+grid-ui/test-results/
+
+# Local legacy reference stack; intentionally excluded from this repository.
+/src/
+/config/kazoo/
+/config/monster-ui/
+/docker/kazoo/
+/docker/monster-ui/
+/scripts/bootstrap.sh
+/docs/TELEPHONY.md

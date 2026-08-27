@@ -1,0 +1,17 @@
+**/.git
+**/node_modules
+**/vendor
+**/.env
+**/deps
+**/_rel
+**/dist
+**/distDev
+**/tmp
+*.log
+
+# The new application images do not need the local legacy reference sources.
+src/monster-ui
+config/kazoo
+config/monster-ui
+docker/kazoo
+docker/monster-ui

@@ -1,0 +1,117 @@
+name: gridpbx
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${GRID_DB_DATABASE:-gridpbx}
+      MYSQL_USER: ${GRID_DB_USERNAME:-gridpbx}
+      MYSQL_PASSWORD: ${GRID_DB_PASSWORD:-gridpbx-local-change-me}
+      MYSQL_ROOT_PASSWORD: ${GRID_DB_ROOT_PASSWORD:-gridpbx-root-local-change-me}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    ports:
+      - "127.0.0.1:${GRID_DB_PORT:-3309}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  grid-api:
+    build:
+      context: .
+      dockerfile: docker/grid-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_NAME: GridPBX
+      APP_ENV: local
+      APP_KEY: ${GRID_API_APP_KEY:-}
+      APP_DEBUG: "true"
+      APP_URL: http://localhost:${GRID_API_PORT:-8081}
+      FRONTEND_URL: http://localhost:${GRID_UI_PORT:-5173}
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${GRID_DB_DATABASE:-gridpbx}
+      DB_USERNAME: ${GRID_DB_USERNAME:-gridpbx}
+      DB_PASSWORD: ${GRID_DB_PASSWORD:-gridpbx-local-change-me}
+      SESSION_DRIVER: redis
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SANCTUM_STATEFUL_DOMAINS: localhost:${GRID_UI_PORT:-5173},127.0.0.1:${GRID_UI_PORT:-5173}
+      GRID_ADMIN_EMAIL: ${GRID_ADMIN_EMAIL:-admin@gridpbx.local}
+      GRID_ADMIN_PASSWORD: ${GRID_ADMIN_PASSWORD:-admin-change-me}
+      KAZOO_BASE_URL: ${KAZOO_BASE_URL:-http://kazoo:8000/v2}
+      KAZOO_API_KEY: ${KAZOO_API_KEY:-}
+      KAZOO_ACCOUNT_ID: ${KAZOO_ACCOUNT_ID:-}
+      KAZOO_ACCOUNT_NAME: ${KAZOO_ACCOUNT_NAME:-GridPBX}
+      KAZOO_ACCOUNT_REALM: ${KAZOO_ACCOUNT_REALM:-gridpbx.local}
+    volumes:
+      - ./grid-api:/app
+      - ./grid-api-switch:/grid-api-switch
+      - grid-api-vendor:/app/vendor
+    ports:
+      - "127.0.0.1:${GRID_API_PORT:-8081}:8081"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$$APP_KEY" ]; then export APP_KEY="$$(php artisan key:generate --show)"; fi
+        php artisan migrate --force
+        php artisan db:seed --force
+        php artisan serve --host=0.0.0.0 --port=8081
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8081/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 20
+
+  grid-ui:
+    build:
+      context: .
+      dockerfile: docker/grid-ui/Dockerfile
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: http://localhost:${GRID_API_PORT:-8081}
+    volumes:
+      - ./grid-ui:/app
+      - grid-ui-node-modules:/app/node_modules
+    ports:
+      - "127.0.0.1:${GRID_UI_PORT:-5173}:5173"
+    depends_on:
+      grid-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  mysql-data:
+  redis-data:
+  grid-api-vendor:
+  grid-ui-node-modules:
