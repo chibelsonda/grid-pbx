@@ -1,7 +1,7 @@
 # GridPBX Application Implementation Plan
 
 Status: Active
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 ## 1. Objective
 
@@ -23,8 +23,8 @@ material only. New code must not depend on or modify those projects.
 1. Present user tasks instead of raw Kazoo resources wherever possible.
 2. Keep all Kazoo credentials and tokens on the server.
 3. Treat Kazoo as the source of truth for PBX configuration.
-4. Store only application concerns in MySQL: identities, authorization,
-   Kazoo account mappings, preferences, and audit records.
+4. Use MySQL as the source of truth for GridPBX application data and as a
+   synchronized, searchable read model of selected Kazoo resources.
 5. Deliver vertical slices that are usable and testable end to end.
 6. Use the separately maintained Monster UI environment only as a workflow
    reference until replacement functionality has been verified.
@@ -42,8 +42,9 @@ grid-ui (Vue 3)
   | /api/v1
   v
 grid-api (Laravel)
-  |-- MySQL: users, organizations, roles, mappings, audit log
+  |-- MySQL: application data + normalized Kazoo read projections
   |-- Redis: sessions, cache, queues, Kazoo token cache
+  |-- Workers: imports, incremental synchronization, reconciliation
   |
   v
 grid-api-switch (Composer package)
@@ -51,6 +52,8 @@ grid-api-switch (Composer package)
   | Kazoo API key authentication and X-Auth-Token
   v
 External Kazoo Crossbar API configured by `KAZOO_BASE_URL`
+  |
+  `-- Events/webhooks where available + scheduled reconciliation
 ```
 
 Kazoo and Monster UI are intentionally not part of this repository. A separate
@@ -117,6 +120,7 @@ Initial bounded contexts:
 - Call routing
 - Voicemail and media
 - Call history
+- Kazoo synchronization and projections
 - Auditing and administration
 
 ### API structure
@@ -180,7 +184,95 @@ UI dependency rules:
 - Shared terminology, validation rules, and user-visible workflows should
   match the corresponding API bounded context.
 
-## 7. UI direction
+## 7. Kazoo data projection and synchronization
+
+The client requires selected Kazoo data to be available in MySQL for fast
+access, searching, dashboards, relationships, and reporting. This is a
+reasonable architecture when the MySQL records are treated as projections,
+not as an independent copy that can diverge from Kazoo.
+
+### Data ownership
+
+| Data category | Authoritative system | Examples |
+| --- | --- | --- |
+| PBX configuration | Kazoo | Extensions, devices, numbers, voicemail, callflows |
+| GridPBX application data | MySQL | Users, roles, organizations, account mappings, preferences |
+| Search/reporting projections | MySQL, derived from Kazoo | Extension directory, device summary, number assignments |
+| Temporary operational state | Redis | Sessions, locks, queues, token cache |
+
+MySQL projection rows must never be edited as a shortcut around Kazoo. PBX
+mutations go through Laravel to Kazoo first. After Kazoo accepts a mutation,
+Laravel updates or invalidates the affected projection and schedules a
+reconciliation job. There is no distributed transaction between Kazoo and
+MySQL, so recovery must be designed around idempotency and reconciliation.
+
+### Read and write paths
+
+Normal reads use the projection:
+
+```text
+Vue -> Laravel authorization -> MySQL projection -> API response
+```
+
+An explicitly requested refresh may synchronize the affected resource from
+Kazoo before returning it. Screens must expose the last synchronization time
+when freshness affects the user's decision.
+
+PBX writes use Kazoo first:
+
+```text
+Vue
+  -> Laravel validation and authorization
+  -> Kazoo mutation
+  -> projection upsert/invalidation
+  -> audit record and reconciliation job
+```
+
+If Kazoo succeeds but the projection update fails, the API records the failure
+and the reconciliation worker repairs MySQL. Retrying a synchronization job
+must produce the same result and must not duplicate records.
+
+### Projection design
+
+Each owning bounded context defines its own normalized projection tables. A
+typical projected record includes:
+
+- GridPBX ULID primary key
+- Organization and Kazoo account mapping identifiers
+- Kazoo resource identifier with a composite unique constraint per account
+- Normalized fields required for filtering, sorting, joins, and display
+- Source revision/version and source update time where Kazoo provides them
+- `last_synced_at`, `sync_status`, and optional safe error metadata
+- Soft deletion or a tombstone when a resource disappears from Kazoo
+- Projection schema version
+- Optional JSON source snapshot for unmapped non-secret fields
+
+Raw Kazoo documents should not be copied indiscriminately. API keys, Kazoo
+tokens, SIP passwords, authentication hashes, and other credentials must not
+be stored in projection payloads. High-volume records such as call-detail
+records require explicit retention, indexing, pagination, and archival rules
+before being projected at scale.
+
+### Synchronization strategy
+
+1. An initial account import populates projections in bounded batches.
+2. Kazoo events or webhooks update individual resources where the deployment
+   supports them.
+3. Incremental polling covers resources without dependable change events.
+4. Scheduled full reconciliation detects missed events, updates changed rows,
+   and marks deleted resources.
+5. Per-account checkpoints allow failed imports to resume safely.
+6. Distributed locks prevent overlapping account/resource synchronization.
+7. Each projection reports `healthy`, `syncing`, `stale`, or `error`, plus its
+   last successful synchronization time.
+
+The `KazooSynchronization` bounded context coordinates jobs, checkpoints, and
+health reporting. Resource interpretation and projection schemas remain owned
+by their domains, such as Extensions, Devices, or Phone Numbers. The
+`grid-api-switch` package remains the transport anti-corruption layer and does
+not contain MySQL persistence logic.
+
+## 8. UI direction
 
 The visual direction is inspired by the ArchitectUI Vue Pro demo, but the
 implementation must be original and built with Tailwind CSS. Do not copy the
@@ -240,7 +332,7 @@ mobile layouts.
 - Forms keep advanced Kazoo fields collapsed unless the task needs them.
 - Keyboard focus, color contrast, labels, and error summaries are required.
 
-## 8. Authentication and authorization
+## 9. Authentication and authorization
 
 1. The Vue SPA authenticates to Laravel using Sanctum session cookies and CSRF
    protection. Application tokens are not persisted in local storage.
@@ -262,7 +354,7 @@ Initial roles:
 - Account operator
 - Read-only user
 
-## 9. API conventions
+## 10. API conventions
 
 - Base path: `/api/v1`
 - JSON request and response bodies except file transfers
@@ -293,7 +385,7 @@ GET    /api/v1/accounts/{account}/callflows
 GET    /api/v1/accounts/{account}/call-records
 ```
 
-## 10. Delivery phases
+## 11. Delivery phases
 
 ### Phase 0: Foundation
 
@@ -317,6 +409,8 @@ Acceptance criteria:
 - Implement local users, organizations, roles, permissions, and account maps.
 - Implement Sanctum SPA login/logout/session endpoints.
 - Implement Kazoo API-key authentication and token caching.
+- Implement synchronization jobs, checkpoints, projection health, and an
+  initial full import for account and extension data.
 - Add account list and Kazoo health boundary.
 - Build login, application shell, account selector, dashboard, and a read-only
   extensions page.
@@ -325,8 +419,10 @@ Acceptance criteria:
 
 - A seeded administrator can sign in without a token in browser storage.
 - The user can only select mapped Kazoo accounts.
-- The extensions page reads live data through Laravel, never directly from
-  Kazoo.
+- The extensions page reads its MySQL projection through Laravel and reports
+  its synchronization status and last successful refresh.
+- Re-running the account/extension import is idempotent and repairs changed or
+  deleted Kazoo resources.
 
 ### Phase 2: Core PBX management
 
@@ -336,6 +432,8 @@ Acceptance criteria:
 - Phone number inventory and assignment.
 - Basic call routing and callflow visualization.
 - Call-detail record listing and filtering.
+- Add projections and incremental synchronization for each delivered resource
+  domain.
 
 ### Phase 3: Supporting PBX modules
 
@@ -358,15 +456,19 @@ implementation, especially payment handling.
 
 - Compare workflows against Monster UI and the legacy GridPBX application.
 - Add rate limiting, idempotency, retries, circuit breaking, and observability.
+- Validate projection rebuild, missed-event recovery, checkpoint restoration,
+  retention, and disaster-recovery procedures.
 - Complete browser, accessibility, security, backup, and recovery testing.
 - Document production deployment and migration.
 - Retire Monster UI only after agreed parity checks pass.
 
-## 11. Test strategy
+## 12. Test strategy
 
 - `grid-api-switch`: isolated unit tests with fake HTTP responses plus opt-in
   integration tests against the local Kazoo API.
 - `grid-api`: policy, validation, API contract, database, and service tests.
+- Synchronization: mapping accuracy, idempotent replays, checkpoint recovery,
+  stale-data reporting, tombstones, and full projection rebuilds.
 - `grid-ui`: component and composable unit tests.
 - End to end: login, account selection, extension creation, device assignment,
   number routing, and logout.
@@ -375,7 +477,7 @@ implementation, especially payment handling.
 Tests that mutate Kazoo must use a dedicated test account and identify created
 resources so cleanup is deterministic.
 
-## 12. Definition of done
+## 13. Definition of done
 
 A feature is complete when:
 
@@ -386,8 +488,10 @@ A feature is complete when:
 5. Logs and responses do not expose credentials or tokens.
 6. API documentation and user-facing labels are current.
 7. The feature works responsively and passes keyboard navigation checks.
+8. Projected Kazoo data has a tested import, reconciliation, deletion, and
+   freshness path with no credential fields persisted.
 
-## 13. Deferred decisions
+## 14. Deferred decisions
 
 - Final production hosting platform and domain layout.
 - Whether external/mobile API consumers need personal access tokens.
