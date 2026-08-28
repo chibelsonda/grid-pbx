@@ -20,7 +20,7 @@ defineProps<{ title: string; description: string }>()
         </span>
         <h2 class="mt-4 text-sm font-semibold text-slate-800">Scheduled for a later slice</h2>
         <p class="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
-          This module has a bounded place in the new UI and will be connected to its Kazoo projection incrementally.
+          This module has a bounded place in the new UI and will be connected to its Switch projection incrementally.
         </p>
       </div>
     </div>

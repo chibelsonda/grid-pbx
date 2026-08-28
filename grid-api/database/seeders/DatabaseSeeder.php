@@ -2,9 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Domains\IdentityAccess\Infrastructure\Models\User;
-use App\Domains\Organizations\Infrastructure\Models\KazooAccount;
-use App\Domains\Organizations\Infrastructure\Models\Organization;
+use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Organizations\Models\Organization;
+use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -33,13 +33,13 @@ class DatabaseSeeder extends Seeder
             $user->getKey() => ['role' => 'platform_administrator'],
         ]);
 
-        if ($accountId = config('gridpbx.kazoo_account.id')) {
-            KazooAccount::query()->updateOrCreate([
+        if ($accountId = config('gridpbx.switch_account.id')) {
+            SwitchAccount::query()->updateOrCreate([
                 'organization_id' => $organization->getKey(),
-                'kazoo_account_id' => $accountId,
+                'switch_account_id' => $accountId,
             ], [
-                'name' => config('gridpbx.kazoo_account.name'),
-                'realm' => config('gridpbx.kazoo_account.realm'),
+                'name' => config('gridpbx.switch_account.name'),
+                'realm' => config('gridpbx.switch_account.realm'),
                 'is_enabled' => true,
             ]);
         }

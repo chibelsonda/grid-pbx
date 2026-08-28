@@ -69,6 +69,6 @@ const active = (to: string) => (to === '/' ? route.path === '/' : route.path.sta
         </RouterLink>
       </section>
     </nav>
-    <div class="border-t border-slate-100 p-4 text-center text-[10px] font-semibold text-slate-400">{{ collapsed ? 'PBX' : 'KAZOO PROJECTION CONSOLE' }}</div>
+    <div class="border-t border-slate-100 p-4 text-center text-[10px] font-semibold text-slate-400">{{ collapsed ? 'PBX' : 'SWITCH PROJECTION CONSOLE' }}</div>
   </aside>
 </template>

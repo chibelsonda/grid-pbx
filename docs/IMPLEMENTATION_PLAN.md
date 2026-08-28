@@ -7,25 +7,26 @@ Implemented checkpoint:
 
 - Laravel and Vue domain-oriented application structures
 - Sanctum first-party SPA login and protected routing
-- Organization-scoped Kazoo account selection
+- Organization-scoped Switch account selection
 - MySQL extension projection with search and pagination
-- Queued, idempotent Kazoo user synchronization with run/checkpoint status
+- Queued, idempotent Switch user synchronization with run/checkpoint status
+- Full Switch list/detail hydration with safe JSON source snapshots
 - ArchitectUI-inspired Tailwind application shell and extension directory
 
 ## 1. Objective
 
 Build a fresh GridPBX management application that replaces Monster UI with a
-simpler, task-oriented interface while using the configured Kazoo Crossbar API
+simpler, task-oriented interface while using the configured Switch Crossbar API
 as the PBX source of truth.
 
-The planned Kazoo capabilities, priorities, resource mappings, and delivery
+The planned Switch capabilities, priorities, resource mappings, and delivery
 checklist are maintained in
-[KAZOO_FEATURE_ROADMAP.md](KAZOO_FEATURE_ROADMAP.md).
+[SWITCH_FEATURE_ROADMAP.md](SWITCH_FEATURE_ROADMAP.md).
 
 The application will preserve the legacy three-project boundary:
 
 - `grid-api`: Laravel application API and application-owned data.
-- `grid-api-switch`: framework-independent Kazoo Crossbar client package.
+- `grid-api-switch`: framework-independent Switch Crossbar client package.
 - `grid-ui`: Vue 3 and TypeScript single-page application.
 
 The legacy projects under `/home/chicote/App/gridpbx-old` are reference
@@ -33,11 +34,11 @@ material only. New code must not depend on or modify those projects.
 
 ## 2. Product principles
 
-1. Present user tasks instead of raw Kazoo resources wherever possible.
-2. Keep all Kazoo credentials and tokens on the server.
-3. Treat Kazoo as the source of truth for PBX configuration.
+1. Present user tasks instead of raw Switch resources wherever possible.
+2. Keep all Switch credentials and tokens on the server.
+3. Treat Switch as the source of truth for PBX configuration.
 4. Use MySQL as the source of truth for GridPBX application data and as a
-   synchronized, searchable read model of selected Kazoo resources.
+   synchronized, searchable read model of selected Switch resources.
 5. Deliver vertical slices that are usable and testable end to end.
 6. Use the separately maintained Monster UI environment only as a workflow
    reference until replacement functionality has been verified.
@@ -55,21 +56,21 @@ grid-ui (Vue 3)
   | /api/v1
   v
 grid-api (Laravel)
-  |-- MySQL: application data + normalized Kazoo read projections
-  |-- Redis: sessions, cache, queues, Kazoo token cache
+  |-- MySQL: application data + normalized Switch read projections
+  |-- Redis: sessions, cache, queues, Switch token cache
   |-- Workers: imports, incremental synchronization, reconciliation
   |
   v
 grid-api-switch (Composer package)
   |
-  | Kazoo API key authentication and X-Auth-Token
+  | Switch API key authentication and X-Auth-Token
   v
-External Kazoo Crossbar API configured by `KAZOO_BASE_URL`
+External Switch Crossbar API configured by `SWITCH_BASE_URL`
   |
   `-- Events/webhooks where available + scheduled reconciliation
 ```
 
-Kazoo and Monster UI are intentionally not part of this repository. A separate
+Switch and Monster UI are intentionally not part of this repository. A separate
 local reference environment may remain available during development. The new
 Vue development server uses port `5173`, and the Laravel API uses port `8081`.
 
@@ -100,7 +101,7 @@ allowed.
 - Laravel Sanctum using cookie-based SPA authentication
 - MySQL 8.4 for application-owned data
 - Redis for sessions, cache, queues, and distributed locks
-- Laravel HTTP client for outbound Kazoo requests
+- Laravel HTTP client for outbound Switch requests
 - Pest or PHPUnit for unit and feature tests
 - Laravel Pint and PHPStan for code quality
 - OpenAPI 3.1 contract for `/api/v1`
@@ -126,43 +127,62 @@ for every operation.
 Initial bounded contexts:
 
 - Identity and access
-- Organizations and Kazoo accounts
+- Organizations and Switch accounts
 - People and extensions
 - Devices
 - Phone numbers
 - Call routing
 - Voicemail and media
 - Call history
-- Kazoo synchronization and projections
+- Switch synchronization and projections
 - Auditing and administration
 
 ### API structure
 
-Laravel uses a modular DDD structure. Each bounded context may contain:
+Laravel uses a simple, domain-first DDD structure. Each bounded context owns
+its complete Laravel feature slice directly instead of reproducing deep
+`Application`, `Infrastructure`, and `Presentation` directory trees:
 
 ```text
 app/Domains/{Context}/
-|-- Domain/          # Entities, value objects, policies, domain services/events
-|-- Application/     # Use cases, commands, queries, DTOs, and ports
-|-- Infrastructure/  # Eloquent persistence and external service adapters
-`-- Presentation/    # HTTP controllers, requests, resources, and routes
+|-- Controllers/     # Thin HTTP entry points
+|-- Models/          # Context-owned Eloquent projections and relationships
+|-- Requests/        # Endpoint authorization and input validation
+|-- Resources/       # Stable API response mapping
+|-- Services/        # Read and write use cases for the context
+|-- Contracts/       # Ports for external dependencies, when required
+|-- Gateways/        # Switch or other adapter implementations, when required
+|-- Jobs/            # Context-owned asynchronous work, when required
+`-- Enums/           # Context vocabulary and state values, when required
 ```
+
+Only folders used by a context are created. A typical context contains
+`Controllers`, `Models`, `Requests`, `Resources`, and `Services`, while Switch
+synchronization also needs jobs, contracts, and gateways. Services own both
+reads and writes; separate Action and Query layers are intentionally not used.
+This keeps each domain complete and easy to navigate without adding empty
+architectural layers.
 
 Dependency rules:
 
-- Domain code does not depend on Laravel, Eloquent, HTTP, or Kazoo payloads.
-- Application use cases coordinate domain behavior through contracts.
-- Infrastructure implements those contracts and owns persistence or external
-  transport details.
-- Presentation validates and translates HTTP input, calls one application use
-  case, and formats the response; controllers contain no business rules.
+- Controllers validate through context-owned requests, call one query or
+  action, and return context-owned resources; controllers contain no business
+  rules.
+- Models express MySQL projection state and relationships, but raw Switch
+  response shapes do not leak into controllers or the UI.
+- Services coordinate behavior through contracts when external access is
+  required. Gateways implement those contracts.
+- Framework-independent value objects or policies can be added when actual
+  domain complexity warrants them; an extra layer is not required by default.
 - Cross-context work occurs through explicit application contracts or events,
   not by reaching into another context's internal models.
 - `grid-api-switch` is the anti-corruption layer between GridPBX terminology
-  and Kazoo Crossbar resources.
+  and Switch Crossbar resources.
 
-Small features may start with fewer files and gain layers only when behavior
-requires them. The dependency rules still apply.
+Every new API feature follows this domain-first convention. Shared framework
+bootstrap remains under Laravel's normal `app`, `config`, and `routes`
+locations; business-specific controllers, models, requests, resources, and
+use cases remain in their owning domain.
 
 ### UI structure
 
@@ -197,26 +217,26 @@ UI dependency rules:
 - Shared terminology, validation rules, and user-visible workflows should
   match the corresponding API bounded context.
 
-## 7. Kazoo data projection and synchronization
+## 7. Switch data projection and synchronization
 
-The client requires selected Kazoo data to be available in MySQL for fast
+The client requires selected Switch data to be available in MySQL for fast
 access, searching, dashboards, relationships, and reporting. This is a
 reasonable architecture when the MySQL records are treated as projections,
-not as an independent copy that can diverge from Kazoo.
+not as an independent copy that can diverge from Switch.
 
 ### Data ownership
 
 | Data category | Authoritative system | Examples |
 | --- | --- | --- |
-| PBX configuration | Kazoo | Extensions, devices, numbers, voicemail, callflows |
+| PBX configuration | Switch | Extensions, devices, numbers, voicemail, callflows |
 | GridPBX application data | MySQL | Users, roles, organizations, account mappings, preferences |
-| Search/reporting projections | MySQL, derived from Kazoo | Extension directory, device summary, number assignments |
+| Search/reporting projections | MySQL, derived from Switch | Extension directory, device summary, number assignments |
 | Temporary operational state | Redis | Sessions, locks, queues, token cache |
 
-MySQL projection rows must never be edited as a shortcut around Kazoo. PBX
-mutations go through Laravel to Kazoo first. After Kazoo accepts a mutation,
+MySQL projection rows must never be edited as a shortcut around Switch. PBX
+mutations go through Laravel to Switch first. After Switch accepts a mutation,
 Laravel updates or invalidates the affected projection and schedules a
-reconciliation job. There is no distributed transaction between Kazoo and
+reconciliation job. There is no distributed transaction between Switch and
 MySQL, so recovery must be designed around idempotency and reconciliation.
 
 ### Read and write paths
@@ -228,20 +248,20 @@ Vue -> Laravel authorization -> MySQL projection -> API response
 ```
 
 An explicitly requested refresh may synchronize the affected resource from
-Kazoo before returning it. Screens must expose the last synchronization time
+Switch before returning it. Screens must expose the last synchronization time
 when freshness affects the user's decision.
 
-PBX writes use Kazoo first:
+PBX writes use Switch first:
 
 ```text
 Vue
   -> Laravel validation and authorization
-  -> Kazoo mutation
+  -> Switch mutation
   -> projection upsert/invalidation
   -> audit record and reconciliation job
 ```
 
-If Kazoo succeeds but the projection update fails, the API records the failure
+If Switch succeeds but the projection update fails, the API records the failure
 and the reconciliation worker repairs MySQL. Retrying a synchronization job
 must produce the same result and must not duplicate records.
 
@@ -251,25 +271,51 @@ Each owning bounded context defines its own normalized projection tables. A
 typical projected record includes:
 
 - GridPBX ULID primary key
-- Organization and Kazoo account mapping identifiers
-- Kazoo resource identifier with a composite unique constraint per account
+- Organization and Switch account mapping identifiers
+- Switch resource identifier with a composite unique constraint per account
 - Normalized fields required for filtering, sorting, joins, and display
-- Source revision/version and source update time where Kazoo provides them
+- Source revision/version and source update time where Switch provides them
 - `last_synced_at`, `sync_status`, and optional safe error metadata
-- Soft deletion or a tombstone when a resource disappears from Kazoo
+- Soft deletion or a tombstone when a resource disappears from Switch
 - Projection schema version
-- Optional JSON source snapshot for unmapped non-secret fields
+- JSON source snapshot sourced from the entity detail response's `data`
+  property, including unmapped non-secret fields
 
-Raw Kazoo documents should not be copied indiscriminately. API keys, Kazoo
+Raw Switch documents should not be copied indiscriminately. API keys, Switch
 tokens, SIP passwords, authentication hashes, and other credentials must not
 be stored in projection payloads. High-volume records such as call-detail
 records require explicit retention, indexing, pagination, and archival rules
 before being projected at scale.
 
+### Source snapshot contract
+
+For each supported entity, synchronization first enumerates the account-level
+collection and then fetches the entity detail endpoint. The complete detail
+response `data` object becomes the source snapshot after a centralized,
+recursive sensitive-field redaction pass. Redacted keys remain present with a
+`[REDACTED]` marker so schema coverage is observable without retaining the
+credential value.
+
+The snapshot and the normalized projection serve different purposes:
+
+- Normalized columns own application filtering, sorting, joins, and display.
+- `source_payload` preserves non-secret fields that are not normalized yet and
+  allows future projection changes to be rebuilt from the latest snapshot.
+- Public API resources do not return `source_payload`; a future diagnostic
+  endpoint would require explicit administrator authorization and auditing.
+- PBX write requests use dedicated validated command payloads. A stored source
+  snapshot is never sent wholesale back to Switch because it can include
+  read-only, private, or unsupported fields.
+
+The initial typed snapshots cover users, devices, voicemail boxes, and
+callflows. Remaining Switch entities will adopt the same list/detail, typed
+field, raw-data preservation, and redaction contract as their vertical slices
+are implemented.
+
 ### Synchronization strategy
 
 1. An initial account import populates projections in bounded batches.
-2. Kazoo events or webhooks update individual resources where the deployment
+2. Switch events or webhooks update individual resources where the deployment
    supports them.
 3. Incremental polling covers resources without dependable change events.
 4. Scheduled full reconciliation detects missed events, updates changed rows,
@@ -279,7 +325,7 @@ before being projected at scale.
 7. Each projection reports `healthy`, `syncing`, `stale`, or `error`, plus its
    last successful synchronization time.
 
-The `KazooSynchronization` bounded context coordinates jobs, checkpoints, and
+The `SwitchSynchronization` bounded context coordinates jobs, checkpoints, and
 health reporting. Resource interpretation and projection schemas remain owned
 by their domains, such as Extensions, Devices, or Phone Numbers. The
 `grid-api-switch` package remains the transport anti-corruption layer and does
@@ -337,25 +383,25 @@ mobile layouts.
 
 ### UX rules
 
-- A PBX concept may be technically composed of several Kazoo resources, but
+- A PBX concept may be technically composed of several Switch resources, but
   the UI should expose a single guided workflow where that matches the task.
 - Every mutation displays pending, success, and failure states.
 - Destructive actions require explicit confirmation and identify the target.
 - Empty states explain what the resource does and provide the next action.
-- Forms keep advanced Kazoo fields collapsed unless the task needs them.
+- Forms keep advanced Switch fields collapsed unless the task needs them.
 - Keyboard focus, color contrast, labels, and error summaries are required.
 
 ## 9. Authentication and authorization
 
 1. The Vue SPA authenticates to Laravel using Sanctum session cookies and CSRF
    protection. Application tokens are not persisted in local storage.
-2. Laravel authenticates to Kazoo using a server-side API key.
-3. Kazoo tokens are cached with an expiry shorter than the server expiry and
+2. Laravel authenticates to Switch using a server-side API key.
+3. Switch tokens are cached with an expiry shorter than the server expiry and
    refreshed under a distributed lock.
 4. A local user belongs to an organization and receives roles and permissions.
-5. An organization is mapped to one or more Kazoo accounts.
+5. An organization is mapped to one or more Switch accounts.
 6. Laravel policies verify both the permission and account mapping before any
-   Kazoo call.
+   Switch call.
 7. Mutations create audit records containing actor, account, resource, action,
    request correlation ID, outcome, and safe change metadata.
 
@@ -374,10 +420,10 @@ Initial roles:
 - Resource-oriented routes with account scope in the URL
 - Consistent success, validation, error, and pagination envelopes
 - UUID/ULID identifiers for application-owned records
-- Kazoo identifiers remain opaque strings
+- Switch identifiers remain opaque strings
 - Correlation ID returned on every response
 - Validation errors use stable field keys
-- Upstream Kazoo errors are translated to stable application error codes
+- Upstream Switch errors are translated to stable application error codes
 - Secrets and PBX credentials are redacted from logs and normal responses
 
 Initial endpoints:
@@ -411,7 +457,7 @@ GET    /api/v1/accounts/{account}/call-records
 
 Acceptance criteria:
 
-- The separately running Kazoo/Monster reference environment is not modified.
+- The separately running Switch/Monster reference environment is not modified.
 - New API and UI build and start through Docker Compose.
 - Default test and static-check commands pass.
 
@@ -421,21 +467,21 @@ Acceptance criteria:
   agreed domain module boundaries before adding PBX feature screens.
 - Implement local users, organizations, roles, permissions, and account maps.
 - Implement Sanctum SPA login/logout/session endpoints.
-- Implement Kazoo API-key authentication and token caching.
+- Implement Switch API-key authentication and token caching.
 - Implement synchronization jobs, checkpoints, projection health, and an
   initial full import for account and extension data.
-- Add account list and Kazoo health boundary.
+- Add account list and Switch health boundary.
 - Build login, application shell, account selector, dashboard, and a read-only
   extensions page.
 
 Acceptance criteria:
 
 - A seeded administrator can sign in without a token in browser storage.
-- The user can only select mapped Kazoo accounts.
+- The user can only select mapped Switch accounts.
 - The extensions page reads its MySQL projection through Laravel and reports
   its synchronization status and last successful refresh.
 - Re-running the account/extension import is idempotent and repairs changed or
-  deleted Kazoo resources.
+  deleted Switch resources.
 
 ### Phase 2: Core PBX management
 
@@ -478,7 +524,7 @@ implementation, especially payment handling.
 ## 12. Test strategy
 
 - `grid-api-switch`: isolated unit tests with fake HTTP responses plus opt-in
-  integration tests against the local Kazoo API.
+  integration tests against the local Switch API.
 - `grid-api`: policy, validation, API contract, database, and service tests.
 - Synchronization: mapping accuracy, idempotent replays, checkpoint recovery,
   stale-data reporting, tombstones, and full projection rebuilds.
@@ -487,7 +533,7 @@ implementation, especially payment handling.
   number routing, and logout.
 - Every bug fix adds a regression test at the lowest effective layer.
 
-Tests that mutate Kazoo must use a dedicated test account and identify created
+Tests that mutate Switch must use a dedicated test account and identify created
 resources so cleanup is deterministic.
 
 ## 13. Definition of done
@@ -501,7 +547,7 @@ A feature is complete when:
 5. Logs and responses do not expose credentials or tokens.
 6. API documentation and user-facing labels are current.
 7. The feature works responsively and passes keyboard navigation checks.
-8. Projected Kazoo data has a tested import, reconciliation, deletion, and
+8. Projected Switch data has a tested import, reconciliation, deletion, and
    freshness path with no credential fields persisted.
 
 ## 14. Deferred decisions

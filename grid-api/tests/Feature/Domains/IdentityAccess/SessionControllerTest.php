@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Domains\IdentityAccess;
 
-use App\Domains\IdentityAccess\Infrastructure\Models\User;
+use App\Domains\IdentityAccess\Models\User;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 

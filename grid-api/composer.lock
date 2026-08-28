@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "bfb488fe6df869d6650283df624cbda0",
+    "content-hash": "727c021f68fa3c5f9149a637121531dc",
     "packages": [
         {
             "name": "brick/math",
@@ -641,12 +641,12 @@
             "time": "2026-08-24T09:06:52+00:00"
         },
         {
-            "name": "gridpbx/kazoo-client",
+            "name": "gridpbx/switch-client",
             "version": "dev-main",
             "dist": {
                 "type": "path",
                 "url": "../grid-api-switch",
-                "reference": "fd5a400d5548453fdac0844efc40e7c5a266bc03"
+                "reference": "e3f969d314bcd67bd1a40f8d1f2c1333e84aa87d"
             },
             "require": {
                 "guzzlehttp/guzzle": "^8.0",
@@ -658,12 +658,12 @@
             "type": "library",
             "autoload": {
                 "psr-4": {
-                    "GridPbx\\Kazoo\\": "src/"
+                    "GridPbx\\Switch\\": "src/"
                 }
             },
             "autoload-dev": {
                 "psr-4": {
-                    "GridPbx\\Kazoo\\Tests\\": "tests/"
+                    "GridPbx\\Switch\\Tests\\": "tests/"
                 }
             },
             "scripts": {
@@ -674,7 +674,7 @@
             "license": [
                 "proprietary"
             ],
-            "description": "Typed Kazoo Crossbar API client for GridPBX.",
+            "description": "Typed Switch Crossbar API client for GridPBX.",
             "transport-options": {
                 "symlink": true,
                 "relative": true
@@ -8905,7 +8905,7 @@
     "aliases": [],
     "minimum-stability": "stable",
     "stability-flags": {
-        "gridpbx/kazoo-client": 20
+        "gridpbx/switch-client": 20
     },
     "prefer-stable": true,
     "prefer-lowest": false,

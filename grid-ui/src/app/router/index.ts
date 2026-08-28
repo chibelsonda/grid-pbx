@@ -26,15 +26,41 @@ const router = createRouter({
           name: 'extensions',
           component: () => import('@/domains/extensions/pages/ExtensionsPage.vue'),
         },
-        ...([
-          ['devices', 'Devices', 'Manage desk phones, softphones, and SIP access.'],
-          ['phone-numbers', 'Phone Numbers', 'View number inventory and assignments.'],
-          ['call-routing', 'Call Routing', 'Build and understand incoming call paths.'],
-          ['voicemail', 'Voicemail & Media', 'Manage greetings, messages, and audio.'],
-          ['call-history', 'Call History', 'Search and inspect account call records.'],
-          ['accounts', 'Accounts', 'Manage accessible Kazoo accounts and context.'],
-          ['settings', 'Settings', 'Configure account and application preferences.'],
-        ] as const).map(([path, title, description]) => ({
+        {
+          path: 'extensions/:extensionId',
+          name: 'extension-detail',
+          component: () => import('@/domains/extensions/pages/ExtensionDetailPage.vue'),
+        },
+        {
+          path: 'devices',
+          name: 'devices',
+          component: () => import('@/domains/devices/pages/DevicesPage.vue'),
+        },
+        {
+          path: 'devices/new',
+          name: 'device-create',
+          component: () => import('@/domains/devices/pages/DeviceFormPage.vue'),
+        },
+        {
+          path: 'devices/:deviceId/edit',
+          name: 'device-edit',
+          component: () => import('@/domains/devices/pages/DeviceFormPage.vue'),
+        },
+        {
+          path: 'devices/:deviceId',
+          name: 'device-detail',
+          component: () => import('@/domains/devices/pages/DeviceDetailPage.vue'),
+        },
+        ...(
+          [
+            ['phone-numbers', 'Phone Numbers', 'View number inventory and assignments.'],
+            ['call-routing', 'Call Routing', 'Build and understand incoming call paths.'],
+            ['voicemail', 'Voicemail & Media', 'Manage greetings, messages, and audio.'],
+            ['call-history', 'Call History', 'Search and inspect account call records.'],
+            ['accounts', 'Accounts', 'Manage accessible Switch accounts and context.'],
+            ['settings', 'Settings', 'Configure account and application preferences.'],
+          ] as const
+        ).map(([path, title, description]) => ({
           path,
           component: () => import('@/shared/components/PlaceholderPage.vue'),
           props: { title, description },

@@ -1,0 +1,134 @@
+<?php
+
+declare(strict_types=1);
+
+namespace GridPbx\Switch\Tests;
+
+use GridPbx\Switch\Contracts\TokenProvider;
+use GridPbx\Switch\Dto\UserSnapshot;
+use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
+use GridPbx\Switch\SwitchClient;
+use GridPbx\Switch\SwitchConfig;
+use GridPbx\Switch\Resources\AccountResource;
+use GridPbx\Switch\Resources\AccountResourceClient;
+use GuzzleHttp\Client;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\HandlerStack;
+use GuzzleHttp\Middleware;
+use GuzzleHttp\Psr7\Response;
+use PHPUnit\Framework\TestCase;
+
+final class AccountResourceClientTest extends TestCase
+{
+    public function test_it_fetches_every_collection_page_and_hydrates_full_detail_snapshots(): void
+    {
+        $responses = new MockHandler([
+            $this->response(['data' => [['id' => 'user-1']], 'next_start_key' => 'page-2']),
+            $this->response(['data' => [
+                'id' => 'user-1',
+                'username' => 'alice',
+                'caller_id' => ['internal' => ['number' => '1001']],
+                'custom_future_field' => ['enabled' => true],
+            ]]),
+            $this->response(['data' => [['id' => 'user-2']]]),
+            $this->response(['data' => [
+                'id' => 'user-2',
+                'username' => 'bob',
+                'caller_id' => ['internal' => ['number' => '1002']],
+            ]]),
+        ]);
+        $history = [];
+        $stack = HandlerStack::create($responses);
+        $stack->push(Middleware::history($history));
+        $http = new Client(['handler' => $stack]);
+        $client = new SwitchClient(
+            $http,
+            new SwitchConfig('http://switch.test/v2', 'unused-api-key'),
+            $this->tokenProvider(),
+        );
+
+        $snapshots = iterator_to_array(
+            (new AccountResourceClient($client, 1))->allDetails('account-1', AccountResource::Users),
+            false,
+        );
+
+        self::assertCount(2, $snapshots);
+        self::assertInstanceOf(UserSnapshot::class, $snapshots[0]);
+        self::assertSame('alice', $snapshots[0]->username);
+        self::assertSame('1001', $snapshots[0]->internalCallerIdNumber);
+        self::assertSame(['enabled' => true], $snapshots[0]->toArray()['custom_future_field']);
+        self::assertSame('bob', $snapshots[1]->username);
+        self::assertSame(
+            [
+                '/v2/accounts/account-1/users?paginate=true&page_size=1',
+                '/v2/accounts/account-1/users/user-1?paginate=false',
+                '/v2/accounts/account-1/users?paginate=true&page_size=1&start_key=page-2',
+                '/v2/accounts/account-1/users/user-2?paginate=false',
+            ],
+            array_map(
+                static fn (array $transaction): string => $transaction['request']->getUri()->getPath()
+                    .($transaction['request']->getUri()->getQuery() !== '' ? '?'.$transaction['request']->getUri()->getQuery() : ''),
+                $history,
+            ),
+        );
+    }
+
+    public function test_it_rejects_a_detail_document_for_a_different_resource(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => ['id' => 'different-user']]),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+        $this->expectExceptionMessage('does not match');
+
+        $client->find('account-1', AccountResource::Users, 'user-1');
+    }
+
+    public function test_it_rejects_a_repeated_pagination_cursor(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => [], 'next_start_key' => 'same-cursor']),
+            $this->response(['data' => [], 'next_start_key' => 'same-cursor']),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+        $this->expectExceptionMessage('repeated cursor');
+
+        iterator_to_array($client->allDetails('account-1', AccountResource::Users));
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function response(array $payload): Response
+    {
+        return new Response(200, [], json_encode($payload + ['status' => 'success'], JSON_THROW_ON_ERROR));
+    }
+
+    /** @param list<Response> $responses */
+    private function clientWithResponses(array $responses): AccountResourceClient
+    {
+        $http = new Client([
+            'handler' => HandlerStack::create(new MockHandler($responses)),
+        ]);
+        $client = new SwitchClient(
+            $http,
+            new SwitchConfig('http://switch.test/v2', 'unused-api-key'),
+            $this->tokenProvider(),
+        );
+
+        return new AccountResourceClient($client, 1);
+    }
+
+    private function tokenProvider(): TokenProvider
+    {
+        return new class implements TokenProvider
+        {
+            public function token(): string
+            {
+                return 'test-token';
+            }
+
+            public function invalidate(): void {}
+        };
+    }
+}

@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import { ArrowPathIcon, MagnifyingGlassIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
+import {
+  ArrowPathIcon,
+  ChevronRightIcon,
+  MagnifyingGlassIcon,
+  UserGroupIcon,
+} from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useExtensionStore } from '../stores/extensionStore'
 
@@ -36,53 +41,171 @@ function synchronize(): void {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / People & Extensions</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">People & Extensions</h1>
-        <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Kazoo.</p>
+        <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Switch.</p>
       </div>
-      <button type="button" :disabled="!accounts.selectedId || extensions.syncing" class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50 sm:ml-auto" @click="synchronize">
+      <button
+        type="button"
+        :disabled="!accounts.selectedId || extensions.syncing"
+        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50 sm:ml-auto"
+        @click="synchronize"
+      >
         <ArrowPathIcon class="size-4" :class="extensions.syncing && 'animate-spin'" />
-        {{ extensions.syncing ? 'Synchronizing…' : 'Sync from Kazoo' }}
+        {{ extensions.syncing ? 'Synchronizing…' : 'Sync from Switch' }}
       </button>
     </div>
   </section>
 
   <div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
-    <div v-if="!accounts.loading && accounts.accounts.length === 0" class="card-surface grid min-h-72 place-items-center p-8 text-center">
-      <div><UserGroupIcon class="mx-auto size-10 text-slate-300" /><h2 class="mt-4 text-sm font-semibold text-slate-700">No Kazoo account is mapped</h2><p class="mt-2 max-w-md text-xs leading-5 text-slate-500">Set KAZOO_ACCOUNT_ID and seed the API database, then return here to run the first projection sync.</p></div>
+    <div
+      v-if="!accounts.loading && accounts.accounts.length === 0"
+      class="card-surface grid min-h-72 place-items-center p-8 text-center"
+    >
+      <div>
+        <UserGroupIcon class="mx-auto size-10 text-slate-300" />
+        <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
+        <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
+          Set SWITCH_ACCOUNT_ID and seed the API database, then return here to run the first
+          projection sync.
+        </p>
+      </div>
     </div>
 
     <template v-else>
       <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <form class="relative w-full max-w-sm" @submit.prevent="search">
-          <MagnifyingGlassIcon class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-          <input v-model="extensions.search" type="search" placeholder="Search name, extension, username…" class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500" />
+          <MagnifyingGlassIcon
+            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+          />
+          <input
+            v-model="extensions.search"
+            type="search"
+            placeholder="Search name, extension, username…"
+            class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
+          />
         </form>
         <div class="sm:ml-auto">
-          <span class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold" :class="extensions.sync.status === 'healthy' ? 'border-emerald-100 bg-emerald-50 text-emerald-700' : extensions.sync.status === 'error' ? 'border-red-100 bg-red-50 text-danger' : 'border-amber-100 bg-amber-50 text-amber-700'">
+          <span
+            class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold"
+            :class="
+              extensions.sync.status === 'healthy'
+                ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+                : extensions.sync.status === 'error'
+                  ? 'border-red-100 bg-red-50 text-danger'
+                  : 'border-amber-100 bg-amber-50 text-amber-700'
+            "
+          >
             <span class="size-2 rounded-full bg-current" /> {{ freshnessLabel }}
           </span>
         </div>
       </div>
 
-      <div v-if="extensions.error" class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger">{{ extensions.error }}</div>
+      <div
+        v-if="extensions.error"
+        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+      >
+        {{ extensions.error }}
+      </div>
 
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full min-w-[760px] text-left">
-            <thead class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"><tr><th class="px-5 py-3.5">Person</th><th class="px-5 py-3.5">Extension</th><th class="px-5 py-3.5">Username</th><th class="px-5 py-3.5">Timezone</th><th class="px-5 py-3.5">Status</th></tr></thead>
+            <thead
+              class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+            >
+              <tr>
+                <th class="px-5 py-3.5">Person</th>
+                <th class="px-5 py-3.5">Extension</th>
+                <th class="px-5 py-3.5">Username</th>
+                <th class="px-5 py-3.5">Timezone</th>
+                <th class="px-5 py-3.5">Status</th>
+                <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+              </tr>
+            </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
-              <tr v-if="extensions.loading"><td colspan="5" class="px-5 py-14 text-center text-slate-400">Loading projected extensions…</td></tr>
-              <tr v-else-if="extensions.records.length === 0"><td colspan="5" class="px-5 py-14 text-center text-slate-400">No projected extensions found. Run a Kazoo sync to populate this account.</td></tr>
-              <tr v-for="record in extensions.records" v-else :key="record.id" class="hover:bg-slate-50/60">
-                <td class="px-5 py-3.5"><div class="font-semibold text-slate-700">{{ record.display_name }}</div><div class="mt-1 text-[10px] text-slate-400">{{ record.email ?? 'No email' }}</div></td>
-                <td class="px-5 py-3.5 font-mono font-semibold text-brand-600">{{ record.extension ?? '—' }}</td>
+              <tr v-if="extensions.loading">
+                <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+                  Loading projected extensions…
+                </td>
+              </tr>
+              <tr v-else-if="extensions.records.length === 0">
+                <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+                  No projected extensions found. Run a Switch sync to populate this account.
+                </td>
+              </tr>
+              <tr
+                v-for="record in extensions.records"
+                v-else
+                :key="record.id"
+                class="hover:bg-slate-50/60"
+              >
+                <td class="px-5 py-3.5">
+                  <RouterLink
+                    :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
+                    class="font-semibold text-slate-700 hover:text-brand-600"
+                    >{{ record.display_name }}</RouterLink
+                  >
+                  <div class="mt-1 text-[10px] text-slate-400">
+                    {{ record.email ?? 'No email' }}
+                  </div>
+                </td>
+                <td class="px-5 py-3.5 font-mono font-semibold text-brand-600">
+                  <RouterLink
+                    :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
+                    >{{ record.extension ?? '—' }}</RouterLink
+                  >
+                </td>
                 <td class="px-5 py-3.5 text-slate-500">{{ record.username ?? '—' }}</td>
                 <td class="px-5 py-3.5 text-slate-500">{{ record.timezone ?? '—' }}</td>
-                <td class="px-5 py-3.5"><span class="rounded-full px-2.5 py-1 text-[10px] font-bold" :class="record.is_enabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'">{{ record.is_enabled ? 'Enabled' : 'Disabled' }}</span></td>
+                <td class="px-5 py-3.5">
+                  <span
+                    class="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                    :class="
+                      record.is_enabled
+                        ? 'bg-emerald-50 text-emerald-700'
+                        : 'bg-slate-100 text-slate-500'
+                    "
+                    >{{ record.is_enabled ? 'Enabled' : 'Disabled' }}</span
+                  >
+                </td>
+                <td class="px-5 py-3.5">
+                  <RouterLink
+                    :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
+                    :aria-label="`View ${record.display_name}`"
+                    class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
+                    ><ChevronRightIcon class="size-4"
+                  /></RouterLink>
+                </td>
               </tr>
             </tbody>
           </table>
         </div>
-        <footer class="flex items-center border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"><span>{{ extensions.total }} extensions</span><div class="ml-auto flex items-center gap-2"><button type="button" :disabled="extensions.page <= 1" class="rounded border border-slate-200 px-3 py-1.5 disabled:opacity-40" @click="accounts.selectedId && extensions.load(accounts.selectedId, extensions.page - 1)">Previous</button><span>Page {{ extensions.page }} of {{ extensions.lastPage }}</span><button type="button" :disabled="extensions.page >= extensions.lastPage" class="rounded border border-slate-200 px-3 py-1.5 disabled:opacity-40" @click="accounts.selectedId && extensions.load(accounts.selectedId, extensions.page + 1)">Next</button></div></footer>
+        <footer
+          class="flex items-center border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"
+        >
+          <span>{{ extensions.total }} extensions</span>
+          <div class="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              :disabled="extensions.page <= 1"
+              class="rounded border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+              @click="
+                accounts.selectedId && extensions.load(accounts.selectedId, extensions.page - 1)
+              "
+            >
+              Previous</button
+            ><span>Page {{ extensions.page }} of {{ extensions.lastPage }}</span
+            ><button
+              type="button"
+              :disabled="extensions.page >= extensions.lastPage"
+              class="rounded border border-slate-200 px-3 py-1.5 disabled:opacity-40"
+              @click="
+                accounts.selectedId && extensions.load(accounts.selectedId, extensions.page + 1)
+              "
+            >
+              Next
+            </button>
+          </div>
+        </footer>
       </div>
     </template>
   </div>

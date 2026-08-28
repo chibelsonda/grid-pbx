@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace GridPbx\Kazoo\Contracts;
+namespace GridPbx\Switch\Contracts;
 
 interface TokenProvider
 {

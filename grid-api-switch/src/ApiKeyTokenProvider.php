@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace GridPbx\Kazoo;
+namespace GridPbx\Switch;
 
-use GridPbx\Kazoo\Contracts\TokenProvider;
-use GridPbx\Kazoo\Exceptions\KazooAuthenticationException;
+use GridPbx\Switch\Contracts\TokenProvider;
+use GridPbx\Switch\Exceptions\SwitchAuthenticationException;
 use GuzzleHttp\ClientInterface;
 use JsonException;
 use Throwable;
@@ -16,7 +16,7 @@ final class ApiKeyTokenProvider implements TokenProvider
 
     public function __construct(
         private readonly ClientInterface $http,
-        private readonly KazooConfig $config,
+        private readonly SwitchConfig $config,
     ) {
     }
 
@@ -37,13 +37,13 @@ final class ApiKeyTokenProvider implements TokenProvider
             /** @var array<string, mixed> $payload */
             $payload = json_decode((string) $response->getBody(), true, flags: JSON_THROW_ON_ERROR);
         } catch (JsonException $exception) {
-            throw new KazooAuthenticationException(
-                'Kazoo returned an invalid authentication response.',
+            throw new SwitchAuthenticationException(
+                'Switch returned an invalid authentication response.',
                 previous: $exception,
             );
         } catch (Throwable $exception) {
-            throw new KazooAuthenticationException(
-                'Kazoo authentication failed.',
+            throw new SwitchAuthenticationException(
+                'Switch authentication failed.',
                 previous: $exception,
             );
         }
@@ -51,7 +51,7 @@ final class ApiKeyTokenProvider implements TokenProvider
         $token = $payload['auth_token'] ?? null;
 
         if (($payload['status'] ?? null) !== 'success' || ! is_string($token) || $token === '') {
-            throw new KazooAuthenticationException('Kazoo did not return an authentication token.');
+            throw new SwitchAuthenticationException('Switch did not return an authentication token.');
         }
 
         return $this->token = $token;

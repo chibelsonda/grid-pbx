@@ -48,4 +48,18 @@ if ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" 
   exit 1
 fi
 
-echo "GridPBX UI, API health, Sanctum login, session, and account endpoints are healthy."
+account_id="$(php -r '$payload=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); echo $payload["data"][0]["id"] ?? "";' "${smoke_dir}/accounts.json")"
+
+if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/extensions" -o "${smoke_dir}/extensions.json"; then
+  echo "GridPBX extension projection smoke test failed:" >&2
+  cat "${smoke_dir}/extensions.json" >&2
+  exit 1
+fi
+
+if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/devices" -o "${smoke_dir}/devices.json"; then
+  echo "GridPBX device projection smoke test failed:" >&2
+  cat "${smoke_dir}/devices.json" >&2
+  exit 1
+fi
+
+echo "GridPBX UI, API health, Sanctum login, session, account, extension, and device projection endpoints are healthy."

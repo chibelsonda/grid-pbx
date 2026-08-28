@@ -58,11 +58,11 @@ services:
       SANCTUM_STATEFUL_DOMAINS: localhost:${GRID_UI_PORT:-5173},127.0.0.1:${GRID_UI_PORT:-5173}
       GRID_ADMIN_EMAIL: ${GRID_ADMIN_EMAIL:-admin@gridpbx.local}
       GRID_ADMIN_PASSWORD: ${GRID_ADMIN_PASSWORD:-admin-change-me}
-      KAZOO_BASE_URL: ${KAZOO_BASE_URL:-http://kazoo:8000/v2}
-      KAZOO_API_KEY: ${KAZOO_API_KEY:-}
-      KAZOO_ACCOUNT_ID: ${KAZOO_ACCOUNT_ID:-}
-      KAZOO_ACCOUNT_NAME: ${KAZOO_ACCOUNT_NAME:-GridPBX}
-      KAZOO_ACCOUNT_REALM: ${KAZOO_ACCOUNT_REALM:-gridpbx.local}
+      SWITCH_BASE_URL: ${SWITCH_BASE_URL:-http://switch:8000/v2}
+      SWITCH_API_KEY: ${SWITCH_API_KEY:-}
+      SWITCH_ACCOUNT_ID: ${SWITCH_ACCOUNT_ID:-}
+      SWITCH_ACCOUNT_NAME: ${SWITCH_ACCOUNT_NAME:-GridPBX}
+      SWITCH_ACCOUNT_REALM: ${SWITCH_ACCOUNT_REALM:-gridpbx.local}
     volumes:
       - ./grid-api:/app
       - ./grid-api-switch:/grid-api-switch
@@ -134,9 +134,9 @@ services:
       QUEUE_CONNECTION: redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      KAZOO_BASE_URL: ${KAZOO_BASE_URL:-http://kazoo:8000/v2}
-      KAZOO_API_KEY: ${KAZOO_API_KEY:-}
-      KAZOO_ACCOUNT_ID: ${KAZOO_ACCOUNT_ID:-}
+      SWITCH_BASE_URL: ${SWITCH_BASE_URL:-http://switch:8000/v2}
+      SWITCH_API_KEY: ${SWITCH_API_KEY:-}
+      SWITCH_ACCOUNT_ID: ${SWITCH_ACCOUNT_ID:-}
     volumes:
       - ./grid-api:/app
       - ./grid-api-switch:/grid-api-switch

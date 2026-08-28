@@ -1,5 +1,5 @@
 import { http, type ApiResponse } from '@/shared/api/http'
-import type { Extension, SyncRun, SyncState } from '../types/extension'
+import type { Extension, ExtensionDetail, SyncRun, SyncState } from '../types/extension'
 
 export type ExtensionPage = {
   data: Extension[]
@@ -21,13 +21,24 @@ export const extensionApi = {
 
     return response.data
   },
+  async detail(accountId: string, extensionId: string): Promise<ExtensionDetail> {
+    const response = await http.get<ApiResponse<ExtensionDetail>>(
+      `/api/v1/accounts/${accountId}/extensions/${extensionId}`,
+    )
+
+    return response.data.data
+  },
   async startSync(accountId: string): Promise<SyncRun> {
-    const response = await http.post<ApiResponse<SyncRun>>(`/api/v1/accounts/${accountId}/sync/extensions`)
+    const response = await http.post<ApiResponse<SyncRun>>(
+      `/api/v1/accounts/${accountId}/sync/extensions`,
+    )
 
     return response.data.data
   },
   async syncRun(accountId: string, runId: string): Promise<SyncRun> {
-    const response = await http.get<ApiResponse<SyncRun>>(`/api/v1/accounts/${accountId}/sync/extensions/${runId}`)
+    const response = await http.get<ApiResponse<SyncRun>>(
+      `/api/v1/accounts/${accountId}/sync/extensions/${runId}`,
+    )
 
     return response.data.data
   },

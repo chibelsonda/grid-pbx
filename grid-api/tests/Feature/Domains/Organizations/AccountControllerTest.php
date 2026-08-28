@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Domains\Organizations;
 
-use App\Domains\IdentityAccess\Infrastructure\Models\User;
-use App\Domains\Organizations\Infrastructure\Models\KazooAccount;
-use App\Domains\Organizations\Infrastructure\Models\Organization;
+use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Organizations\Models\Organization;
+use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -17,8 +17,8 @@ class AccountControllerTest extends TestCase
         $user = User::factory()->create();
         $organization = Organization::factory()->create();
         $organization->users()->attach($user, ['role' => 'account_operator']);
-        $visible = KazooAccount::factory()->for($organization)->create(['name' => 'Visible PBX']);
-        KazooAccount::factory()->create(['name' => 'Hidden PBX']);
+        $visible = SwitchAccount::factory()->for($organization)->create(['name' => 'Visible PBX']);
+        SwitchAccount::factory()->create(['name' => 'Hidden PBX']);
 
         $this->actingAs($user)->getJson('/api/v1/accounts')
             ->assertOk()

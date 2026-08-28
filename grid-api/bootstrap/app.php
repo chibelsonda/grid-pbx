@@ -1,5 +1,6 @@
 <?php
 
+use GridPbx\Switch\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,4 +23,25 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+        $exceptions->render(function (SwitchRequestException $exception, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            if (in_array($exception->statusCode, [400, 409, 422], true)) {
+                return response()->json([
+                    'message' => 'Switch rejected the submitted configuration.',
+                ], 422);
+            }
+
+            if ($exception->statusCode === 404) {
+                return response()->json([
+                    'message' => 'The Switch resource is no longer available. Synchronize and try again.',
+                ], 409);
+            }
+
+            return response()->json([
+                'message' => 'Switch is unavailable. Try again later.',
+            ], 502);
+        });
     })->create();

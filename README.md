@@ -3,19 +3,19 @@
 This repository contains the new GridPBX management application:
 
 - `grid-api`: Laravel API with Sanctum authentication and MySQL persistence
-- `grid-api-switch`: framework-independent PHP client boundary for Kazoo
+- `grid-api-switch`: framework-independent PHP client boundary for Switch
 - `grid-ui`: Vue 3, TypeScript, Pinia, Vue Router, and Tailwind CSS application
 - Domain-driven modules in the API and domain-oriented feature modules in the UI
 - MySQL 8.4 and Redis 7 for the new application
 
-Kazoo and Monster UI source code are intentionally excluded from this
-repository. GridPBX integrates with an independently running Kazoo Crossbar API
+Switch and Monster UI source code are intentionally excluded from this
+repository. GridPBX integrates with an independently running Switch Crossbar API
 through `grid-api-switch`; it does not embed or publish the legacy platform.
 
 The implementation roadmap and architecture decisions live in
 [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). The PBX capability
 catalog and delivery priorities live in
-[docs/KAZOO_FEATURE_ROADMAP.md](docs/KAZOO_FEATURE_ROADMAP.md).
+[docs/SWITCH_FEATURE_ROADMAP.md](docs/SWITCH_FEATURE_ROADMAP.md).
 
 All published ports bind to `127.0.0.1`.
 
@@ -46,7 +46,7 @@ The initial local Laravel account is:
 - Password: `admin-change-me`
 
 The current vertical slice includes secure UI login, tenant-scoped account
-selection, a searchable MySQL extension projection, manual Kazoo sync, sync
+selection, a searchable MySQL extension projection, manual Switch sync, sync
 status, and a dedicated Redis queue worker.
 
 ## Start or resume
@@ -58,19 +58,19 @@ docker compose up -d
 bash scripts/status.sh
 ```
 
-## Connect an external Kazoo API
+## Connect an external Switch API
 
 Set these values in the root `.env` file:
 
 ```dotenv
-KAZOO_BASE_URL=http://kazoo:8000/v2
-KAZOO_API_KEY=
-KAZOO_ACCOUNT_ID=
+SWITCH_BASE_URL=http://switch:8000/v2
+SWITCH_API_KEY=
+SWITCH_ACCOUNT_ID=
 ```
 
 The local reference container is attached to the same Docker network and uses
-the hostname `kazoo`. For another independently managed environment, replace
-the URL with a Crossbar `/v2` endpoint reachable from the API container. Kazoo
+the hostname `switch`. For another independently managed environment, replace
+the URL with a Crossbar `/v2` endpoint reachable from the API container. Switch
 credentials remain server-side and must never be added to the repository.
 
 ## Stop and inspect
@@ -88,5 +88,5 @@ for an intentional clean reset.
 ## Scope and caveats
 
 This is a management API/UI development environment, not a production PBX. It
-does not include Kazoo, a SIP edge, FreeSWITCH media servers, or RTP services;
+does not include Switch, a SIP edge, FreeSWITCH media servers, or RTP services;
 calls will not terminate or originate through this repository alone.

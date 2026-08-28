@@ -1,6 +1,6 @@
 <?php
 
-use App\Domains\IdentityAccess\Presentation\Http\Controllers\SessionController;
+use App\Domains\IdentityAccess\Controllers\SessionController;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/login', [SessionController::class, 'store'])->middleware('guest')->name('login');

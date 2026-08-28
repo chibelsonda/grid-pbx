@@ -1,7 +1,7 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "gridpbx/kazoo-client",
-    "description": "Typed Kazoo Crossbar API client for GridPBX.",
+    "name": "gridpbx/switch-client",
+    "description": "Typed Switch Crossbar API client for GridPBX.",
     "type": "library",
     "license": "proprietary",
     "require": {
@@ -13,12 +13,12 @@
     },
     "autoload": {
         "psr-4": {
-            "GridPbx\\Kazoo\\": "src/"
+            "GridPbx\\Switch\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "GridPbx\\Kazoo\\Tests\\": "tests/"
+            "GridPbx\\Switch\\Tests\\": "tests/"
         }
     },
     "scripts": {

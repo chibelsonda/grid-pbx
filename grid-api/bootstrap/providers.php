@@ -1,9 +1,9 @@
 <?php
 
 use App\Providers\AppServiceProvider;
-use App\Providers\KazooServiceProvider;
+use App\Providers\SwitchServiceProvider;
 
 return [
     AppServiceProvider::class,
-    KazooServiceProvider::class,
+    SwitchServiceProvider::class,
 ];

@@ -7,9 +7,9 @@ return [
         'password' => env('GRID_ADMIN_PASSWORD', 'admin-change-me'),
     ],
 
-    'kazoo_account' => [
-        'id' => env('KAZOO_ACCOUNT_ID'),
-        'name' => env('KAZOO_ACCOUNT_NAME', 'GridPBX'),
-        'realm' => env('KAZOO_ACCOUNT_REALM', 'gridpbx.local'),
+    'switch_account' => [
+        'id' => env('SWITCH_ACCOUNT_ID'),
+        'name' => env('SWITCH_ACCOUNT_NAME', 'GridPBX'),
+        'realm' => env('SWITCH_ACCOUNT_REALM', 'gridpbx.local'),
     ],
 ];
