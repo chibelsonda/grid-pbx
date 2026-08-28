@@ -82,6 +82,36 @@ const router = createRouter({
           component: () => import('@/domains/menus/pages/MenusPage.vue'),
         },
         {
+          path: 'business-hours',
+          name: 'business-hours',
+          component: () => import('@/domains/temporal-routing/pages/TemporalRoutingPage.vue'),
+        },
+        {
+          path: 'blacklists',
+          name: 'blacklists',
+          component: () => import('@/domains/blacklists/pages/BlacklistsPage.vue'),
+        },
+        {
+          path: 'recordings',
+          name: 'recordings',
+          component: () => import('@/domains/recordings/pages/RecordingsPage.vue'),
+        },
+        {
+          path: 'conferences',
+          name: 'conferences',
+          component: () => import('@/domains/conferences/pages/ConferencesPage.vue'),
+        },
+        {
+          path: 'faxes',
+          name: 'faxes',
+          component: () => import('@/domains/faxes/pages/FaxesPage.vue'),
+        },
+        {
+          path: 'services',
+          name: 'services',
+          component: () => import('@/domains/services/pages/ServicesPage.vue'),
+        },
+        {
           path: 'voicemail/new',
           name: 'voicemail-create',
           component: () => import('@/domains/voicemail/pages/VoicemailBoxFormPage.vue'),

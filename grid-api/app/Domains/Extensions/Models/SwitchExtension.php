@@ -3,7 +3,10 @@
 namespace App\Domains\Extensions\Models;
 
 use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\Conferences\Models\SwitchConference;
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Faxes\Models\SwitchFax;
+use App\Domains\Faxes\Models\SwitchFaxBox;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Models\SwitchQueueAgent;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
@@ -57,6 +60,9 @@ class SwitchExtension extends Model
         return $this->hasMany(SwitchDevice::class, 'switch_extension_id', 'extension_id');
     }
 
+    /** @return HasMany<SwitchFaxBox, $this> */ public function faxBoxes(): HasMany { return $this->hasMany(SwitchFaxBox::class, 'owner_extension_id', 'extension_id'); }
+    /** @return HasMany<SwitchFax, $this> */ public function faxes(): HasMany { return $this->hasMany(SwitchFax::class, 'switch_extension_id', 'extension_id'); }
+
     /** @return HasMany<SwitchVoicemailBox, $this> */
     public function voicemailBoxes(): HasMany
     {
@@ -67,6 +73,12 @@ class SwitchExtension extends Model
     public function callflows(): HasMany
     {
         return $this->hasMany(SwitchCallflow::class, 'switch_extension_id', 'extension_id');
+    }
+
+    /** @return HasMany<SwitchConference, $this> */
+    public function conferences(): HasMany
+    {
+        return $this->hasMany(SwitchConference::class, 'owner_extension_id', 'extension_id');
     }
 
     /** @return HasMany<SwitchQueueAgent, $this> */

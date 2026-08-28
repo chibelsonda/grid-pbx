@@ -51,4 +51,9 @@ class OrganizationAccessService
     {
         return $this->roleFor($user, $account)?->canSyncCallDetailRecords() ?? false;
     }
+
+    public function canViewServices(User $user, SwitchAccount $account): bool
+    {
+        return $this->roleFor($user, $account)?->canViewServices() ?? false;
+    }
 }

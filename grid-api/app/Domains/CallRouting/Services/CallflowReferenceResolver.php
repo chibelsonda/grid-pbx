@@ -40,9 +40,12 @@ class CallflowReferenceResolver
     {
         $module = is_string($node['module'] ?? null) ? $node['module'] : 'unknown';
         $targetType = $this->targetType($module);
-        $resourceId = is_array($node['data'] ?? null) && is_string($node['data']['id'] ?? null)
-            ? $node['data']['id']
-            : null;
+        $data = is_array($node['data'] ?? null) ? $node['data'] : [];
+        $resourceId = match ($module) {
+            'temporal_route' => is_string($data['rule_set'] ?? null) ? $data['rule_set'] : null,
+            'faxbox' => is_string($data['id'] ?? null) ? $data['id'] : (is_string($data['faxbox_id'] ?? null) ? $data['faxbox_id'] : null),
+            default => is_string($data['id'] ?? null) ? $data['id'] : null,
+        };
         $target = $targetType !== null && $resourceId !== null
             ? ($targets[$targetType][$resourceId] ?? null)
             : null;
@@ -125,6 +128,15 @@ class CallflowReferenceResolver
             'menu' => $account->menus()->get()->mapWithKeys(fn ($menu): array => [
                 $menu->switch_resource_id => ['id' => $menu->id, 'label' => $menu->name],
             ])->all(),
+            'conference' => $account->conferences()->get()->mapWithKeys(fn ($conference): array => [
+                $conference->switch_resource_id => ['id' => $conference->id, 'label' => $conference->name],
+            ])->all(),
+            'fax_box' => $account->faxBoxes()->get()->mapWithKeys(fn ($box): array => [
+                $box->switch_resource_id => ['id' => $box->id, 'label' => $box->name],
+            ])->all(),
+            'temporal_rule_set' => $account->temporalRuleSets()->get()->mapWithKeys(fn ($set): array => [
+                $set->switch_resource_id => ['id' => $set->id, 'label' => $set->name],
+            ])->all(),
         ];
     }
 
@@ -140,6 +152,9 @@ class CallflowReferenceResolver
             'group' => 'group',
             'acdc_member', 'acdc_queue' => 'queue',
             'menu' => 'menu',
+            'conference' => 'conference',
+            'faxbox' => 'fax_box',
+            'temporal_route' => 'temporal_rule_set',
             default => null,
         };
     }

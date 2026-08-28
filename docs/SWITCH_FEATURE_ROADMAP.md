@@ -77,24 +77,24 @@ to `Complete` only through the delivery checklist in section 11.
 | Requested area | GridPBX treatment | Persistence and delivery rule | Status |
 | --- | --- | --- | --- |
 | Account | Account mapping, hierarchy, settings, and capability discovery | Project safe account metadata and the redacted detail `data` object | Foundation |
-| Blacklist | Blacklist CRUD, number entries, and routing dependencies | Project searchable entries and a redacted source snapshot | Planned |
+| Blacklist | Blacklist CRUD, number entries, and account-level inbound activation | Normalized searchable entries, active state, and the complete redacted `data` snapshot delivered | Foundation |
 | CallDetailRecord | Call history, filters, and interaction detail | Project only approved fields and allowlisted `switch_json`; retention and partitioning must be agreed before production scheduling | Foundation |
 | Callflow | Routing inventory, dependency resolution, guided editing, and safe unknown-branch preservation | Project routing summaries and a redacted detail snapshot | Foundation |
-| Conference | Conference configuration, numbers, members, and permitted controls | Project configuration without exposing PINs or other secrets | Planned |
+| Conference | Conference configuration, role access numbers, participant behavior, last-observed runtime status, and guided routing | Normalize role-number relationships, retain the full redacted `data` snapshot, and store only PIN-configured flags | Foundation |
 | Device | Device CRUD, user assignment, registrations, and provisioning metadata | Project safe device and registration state; never persist or return SIP secrets | Foundation |
 | Directory | Directory CRUD and user membership | Project directory metadata and relationships | Foundation |
-| Fax | Fax-box configuration and authorized message/document access | Metadata projection only; stream documents on demand | Conditional |
+| Fax | Fax-box configuration, inbound/outbound message inventory, authorized document access, and guided routing | Normalize safe searchable metadata, retain redacted `data` snapshots in `switch_json`, and stream documents on demand | Foundation |
 | Group | Group and ring-group configuration, membership, endpoints, and strategy | Project group/member relationships and safe configuration | Foundation |
 | LineKey | Device line-key configuration and provisioning preview | Treat as device/provisioning configuration; enable only for confirmed device and provisioner schemas | Conditional |
 | Media | Media metadata, prompts, music-on-hold, upload, and authorized streaming | Project metadata and redacted detail only; do not duplicate binary content in MySQL by default | Foundation |
 | Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | CRUD, prompt/media relationships, sync, dependency-safe delete, and guided routing delivered; branch editing remains part of the visual callflow editor | Foundation |
 | PhoneNumber | Number inventory, features, assignment, and approved carrier workflows | Project normalized inventory plus redacted detail snapshots | Foundation |
 | Queue | Queue CRUD, agents, membership, state, and statistics | Capability-driven projection; configuration requires the target ACD/queue application | Foundation |
-| Recording | Recording search, metadata, and authorized playback/download | Metadata projection only by default; retention and access-audit policy required | Planned |
-| Services | Account service-plan, limits, quantities, and billing-impact summaries exposed by Switch | Project an authorized, safe summary; begin read-only and require explicit billing authority before any mutation | Planned |
+| Recording | Recording search, metadata, and authorized playback/download | Bounded metadata-only projection, redacted source snapshot, relationship resolution, audited range streaming, and right-side detail UI delivered; deletion remains disabled pending retention policy | Foundation |
+| Services | Account service-plan, limits, quantities, standing, billing-cycle, and billing-impact summaries exposed by Switch | Administrator-only normalized read projection with redacted `switch_json`; all billing mutations remain disabled | Foundation |
 | SystemStatus | Connectivity, capability, and relevant telephony health summaries | Live checks or short-lived cache; do not persist full infrastructure payloads as durable projections | Foundation |
-| TemporalRule | Business-hours, holiday, and time-of-day rule CRUD | Project validated schedules and dependency summaries | Planned |
-| TemporalRuleSet | Rule-set CRUD, ordering, enable/disable, and reset workflows | Project rule membership, order, and effective-state summaries | Planned |
+| TemporalRule | Business-hours, holiday, and time-of-day rule CRUD | Validated normalized schedules, redacted source snapshots, CRUD, sync, and dependency-safe deletion delivered | Foundation |
+| TemporalRuleSet | Rule-set CRUD, ordering, enable/disable, and reset workflows | Ordered membership, CRUD, sync, and guided `temporal_route` routing delivered; live enable/disable/reset commands remain planned | Foundation |
 | User | User CRUD, identity, caller ID, feature state, and resource assignments | Project safe identity/settings and redacted detail snapshots | Foundation |
 | Voicemail | Mailbox CRUD, assignments, greetings, messages, and permitted lifecycle actions | Project mailbox/message metadata; stream audio and keep PINs write-only | Foundation |
 
@@ -352,18 +352,19 @@ module-gated.
 | --- | --- | --- | --- | --- |
 | Advanced callflows | Visual tree editor, validation, version-safe updates, dependency view | Callflows and referenced resources | Searchable summary plus safe source snapshot | Planned |
 | IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, and guided routing delivered; advanced DTMF branch editing remains planned | Foundation |
-| Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Effective schedule summary | Planned |
+| Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Rule and ordered Rule Set CRUD, projection/sync, safe deletion, and guided routing delivered; effective-state controls remain planned | Foundation |
 | Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Metadata only; binary streamed/stored externally | Foundation |
 | Directories | CRUD and user membership | Directories and users | Directory membership projection | Foundation |
 | Groups and ring groups | CRUD, membership, endpoints, ring strategy | Groups, users, devices, callflows | Group/member relationships | Foundation |
-| Conferences | CRUD, numbers, pins, members, basic controls | Conferences and callflows | Conference configuration; no PIN exposure | Planned |
-| Fax boxes | CRUD, assignment, inbound/outbound message metadata | Fax boxes, faxes, users | Metadata; documents streamed on demand | Conditional |
-| Blacklists | CRUD, number entries, callflow use | Blacklists and callflows | Entries and dependency summary | Planned |
+| Conferences | CRUD, role numbers, write-only PIN replacement/removal, participant behavior, and runtime summary | Conferences and callflows | Normalized role-number projection, owner relationship, redacted source snapshot, dependency-safe deletion, guided routing, and right-side panel delivered; live participant commands remain planned | Foundation |
+| Fax boxes | CRUD, owner assignment, inbound/outbound message metadata, protected document access, and guided callflow destinations | Fax boxes, faxes, users, and callflows | Normalized fax-box/message projections, redacted `switch_json`, bounded import window, dependency-safe deletion, right-side panels, and audited document streaming delivered; sending, forwarding, resubmission, and message deletion remain policy-gated | Foundation |
+| Blacklists | CRUD, number entries, anonymous-caller policy, and account activation | Blacklists and account settings | Normalized entries, redacted source snapshot, safe activation/deactivation, sync, and right-side UI panel delivered | Foundation |
 | Feature codes | View and manage supported star-code callflows for DND, hotdesk, voicemail, and related actions | Callflows | Code, action, enabled state, and dependency summary | Planned |
 | Account voice settings | Caller ID, timezone, language, music on hold, and supported account defaults | Accounts, media, configs | Safe effective-setting summary | Planned |
 | Call history | Search, direction/date/duration/outcome/cause filters, interaction detail | CDRs | Bounded, indexed CDR projection | Foundation |
-| Recordings | Search, metadata, authorized playback/download | Recordings and storage | Metadata only by default | Planned |
+| Recordings | Search, metadata, authorized playback/download | Recordings and storage | Bounded metadata-only projection, audited protected playback/download, and no GridPBX deletion until retention/provider cleanup is approved | Foundation |
 | Active channels | Current calls and account activity | Channels | Short-lived cache, not durable projection | Conditional |
+| Services and limits | Assigned plans, account/cascade/manual quantities, standing, billing cycle, current limits, and aggregate billing impact | Services summary and limits | Administrator-only read projection, payment/bookkeeper redaction, queued sync, and right-side detail panel delivered; plan/limit/top-up/charge mutations remain disabled | Foundation |
 
 Implementation status: Foundation. The entity-organized Switch client now
 paginates media inventory, hydrates full metadata, creates and updates bounded
@@ -400,9 +401,13 @@ account/date, direction, owner, interaction, cause, and duration query paths.
 The JSON snapshot is an explicit allowlist from each response `data` item and
 omits costs, rates, authorization IDs, recording URLs/media lists, SIP headers,
 DTMF, and SDP. Vue provides responsive filters and a read-only right-side
-detail panel. Recording availability is only a boolean; playback/download is
-disabled. No production scheduler, automatic retention deletion, partitioning,
-or recording access is enabled until the decisions above are approved.
+detail panel. The separate Recording foundation uses a bounded 31-day default
+window, projects normalized metadata plus the complete redacted recording
+`data` object, resolves extension/CDR relationships, and streams audio through
+an authorized, audited API with byte-range support. Binary content is never
+copied to MySQL. Recording deletion, automatic retention, production
+scheduling, and object-provider cleanup remain disabled until those policies
+are approved.
 
 ## 7. Callflow module catalog
 

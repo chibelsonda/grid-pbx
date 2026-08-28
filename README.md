@@ -88,6 +88,54 @@ must also keep `acdc` in its startup application configuration so the runtime
 service returns after a restart. GridPBX intentionally does not own or package
 that Switch configuration.
 
+Recording inventory and protected audio access require the existing Crossbar
+recordings module to be autoloaded on the external Switch node:
+
+```bash
+sup crossbar_maintenance start_module cb_recordings
+```
+
+GridPBX stores recording metadata only; audio remains in Switch or its selected
+storage provider.
+
+Conference management requires the Crossbar conferences module:
+
+```bash
+sup crossbar_maintenance start_module cb_conferences
+```
+
+GridPBX stores conference configuration and redacted response data in MySQL.
+PINs remain write-only, and live participants are not persisted as durable
+database rows.
+
+Fax management requires the Crossbar fax-box and fax-message modules:
+
+```bash
+sup crossbar_maintenance start_module cb_faxboxes
+sup crossbar_maintenance start_module cb_faxes
+```
+
+The external Switch deployment must also provide its fax application, document
+storage, and notification services. GridPBX stores fax-box configuration and a
+bounded, redacted metadata projection in MySQL; fax documents remain in Switch
+or its storage provider and are streamed only after an authorized request.
+Outbound sending, forwarding, resubmission, and deletion are intentionally not
+enabled until retention, notification, and abuse-control policies are agreed.
+
+The read-only Services overview requires the account services and v2 limits
+Crossbar modules:
+
+```bash
+sup crossbar_maintenance start_module cb_services
+sup crossbar_maintenance start_module cb_limits_v2
+```
+
+GridPBX projects assigned-plan metadata, flattened account/cascade/manual
+quantities, current limits, account standing, billing-cycle metadata, and
+aggregate billing impact. Payment tokens, billing identifiers, and bookkeeper
+configuration are redacted. Plan assignment, limit changes, manual quantities,
+top-ups, and charge acceptance are not exposed by GridPBX.
+
 ## Stop and inspect
 
 ```bash

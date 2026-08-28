@@ -227,6 +227,9 @@ class CallflowMutationService
             'group' => $account->groups()->where('id', $data['destination_id'])->firstOrFail(),
             'queue' => $account->queues()->where('id', $data['destination_id'])->firstOrFail(),
             'menu' => $account->menus()->where('id', $data['destination_id'])->firstOrFail(),
+            'conference' => $account->conferences()->where('id', $data['destination_id'])->firstOrFail(),
+            'fax_box' => $account->faxBoxes()->where('id', $data['destination_id'])->firstOrFail(),
+            'temporal_rule_set' => $account->temporalRuleSets()->where('id', $data['destination_id'])->firstOrFail(),
         };
 
         return [
@@ -240,6 +243,9 @@ class CallflowMutationService
                 'group' => 'group',
                 'queue' => 'acdc_member',
                 'menu' => 'menu',
+                'conference' => 'conference',
+                'fax_box' => 'faxbox',
+                'temporal_rule_set' => 'temporal_route',
             },
             $target->switch_resource_id,
         ];

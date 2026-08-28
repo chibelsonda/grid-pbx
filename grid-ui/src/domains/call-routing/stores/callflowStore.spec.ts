@@ -136,6 +136,9 @@ describe('callflow store', () => {
         group: [],
         queue: [],
         menu: [],
+        conference: [],
+        fax_box: [],
+        temporal_rule_set: [],
       },
       phone_numbers: [
         {
@@ -196,6 +199,9 @@ describe('callflow store', () => {
         group: [],
         queue: [],
         menu: [],
+        conference: [],
+        fax_box: [],
+        temporal_rule_set: [],
       },
       phone_numbers: [
         {

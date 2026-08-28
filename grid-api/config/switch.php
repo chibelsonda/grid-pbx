@@ -6,4 +6,8 @@ return [
     'timeout' => (float) env('SWITCH_TIMEOUT', 10),
     'cdr_page_size' => (int) env('SWITCH_CDR_PAGE_SIZE', 200),
     'cdr_import_window_days' => (int) env('SWITCH_CDR_IMPORT_WINDOW_DAYS', 7),
+    'recording_page_size' => (int) env('SWITCH_RECORDING_PAGE_SIZE', 200),
+    'recording_import_window_days' => (int) env('SWITCH_RECORDING_IMPORT_WINDOW_DAYS', 31),
+    'fax_page_size' => (int) env('SWITCH_FAX_PAGE_SIZE', 200),
+    'fax_import_window_days' => (int) env('SWITCH_FAX_IMPORT_WINDOW_DAYS', 31),
 ];

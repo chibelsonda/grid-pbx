@@ -14,6 +14,13 @@ final readonly class CallflowWriteData
         'voicemail',
         'callflow',
         'play',
+        'directory',
+        'group',
+        'acdc_member',
+        'menu',
+        'conference',
+        'faxbox',
+        'temporal_route',
     ];
 
     /**
@@ -68,7 +75,9 @@ final readonly class CallflowWriteData
         /** @var array<string, mixed> $flow */
         $flow = $data['flow'];
         $flow['module'] = $this->destinationModule;
-        $flow['data'] = ['id' => $this->destinationResourceId];
+        $flow['data'] = $this->destinationModule === 'temporal_route'
+            ? ['rule_set' => $this->destinationResourceId]
+            : ['id' => $this->destinationResourceId];
         $flow['children'] = is_array($flow['children'] ?? null) ? $flow['children'] : [];
         $data['flow'] = $flow;
 

@@ -2,18 +2,29 @@
 
 namespace App\Domains\Organizations\Models;
 
+use App\Domains\Blacklists\Models\SwitchBlacklist;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\Conferences\Models\SwitchConference;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Directories\Models\SwitchDirectory;
 use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\Faxes\Models\SwitchFax;
+use App\Domains\Faxes\Models\SwitchFaxBox;
 use App\Domains\Groups\Models\SwitchGroup;
 use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\Queues\Models\SwitchQueue;
+use App\Domains\Recordings\Models\SwitchRecording;
+use App\Domains\Services\Models\SwitchServiceLimit;
+use App\Domains\Services\Models\SwitchServicePlan;
+use App\Domains\Services\Models\SwitchServiceQuantity;
+use App\Domains\Services\Models\SwitchServiceSummary;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Domains\SwitchSynchronization\Models\SyncRun;
+use App\Domains\TemporalRouting\Models\SwitchTemporalRule;
+use App\Domains\TemporalRouting\Models\SwitchTemporalRuleSet;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailGreeting;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
@@ -24,6 +35,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class SwitchAccount extends Model
 {
@@ -52,6 +64,13 @@ class SwitchAccount extends Model
     {
         return $this->hasMany(SwitchExtension::class, 'switch_account_id', 'account_id');
     }
+
+    /** @return HasMany<SwitchFaxBox, $this> */ public function faxBoxes(): HasMany { return $this->hasMany(SwitchFaxBox::class, 'switch_account_id', 'account_id'); }
+    /** @return HasMany<SwitchFax, $this> */ public function faxes(): HasMany { return $this->hasMany(SwitchFax::class, 'switch_account_id', 'account_id'); }
+    /** @return HasOne<SwitchServiceSummary, $this> */ public function serviceSummary(): HasOne { return $this->hasOne(SwitchServiceSummary::class, 'switch_account_id', 'account_id'); }
+    /** @return HasOne<SwitchServiceLimit, $this> */ public function serviceLimit(): HasOne { return $this->hasOne(SwitchServiceLimit::class, 'switch_account_id', 'account_id'); }
+    /** @return HasMany<SwitchServicePlan, $this> */ public function servicePlans(): HasMany { return $this->hasMany(SwitchServicePlan::class, 'switch_account_id', 'account_id'); }
+    /** @return HasMany<SwitchServiceQuantity, $this> */ public function serviceQuantities(): HasMany { return $this->hasMany(SwitchServiceQuantity::class, 'switch_account_id', 'account_id'); }
 
     /** @return HasMany<SwitchDevice, $this> */
     public function devices(): HasMany
@@ -95,6 +114,30 @@ class SwitchAccount extends Model
         return $this->hasMany(SwitchQueue::class, 'switch_account_id', 'account_id');
     }
 
+    /** @return HasMany<SwitchTemporalRule, $this> */
+    public function temporalRules(): HasMany
+    {
+        return $this->hasMany(SwitchTemporalRule::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchTemporalRuleSet, $this> */
+    public function temporalRuleSets(): HasMany
+    {
+        return $this->hasMany(SwitchTemporalRuleSet::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchBlacklist, $this> */
+    public function blacklists(): HasMany
+    {
+        return $this->hasMany(SwitchBlacklist::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchRecording, $this> */
+    public function recordings(): HasMany
+    {
+        return $this->hasMany(SwitchRecording::class, 'switch_account_id', 'account_id');
+    }
+
     /** @return BelongsTo<SwitchMedia, $this> */
     public function musicOnHoldMedia(): BelongsTo
     {
@@ -117,6 +160,12 @@ class SwitchAccount extends Model
     public function callflows(): HasMany
     {
         return $this->hasMany(SwitchCallflow::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchConference, $this> */
+    public function conferences(): HasMany
+    {
+        return $this->hasMany(SwitchConference::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchPhoneNumber, $this> */

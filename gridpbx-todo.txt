@@ -1,3 +1,4 @@
 Grid pbx todo
 - Make db migration clean when db is stable
 - Check how grid-api handle kazoo token to gain access
+- Make api and ui code easy to run on other machine

@@ -48,19 +48,50 @@ not modify or package the Switch or Monster UI repositories.
 | User | directories mapped to callflows, media/MOH, feature callflows | Person/extension identity and endpoint policy | Aggregate root for the guided extension workflow |
 | Device | `owner_id` -> user; provisioning/media references | A device may be assigned to one owner while remaining an independent endpoint | Optional extension dependent; unassign rather than delete unless created exclusively by the workflow |
 | Voicemail box | `owner_id` -> user; `media.unavailable` -> media | Mailbox belongs to a user; greeting is a referenced media object | Optional managed dependent; never delete a non-empty mailbox automatically |
-| Callflow | node module data IDs -> user, device, voicemail, menu, group, media, callflow, conference, queue, temporal rule/set, blacklist, and others | Routing graph that references targets | Managed extension callflow is a workflow dependent; ordinary callflows are independent roots |
+| Callflow | node module data IDs -> user, device, voicemail, menu, group, media, callflow, conference, queue, temporal rule/set, and others | Routing graph that references targets | Managed extension callflow is a workflow dependent; ordinary callflows are independent roots |
 | Phone number | represented as a callflow entry number; inventory reports `used_by` | Number assignment is ownership by a callflow entry point | Assign/unassign by updating the callflow; purchasing/releasing is separate |
 | Media | referenced by play nodes, menus, voicemail, groups, conferences, and MOH settings | Shared prompt, greeting, or hold media | Independent unless uploaded exclusively as a managed greeting; dependency-check before delete |
 | Directory | contains users; users map directory ID to a destination callflow ID | Searchable membership plus routing destination | Create directory first, then update user membership mappings; compensate membership updates on failure |
 | Group | endpoint map references users/devices; optional MOH media | Reusable membership definition | Independent root; ring-group callflows reference it or embed endpoints depending on module |
 | Menu | prompt media and key destinations in callflow children | IVR configuration consumed by a menu callflow node | Independent root; prompt/destinations are references |
-| Conference | optional `owner_id`, media, numbers, and conference callflow node | Conference room configuration and routing entry | Independent root; number entry callflow is a managed dependent when created by the conference wizard |
-| Fax box | owner user and inbound number/callflow relationships | Fax destination and document store | Conditional workflow; retain documents and block unsafe cascade delete |
+| Conference | optional `owner_id`, role access numbers, and conference callflow node | Conference room configuration is independent from PSTN routing and live participants | Independent root; guided call routing may reference it, but conference CRUD does not silently create a callflow or assign a purchased number |
+| Fax box | optional `owner_id` -> user and `faxbox` callflow node (`data.id` or `data.faxbox_id`) | Independent fax destination configuration; inbound/outbound fax messages are operational history | Independent root; block deletion while routed, retain historical message metadata, and never cascade-delete documents |
 | Temporal rule | schedule only | Reusable schedule condition | Independent root; block delete while referenced |
 | Temporal rule set | list of temporal-rule IDs | Ordered schedule composition | Create rules before set; delete set before workflow-owned rules |
+
 | Queue | user agents/members and queue callflow modules | ACD configuration plus operational membership/state | Capability-gated aggregate; configuration and live agent state are separate |
-| Blacklist | numbers; blacklist callflow node | Reusable rejection policy | Independent root; block delete while referenced |
-| Recording/CDR | user/device/call IDs and media metadata | Operational records produced by calls | Read/retention workflow, never created as a side effect of entity CRUD |
+| Blacklist | normalized caller-number map; account `blacklists` ID list | Reusable inbound rejection policy activated at the account boundary | Independent root; deactivate on the account before deletion |
+| Recording | `owner_id` -> extension/user; `cdr_id` -> CDR; call and interaction IDs | Operational audio metadata produced by calls | Metadata-only projection; protected streaming; never created or deleted as an entity CRUD side effect |
+| CDR | owner/device/call IDs and approved call-leg metadata | Operational call records | Bounded read/import workflow; never created as an entity CRUD side effect |
+| Service overview | account -> assigned plans, quantity dimensions, limits, standing, and billing-cycle summary | Account-scoped commercial and capacity projection | Administrator-only read model; never mutate plans, limits, quantities, top-ups, or accepted charges as an entity side effect |
+
+Temporal routing foundation note: `switch_temporal_rules` stores normalized
+recurrence, date, weekday, and time-window fields plus the complete redacted
+Rule `data` object. `switch_temporal_rule_sets` owns configuration and
+`switch_temporal_rule_set_rules` preserves upstream membership order while
+resolving each member to a public Rule UUID. Rule deletion is blocked while it
+belongs to a Rule Set or an individual `temporal_route` node; Rule Set deletion
+is blocked while routing references it. Guided routing writes the upstream
+Rule Set ID under `flow.data.rule_set` without exposing MySQL primary keys.
+
+Blacklist foundation note: upstream inbound routing merges every blacklist ID
+assigned through the account document and rejects matching normalized caller
+numbers before callflow execution. There is no blacklist callflow module.
+`switch_blacklists` therefore stores configuration and normalized active state,
+while `switch_blacklist_entries` stores searchable E.164 entries. The complete
+redacted Blacklist `data` object remains in `switch_json`; MySQL internal keys
+are never returned. Create/update and account activation are coordinated with
+compensation, synchronization reconciles both documents, and active lists must
+be deactivated before deletion.
+
+Recording foundation note: `switch_recordings` stores normalized searchable
+metadata and resolves known owner and CDR references to internal foreign keys,
+while its API returns only public UUIDs. The complete redacted upstream `data`
+object is retained in `switch_json`; storage URLs and nested credentials are
+redacted. Audio stays in Switch or its configured object provider and is
+range-streamed through an authorized, audited endpoint. Reconciliation is
+bounded by `SWITCH_RECORDING_IMPORT_WINDOW_DAYS` (31 by default). GridPBX does
+not expose upstream deletion until retention and provider cleanup are agreed.
 
 CDR foundation note: CDRs are append/upsert operational projections, not CRUD
 aggregate members. A bounded on-demand import links a normalized `owner_id` to
@@ -78,9 +109,10 @@ and streamed through the typed boundary rather than copied into MySQL. An
 account's default music-on-hold setting is stored as an internal foreign key to
 that projection while the UI receives only public UUIDs. Deletion rechecks
 known account MOH, voicemail greeting, and callflow play-node references. Menu,
-group, conference, and queue dependency checks must be added when those
-projections are delivered; an unknown future dependency must never justify a
-forced cascade delete.
+group and queue dependency checks must be added or expanded as those
+projections evolve; conference callflow references are now checked before
+conference deletion. An unknown future dependency must never justify a forced
+cascade delete.
 
 Directory/group foundation note: `switch_directories` and `switch_groups`
 retain each complete redacted Switch `data` object in `switch_json`, while
@@ -203,9 +235,45 @@ It never returns lifecycle context or Switch resource identifiers to Vue.
 | Business hours | temporal rules -> temporal rule set -> routing callflow | Detach route, delete set, then only workflow-owned unreferenced rules |
 | Ring group | group/membership -> callflow -> number assignment | Membership resources remain unless workflow-owned and unreferenced |
 | Conference | conference -> callflow -> number assignment | Preserve recordings and shared media; detach number first |
+| Fax reception | fax box -> callflow -> number assignment | Preserve fax history and documents; detach the route before deleting the fax box |
 | Queue | queue -> agent membership -> callflow -> number assignment | Capability-gated; remove live memberships/state before configuration |
 | Voicemail greeting | media upload -> mailbox media reference | Detach mailbox first; delete only managed, unreferenced media |
 | Directory | directory -> user directory/callflow mappings | Roll back only mappings written by the operation; never delete users/callflows |
+
+Conference foundation note: `switch_conferences` stores the safe searchable
+configuration, owner relationship, PIN-configured booleans, and last-observed
+runtime counts. `switch_conference_numbers` normalizes general, member, and
+moderator access identifiers by role; these identifiers are not assumed to be
+purchased PSTN inventory. The complete upstream `data` object remains in
+`switch_json`, with both singular and plural PIN keys centrally redacted. Live
+participants are operational state and are not durable child rows. Conference
+CRUD and callflow creation remain separate explicit operations, while the
+guided callflow editor can safely target a projected conference by public UUID.
+
+Fax foundation note: `switch_fax_boxes` stores searchable configuration, the
+optional projected owner relationship, notification recipient lists, SMTP
+permissions, and the complete redacted upstream `data` object in `switch_json`.
+`switch_faxes` stores bounded inbox/outbox operational metadata and stable
+upstream references to the account, fax box, and owner. Document bytes and
+retrieval credentials are never persisted; authenticated document requests are
+audited and streamed from Switch with range support and no-store headers. Fax
+box CRUD does not silently assign a phone number or create a callflow. The
+guided routing editor targets a projected fax box explicitly, and deletion is
+blocked while any callflow references it. Existing fax history is retained
+when an unreferenced fax box is removed.
+
+Services foundation note: `switch_service_summaries` is the one-per-account
+read model for standing, reseller state, billing-cycle timing, and aggregate
+invoice impact. `switch_service_limits` stores the current read-only trunk and
+call ceilings. `switch_service_plans` keeps assigned-plan metadata, while
+`switch_service_quantities` flattens account, cascade, and manual quantities by
+category/item for search and reporting. Each table has a named internal key and
+public UUID. Summary, limit, and plan source objects are retained in
+`switch_json` after recursive redaction; payment tokens, billing identifiers,
+and bookkeeper configuration are replaced entirely. Access and sync are
+restricted to account, reseller, or platform administrators. No service-plan,
+limits, top-up, manual-quantity, invoice, or charge-acceptance mutation is
+implemented.
 
 ## 6. Projection model
 

@@ -2,16 +2,24 @@
 
 namespace App\Providers;
 
+use App\Domains\Blacklists\Contracts\SwitchBlacklistGateway;
+use App\Domains\Blacklists\Gateways\CrossbarSwitchBlacklistGateway;
 use App\Domains\CallDetailRecords\Contracts\SwitchCallDetailRecordGateway;
 use App\Domains\CallDetailRecords\Gateways\CrossbarSwitchCallDetailRecordGateway;
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Gateways\CrossbarSwitchCallflowGateway;
+use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
+use App\Domains\Conferences\Gateways\CrossbarSwitchConferenceGateway;
 use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Devices\Gateways\CrossbarSwitchDeviceGateway;
 use App\Domains\Directories\Contracts\SwitchDirectoryGateway;
 use App\Domains\Directories\Gateways\CrossbarSwitchDirectoryGateway;
 use App\Domains\Extensions\Contracts\SwitchExtensionProvisioningGateway;
 use App\Domains\Extensions\Gateways\CrossbarSwitchExtensionProvisioningGateway;
+use App\Domains\Faxes\Contracts\SwitchFaxBoxGateway;
+use App\Domains\Faxes\Contracts\SwitchFaxGateway;
+use App\Domains\Faxes\Gateways\CrossbarSwitchFaxBoxGateway;
+use App\Domains\Faxes\Gateways\CrossbarSwitchFaxGateway;
 use App\Domains\Groups\Contracts\SwitchGroupGateway;
 use App\Domains\Groups\Gateways\CrossbarSwitchGroupGateway;
 use App\Domains\Media\Contracts\SwitchMediaGateway;
@@ -24,8 +32,16 @@ use App\Domains\Queues\Contracts\SwitchAgentGateway;
 use App\Domains\Queues\Contracts\SwitchQueueGateway;
 use App\Domains\Queues\Gateways\CrossbarSwitchAgentGateway;
 use App\Domains\Queues\Gateways\CrossbarSwitchQueueGateway;
+use App\Domains\Recordings\Contracts\SwitchRecordingGateway;
+use App\Domains\Recordings\Gateways\CrossbarSwitchRecordingGateway;
+use App\Domains\Services\Contracts\SwitchServiceGateway;
+use App\Domains\Services\Gateways\CrossbarSwitchServiceGateway;
 use App\Domains\SwitchSynchronization\Contracts\SwitchExtensionGateway;
 use App\Domains\SwitchSynchronization\Gateways\CrossbarSwitchExtensionGateway;
+use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleGateway;
+use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleSetGateway;
+use App\Domains\TemporalRouting\Gateways\CrossbarSwitchTemporalRuleGateway;
+use App\Domains\TemporalRouting\Gateways\CrossbarSwitchTemporalRuleSetGateway;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailGreetingGateway;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailMessageGateway;
@@ -35,16 +51,24 @@ use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailMessageGateway;
 use GridPbx\Switch\ApiKeyTokenProvider;
 use GridPbx\Switch\Contracts\TokenProvider;
 use GridPbx\Switch\Resources\AccountResourceClient;
+use GridPbx\Switch\Resources\BlacklistResourceClient;
 use GridPbx\Switch\Resources\AgentResourceClient;
 use GridPbx\Switch\Resources\CallDetailRecordResourceClient;
 use GridPbx\Switch\Resources\CallflowResourceClient;
+use GridPbx\Switch\Resources\ConferenceResourceClient;
 use GridPbx\Switch\Resources\DeviceResourceClient;
 use GridPbx\Switch\Resources\DirectoryResourceClient;
+use GridPbx\Switch\Resources\FaxBoxResourceClient;
+use GridPbx\Switch\Resources\FaxMessageResourceClient;
 use GridPbx\Switch\Resources\GroupResourceClient;
 use GridPbx\Switch\Resources\MediaResourceClient;
 use GridPbx\Switch\Resources\MenuResourceClient;
 use GridPbx\Switch\Resources\PhoneNumberResourceClient;
 use GridPbx\Switch\Resources\QueueResourceClient;
+use GridPbx\Switch\Resources\RecordingResourceClient;
+use GridPbx\Switch\Resources\ServiceResourceClient;
+use GridPbx\Switch\Resources\TemporalRuleResourceClient;
+use GridPbx\Switch\Resources\TemporalRuleSetResourceClient;
 use GridPbx\Switch\Resources\UserResourceClient;
 use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
 use GridPbx\Switch\SwitchClient;
@@ -58,17 +82,25 @@ class SwitchServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(SwitchCallflowGateway::class, CrossbarSwitchCallflowGateway::class);
+        $this->app->bind(SwitchConferenceGateway::class, CrossbarSwitchConferenceGateway::class);
+        $this->app->bind(SwitchBlacklistGateway::class, CrossbarSwitchBlacklistGateway::class);
         $this->app->bind(SwitchCallDetailRecordGateway::class, CrossbarSwitchCallDetailRecordGateway::class);
         $this->app->bind(SwitchDeviceGateway::class, CrossbarSwitchDeviceGateway::class);
         $this->app->bind(SwitchDirectoryGateway::class, CrossbarSwitchDirectoryGateway::class);
         $this->app->bind(SwitchExtensionGateway::class, CrossbarSwitchExtensionGateway::class);
         $this->app->bind(SwitchExtensionProvisioningGateway::class, CrossbarSwitchExtensionProvisioningGateway::class);
+        $this->app->bind(SwitchFaxBoxGateway::class, CrossbarSwitchFaxBoxGateway::class);
+        $this->app->bind(SwitchFaxGateway::class, CrossbarSwitchFaxGateway::class);
         $this->app->bind(SwitchGroupGateway::class, CrossbarSwitchGroupGateway::class);
         $this->app->bind(SwitchMediaGateway::class, CrossbarSwitchMediaGateway::class);
         $this->app->bind(SwitchMenuGateway::class, CrossbarSwitchMenuGateway::class);
         $this->app->bind(SwitchPhoneNumberGateway::class, CrossbarSwitchPhoneNumberGateway::class);
         $this->app->bind(SwitchQueueGateway::class, CrossbarSwitchQueueGateway::class);
+        $this->app->bind(SwitchRecordingGateway::class, CrossbarSwitchRecordingGateway::class);
+        $this->app->bind(SwitchServiceGateway::class, CrossbarSwitchServiceGateway::class);
         $this->app->bind(SwitchAgentGateway::class, CrossbarSwitchAgentGateway::class);
+        $this->app->bind(SwitchTemporalRuleGateway::class, CrossbarSwitchTemporalRuleGateway::class);
+        $this->app->bind(SwitchTemporalRuleSetGateway::class, CrossbarSwitchTemporalRuleSetGateway::class);
         $this->app->bind(SwitchVoicemailBoxGateway::class, CrossbarSwitchVoicemailBoxGateway::class);
         $this->app->bind(SwitchVoicemailMessageGateway::class, CrossbarSwitchVoicemailMessageGateway::class);
         $this->app->bind(SwitchVoicemailGreetingGateway::class, CrossbarSwitchVoicemailGreetingGateway::class);
@@ -96,11 +128,19 @@ class SwitchServiceProvider extends ServiceProvider
             $app->make(SwitchClient::class),
         ));
 
+        $this->app->singleton(BlacklistResourceClient::class, fn ($app) => new BlacklistResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
         $this->app->singleton(AgentResourceClient::class, fn ($app) => new AgentResourceClient(
             $app->make(SwitchClient::class),
         ));
 
         $this->app->singleton(CallflowResourceClient::class, fn ($app) => new CallflowResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(ConferenceResourceClient::class, fn ($app) => new ConferenceResourceClient(
             $app->make(SwitchClient::class),
         ));
 
@@ -115,6 +155,16 @@ class SwitchServiceProvider extends ServiceProvider
 
         $this->app->singleton(DirectoryResourceClient::class, fn ($app) => new DirectoryResourceClient(
             $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(FaxBoxResourceClient::class, fn ($app) => new FaxBoxResourceClient(
+            $app->make(SwitchClient::class),
+            (int) config('switch.fax_page_size'),
+        ));
+
+        $this->app->singleton(FaxMessageResourceClient::class, fn ($app) => new FaxMessageResourceClient(
+            $app->make(SwitchClient::class),
+            (int) config('switch.fax_page_size'),
         ));
 
         $this->app->singleton(VoicemailBoxResourceClient::class, fn ($app) => new VoicemailBoxResourceClient(
@@ -141,7 +191,24 @@ class SwitchServiceProvider extends ServiceProvider
             $app->make(SwitchClient::class),
         ));
 
+        $this->app->singleton(RecordingResourceClient::class, fn ($app) => new RecordingResourceClient(
+            $app->make(SwitchClient::class),
+            (int) config('switch.recording_page_size'),
+        ));
+
+        $this->app->singleton(ServiceResourceClient::class, fn ($app) => new ServiceResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
         $this->app->singleton(UserResourceClient::class, fn ($app) => new UserResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(TemporalRuleResourceClient::class, fn ($app) => new TemporalRuleResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(TemporalRuleSetResourceClient::class, fn ($app) => new TemporalRuleSetResourceClient(
             $app->make(SwitchClient::class),
         ));
     }

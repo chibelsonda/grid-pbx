@@ -573,8 +573,45 @@ Acceptance criteria:
   dependency-safe deletion, queued synchronization, guided call-routing
   integration, and Vue management through a right-side panel. Advanced DTMF
   branch editing remains part of the visual callflow slice.
-- Conferences and fax boxes.
-- Time-of-day rules, blacklists, and recordings.
+- Temporal routing foundation: typed Temporal Rule and Rule Set CRUD,
+  normalized recurrence and ordered membership projections with redacted
+  `switch_json`, Gregorian-date conversion, dependency-safe deletion, queued
+  synchronization, guided `temporal_route` Rule Set destinations, and Vue
+  Rules/Rule Sets management through right-side panels. Live enable/disable
+  and reset commands remain a later operational enhancement.
+- Blacklist foundation: typed CRUD and account-assignment boundary, normalized
+  blacklist and E.164 number-entry projections with complete redacted
+  `switch_json`, queued reconciliation of configuration plus active state,
+  compensating activation writes, active-delete protection, and Vue management
+  through a right-side panel. Switch enforces these lists before callflow
+  execution, so no synthetic blacklist callflow node is created.
+- Recording foundation: bounded typed inventory, normalized metadata-only
+  projection with complete redacted `switch_json`, extension/CDR relationship
+  resolution, queued reconciliation, audited protected playback/download with
+  byte ranges, and a Vue inventory plus right-side detail panel. Binary audio
+  remains in Switch or its storage provider; deletion remains policy-gated.
+- Conference foundation: typed CRUD, normalized general/member/moderator
+  access-number rows, owner relationship, full redacted `switch_json`,
+  write-only PIN replacement/removal, queued synchronization, last-observed
+  runtime status, dependency-safe deletion, guided callflow destinations, and
+  a Vue right-side CRUD panel. Live participant commands and dial/lock/play
+  controls remain a later operational enhancement and are not persisted.
+- Fax foundation: typed fax-box CRUD, normalized fax-box and bounded
+  inbox/outbox message projections, owner/fax-box relationship resolution,
+  complete redacted `switch_json`, queued reconciliation, dependency-safe
+  fax-box deletion, guided callflow destinations, audited range-aware document
+  streaming, and Vue inventory/detail/CRUD right-side panels. Document bytes
+  remain in Switch or its storage provider. Outbound sending, forwarding,
+  resubmission, and message deletion remain gated on retention, notification,
+  and abuse-control policies.
+- Services foundation: typed read-only summary and limits clients, normalized
+  account summary, assigned-plan, quantity, and limit projections, complete
+  redacted `switch_json` for source objects, administrator-only authorization,
+  queued synchronization, and a Vue inventory plus right-side detail panel.
+  Billing identifiers, payment tokens, and bookkeeper configuration are
+  redacted. Plan assignment, limit changes, top-ups, manual quantities,
+  invoices, and charge acceptance remain outside this foundation.
+- Remaining time-of-day operational controls.
 - Advanced visual callflow editing.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after

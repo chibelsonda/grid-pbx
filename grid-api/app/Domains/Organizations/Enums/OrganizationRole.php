@@ -34,4 +34,9 @@ enum OrganizationRole: string
     {
         return $this !== self::ReadOnlyUser;
     }
+
+    public function canViewServices(): bool
+    {
+        return in_array($this, [self::PlatformAdministrator, self::ResellerAdministrator, self::AccountAdministrator], true);
+    }
 }

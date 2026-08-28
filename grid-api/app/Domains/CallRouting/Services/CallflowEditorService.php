@@ -28,6 +28,9 @@ class CallflowEditorService
                 ['value' => 'group', 'label' => 'Group / Ring Group'],
                 ['value' => 'queue', 'label' => 'Call Queue'],
                 ['value' => 'menu', 'label' => 'Menu / IVR'],
+                ['value' => 'conference', 'label' => 'Conference'],
+                ['value' => 'fax_box', 'label' => 'Fax Box'],
+                ['value' => 'temporal_rule_set', 'label' => 'Business Hours / Schedule'],
             ],
             'destinations' => [
                 'extension' => $account->extensions()->orderBy('display_name')->get()->map(fn ($item): array => [
@@ -76,6 +79,19 @@ class CallflowEditorService
                     'id' => $item->id,
                     'label' => $item->name,
                     'detail' => 'Interactive voice menu',
+                ])->values()->all(),
+                'conference' => $account->conferences()->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'label' => $item->name,
+                    'detail' => $item->active_members.' active participants',
+                ])->values()->all(),
+                'fax_box' => $account->faxBoxes()->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id, 'label' => $item->name, 'detail' => $item->smtp_email_address,
+                ])->values()->all(),
+                'temporal_rule_set' => $account->temporalRuleSets()->withCount('rules')->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'label' => $item->name,
+                    'detail' => $item->rules_count.' schedule rules',
                 ])->values()->all(),
             ],
             'phone_numbers' => $account->phoneNumbers()

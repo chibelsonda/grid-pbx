@@ -14,5 +14,6 @@ export type Account = {
     can_manage_call_routing: boolean
     can_manage_media: boolean
     can_sync_call_detail_records: boolean
+    can_view_services: boolean
   }
 }

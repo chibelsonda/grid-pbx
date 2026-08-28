@@ -26,6 +26,9 @@ export type CallflowDestinationType =
   | 'group'
   | 'queue'
   | 'menu'
+  | 'conference'
+  | 'fax_box'
+  | 'temporal_rule_set'
 
 export type CallflowDestination = {
   id: string

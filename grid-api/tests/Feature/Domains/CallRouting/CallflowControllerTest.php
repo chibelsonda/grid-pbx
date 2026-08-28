@@ -15,6 +15,7 @@ use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
+use App\Domains\TemporalRouting\Models\SwitchTemporalRuleSet;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -305,6 +306,19 @@ class CallflowControllerTest extends TestCase
             'phone_number_ids' => [$phoneNumber->id],
         ])->assertCreated()->assertJsonPath('data.root_module', 'menu')
             ->assertJsonPath('data.flow.target.type', 'menu')->assertJsonPath('data.flow.target.id', $menu->id);
+    }
+
+    public function test_it_creates_a_guided_temporal_rule_set_destination(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $set = SwitchTemporalRuleSet::factory()->for($account)->create(['switch_resource_id' => 'switch-set-office']);
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create(['number' => '+15550000902', 'assigned_callflow_id' => null]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')->once()->withArgs(fn (SwitchAccount $received, string $name, string $module, string $resourceId, array $numbers): bool => $received->is($account) && $name === 'Office schedule' && $module === 'temporal_route' && $resourceId === 'switch-set-office' && $numbers === ['+15550000902'])
+            ->andReturn(['id' => 'switch-callflow-temporal', 'name' => 'Office schedule', 'numbers' => ['+15550000902'], 'flow' => ['module' => 'temporal_route', 'data' => ['rule_set' => 'switch-set-office'], 'children' => []]]);
+
+        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", ['name' => 'Office schedule', 'destination_type' => 'temporal_rule_set', 'destination_id' => $set->id, 'phone_number_ids' => [$phoneNumber->id]])
+            ->assertCreated()->assertJsonPath('data.root_module', 'temporal_route')->assertJsonPath('data.flow.target.type', 'temporal_rule_set')->assertJsonPath('data.flow.target.id', $set->id);
     }
 
     public function test_it_rejects_a_phone_number_assigned_to_another_route(): void

@@ -14,6 +14,9 @@ final readonly class AccountSnapshot
 
     public ?string $musicOnHoldMediaId;
 
+    /** @var list<string> */
+    public array $blacklistIds;
+
     /** @param array<string, mixed> $data */
     public function __construct(private array $data)
     {
@@ -27,6 +30,8 @@ final readonly class AccountSnapshot
         $this->id = $id;
         $this->name = $this->nullableString($data['name'] ?? null);
         $this->musicOnHoldMediaId = $this->nullableString($musicOnHold['media_id'] ?? null);
+        $blacklists = is_array($data['blacklists'] ?? null) ? $data['blacklists'] : [];
+        $this->blacklistIds = array_values(array_filter($blacklists, static fn (mixed $id): bool => is_string($id) && $id !== ''));
     }
 
     /** @return array<string, mixed> */

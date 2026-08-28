@@ -6,6 +6,7 @@ namespace GridPbx\Switch\Resources;
 
 use Generator;
 use GridPbx\Switch\Dto\Accounts\AccountSnapshot;
+use GridPbx\Switch\Dto\Accounts\AccountBlacklistsWriteData;
 use GridPbx\Switch\Dto\Accounts\MusicOnHoldWriteData;
 use GridPbx\Switch\Dto\Common\EntitySnapshot;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
@@ -123,6 +124,16 @@ final readonly class AccountResourceClient
             sprintf('accounts/%s', rawurlencode($accountId)),
             ['json' => ['data' => $musicOnHold->toSwitchData()]],
         );
+
+        return $this->accountSnapshot($payload, $accountId);
+    }
+
+    public function updateBlacklists(string $accountId, AccountBlacklistsWriteData $blacklists): AccountSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request('PATCH', sprintf('accounts/%s', rawurlencode($accountId)), [
+            'json' => ['data' => $blacklists->toSwitchData()],
+        ]);
 
         return $this->accountSnapshot($payload, $accountId);
     }

@@ -14,6 +14,13 @@ final readonly class CallflowCreateData
         'voicemail',
         'callflow',
         'play',
+        'directory',
+        'group',
+        'acdc_member',
+        'menu',
+        'conference',
+        'faxbox',
+        'temporal_route',
     ];
 
     /** @param list<string> $phoneNumbers */
@@ -63,7 +70,7 @@ final readonly class CallflowCreateData
         if ($this->fallbackModule !== null && $this->fallbackResourceId !== null) {
             $children['_'] = [
                 'module' => $this->fallbackModule,
-                'data' => ['id' => $this->fallbackResourceId],
+                'data' => $this->destinationData($this->fallbackModule, $this->fallbackResourceId),
                 'children' => [],
             ];
         }
@@ -73,9 +80,15 @@ final readonly class CallflowCreateData
             'numbers' => array_values(array_unique($this->phoneNumbers)),
             'flow' => [
                 'module' => $this->destinationModule,
-                'data' => ['id' => $this->destinationResourceId],
+                'data' => $this->destinationData($this->destinationModule, $this->destinationResourceId),
                 'children' => $children,
             ],
         ];
+    }
+
+    /** @return array<string, mixed> */
+    private function destinationData(string $module, string $resourceId): array
+    {
+        return $module === 'temporal_route' ? ['rule_set' => $resourceId] : ['id' => $resourceId];
     }
 }

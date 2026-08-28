@@ -10,10 +10,17 @@ class RedactSensitiveSwitchData
     private const SENSITIVE_KEYS = [
         'api_key',
         'auth_token',
+        'billing_id',
+        'bookkeeper',
+        'bookkeepers',
+        'cloud_connector_claim_url',
         'md5_auth',
         'password',
         'password_confirmation',
+        'payment_tokens',
+        'payment_token',
         'pin',
+        'pins',
         'pvt_md5_auth',
         'pvt_sha1_auth',
         'secret',
@@ -51,7 +58,7 @@ class RedactSensitiveSwitchData
             return true;
         }
 
-        foreach (['_password', '_pin', '_secret', '_api_key', '_auth_token'] as $suffix) {
+        foreach (['_password', '_pin', '_pins', '_secret', '_api_key', '_auth_token'] as $suffix) {
             if (str_ends_with($normalizedKey, $suffix)) {
                 return true;
             }
