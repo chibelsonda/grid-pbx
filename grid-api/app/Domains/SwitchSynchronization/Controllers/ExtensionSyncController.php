@@ -37,7 +37,7 @@ class ExtensionSyncController extends Controller
         /** @var User $user */
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
-        $syncRun = $switchAccount->syncRuns()->whereKey($run)->firstOrFail();
+        $syncRun = $switchAccount->syncRuns()->where('id', $run)->firstOrFail();
 
         return new SyncRunResource($syncRun);
     }

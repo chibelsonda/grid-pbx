@@ -13,6 +13,16 @@ export type ApiResponse<T> = {
   data: T
 }
 
+/**
+ * Axios names the HTTP body `data`, while the Laravel API uses a stable `data`
+ * envelope. Keep that transport detail out of domain clients.
+ */
+export function unwrapApiData<T>(response: { data: ApiResponse<T> }): T {
+  const { data: envelope } = response
+
+  return envelope.data
+}
+
 export type PaginatedResponse<T> = {
   data: T[]
   links: {

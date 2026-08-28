@@ -1,4 +1,4 @@
-import { http, type ApiResponse } from '@/shared/api/http'
+import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
 import type { Device, DeviceInput, ExtensionOption, SyncState } from '../types/device'
 
 export type DevicePage = {
@@ -26,7 +26,7 @@ export const deviceApi = {
       `/api/v1/accounts/${accountId}/devices/${deviceId}`,
     )
 
-    return response.data.data
+    return unwrapApiData(response)
   },
   async create(accountId: string, device: DeviceInput): Promise<Device> {
     const response = await http.post<ApiResponse<Device>>(
@@ -34,7 +34,7 @@ export const deviceApi = {
       device,
     )
 
-    return response.data.data
+    return unwrapApiData(response)
   },
   async update(accountId: string, deviceId: string, device: DeviceInput): Promise<Device> {
     const response = await http.put<ApiResponse<Device>>(
@@ -42,7 +42,7 @@ export const deviceApi = {
       device,
     )
 
-    return response.data.data
+    return unwrapApiData(response)
   },
   async remove(accountId: string, deviceId: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/devices/${deviceId}`)
@@ -53,6 +53,6 @@ export const deviceApi = {
       { params: { per_page: 100 } },
     )
 
-    return response.data.data
+    return unwrapApiData(response)
   },
 }

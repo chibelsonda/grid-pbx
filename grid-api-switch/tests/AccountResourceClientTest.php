@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Contracts\TokenProvider;
-use GridPbx\Switch\Dto\UserSnapshot;
+use GridPbx\Switch\Dto\Users\UserSnapshot;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;

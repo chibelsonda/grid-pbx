@@ -2,7 +2,6 @@
 import { computed, reactive, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftIcon,
   CheckCircleIcon,
   DevicePhoneMobileIcon,
   KeyIcon,
@@ -10,6 +9,7 @@ import {
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import { useDeviceStore } from '../stores/deviceStore'
 import type { DeviceInput } from '../types/device'
 
@@ -20,6 +20,7 @@ const devices = useDeviceStore()
 const isEditing = computed(() => route.name === 'device-edit')
 const deviceId = computed(() => (isEditing.value ? String(route.params.deviceId) : null))
 const title = computed(() => (isEditing.value ? 'Edit device' : 'Add device'))
+const canManage = computed(() => accounts.selected?.permissions.can_manage_devices ?? false)
 const form = reactive({
   name: '',
   device_type: 'sip_device',
@@ -92,31 +93,44 @@ async function save(): Promise<void> {
 
   if (device) await router.push({ name: 'device-detail', params: { deviceId: device.id } })
 }
+
+function close(): void {
+  void router.push(
+    deviceId.value
+      ? { name: 'device-detail', params: { deviceId: deviceId.value } }
+      : { name: 'devices' },
+  )
+}
 </script>
 
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto flex max-w-[1100px] items-center gap-4">
-      <RouterLink
-        :to="deviceId ? { name: 'device-detail', params: { deviceId } } : { name: 'devices' }"
-        class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
-        aria-label="Back"
-      >
-        <ArrowLeftIcon class="size-4" />
-      </RouterLink>
+  <CrudSlideOver
+    :title="title"
+    :eyebrow="`GridPBX / Devices / ${title}`"
+    description="Configuration is written to Switch and immediately projected into MySQL."
+    @close="close"
+  >
+    <div
+      v-if="accounts.selected && !canManage"
+      class="card-surface grid min-h-72 place-items-center p-8 text-center"
+    >
       <div>
-        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Devices / {{ title }}</p>
-        <h1 class="text-xl font-semibold tracking-tight text-slate-800">{{ title }}</h1>
-        <p class="mt-1 text-xs text-slate-500">
-          Configuration is written to Switch and immediately projected into MySQL.
+        <KeyIcon class="mx-auto size-10 text-slate-300" />
+        <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
+        <p class="mt-2 text-xs text-slate-500">
+          Your organization role can view devices but cannot change Switch configuration.
         </p>
+        <RouterLink
+          :to="{ name: 'devices' }"
+          class="mt-5 inline-flex h-9 items-center rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+        >
+          Return to devices
+        </RouterLink>
       </div>
     </div>
-  </section>
 
-  <div class="mx-auto max-w-[1100px] p-4 sm:p-6 lg:p-8">
     <div
-      v-if="isEditing && devices.detailLoading"
+      v-else-if="isEditing && devices.detailLoading"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"
     >
       Loading device configuration…
@@ -129,7 +143,11 @@ async function save(): Promise<void> {
       {{ devices.detailError }}
     </div>
 
-    <form v-else class="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]" @submit.prevent="save">
+    <form
+      v-else
+      class="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"
+      @submit.prevent="save"
+    >
       <div class="grid gap-5">
         <article class="card-surface overflow-hidden">
           <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
@@ -138,7 +156,9 @@ async function save(): Promise<void> {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Device identity</h2>
-              <p class="text-[10px] text-slate-400">Name and endpoint type shown throughout GridPBX</p>
+              <p class="text-[10px] text-slate-400">
+                Name and endpoint type shown throughout GridPBX
+              </p>
             </div>
           </header>
           <div class="grid gap-5 p-5 sm:grid-cols-2">
@@ -151,7 +171,9 @@ async function save(): Promise<void> {
                 placeholder="Reception Desk Phone"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               />
-              <span v-if="fieldError('name')" class="text-[11px] text-danger">{{ fieldError('name') }}</span>
+              <span v-if="fieldError('name')" class="text-[11px] text-danger">{{
+                fieldError('name')
+              }}</span>
             </label>
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Device type</span>
@@ -167,9 +189,13 @@ async function save(): Promise<void> {
                 <option value="fax">Fax</option>
                 <option value="ata">ATA</option>
               </select>
-              <span v-if="fieldError('device_type')" class="text-[11px] text-danger">{{ fieldError('device_type') }}</span>
+              <span v-if="fieldError('device_type')" class="text-[11px] text-danger">{{
+                fieldError('device_type')
+              }}</span>
             </label>
-            <label class="flex items-center gap-3 self-end rounded-md border border-slate-200 px-3 py-2.5">
+            <label
+              class="flex items-center gap-3 self-end rounded-md border border-slate-200 px-3 py-2.5"
+            >
               <input v-model="form.is_enabled" type="checkbox" class="size-4 accent-brand-500" />
               <span>
                 <span class="block text-xs font-semibold text-slate-600">Enabled</span>
@@ -186,22 +212,41 @@ async function save(): Promise<void> {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Hardware and provisioning</h2>
-              <p class="text-[10px] text-slate-400">Optional inventory metadata used by the endpoint</p>
+              <p class="text-[10px] text-slate-400">
+                Optional inventory metadata used by the endpoint
+              </p>
             </div>
           </header>
           <div class="grid gap-5 p-5 sm:grid-cols-2">
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Make</span>
-              <input v-model="form.make" maxlength="255" placeholder="Yealink" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+              <input
+                v-model="form.make"
+                maxlength="255"
+                placeholder="Yealink"
+                class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
             </label>
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Model</span>
-              <input v-model="form.model" maxlength="255" placeholder="T54W" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+              <input
+                v-model="form.model"
+                maxlength="255"
+                placeholder="T54W"
+                class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
             </label>
             <label class="grid gap-2 sm:col-span-2">
               <span class="text-xs font-semibold text-slate-600">MAC address</span>
-              <input v-model="form.mac_address" maxlength="64" placeholder="00:11:22:33:44:55" class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
-              <span v-if="fieldError('mac_address')" class="text-[11px] text-danger">{{ fieldError('mac_address') }}</span>
+              <input
+                v-model="form.mac_address"
+                maxlength="64"
+                placeholder="00:11:22:33:44:55"
+                class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
+              <span v-if="fieldError('mac_address')" class="text-[11px] text-danger">{{
+                fieldError('mac_address')
+              }}</span>
             </label>
           </div>
         </article>
@@ -216,13 +261,23 @@ async function save(): Promise<void> {
           <div class="p-5">
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Extension</span>
-              <select v-model="form.assigned_extension_id" class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100">
+              <select
+                v-model="form.assigned_extension_id"
+                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              >
                 <option value="">Unassigned</option>
-                <option v-for="extension in devices.extensionOptions" :key="extension.id" :value="extension.id">
-                  {{ extension.display_name }}{{ extension.extension ? ` · ${extension.extension}` : '' }}
+                <option
+                  v-for="extension in devices.extensionOptions"
+                  :key="extension.id"
+                  :value="extension.id"
+                >
+                  {{ extension.display_name
+                  }}{{ extension.extension ? ` · ${extension.extension}` : '' }}
                 </option>
               </select>
-              <span v-if="fieldError('assigned_extension_id')" class="text-[11px] text-danger">{{ fieldError('assigned_extension_id') }}</span>
+              <span v-if="fieldError('assigned_extension_id')" class="text-[11px] text-danger">{{
+                fieldError('assigned_extension_id')
+              }}</span>
             </label>
           </div>
         </article>
@@ -238,20 +293,44 @@ async function save(): Promise<void> {
           <div class="grid gap-4 p-5">
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">SIP username</span>
-              <input v-model="form.sip_username" maxlength="128" autocomplete="off" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+              <input
+                v-model="form.sip_username"
+                maxlength="128"
+                autocomplete="off"
+                class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
             </label>
             <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">{{ isEditing ? 'New SIP password' : 'SIP password' }}</span>
-              <input v-model="form.sip_password" type="password" minlength="12" maxlength="255" autocomplete="new-password" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
+              <span class="text-xs font-semibold text-slate-600">{{
+                isEditing ? 'New SIP password' : 'SIP password'
+              }}</span>
+              <input
+                v-model="form.sip_password"
+                type="password"
+                minlength="12"
+                maxlength="255"
+                autocomplete="new-password"
+                class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              />
               <span class="text-[10px] leading-4 text-slate-400">
-                {{ isEditing ? 'Leave blank to keep the existing password.' : 'Use at least 12 characters.' }} The value is never stored unredacted or returned by GridPBX.
+                {{
+                  isEditing
+                    ? 'Leave blank to keep the existing password.'
+                    : 'Use at least 12 characters.'
+                }}
+                The value is never stored unredacted or returned by GridPBX.
               </span>
-              <span v-if="fieldError('sip_password')" class="text-[11px] text-danger">{{ fieldError('sip_password') }}</span>
+              <span v-if="fieldError('sip_password')" class="text-[11px] text-danger">{{
+                fieldError('sip_password')
+              }}</span>
             </label>
           </div>
         </article>
 
-        <div v-if="devices.mutationError" class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger">
+        <div
+          v-if="devices.mutationError"
+          class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+        >
           {{ devices.mutationError }}
         </div>
 
@@ -265,5 +344,5 @@ async function save(): Promise<void> {
         </button>
       </div>
     </form>
-  </div>
+  </CrudSlideOver>
 </template>

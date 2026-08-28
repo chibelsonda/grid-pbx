@@ -4,13 +4,16 @@ namespace App\Domains\SwitchSynchronization\Models;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use App\Shared\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SyncCheckpoint extends Model
 {
-    use HasUlids;
+    use HasPublicUuid, HasUlids;
+
+    protected $primaryKey = 'sync_checkpoint_id';
 
     protected $table = 'switch_sync_checkpoints';
 
@@ -27,13 +30,13 @@ class SyncCheckpoint extends Model
     /** @return BelongsTo<SwitchAccount, $this> */
     public function switchAccount(): BelongsTo
     {
-        return $this->belongsTo(SwitchAccount::class);
+        return $this->belongsTo(SwitchAccount::class, 'switch_account_id', 'account_id');
     }
 
     /** @return BelongsTo<SyncRun, $this> */
     public function lastSyncRun(): BelongsTo
     {
-        return $this->belongsTo(SyncRun::class, 'last_sync_run_id');
+        return $this->belongsTo(SyncRun::class, 'last_sync_run_id', 'sync_run_id');
     }
 
     /** @return array<string, string> */

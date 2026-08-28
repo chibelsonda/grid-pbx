@@ -27,7 +27,10 @@ const toneClasses = {
         </p>
         <p class="mt-3 text-xs text-slate-500">{{ detail }}</p>
       </div>
-      <span class="grid size-11 shrink-0 place-items-center rounded-full ring-1" :class="toneClasses[tone]">
+      <span
+        class="grid size-11 shrink-0 place-items-center rounded-full ring-1"
+        :class="toneClasses[tone]"
+      >
         <component :is="icon" class="size-5" />
       </span>
     </div>

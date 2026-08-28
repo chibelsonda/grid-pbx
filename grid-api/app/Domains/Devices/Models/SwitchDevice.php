@@ -2,9 +2,11 @@
 
 namespace App\Domains\Devices\Models;
 
+use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchDeviceFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -15,7 +17,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SwitchDevice extends Model
 {
     /** @use HasFactory<SwitchDeviceFactory> */
-    use HasFactory, HasUlids, SoftDeletes;
+    use HasFactory, HasPublicUuid, HasUlids, SoftDeletes;
+
+    protected $primaryKey = 'device_id';
 
     protected $fillable = [
         'switch_account_id',
@@ -28,22 +32,26 @@ class SwitchDevice extends Model
         'model',
         'mac_address',
         'is_enabled',
+        'registration_status',
+        'registration_checked_at',
         'last_synced_at',
         'sync_status',
         'projection_version',
-        'source_payload',
+        'is_managed',
+        'managed_by_workflow',
+        'switch_json',
     ];
 
     /** @return BelongsTo<SwitchAccount, $this> */
     public function switchAccount(): BelongsTo
     {
-        return $this->belongsTo(SwitchAccount::class);
+        return $this->belongsTo(SwitchAccount::class, 'switch_account_id', 'account_id');
     }
 
     /** @return BelongsTo<SwitchExtension, $this> */
     public function extension(): BelongsTo
     {
-        return $this->belongsTo(SwitchExtension::class, 'switch_extension_id');
+        return $this->belongsTo(SwitchExtension::class, 'switch_extension_id', 'extension_id');
     }
 
     /** @return array<string, string> */
@@ -51,10 +59,13 @@ class SwitchDevice extends Model
     {
         return [
             'is_enabled' => 'boolean',
+            'registration_status' => DeviceRegistrationStatus::class,
+            'registration_checked_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'sync_status' => ProjectionStatus::class,
             'projection_version' => 'integer',
-            'source_payload' => 'array',
+            'is_managed' => 'boolean',
+            'switch_json' => 'array',
         ];
     }
 

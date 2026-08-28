@@ -41,10 +41,10 @@ Implementation status:
 | Deferred | Explicitly outside the current delivery commitment |
 | Complete | Implemented, synchronized, tested, documented, and accepted |
 
-No Switch-backed product feature is currently marked complete pending target
-Switch credentials and client acceptance. The People and Extensions list/search
-workflow is at Foundation status: its MySQL projection, queued synchronization,
-freshness state, account authorization, API, and Vue screen are implemented.
+No Switch-backed product feature is currently marked complete pending client
+acceptance. People and Extensions, Devices, Voicemail, and Phone Numbers are at
+Foundation status with the exact implemented scope documented in their
+sections below.
 
 ## 3. Feature architecture rules
 
@@ -63,8 +63,75 @@ Every Switch feature follows these rules:
 10. Feature availability is capability-driven; unsupported modules are hidden
     rather than presented as broken screens.
 11. A projected entity stores the latest full detail response `data` object in
-    `source_payload` after sensitive-field redaction; normalized columns remain
+    `switch_json` after sensitive-field redaction; normalized columns remain
     the query and relationship contract.
+
+### 3.1 Switch coverage register
+
+This register is the completeness checklist for the Switch boundary. Every
+resource named below is included in the target scope, even when its delivery is
+conditional or scheduled for a later phase. A resource is not considered
+implemented merely because a legacy class or an empty folder exists; it moves
+to `Complete` only through the delivery checklist in section 11.
+
+| Requested area | GridPBX treatment | Persistence and delivery rule | Status |
+| --- | --- | --- | --- |
+| Account | Account mapping, hierarchy, settings, and capability discovery | Project safe account metadata and the redacted detail `data` object | Foundation |
+| Blacklist | Blacklist CRUD, number entries, and routing dependencies | Project searchable entries and a redacted source snapshot | Planned |
+| CallDetailRecord | Call history, filters, and interaction detail | Project only approved fields and allowlisted `switch_json`; retention and partitioning must be agreed before production scheduling | Foundation |
+| Callflow | Routing inventory, dependency resolution, guided editing, and safe unknown-branch preservation | Project routing summaries and a redacted detail snapshot | Foundation |
+| Conference | Conference configuration, numbers, members, and permitted controls | Project configuration without exposing PINs or other secrets | Planned |
+| Device | Device CRUD, user assignment, registrations, and provisioning metadata | Project safe device and registration state; never persist or return SIP secrets | Foundation |
+| Directory | Directory CRUD and user membership | Project directory metadata and relationships | Planned |
+| Fax | Fax-box configuration and authorized message/document access | Metadata projection only; stream documents on demand | Conditional |
+| Group | Group and ring-group configuration, membership, endpoints, and strategy | Project group/member relationships and safe configuration | Planned |
+| LineKey | Device line-key configuration and provisioning preview | Treat as device/provisioning configuration; enable only for confirmed device and provisioner schemas | Conditional |
+| Media | Media metadata, prompts, music-on-hold, upload, and authorized streaming | Project metadata and redacted detail only; do not duplicate binary content in MySQL by default | Foundation |
+| Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | Project options and public relationships to routing/media resources | Planned |
+| PhoneNumber | Number inventory, features, assignment, and approved carrier workflows | Project normalized inventory plus redacted detail snapshots | Foundation |
+| Queue | Queue CRUD, agents, membership, state, and statistics | Capability-driven projection; requires the target ACD/queue application | Conditional |
+| Recording | Recording search, metadata, and authorized playback/download | Metadata projection only by default; retention and access-audit policy required | Planned |
+| Services | Account service-plan, limits, quantities, and billing-impact summaries exposed by Switch | Project an authorized, safe summary; begin read-only and require explicit billing authority before any mutation | Planned |
+| SystemStatus | Connectivity, capability, and relevant telephony health summaries | Live checks or short-lived cache; do not persist full infrastructure payloads as durable projections | Foundation |
+| TemporalRule | Business-hours, holiday, and time-of-day rule CRUD | Project validated schedules and dependency summaries | Planned |
+| TemporalRuleSet | Rule-set CRUD, ordering, enable/disable, and reset workflows | Project rule membership, order, and effective-state summaries | Planned |
+| User | User CRUD, identity, caller ID, feature state, and resource assignments | Project safe identity/settings and redacted detail snapshots | Foundation |
+| Voicemail | Mailbox CRUD, assignments, greetings, messages, and permitted lifecycle actions | Project mailbox/message metadata; stream audio and keep PINs write-only | Foundation |
+
+Internal contracts, repositories/gateways, and PHP or TypeScript enums may be
+introduced when useful for clean boundaries and type safety, but Contracts,
+Repositories, and Enums are not Switch entities or roadmap deliverables.
+
+For each actual Switch resource, the implementation slice consists of an
+entity-organized DTO/resource client in `grid-api-switch`, a simple Laravel DDD
+domain with services and any required MySQL projection, and a Vue domain when
+the capability is user-facing. Folders and abstractions are created when their
+slice begins; the project does not add empty placeholder classes merely to
+mirror the legacy tree.
+
+### 3.2 Confirmed advanced scope
+
+The client has confirmed that the following advanced capabilities belong in
+the target product scope. Confirmation means they must be designed and
+delivered in an appropriate phase; it does not enable high-risk mutations
+before their integration, authorization, compliance, and audit conditions are
+satisfied.
+
+| Confirmed capability | Owning domains | Delivery gate | Status |
+| --- | --- | --- | --- |
+| Number purchasing, porting, releasing, CNAM, and E911 changes | Phone numbers, carriers, auditing | Carrier APIs and charges, porting workflow, emergency-service compliance, privileged confirmation, and reconciliation | Planned |
+| Advanced visual callflow editing | Call routing and referenced PBX domains | Version-safe writes, public-ID reference resolution, schema validation, dependency checks, and lossless preservation of unknown branches | Planned |
+| Queues and agents | Queues, users, devices, and call routing | Target ACD/queue capabilities, agent-state semantics, and near-real-time update strategy | Conditional |
+| SMS/MMS | Messaging, phone numbers, users, and auditing | Enabled carrier capability, consent, retention, attachment storage, delivery events, and abuse controls | Conditional |
+| Recordings | Recordings, call history, storage, and auditing | Retention policy, legal authorization, access audit, encryption, and streaming/storage decision | Planned |
+| Provisioning | Devices, line keys, templates, and vendor integrations | Supported vendors/models, template ownership, credential protection, and preview/rollback workflow | Conditional |
+| Billing and reseller management | Organizations, accounts, services, billing, and authorization | Authoritative billing source, tenant hierarchy, financial permissions, immutable audit, and payment compliance where applicable | Planned |
+| Trunks, carriers, resources, and connectivity | Connectivity, routing, accounts, and system status | Administrator-only threat model, deployment-specific schemas, secret handling, validation, and rollback | Planned |
+| Webhooks and advanced administration | Webhooks, notifications, security controls, accounts, and auditing | Event allow-list, signing secrets, delivery observability, SSRF protection, least privilege, and separate security review | Conditional |
+
+Every user-facing create or edit workflow in this scope uses the standard
+right-side slide-over panel. Large visual editors may use a dedicated workspace
+for the canvas, while node settings and CRUD forms still open from the right.
 
 ## 4. Platform and account foundation
 
@@ -109,6 +176,11 @@ into many live Switch calls on every page load.
 An extension is a guided GridPBX workflow composed from several Switch
 resources rather than a single Crossbar document.
 
+The authoritative relationship, creation-order, compensation, update, and
+dependency-aware deletion design is documented in
+[SWITCH_ENTITY_RELATIONSHIPS.md](SWITCH_ENTITY_RELATIONSHIPS.md). All composite
+workflows in this roadmap must follow those rules.
+
 | Capability | Switch resources | Projected data |
 | --- | --- | --- |
 | List, search, and filter extensions | Users, callflows, devices, voicemail boxes | Identity, extension numbers, assigned resources, enabled state |
@@ -123,6 +195,32 @@ resources rather than a single Crossbar document.
 
 The create/update workflow must report partial failures and support safe
 recovery when one Switch resource succeeds and a later resource fails.
+
+Implementation status: Foundation. Account-scoped extension list/detail,
+managed create/update, and Vue right-side create/edit panels are implemented.
+Create provisions a typed Switch user, optional owned voicemail box and device,
+and a managed user callflow with an optional voicemail fallback. Update changes
+the owned user, mailbox, and callflow in dependency order while preserving
+independent devices and callflow branches. Successful snapshots are projected
+in one local transaction, workflow ownership is explicit, secrets are redacted
+from `switch_json`, and aggregate outcomes are audited. Create compensates new
+remote resources in reverse order; update returns a stable repair-required
+error after partial upstream completion. A right-side deletion review
+reports managed/shared resources, phone-number and voicemail blockers, and
+referencing or unresolved callflows without exposing internal or upstream IDs.
+When the preview is clear, the operator must type the exact extension number.
+Laravel rechecks every blocker, then deletes only workflow-owned callflows,
+devices, voicemail boxes, and the user in reverse dependency order. Each
+upstream step is persisted under a public operation UUID, allowing an
+interrupted deletion to resume without repeating completed steps. Success
+soft-deletes the MySQL projections and writes an audit outcome. Create, update,
+and delete now share persisted lifecycle records. A manager-only right-side
+recovery queue retries only failed create-compensation steps, reconciles a
+partial update from Switch, or resumes a partial deletion after exact-number
+confirmation. Recovery responses expose public operation and extension UUIDs
+plus safe step names; upstream resource IDs, raw context, PINs, and credentials
+remain server-side. Fully compensated creates are marked rolled back and do not
+enter the queue.
 
 ### 5.3 Devices
 
@@ -141,6 +239,11 @@ Primary Switch boundaries: devices, registrations, users, provisioner
 templates, and any deployment-specific line-key storage. MySQL stores device
 metadata and status summaries but never SIP passwords.
 
+Implementation status: Foundation. Account-scoped list/detail/CRUD,
+registration projection, role authorization, audit logging, credential
+redaction, and Vue management screens are implemented. Provisioning and bulk
+settings remain planned.
+
 ### 5.4 Voicemail
 
 Planned capabilities:
@@ -156,6 +259,20 @@ Planned capabilities:
 Primary Switch boundaries: voicemail boxes, voicemail messages, users, media,
 and notifications. Message audio is streamed on demand and is not duplicated
 into MySQL by default.
+
+Implementation status: Foundation. Account-scoped mailbox list/detail/CRUD,
+extension assignment, timezone, notification emails, transcription settings,
+write-only PIN handling, role authorization, audit logging, redacted
+`switch_json`, message counts and metadata projection, authorized range-aware
+audio streaming, and Vue management panels are implemented. Audio stays in
+Switch and is streamed on demand; it is not stored in MySQL. Manager-only
+single and bulk message lifecycle actions now support new, saved, recoverable
+deleted, and restored states with partial-failure reporting and audit logs.
+Permanent upstream deletion is intentionally not exposed. The supported
+unavailable greeting can be discovered, uploaded/replaced through a right-side
+panel, streamed through Laravel, and safely detached. Greeting metadata and
+redacted `switch_json` are projected while audio remains in Switch. Additional
+prompt types and bulk mailbox settings remain planned.
 
 ### 5.5 Phone numbers
 
@@ -173,6 +290,17 @@ Planned capabilities:
 Primary Switch boundaries: phone numbers, callflows, number features, and
 optionally port requests. MySQL stores normalized inventory and assignment
 projections.
+
+Implementation status: Foundation. The typed Switch boundary hydrates the
+keyed account collection through per-number detail requests. Laravel projects
+normalized inventory, features, caller-name and E911 status, current callflow
+assignment, freshness metadata, and a redacted `switch_json` snapshot into
+MySQL. Account-authorized list/detail and explicit queued synchronization APIs
+use public UUIDs, while Vue provides search/state/assignment filters and a
+right-side detail panel. Acquisition, release, porting, caller-name changes,
+E911 changes, and assignment mutations are intentionally unavailable until
+deployment capabilities, carrier charges, permissions, and compliance rules
+are approved.
 
 ### 5.6 Basic call routing
 
@@ -192,6 +320,32 @@ complete Switch callflow document editor.
 Primary Switch boundaries: callflows, menus, temporal rules and rule sets,
 users, devices, groups, voicemail boxes, media, and phone numbers.
 
+Implementation status: Foundation. Callflows are hydrated from their detail
+documents and projected with entry numbers, patterns, flags, feature-code
+metadata, ordered modules, root module, node count, maximum depth, and a safe
+structural tree containing modules, branches, resolution state, and public
+GridPBX target UUIDs. Laravel owns the account-authorized list/detail/editor
+API and never returns raw node data, upstream identifiers, or `switch_json`.
+Vue provides search, route-type and module filters plus a recursive tree and a
+guided right-side editor. The first safe mutation can rename a non-feature-code
+route and replace its root destination with an account-scoped extension,
+device, voicemail box, callflow, or projected media item. Laravel fetches the
+latest Switch detail before writing, resolves the public UUID server-side,
+preserves every child and unknown branch, refreshes the projection, and audits
+the result. The same guided form assigns or removes projected phone-number
+entry points using public UUIDs. It preserves extension numbers and patterns,
+blocks numbers owned by another route, updates Switch first, and reconciles the
+phone-number projections in the same database transaction. The existing PBX
+reconciliation refreshes callflows and resolves
+references together with their extension, voicemail, device, callflow, and
+projected media dependencies. A guided create panel builds a new single-root
+phone-number route in Switch before projecting it. Deletion is available only
+for ordinary routes with no extension, phone-number, feature-code, resolved
+callflow, or unresolved callflow dependencies; the API rechecks these guards
+before deleting from Switch. Multi-node creation, branch editing, number
+acquisition/release, and the advanced visual canvas remain planned and
+module-gated.
+
 ## 6. P2 operational features
 
 | Domain | User-facing capabilities | Switch boundary | Projection notes | Status |
@@ -207,7 +361,7 @@ users, devices, groups, voicemail boxes, media, and phone numbers.
 | Blacklists | CRUD, number entries, callflow use | Blacklists and callflows | Entries and dependency summary | Planned |
 | Feature codes | View and manage supported star-code callflows for DND, hotdesk, voicemail, and related actions | Callflows | Code, action, enabled state, and dependency summary | Planned |
 | Account voice settings | Caller ID, timezone, language, music on hold, and supported account defaults | Accounts, media, configs | Safe effective-setting summary | Planned |
-| Call history | Search, direction/date/duration filters, interaction detail | CDRs | Retained/indexed CDR projection | Planned |
+| Call history | Search, direction/date/duration/outcome/cause filters, interaction detail | CDRs | Bounded, indexed CDR projection | Foundation |
 | Recordings | Search, metadata, authorized playback/download | Recordings and storage | Metadata only by default | Planned |
 | Active channels | Current calls and account activity | Channels | Short-lived cache, not durable projection | Conditional |
 
@@ -221,6 +375,19 @@ Before enabling production CDR projection, define:
 - Personally identifiable information controls
 - Recording authorization and download audit rules
 - Whether recordings stay in Switch storage or use an external object store
+
+Implementation status: Foundation. `grid-api-switch` now reads normalized CDR
+list pages for a bounded Gregorian timestamp range without hydrating sensitive
+full CDR documents. Laravel imports an on-demand window configured by
+`SWITCH_CDR_IMPORT_WINDOW_DAYS` (default seven, maximum 31), upserts call legs
+idempotently, links known owner IDs to extension projections, and indexes the
+account/date, direction, owner, interaction, cause, and duration query paths.
+The JSON snapshot is an explicit allowlist from each response `data` item and
+omits costs, rates, authorization IDs, recording URLs/media lists, SIP headers,
+DTMF, and SDP. Vue provides responsive filters and a read-only right-side
+detail panel. Recording availability is only a boolean; playback/download is
+disabled. No production scheduler, automatic retention deletion, partitioning,
+or recording access is enabled until the decisions above are approved.
 
 ## 7. Callflow module catalog
 
@@ -266,7 +433,8 @@ does not understand.
 
 ## 8. P3 advanced and reseller capabilities
 
-These capabilities require client prioritization and deployment discovery.
+These capabilities are confirmed target scope where listed in section 3.2,
+but their sequence still requires deployment discovery and dependency design.
 
 | Domain | Candidate capabilities | Status/constraint |
 | --- | --- | --- |
@@ -343,9 +511,11 @@ A Switch feature can move to `Complete` only when:
 - CDR and recording retention requirements
 - Required callflow modules for the initial editor
 - Device provisioning vendors and supported phone models
-- Fax, SMS/MMS, queues, and number-porting requirements
-- Carrier and emergency-services responsibilities
-- Whether billing/CRM remains in GridPBX or integrates with another platform
+- Target deployment support and integration details for fax, SMS/MMS, queues,
+  provisioning, and number porting
+- Carrier and emergency-services ownership, credentials, charges, and
+  compliance responsibilities
+- Authoritative billing/CRM system and integration boundary for GridPBX
 - Required migration/parity threshold before Monster UI is retired
 
 These decisions should update this roadmap before the affected feature enters

@@ -20,6 +20,8 @@ class DeviceResource extends JsonResource
             'model' => $this->model,
             'mac_address' => $this->mac_address,
             'is_enabled' => $this->is_enabled,
+            'registration_status' => $this->registration_status->value,
+            'registration_checked_at' => $this->registration_checked_at?->toIso8601String(),
             'assigned_extension' => $this->extension === null ? null : [
                 'id' => $this->extension->id,
                 'display_name' => $this->extension->display_name,

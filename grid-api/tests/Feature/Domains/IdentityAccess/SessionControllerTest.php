@@ -3,12 +3,20 @@
 namespace Tests\Feature\Domains\IdentityAccess;
 
 use App\Domains\IdentityAccess\Models\User;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
 class SessionControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->withoutMiddleware(PreventRequestForgery::class);
+    }
 
     public function test_a_user_can_log_in_and_read_the_session(): void
     {
@@ -25,7 +33,7 @@ class SessionControllerTest extends TestCase
 
         $this->getJson('/api/v1/session')
             ->assertOk()
-            ->assertJsonPath('data.user.id', $user->getKey());
+            ->assertJsonPath('data.user.id', $user->id);
 
     }
 

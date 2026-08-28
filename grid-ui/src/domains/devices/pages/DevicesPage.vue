@@ -8,6 +8,7 @@ import {
   LinkIcon,
   MagnifyingGlassIcon,
   PlusIcon,
+  SignalIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useDeviceStore } from '../stores/deviceStore'
@@ -17,6 +18,9 @@ const devices = useDeviceStore()
 const enabledOnPage = computed(() => devices.records.filter((device) => device.is_enabled).length)
 const assignedOnPage = computed(
   () => devices.records.filter((device) => device.assigned_extension !== null).length,
+)
+const registeredOnPage = computed(
+  () => devices.records.filter((device) => device.registration_status === 'registered').length,
 )
 const freshnessLabel = computed(() => {
   if (!devices.sync.last_successful_at) return 'Not synchronized yet'
@@ -64,10 +68,10 @@ function humanize(value: string): string {
           @click="refresh"
         >
           <ArrowPathIcon class="size-4" :class="devices.loading && 'animate-spin'" />
-          Refresh projection
+          Reload projection
         </button>
         <RouterLink
-          v-if="accounts.selectedId"
+          v-if="accounts.selectedId && accounts.selected?.permissions.can_manage_devices"
           :to="{ name: 'device-create' }"
           class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
         >
@@ -92,7 +96,7 @@ function humanize(value: string): string {
     </div>
 
     <template v-else>
-      <div class="mb-5 grid gap-4 sm:grid-cols-3">
+      <div class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <article class="card-surface flex items-center gap-4 p-4">
           <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600">
             <DevicePhoneMobileIcon class="size-5" />
@@ -101,6 +105,17 @@ function humanize(value: string): string {
             <p class="text-lg font-semibold text-slate-700">{{ devices.total }}</p>
             <p class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
               Projected devices
+            </p>
+          </div>
+        </article>
+        <article class="card-surface flex items-center gap-4 p-4">
+          <span class="grid size-10 place-items-center rounded-md bg-violet-50 text-violet-600">
+            <SignalIcon class="size-5" />
+          </span>
+          <div>
+            <p class="text-lg font-semibold text-slate-700">{{ registeredOnPage }}</p>
+            <p class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+              Registered on page
             </p>
           </div>
         </article>
@@ -227,16 +242,30 @@ function humanize(value: string): string {
                   {{ device.mac_address ?? '—' }}
                 </td>
                 <td class="px-5 py-3.5">
-                  <span
-                    class="rounded-full px-2.5 py-1 text-[10px] font-bold"
-                    :class="
-                      device.is_enabled
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-slate-100 text-slate-500'
-                    "
-                  >
-                    {{ device.is_enabled ? 'Enabled' : 'Disabled' }}
-                  </span>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span
+                      class="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                      :class="
+                        device.is_enabled
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-100 text-slate-500'
+                      "
+                    >
+                      {{ device.is_enabled ? 'Enabled' : 'Disabled' }}
+                    </span>
+                    <span
+                      class="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                      :class="
+                        device.registration_status === 'registered'
+                          ? 'bg-violet-50 text-violet-700'
+                          : device.registration_status === 'unregistered'
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-slate-100 text-slate-500'
+                      "
+                    >
+                      {{ humanize(device.registration_status) }}
+                    </span>
+                  </div>
                 </td>
                 <td class="px-5 py-3.5">
                   <RouterLink

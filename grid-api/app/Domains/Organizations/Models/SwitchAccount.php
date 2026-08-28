@@ -2,12 +2,17 @@
 
 namespace App\Domains\Organizations\Models;
 
+use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
+use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Devices\Models\SwitchDevice;
-use App\Domains\Extensions\Models\SwitchCallflow;
 use App\Domains\Extensions\Models\SwitchExtension;
-use App\Domains\Extensions\Models\SwitchVoicemailBox;
+use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Domains\SwitchSynchronization\Models\SyncRun;
+use App\Domains\Voicemail\Models\SwitchVoicemailBox;
+use App\Domains\Voicemail\Models\SwitchVoicemailGreeting;
+use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
+use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchAccountFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -18,7 +23,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SwitchAccount extends Model
 {
     /** @use HasFactory<SwitchAccountFactory> */
-    use HasFactory, HasUlids;
+    use HasFactory, HasPublicUuid, HasUlids;
+
+    protected $primaryKey = 'account_id';
 
     protected $fillable = [
         'organization_id',
@@ -31,43 +38,67 @@ class SwitchAccount extends Model
     /** @return BelongsTo<Organization, $this> */
     public function organization(): BelongsTo
     {
-        return $this->belongsTo(Organization::class);
+        return $this->belongsTo(Organization::class, 'organization_id', 'organization_id');
     }
 
     /** @return HasMany<SwitchExtension, $this> */
     public function extensions(): HasMany
     {
-        return $this->hasMany(SwitchExtension::class);
+        return $this->hasMany(SwitchExtension::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchDevice, $this> */
     public function devices(): HasMany
     {
-        return $this->hasMany(SwitchDevice::class);
+        return $this->hasMany(SwitchDevice::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchVoicemailBox, $this> */
     public function voicemailBoxes(): HasMany
     {
-        return $this->hasMany(SwitchVoicemailBox::class);
+        return $this->hasMany(SwitchVoicemailBox::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchVoicemailMessage, $this> */
+    public function voicemailMessages(): HasMany
+    {
+        return $this->hasMany(SwitchVoicemailMessage::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchVoicemailGreeting, $this> */
+    public function voicemailGreetings(): HasMany
+    {
+        return $this->hasMany(SwitchVoicemailGreeting::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchCallflow, $this> */
     public function callflows(): HasMany
     {
-        return $this->hasMany(SwitchCallflow::class);
+        return $this->hasMany(SwitchCallflow::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchPhoneNumber, $this> */
+    public function phoneNumbers(): HasMany
+    {
+        return $this->hasMany(SwitchPhoneNumber::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchCallDetailRecord, $this> */
+    public function callDetailRecords(): HasMany
+    {
+        return $this->hasMany(SwitchCallDetailRecord::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SyncRun, $this> */
     public function syncRuns(): HasMany
     {
-        return $this->hasMany(SyncRun::class);
+        return $this->hasMany(SyncRun::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SyncCheckpoint, $this> */
     public function syncCheckpoints(): HasMany
     {
-        return $this->hasMany(SyncCheckpoint::class);
+        return $this->hasMany(SyncCheckpoint::class, 'switch_account_id', 'account_id');
     }
 
     /** @return array<string, string> */

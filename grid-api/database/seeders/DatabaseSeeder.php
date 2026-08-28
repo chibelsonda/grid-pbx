@@ -5,13 +5,10 @@ namespace Database\Seeders;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
 {
-    use WithoutModelEvents;
-
     /**
      * Seed the application's database.
      */

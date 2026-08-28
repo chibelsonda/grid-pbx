@@ -12,7 +12,7 @@ class DeviceService
     public function paginate(SwitchAccount $account, ?string $search, int $perPage): LengthAwarePaginator
     {
         return $account->devices()
-            ->with('extension:id,display_name,extension')
+            ->with('extension:extension_id,id,display_name,extension')
             ->when($search, function ($query, string $search): void {
                 $query->where(function ($query) use ($search): void {
                     $query
@@ -30,7 +30,7 @@ class DeviceService
             })
             ->orderByRaw('name IS NULL')
             ->orderBy('name')
-            ->orderBy('id')
+            ->orderBy('device_id')
             ->paginate($perPage)
             ->withQueryString();
     }
@@ -38,8 +38,8 @@ class DeviceService
     public function find(SwitchAccount $account, string $deviceId): SwitchDevice
     {
         return $account->devices()
-            ->whereKey($deviceId)
-            ->with('extension:id,display_name,extension')
+            ->where('id', $deviceId)
+            ->with('extension:extension_id,id,display_name,extension')
             ->firstOrFail();
     }
 }

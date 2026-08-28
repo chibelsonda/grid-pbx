@@ -5,13 +5,16 @@ namespace App\Domains\SwitchSynchronization\Models;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\SyncRunStatus;
+use App\Shared\Models\Concerns\HasPublicUuid;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SyncRun extends Model
 {
-    use HasUlids;
+    use HasPublicUuid, HasUlids;
+
+    protected $primaryKey = 'sync_run_id';
 
     protected $table = 'switch_sync_runs';
 
@@ -32,13 +35,13 @@ class SyncRun extends Model
     /** @return BelongsTo<SwitchAccount, $this> */
     public function switchAccount(): BelongsTo
     {
-        return $this->belongsTo(SwitchAccount::class);
+        return $this->belongsTo(SwitchAccount::class, 'switch_account_id', 'account_id');
     }
 
     /** @return BelongsTo<User, $this> */
     public function requestedBy(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'requested_by_user_id');
+        return $this->belongsTo(User::class, 'requested_by_user_id', 'user_id');
     }
 
     /** @return array<string, string> */

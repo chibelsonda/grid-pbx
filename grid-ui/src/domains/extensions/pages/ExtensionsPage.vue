@@ -1,16 +1,25 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
   MagnifyingGlassIcon,
+  PlusIcon,
   UserGroupIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useExtensionStore } from '../stores/extensionStore'
+import ExtensionCreatePanel from '../components/ExtensionCreatePanel.vue'
+import ExtensionRecoveryPanel from '../components/ExtensionRecoveryPanel.vue'
+import type { ExtensionCreate, ExtensionRecoveryOperation } from '../types/extension'
 
+const router = useRouter()
 const accounts = useAccountStore()
 const extensions = useExtensionStore()
+const creating = ref(false)
+const recoveryOpen = ref(false)
 const freshnessLabel = computed(() => {
   if (!extensions.sync.last_successful_at) return 'Not synchronized yet'
 
@@ -33,6 +42,30 @@ function search(): void {
 function synchronize(): void {
   if (accounts.selectedId) void extensions.startSync(accounts.selectedId)
 }
+
+async function createExtension(input: ExtensionCreate): Promise<void> {
+  if (!accounts.selectedId) return
+  const extension = await extensions.create(accounts.selectedId, input)
+
+  if (extension) {
+    creating.value = false
+    await router.push({ name: 'extension-detail', params: { extensionId: extension.id } })
+  }
+}
+
+function openRecovery(): void {
+  if (!accounts.selectedId) return
+  extensions.recoveryActionError = null
+  recoveryOpen.value = true
+  void extensions.loadRecoveryQueue(accounts.selectedId)
+}
+
+function recoverOperation(
+  operation: ExtensionRecoveryOperation,
+  confirmation: string | null,
+): void {
+  if (accounts.selectedId) void extensions.recover(accounts.selectedId, operation, confirmation)
+}
 </script>
 
 <template>
@@ -43,15 +76,35 @@ function synchronize(): void {
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">People & Extensions</h1>
         <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Switch.</p>
       </div>
-      <button
-        type="button"
-        :disabled="!accounts.selectedId || extensions.syncing"
-        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50 sm:ml-auto"
-        @click="synchronize"
-      >
-        <ArrowPathIcon class="size-4" :class="extensions.syncing && 'animate-spin'" />
-        {{ extensions.syncing ? 'Synchronizing…' : 'Sync from Switch' }}
-      </button>
+      <div class="flex gap-2 sm:ml-auto">
+        <button
+          v-if="accounts.selected?.permissions.can_manage_extensions"
+          type="button"
+          :disabled="!accounts.selectedId"
+          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+          @click="openRecovery"
+        >
+          <WrenchScrewdriverIcon class="size-4" /> Recovery queue
+        </button>
+        <button
+          type="button"
+          :disabled="!accounts.selectedId || extensions.syncing"
+          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+          @click="synchronize"
+        >
+          <ArrowPathIcon class="size-4" :class="extensions.syncing && 'animate-spin'" />
+          {{ extensions.syncing ? 'Synchronizing…' : 'Sync from Switch' }}
+        </button>
+        <button
+          v-if="accounts.selected?.permissions.can_manage_extensions"
+          type="button"
+          :disabled="!accounts.selectedId"
+          class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+          @click="creating = true"
+        >
+          <PlusIcon class="size-4" /> Create extension
+        </button>
+      </div>
     </div>
   </section>
 
@@ -209,4 +262,23 @@ function synchronize(): void {
       </div>
     </template>
   </div>
+
+  <ExtensionCreatePanel
+    v-if="creating"
+    :saving="extensions.mutationLoading"
+    :error="extensions.mutationError"
+    :field-errors="extensions.fieldErrors"
+    @close="creating = false"
+    @save="createExtension"
+  />
+  <ExtensionRecoveryPanel
+    v-if="recoveryOpen"
+    :records="extensions.recoveryRecords"
+    :loading="extensions.recoveryLoading"
+    :action-loading="extensions.recoveryActionLoading"
+    :error="extensions.recoveryError"
+    :action-error="extensions.recoveryActionError"
+    @close="recoveryOpen = false"
+    @recover="recoverOperation"
+  />
 </template>

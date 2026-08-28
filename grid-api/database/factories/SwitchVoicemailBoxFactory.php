@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Domains\Extensions\Models\SwitchVoicemailBox;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,6 +27,10 @@ class SwitchVoicemailBoxFactory extends Factory
             'owner_switch_resource_id' => fake()->regexify('[a-f0-9]{32}'),
             'name' => fake()->name().' voicemail',
             'mailbox' => (string) fake()->unique()->numberBetween(1000, 9999),
+            'timezone' => 'UTC',
+            'notification_emails' => [],
+            'transcribe' => false,
+            'require_pin' => false,
             'is_setup' => true,
             'last_synced_at' => now(),
             'sync_status' => ProjectionStatus::Healthy,

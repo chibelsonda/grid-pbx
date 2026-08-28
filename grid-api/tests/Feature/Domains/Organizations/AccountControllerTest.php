@@ -23,7 +23,9 @@ class AccountControllerTest extends TestCase
         $this->actingAs($user)->getJson('/api/v1/accounts')
             ->assertOk()
             ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $visible->getKey())
+            ->assertJsonPath('data.0.id', $visible->id)
+            ->assertJsonPath('data.0.organization_role', 'account_operator')
+            ->assertJsonPath('data.0.permissions.can_manage_devices', true)
             ->assertJsonMissing(['name' => 'Hidden PBX']);
     }
 }

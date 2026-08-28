@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Contracts\TokenProvider;
-use GridPbx\Switch\Dto\DeviceWriteData;
+use GridPbx\Switch\Dto\Devices\DeviceWriteData;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\Resources\DeviceResourceClient;
 use GridPbx\Switch\SwitchClient;
@@ -126,6 +126,38 @@ final class DeviceResourceClientTest extends TestCase
             deviceType: 'sip_device',
             enabled: true,
         ));
+    }
+
+    public function test_it_returns_typed_registered_device_statuses(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => [
+                ['device_id' => 'device-1', 'registered' => true],
+                ['device_id' => 'device-2', 'registered' => false],
+            ]]),
+        ]);
+
+        $statuses = $client->statuses('account-1');
+
+        self::assertCount(2, $statuses);
+        self::assertSame('device-1', $statuses[0]->deviceId);
+        self::assertTrue($statuses[0]->registered);
+        self::assertSame('device-2', $statuses[1]->deviceId);
+        self::assertFalse($statuses[1]->registered);
+        self::assertSame('GET', $this->history[0]['request']->getMethod());
+        self::assertSame('/v2/accounts/account-1/devices/status', $this->history[0]['request']->getUri()->getPath());
+    }
+
+    public function test_it_rejects_a_status_without_a_device_identifier(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => [['registered' => true]]]),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+        $this->expectExceptionMessage('device_id');
+
+        $client->statuses('account-1');
     }
 
     /**

@@ -6,6 +6,7 @@ namespace GridPbx\Switch;
 
 use GridPbx\Switch\Contracts\TokenProvider;
 use GridPbx\Switch\Exceptions\SwitchRequestException;
+use GridPbx\Switch\Http\BinaryResponse;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;
@@ -27,6 +28,12 @@ final class SwitchClient
     public function request(string $method, string $path, array $options = []): array
     {
         return $this->send($method, $path, $options, true);
+    }
+
+    /** @param array<string, mixed> $options */
+    public function binary(string $method, string $path, array $options = []): BinaryResponse
+    {
+        return $this->sendBinary($method, $path, $options, true);
     }
 
     /**
@@ -72,5 +79,54 @@ final class SwitchClient
         }
 
         return $payload;
+    }
+
+    /** @param array<string, mixed> $options */
+    private function sendBinary(
+        string $method,
+        string $path,
+        array $options,
+        bool $retryAuthentication,
+    ): BinaryResponse {
+        $options['connect_timeout'] ??= $this->config->timeout;
+        $options['timeout'] ??= $this->config->timeout;
+        $options['stream'] = true;
+        $options['headers'] = array_merge(
+            ['Accept' => 'audio/*, application/octet-stream'],
+            $options['headers'] ?? [],
+            ['X-Auth-Token' => $this->tokens->token()],
+        );
+
+        try {
+            $response = $this->http->request($method, $this->config->url($path), $options);
+        } catch (RequestException $exception) {
+            $status = $exception->getResponse()?->getStatusCode() ?? 502;
+
+            if ($status === 401 && $retryAuthentication) {
+                $this->tokens->invalidate();
+
+                return $this->sendBinary($method, $path, $options, false);
+            }
+
+            throw new SwitchRequestException('Switch binary request failed.', $status, previous: $exception);
+        } catch (GuzzleException $exception) {
+            throw new SwitchRequestException('Switch is unavailable.', 502, previous: $exception);
+        }
+
+        $contentType = trim(explode(';', $response->getHeaderLine('Content-Type'))[0]);
+
+        if ($contentType === '') {
+            $contentType = 'application/octet-stream';
+        }
+
+        $contentLength = $response->getHeaderLine('Content-Length');
+
+        return new BinaryResponse(
+            stream: $response->getBody(),
+            statusCode: $response->getStatusCode(),
+            contentType: $contentType,
+            contentLength: ctype_digit($contentLength) ? (int) $contentLength : null,
+            contentRange: $response->getHeaderLine('Content-Range') ?: null,
+        );
     }
 }

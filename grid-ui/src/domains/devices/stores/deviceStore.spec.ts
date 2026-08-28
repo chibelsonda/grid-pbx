@@ -23,6 +23,8 @@ const device: Device = {
   model: 'T54W',
   mac_address: '00:11:22:33:44:55',
   is_enabled: true,
+  registration_status: 'registered',
+  registration_checked_at: '2026-08-28T06:30:00Z',
   assigned_extension: {
     id: 'extension-1',
     display_name: 'Alice Operator',

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftIcon,
   ArrowPathRoundedSquareIcon,
@@ -11,16 +11,25 @@ import {
   IdentificationIcon,
   MicrophoneIcon,
   PhoneIcon,
+  PencilSquareIcon,
+  ShieldExclamationIcon,
   UserIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ExtensionDeletionPreviewPanel from '../components/ExtensionDeletionPreviewPanel.vue'
+import ExtensionEditPanel from '../components/ExtensionEditPanel.vue'
 import { useExtensionStore } from '../stores/extensionStore'
+import type { ExtensionUpdate } from '../types/extension'
 
 const route = useRoute()
+const router = useRouter()
 const accounts = useAccountStore()
 const extensions = useExtensionStore()
 const extensionId = computed(() => String(route.params.extensionId))
 const extension = computed(() => extensions.detail)
+const canManage = computed(() => accounts.selected?.permissions.can_manage_extensions ?? false)
+const editPanelOpen = ref(false)
+const deletionPanelOpen = ref(false)
 const initials = computed(() =>
   (extension.value?.display_name ?? 'Extension')
     .split(/\s+/)
@@ -49,6 +58,32 @@ function formatDate(value: string | null): string {
 function humanize(value: string): string {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 }
+
+function openEditPanel(): void {
+  extensions.mutationError = null
+  extensions.fieldErrors = {}
+  editPanelOpen.value = true
+}
+
+function openDeletionPreview(): void {
+  if (!accounts.selectedId || !extension.value) return
+  deletionPanelOpen.value = true
+  extensions.deletionError = null
+  extensions.fieldErrors = {}
+  void extensions.loadDeletionPreview(accounts.selectedId, extension.value.id)
+}
+
+async function deleteExtension(confirmation: string): Promise<void> {
+  if (!accounts.selectedId || !extension.value) return
+  const deleted = await extensions.remove(accounts.selectedId, extension.value.id, confirmation)
+  if (deleted) await router.push({ name: 'extensions' })
+}
+
+async function updateExtension(input: ExtensionUpdate): Promise<void> {
+  if (!accounts.selectedId || !extension.value) return
+  const updated = await extensions.update(accounts.selectedId, extension.value.id, input)
+  if (updated) editPanelOpen.value = false
+}
 </script>
 
 <template>
@@ -75,18 +110,37 @@ function humanize(value: string): string {
           Projected identity, endpoints, voicemail, and routing from Switch.
         </p>
       </div>
-      <span
-        v-if="extension"
-        class="ml-auto hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold sm:inline-flex"
-        :class="
-          extension.is_enabled
-            ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-            : 'border-slate-200 bg-slate-100 text-slate-500'
-        "
-      >
-        <span class="size-2 rounded-full bg-current" />
-        {{ extension.is_enabled ? 'Enabled' : 'Disabled' }}
-      </span>
+      <div v-if="extension" class="ml-auto flex items-center gap-2">
+        <button
+          v-if="canManage && extension.is_managed"
+          type="button"
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600"
+          @click="openEditPanel"
+        >
+          <PencilSquareIcon class="size-4" /><span class="hidden sm:inline">Edit</span>
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-amber-100 bg-amber-50 px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100"
+          @click="openDeletionPreview"
+        >
+          <ShieldExclamationIcon class="size-4" /><span class="hidden sm:inline"
+            >Review deletion</span
+          >
+        </button>
+        <span
+          class="hidden items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold lg:inline-flex"
+          :class="
+            extension.is_enabled
+              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
+              : 'border-slate-200 bg-slate-100 text-slate-500'
+          "
+        >
+          <span class="size-2 rounded-full bg-current" />
+          {{ extension.is_enabled ? 'Enabled' : 'Disabled' }}
+        </span>
+      </div>
     </div>
   </section>
 
@@ -362,4 +416,25 @@ function humanize(value: string): string {
       </div>
     </template>
   </div>
+
+  <ExtensionEditPanel
+    v-if="editPanelOpen && extension"
+    :extension="extension"
+    :saving="extensions.mutationLoading"
+    :error="extensions.mutationError"
+    :field-errors="extensions.fieldErrors"
+    @close="editPanelOpen = false"
+    @save="updateExtension"
+  />
+  <ExtensionDeletionPreviewPanel
+    v-if="deletionPanelOpen"
+    :preview="extensions.deletionPreview"
+    :loading="extensions.previewLoading"
+    :error="extensions.previewError"
+    :deleting="extensions.deletionLoading"
+    :deletion-error="extensions.deletionError"
+    :field-errors="extensions.fieldErrors"
+    @close="deletionPanelOpen = false"
+    @delete="deleteExtension"
+  />
 </template>

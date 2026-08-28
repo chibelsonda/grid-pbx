@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Resources;
 
 use Generator;
-use GridPbx\Switch\Dto\EntitySnapshot;
+use GridPbx\Switch\Dto\Common\EntitySnapshot;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use InvalidArgumentException;

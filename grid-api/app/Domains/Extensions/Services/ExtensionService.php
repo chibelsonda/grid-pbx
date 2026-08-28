@@ -31,11 +31,11 @@ class ExtensionService
     public function find(SwitchAccount $account, string $extensionId): SwitchExtension
     {
         return $account->extensions()
-            ->whereKey($extensionId)
+            ->where('id', $extensionId)
             ->with([
-                'devices' => fn ($query) => $query->orderBy('name')->orderBy('id'),
-                'voicemailBoxes' => fn ($query) => $query->orderBy('mailbox')->orderBy('id'),
-                'callflows' => fn ($query) => $query->orderBy('name')->orderBy('id'),
+                'devices' => fn ($query) => $query->orderBy('name')->orderBy('device_id'),
+                'voicemailBoxes' => fn ($query) => $query->withCount('messages')->orderBy('mailbox')->orderBy('voicemail_box_id'),
+                'callflows' => fn ($query) => $query->orderBy('name')->orderBy('callflow_id'),
             ])
             ->firstOrFail();
     }

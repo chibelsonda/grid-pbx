@@ -1,5 +1,14 @@
-import { http, type ApiResponse } from '@/shared/api/http'
-import type { Extension, ExtensionDetail, SyncRun, SyncState } from '../types/extension'
+import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
+import type {
+  Extension,
+  ExtensionCreate,
+  ExtensionDeletionPreview,
+  ExtensionDetail,
+  ExtensionRecoveryOperation,
+  ExtensionUpdate,
+  SyncRun,
+  SyncState,
+} from '../types/extension'
 
 export type ExtensionPage = {
   data: Extension[]
@@ -26,20 +35,71 @@ export const extensionApi = {
       `/api/v1/accounts/${accountId}/extensions/${extensionId}`,
     )
 
-    return response.data.data
+    return unwrapApiData(response)
+  },
+  async create(accountId: string, input: ExtensionCreate): Promise<ExtensionDetail> {
+    const response = await http.post<ApiResponse<ExtensionDetail>>(
+      `/api/v1/accounts/${accountId}/extensions`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async update(
+    accountId: string,
+    extensionId: string,
+    input: ExtensionUpdate,
+  ): Promise<ExtensionDetail> {
+    const response = await http.put<ApiResponse<ExtensionDetail>>(
+      `/api/v1/accounts/${accountId}/extensions/${extensionId}`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async deletionPreview(accountId: string, extensionId: string): Promise<ExtensionDeletionPreview> {
+    const response = await http.get<ApiResponse<ExtensionDeletionPreview>>(
+      `/api/v1/accounts/${accountId}/extensions/${extensionId}/deletion-preview`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async remove(accountId: string, extensionId: string, confirmation: string): Promise<void> {
+    await http.delete(`/api/v1/accounts/${accountId}/extensions/${extensionId}`, {
+      data: { confirmation },
+    })
+  },
+  async recoveryQueue(accountId: string): Promise<ExtensionRecoveryOperation[]> {
+    const response = await http.get<ApiResponse<ExtensionRecoveryOperation[]>>(
+      `/api/v1/accounts/${accountId}/extension-recovery`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async recover(
+    accountId: string,
+    operationId: string,
+    confirmation: string | null = null,
+  ): Promise<ExtensionRecoveryOperation> {
+    const response = await http.post<ApiResponse<ExtensionRecoveryOperation>>(
+      `/api/v1/accounts/${accountId}/extension-recovery/${operationId}`,
+      { confirmation },
+    )
+
+    return unwrapApiData(response)
   },
   async startSync(accountId: string): Promise<SyncRun> {
     const response = await http.post<ApiResponse<SyncRun>>(
       `/api/v1/accounts/${accountId}/sync/extensions`,
     )
 
-    return response.data.data
+    return unwrapApiData(response)
   },
   async syncRun(accountId: string, runId: string): Promise<SyncRun> {
     const response = await http.get<ApiResponse<SyncRun>>(
       `/api/v1/accounts/${accountId}/sync/extensions/${runId}`,
     )
 
-    return response.data.data
+    return unwrapApiData(response)
   },
 }

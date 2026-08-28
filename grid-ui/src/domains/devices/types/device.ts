@@ -1,4 +1,5 @@
 export type ProjectionStatus = 'healthy' | 'syncing' | 'stale' | 'error'
+export type RegistrationStatus = 'registered' | 'unregistered' | 'unknown'
 
 export type AssignedExtension = {
   id: string
@@ -14,6 +15,8 @@ export type Device = {
   model: string | null
   mac_address: string | null
   is_enabled: boolean
+  registration_status: RegistrationStatus
+  registration_checked_at: string | null
   assigned_extension: AssignedExtension | null
   sync_status: ProjectionStatus
   last_synced_at: string | null

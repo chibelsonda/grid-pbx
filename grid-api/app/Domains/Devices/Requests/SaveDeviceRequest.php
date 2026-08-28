@@ -2,6 +2,7 @@
 
 namespace App\Domains\Devices\Requests;
 
+use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -30,11 +31,19 @@ class SaveDeviceRequest extends FormRequest
             'assigned_extension_id' => [
                 'nullable',
                 'string',
+                'uuid',
                 Rule::exists('switch_extensions', 'id')
-                    ->where('switch_account_id', (string) $this->route('account')),
+                    ->where('switch_account_id', $this->accountInternalId()),
             ],
             'sip_username' => ['nullable', 'string', 'max:128'],
             'sip_password' => ['nullable', 'string', 'min:12', 'max:255'],
         ];
+    }
+
+    private function accountInternalId(): ?string
+    {
+        return SwitchAccount::query()
+            ->where('id', (string) $this->route('account'))
+            ->value('account_id');
     }
 }

@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
@@ -31,6 +32,8 @@ class SwitchDeviceFactory extends Factory
             'model' => 'Desk 100',
             'mac_address' => fake()->macAddress(),
             'is_enabled' => true,
+            'registration_status' => DeviceRegistrationStatus::Unknown,
+            'registration_checked_at' => null,
             'last_synced_at' => now(),
             'sync_status' => ProjectionStatus::Healthy,
             'projection_version' => 1,

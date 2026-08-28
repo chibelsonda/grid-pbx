@@ -4,8 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Resources;
 
-use GridPbx\Switch\Dto\DeviceSnapshot;
-use GridPbx\Switch\Dto\DeviceWriteData;
+use GridPbx\Switch\Dto\Devices\DeviceSnapshot;
+use GridPbx\Switch\Dto\Devices\DeviceStatus;
+use GridPbx\Switch\Dto\Devices\DeviceWriteData;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use InvalidArgumentException;
@@ -61,6 +62,32 @@ final readonly class DeviceResourceClient
                 rawurlencode($accountId),
                 rawurlencode($deviceId),
             ),
+        );
+    }
+
+    /** @return list<DeviceStatus> */
+    public function statuses(string $accountId): array
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request(
+            'GET',
+            sprintf('accounts/%s/devices/status', rawurlencode($accountId)),
+        );
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new InvalidSwitchPayloadException('Switch device status response data must be an array.');
+        }
+
+        return array_map(
+            static function (mixed $status): DeviceStatus {
+                if (! is_array($status)) {
+                    throw new InvalidSwitchPayloadException('Switch device status entries must be objects.');
+                }
+
+                return new DeviceStatus($status);
+            },
+            array_values($data),
         );
     }
 

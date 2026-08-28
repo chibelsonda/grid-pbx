@@ -8,10 +8,17 @@ Implemented checkpoint:
 - Laravel and Vue domain-oriented application structures
 - Sanctum first-party SPA login and protected routing
 - Organization-scoped Switch account selection
-- MySQL extension projection with search and pagination
-- Queued, idempotent Switch user synchronization with run/checkpoint status
-- Full Switch list/detail hydration with safe JSON source snapshots
-- ArchitectUI-inspired Tailwind application shell and extension directory
+- MySQL projections for extensions, devices, voicemail, phone numbers, and call routing
+- Queued, idempotent synchronization with per-resource run/checkpoint status
+- Full Switch list/detail hydration with safe, redacted `switch_json` snapshots
+- Public UUID API contracts with entity-named internal primary keys
+- ArchitectUI-inspired Tailwind application shell, directories, and right-side
+  CRUD/detail panels
+- Safe callflow trees with public-UUID target resolution and a guided
+  Switch-first root-destination editor that preserves unknown branches
+- Conflict-safe phone-number entry-point assignment within the routing editor
+- Guided Switch-first callflow creation and dependency-aware deletion
+- Shared Axios response-envelope unwrapping for clean domain API clients
 
 ## 1. Objective
 
@@ -22,6 +29,9 @@ as the PBX source of truth.
 The planned Switch capabilities, priorities, resource mappings, and delivery
 checklist are maintained in
 [SWITCH_FEATURE_ROADMAP.md](SWITCH_FEATURE_ROADMAP.md).
+Its Switch coverage register is the authoritative completeness checklist for
+the requested resources and package boundaries; inclusion in that register
+does not bypass capability, security, retention, or acceptance requirements.
 
 The application will preserve the legacy three-project boundary:
 
@@ -270,7 +280,8 @@ must produce the same result and must not duplicate records.
 Each owning bounded context defines its own normalized projection tables. A
 typical projected record includes:
 
-- GridPBX ULID primary key
+- An internal, entity-named primary key such as `extension_id` or `device_id`
+- A separate unique UUID column named `id` for API routes and UI contracts
 - Organization and Switch account mapping identifiers
 - Switch resource identifier with a composite unique constraint per account
 - Normalized fields required for filtering, sorting, joins, and display
@@ -278,7 +289,7 @@ typical projected record includes:
 - `last_synced_at`, `sync_status`, and optional safe error metadata
 - Soft deletion or a tombstone when a resource disappears from Switch
 - Projection schema version
-- JSON source snapshot sourced from the entity detail response's `data`
+- Redacted `switch_json` sourced from the entity detail response's `data`
   property, including unmapped non-secret fields
 
 Raw Switch documents should not be copied indiscriminately. API keys, Switch
@@ -287,11 +298,11 @@ be stored in projection payloads. High-volume records such as call-detail
 records require explicit retention, indexing, pagination, and archival rules
 before being projected at scale.
 
-### Source snapshot contract
+### Switch JSON snapshot contract
 
 For each supported entity, synchronization first enumerates the account-level
 collection and then fetches the entity detail endpoint. The complete detail
-response `data` object becomes the source snapshot after a centralized,
+response `data` object becomes `switch_json` after a centralized,
 recursive sensitive-field redaction pass. Redacted keys remain present with a
 `[REDACTED]` marker so schema coverage is observable without retaining the
 credential value.
@@ -299,18 +310,20 @@ credential value.
 The snapshot and the normalized projection serve different purposes:
 
 - Normalized columns own application filtering, sorting, joins, and display.
-- `source_payload` preserves non-secret fields that are not normalized yet and
+- `switch_json` preserves non-secret fields that are not normalized yet and
   allows future projection changes to be rebuilt from the latest snapshot.
-- Public API resources do not return `source_payload`; a future diagnostic
+- Public API resources do not return `switch_json`; a future diagnostic
   endpoint would require explicit administrator authorization and auditing.
 - PBX write requests use dedicated validated command payloads. A stored source
   snapshot is never sent wholesale back to Switch because it can include
   read-only, private, or unsupported fields.
 
-The initial typed snapshots cover users, devices, voicemail boxes, and
-callflows. Remaining Switch entities will adopt the same list/detail, typed
-field, raw-data preservation, and redaction contract as their vertical slices
-are implemented.
+The initial typed snapshots cover users, devices, voicemail boxes, voicemail
+message metadata, callflows, media, and phone numbers. Remaining Switch
+entities will adopt the same list/detail, typed field, raw-data preservation,
+and redaction contract as their vertical slices are implemented. Voicemail
+audio is intentionally not a projection: Laravel authorizes each request and
+streams it from Switch without persisting the binary in MySQL.
 
 ### Synchronization strategy
 
@@ -389,6 +402,10 @@ mobile layouts.
 - Destructive actions require explicit confirmation and identify the target.
 - Empty states explain what the resource does and provide the next action.
 - Forms keep advanced Switch fields collapsed unless the task needs them.
+- Create and edit forms open in a reusable responsive panel that slides from
+  the right. List and detail context remains visible behind the panel; Escape,
+  the close button, and the backdrop close it safely when no mutation is in
+  progress.
 - Keyboard focus, color contrast, labels, and error summaries are required.
 
 ## 9. Authentication and authorization
@@ -419,7 +436,13 @@ Initial roles:
 - JSON request and response bodies except file transfers
 - Resource-oriented routes with account scope in the URL
 - Consistent success, validation, error, and pagination envelopes
-- UUID/ULID identifiers for application-owned records
+- API resources, routes, and UI state use only the public UUID column named
+  `id`; internal primary and foreign keys are never serialized
+- MySQL primary keys are named for their entity (`user_id`, `device_id`,
+  `voicemail_box_id`, and so on). `switch_accounts` uses `account_id` because
+  `switch_account_id` already stores the upstream Switch account identifier
+- Internal ULID/bigint key types remain implementation details; public UUIDs
+  are immutable, unique, and generated by Laravel when a record is created
 - Switch identifiers remain opaque strings
 - Correlation ID returned on every response
 - Validation errors use stable field keys
@@ -437,11 +460,33 @@ GET    /api/v1/accounts
 GET    /api/v1/accounts/{account}/dashboard
 GET    /api/v1/accounts/{account}/extensions
 POST   /api/v1/accounts/{account}/extensions
+GET    /api/v1/accounts/{account}/extension-recovery
+POST   /api/v1/accounts/{account}/extension-recovery/{operation}
 GET    /api/v1/accounts/{account}/devices
 GET    /api/v1/accounts/{account}/phone-numbers
-GET    /api/v1/accounts/{account}/voicemails
+GET    /api/v1/accounts/{account}/voicemail-boxes
+POST   /api/v1/accounts/{account}/voicemail-boxes
+GET    /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}
+PUT    /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}
+DELETE /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}
+GET    /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/messages
+PATCH  /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/messages
+PATCH  /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/messages/{message}
+GET    /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/messages/{message}/audio
+POST   /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/greeting
+GET    /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/greeting/audio
+DELETE /api/v1/accounts/{account}/voicemail-boxes/{voicemailBox}/greeting
 GET    /api/v1/accounts/{account}/callflows
-GET    /api/v1/accounts/{account}/call-records
+GET    /api/v1/accounts/{account}/callflows/editor
+POST   /api/v1/accounts/{account}/callflows
+GET    /api/v1/accounts/{account}/callflows/{callflow}
+GET    /api/v1/accounts/{account}/callflows/{callflow}/editor
+PUT    /api/v1/accounts/{account}/callflows/{callflow}
+DELETE /api/v1/accounts/{account}/callflows/{callflow}
+GET    /api/v1/accounts/{account}/call-detail-records
+GET    /api/v1/accounts/{account}/call-detail-records/{callDetailRecord}
+POST   /api/v1/accounts/{account}/sync/call-detail-records
+GET    /api/v1/accounts/{account}/sync/call-detail-records/{run}
 ```
 
 ## 11. Delivery phases
@@ -486,11 +531,24 @@ Acceptance criteria:
 ### Phase 2: Core PBX management
 
 - Extension workflow combining user, device, voicemail, and basic callflow.
+- Managed extension update plus a dependency preview before any destructive
+  operation. Confirmed deletion is an audited reverse-order saga with persisted
+  step progress, exact-number confirmation, and safe retry after interruption.
+- Persist safe lifecycle progress for create, update, and delete. Expose a
+  manager-only right-side recovery queue that retries failed create cleanup,
+  reconciles partial updates from Switch, and resumes partial deletions after
+  exact-number confirmation. Keep upstream IDs and credentials internal.
+- Implement multi-resource workflows using the aggregate, dependency,
+  compensation, deletion, and projection rules in
+  [SWITCH_ENTITY_RELATIONSHIPS.md](SWITCH_ENTITY_RELATIONSHIPS.md).
 - Device CRUD and SIP credential handling.
 - Voicemail CRUD.
 - Phone number inventory and assignment.
 - Basic call routing and callflow visualization.
-- Call-detail record listing and filtering.
+- Call-detail record listing, detail, synchronization, and filtering. The
+  foundation imports a configurable bounded window on demand, projects only
+  approved normalized fields, and leaves production scheduling and retention
+  deletion disabled until client policy is approved.
 - Add projections and incremental synchronization for each delivered resource
   domain.
 
@@ -500,6 +558,10 @@ Acceptance criteria:
 - Directories and groups.
 - Conferences and fax boxes.
 - Time-of-day rules, blacklists, queues, and recordings.
+- Advanced visual callflow editing.
+- SMS/MMS with carrier, consent, retention, and abuse-control gates.
+- Number purchasing, porting, releasing, CNAM, and E911 workflows after
+  carrier and compliance approval.
 
 ### Phase 4: Business modules
 
@@ -507,6 +569,8 @@ Acceptance criteria:
 - Branding and user preferences.
 - Billing, payment methods, and invoices.
 - Zero-touch phone provisioning.
+- Trunks, carriers, resources, and connectivity administration.
+- Webhooks and advanced account/security administration.
 
 These modules require separate threat models and acceptance criteria before
 implementation, especially payment handling.

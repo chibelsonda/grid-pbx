@@ -62,4 +62,65 @@ if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H
   exit 1
 fi
 
-echo "GridPBX UI, API health, Sanctum login, session, account, extension, and device projection endpoints are healthy."
+if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/phone-numbers" -o "${smoke_dir}/phone-numbers.json"; then
+  echo "GridPBX phone number projection smoke test failed:" >&2
+  cat "${smoke_dir}/phone-numbers.json" >&2
+  exit 1
+fi
+
+if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/callflows" -o "${smoke_dir}/callflows.json"; then
+  echo "GridPBX call routing projection smoke test failed:" >&2
+  cat "${smoke_dir}/callflows.json" >&2
+  exit 1
+fi
+
+callflow_id=""
+if [[ -n "${account_id}" ]]; then
+  callflow_id="$(php -r '$payload=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); echo $payload["data"][0]["id"] ?? "";' "${smoke_dir}/callflows.json")"
+fi
+
+if [[ -n "${callflow_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/callflows/${callflow_id}/editor" -o "${smoke_dir}/callflow-editor.json"; then
+  echo "GridPBX guided call routing editor smoke test failed:" >&2
+  cat "${smoke_dir}/callflow-editor.json" >&2
+  exit 1
+fi
+
+if [[ -n "${callflow_id}" ]] && ! php -r '$payload=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); $editor=$payload["data"] ?? []; $encoded=json_encode($editor, JSON_THROW_ON_ERROR); exit(array_key_exists("phone_numbers", $editor) && !str_contains($encoded, "switch_resource_id") ? 0 : 1);' "${smoke_dir}/callflow-editor.json"; then
+  echo "GridPBX guided call routing editor smoke test failed: safe phone-number options are missing." >&2
+  exit 1
+fi
+
+if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/callflows/editor" -o "${smoke_dir}/callflow-create-editor.json"; then
+  echo "GridPBX guided call routing creation options smoke test failed:" >&2
+  cat "${smoke_dir}/callflow-create-editor.json" >&2
+  exit 1
+fi
+
+if [[ -n "${account_id}" ]] && ! php -r '$payload=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); exit(($payload["data"]["mode"] ?? null) === "create" ? 0 : 1);' "${smoke_dir}/callflow-create-editor.json"; then
+  echo "GridPBX guided call routing creation options smoke test failed: create mode is missing." >&2
+  exit 1
+fi
+
+if [[ -n "${account_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/voicemail-boxes" -o "${smoke_dir}/voicemail-boxes.json"; then
+  echo "GridPBX voicemail projection smoke test failed:" >&2
+  cat "${smoke_dir}/voicemail-boxes.json" >&2
+  exit 1
+fi
+
+voicemail_box_id=""
+if [[ -n "${account_id}" ]]; then
+  voicemail_box_id="$(php -r '$payload=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); echo $payload["data"][0]["id"] ?? "";' "${smoke_dir}/voicemail-boxes.json")"
+fi
+
+if [[ -n "${voicemail_box_id}" ]] && ! php -r '$payload=json_decode(file_get_contents($argv[1]), true, 512, JSON_THROW_ON_ERROR); $box=$payload["data"][0] ?? []; exit(array_key_exists("unavailable_greeting", $box) ? 0 : 1);' "${smoke_dir}/voicemail-boxes.json"; then
+  echo "GridPBX voicemail greeting projection smoke test failed: unavailable_greeting is missing." >&2
+  exit 1
+fi
+
+if [[ -n "${voicemail_box_id}" ]] && ! curl --fail-with-body -sS -b "${cookie_jar}" -H "Accept: application/json" -H "Origin: ${ui_url}" "${api_url}/api/v1/accounts/${account_id}/voicemail-boxes/${voicemail_box_id}/messages" -o "${smoke_dir}/voicemail-messages.json"; then
+  echo "GridPBX voicemail message projection smoke test failed:" >&2
+  cat "${smoke_dir}/voicemail-messages.json" >&2
+  exit 1
+fi
+
+echo "GridPBX UI, API health, Sanctum login, session, account, extension, device, phone number, call routing/editor, voicemail box, message, and greeting metadata projection endpoints are healthy."

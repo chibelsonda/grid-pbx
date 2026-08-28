@@ -1,7 +1,16 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { extensionApi } from '../api/extensionApi'
-import type { Extension, ExtensionDetail, SyncRun, SyncState } from '../types/extension'
+import type {
+  Extension,
+  ExtensionCreate,
+  ExtensionDeletionPreview,
+  ExtensionDetail,
+  ExtensionRecoveryOperation,
+  ExtensionUpdate,
+  SyncRun,
+  SyncState,
+} from '../types/extension'
 
 const defaultSync: SyncState = { status: 'stale', last_successful_at: null, error_message: null }
 
@@ -9,6 +18,8 @@ export const useExtensionStore = defineStore('extensions', {
   state: () => ({
     records: [] as Extension[],
     detail: null as ExtensionDetail | null,
+    deletionPreview: null as ExtensionDeletionPreview | null,
+    recoveryRecords: [] as ExtensionRecoveryOperation[],
     sync: { ...defaultSync },
     currentRun: null as SyncRun | null,
     search: '',
@@ -17,14 +28,27 @@ export const useExtensionStore = defineStore('extensions', {
     total: 0,
     loading: false,
     detailLoading: false,
+    previewLoading: false,
+    deletionLoading: false,
+    recoveryLoading: false,
+    recoveryActionLoading: false,
     syncing: false,
     error: null as string | null,
     detailError: null as string | null,
+    previewError: null as string | null,
+    deletionError: null as string | null,
+    recoveryError: null as string | null,
+    recoveryActionError: null as string | null,
+    mutationLoading: false,
+    mutationError: null as string | null,
+    fieldErrors: {} as Record<string, string[]>,
   }),
   actions: {
     reset(): void {
       this.records = []
       this.detail = null
+      this.deletionPreview = null
+      this.recoveryRecords = []
       this.sync = { ...defaultSync }
       this.currentRun = null
       this.page = 1
@@ -32,6 +56,141 @@ export const useExtensionStore = defineStore('extensions', {
       this.total = 0
       this.error = null
       this.detailError = null
+      this.previewError = null
+      this.deletionError = null
+      this.recoveryError = null
+      this.recoveryActionError = null
+      this.mutationError = null
+      this.fieldErrors = {}
+    },
+    async create(accountId: string, input: ExtensionCreate): Promise<ExtensionDetail | null> {
+      this.mutationLoading = true
+      this.mutationError = null
+      this.fieldErrors = {}
+
+      try {
+        const extension = await extensionApi.create(accountId, input)
+        this.detail = extension
+        this.records.unshift(extension)
+        this.total += 1
+        return extension
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          this.mutationError = error.response?.data?.message ?? 'Unable to provision the extension.'
+          this.fieldErrors = error.response?.data?.errors ?? {}
+        } else {
+          this.mutationError = 'Unable to provision the extension.'
+        }
+
+        return null
+      } finally {
+        this.mutationLoading = false
+      }
+    },
+    async update(
+      accountId: string,
+      extensionId: string,
+      input: ExtensionUpdate,
+    ): Promise<ExtensionDetail | null> {
+      this.mutationLoading = true
+      this.mutationError = null
+      this.fieldErrors = {}
+
+      try {
+        const extension = await extensionApi.update(accountId, extensionId, input)
+        this.detail = extension
+        const index = this.records.findIndex((record) => record.id === extension.id)
+        if (index >= 0) this.records[index] = extension
+        return extension
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          this.mutationError = error.response?.data?.message ?? 'Unable to update the extension.'
+          this.fieldErrors = error.response?.data?.errors ?? {}
+        } else {
+          this.mutationError = 'Unable to update the extension.'
+        }
+
+        return null
+      } finally {
+        this.mutationLoading = false
+      }
+    },
+    async loadDeletionPreview(accountId: string, extensionId: string): Promise<void> {
+      this.previewLoading = true
+      this.previewError = null
+      this.deletionPreview = null
+
+      try {
+        this.deletionPreview = await extensionApi.deletionPreview(accountId, extensionId)
+      } catch (error) {
+        this.previewError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to inspect deletion dependencies.')
+          : 'Unable to inspect deletion dependencies.'
+      } finally {
+        this.previewLoading = false
+      }
+    },
+    async remove(accountId: string, extensionId: string, confirmation: string): Promise<boolean> {
+      this.deletionLoading = true
+      this.deletionError = null
+      this.fieldErrors = {}
+
+      try {
+        await extensionApi.remove(accountId, extensionId, confirmation)
+        this.records = this.records.filter((record) => record.id !== extensionId)
+        this.total = Math.max(0, this.total - 1)
+        this.detail = null
+        this.deletionPreview = null
+        return true
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          this.deletionError =
+            error.response?.data?.message ?? 'Unable to complete the managed deletion.'
+          this.fieldErrors = error.response?.data?.errors ?? {}
+        } else {
+          this.deletionError = 'Unable to complete the managed deletion.'
+        }
+
+        return false
+      } finally {
+        this.deletionLoading = false
+      }
+    },
+    async loadRecoveryQueue(accountId: string): Promise<void> {
+      this.recoveryLoading = true
+      this.recoveryError = null
+
+      try {
+        this.recoveryRecords = await extensionApi.recoveryQueue(accountId)
+      } catch (error) {
+        this.recoveryError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to load extension recovery operations.')
+          : 'Unable to load extension recovery operations.'
+      } finally {
+        this.recoveryLoading = false
+      }
+    },
+    async recover(
+      accountId: string,
+      operation: ExtensionRecoveryOperation,
+      confirmation: string | null = null,
+    ): Promise<boolean> {
+      this.recoveryActionLoading = true
+      this.recoveryActionError = null
+
+      try {
+        const recovered = await extensionApi.recover(accountId, operation.id, confirmation)
+        this.recoveryRecords = this.recoveryRecords.filter((record) => record.id !== recovered.id)
+        if (operation.recovery_action === 'reconcile') await this.load(accountId, 1)
+        return true
+      } catch (error) {
+        this.recoveryActionError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to recover the extension workflow.')
+          : 'Unable to recover the extension workflow.'
+        return false
+      } finally {
+        this.recoveryActionLoading = false
+      }
     },
     async loadDetail(accountId: string, extensionId: string): Promise<void> {
       this.detailLoading = true

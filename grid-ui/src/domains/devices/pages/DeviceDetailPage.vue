@@ -81,7 +81,10 @@ async function removeDevice(): Promise<void> {
           Projected endpoint hardware, assignment, and synchronization state.
         </p>
       </div>
-      <div v-if="device" class="ml-auto flex items-center gap-2">
+      <div
+        v-if="device && accounts.selected?.permissions.can_manage_devices"
+        class="ml-auto flex items-center gap-2"
+      >
         <RouterLink
           :to="{ name: 'device-edit', params: { deviceId: device.id } }"
           class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
@@ -194,6 +197,26 @@ async function removeDevice(): Promise<void> {
               </p>
             </div>
           </div>
+          <div class="mt-5 border-t border-slate-100 pt-4">
+            <p class="eyebrow">Registration</p>
+            <div class="mt-2 flex items-center justify-between gap-3">
+              <span
+                class="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                :class="
+                  device.registration_status === 'registered'
+                    ? 'bg-violet-50 text-violet-700'
+                    : device.registration_status === 'unregistered'
+                      ? 'bg-amber-50 text-amber-700'
+                      : 'bg-slate-100 text-slate-500'
+                "
+              >
+                {{ humanize(device.registration_status) }}
+              </span>
+              <span class="text-right text-[10px] text-slate-400">
+                {{ formatDate(device.registration_checked_at) }}
+              </span>
+            </div>
+          </div>
         </article>
       </div>
 
@@ -214,7 +237,9 @@ async function removeDevice(): Promise<void> {
               <dd class="mt-1.5 font-medium text-slate-700">{{ device.make ?? '—' }}</dd>
             </div>
             <div>
-              <dt class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">Model</dt>
+              <dt class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                Model
+              </dt>
               <dd class="mt-1.5 font-medium text-slate-700">{{ device.model ?? '—' }}</dd>
             </div>
             <div>

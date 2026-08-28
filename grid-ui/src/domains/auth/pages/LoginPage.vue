@@ -25,32 +25,87 @@ async function submit(): Promise<void> {
 </script>
 
 <template>
-  <main class="relative grid min-h-screen place-items-center overflow-hidden bg-[#f1f4f6] px-4 py-10">
-    <div class="absolute inset-y-0 left-0 w-[42%] -skew-x-6 bg-gradient-to-br from-[#3f6ad8] to-[#16aaff] opacity-95" />
-    <section class="relative grid w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-[0_1rem_3rem_rgb(31_45_61/18%)] md:grid-cols-[0.9fr_1.1fr]">
-      <div class="hidden bg-gradient-to-br from-brand-700 to-brand-500 p-10 text-white md:flex md:flex-col md:justify-between">
-        <div class="flex items-center gap-3"><span class="grid size-11 place-items-center rounded-lg bg-white/15"><Squares2X2Icon class="size-6" /></span><div><p class="text-lg font-bold">GridPBX</p><p class="text-xs text-white/60">Simpler phone administration</p></div></div>
-        <div><h1 class="text-3xl leading-tight font-semibold">Your Switch data,<br />made practical.</h1><p class="mt-4 text-sm leading-6 text-white/65">A focused operations console backed by Laravel and a searchable MySQL projection.</p></div>
+  <main
+    class="relative grid min-h-screen place-items-center overflow-hidden bg-[#f1f4f6] px-4 py-10"
+  >
+    <div
+      class="absolute inset-y-0 left-0 w-[42%] -skew-x-6 bg-gradient-to-br from-[#3f6ad8] to-[#16aaff] opacity-95"
+    />
+    <section
+      class="relative grid w-full max-w-4xl overflow-hidden rounded-lg bg-white shadow-[0_1rem_3rem_rgb(31_45_61/18%)] md:grid-cols-[0.9fr_1.1fr]"
+    >
+      <div
+        class="hidden bg-gradient-to-br from-brand-700 to-brand-500 p-10 text-white md:flex md:flex-col md:justify-between"
+      >
+        <div class="flex items-center gap-3">
+          <span class="grid size-11 place-items-center rounded-lg bg-white/15"
+            ><Squares2X2Icon class="size-6"
+          /></span>
+          <div>
+            <p class="text-lg font-bold">GridPBX</p>
+            <p class="text-xs text-white/60">Simpler phone administration</p>
+          </div>
+        </div>
+        <div>
+          <h1 class="text-3xl leading-tight font-semibold">
+            Your Switch data,<br />made practical.
+          </h1>
+          <p class="mt-4 text-sm leading-6 text-white/65">
+            A focused operations console backed by Laravel and a searchable MySQL projection.
+          </p>
+        </div>
         <p class="text-[11px] text-white/45">Secure first-party session authentication</p>
       </div>
 
       <form class="p-7 sm:p-10" @submit.prevent="submit">
-        <span class="grid size-11 place-items-center rounded-full bg-brand-50 text-brand-500"><LockClosedIcon class="size-5" /></span>
+        <span class="grid size-11 place-items-center rounded-full bg-brand-50 text-brand-500"
+          ><LockClosedIcon class="size-5"
+        /></span>
         <h2 class="mt-6 text-2xl font-semibold tracking-tight text-slate-800">Welcome back</h2>
         <p class="mt-2 text-sm text-slate-500">Sign in to manage your mapped PBX accounts.</p>
 
-        <div v-if="auth.error" class="mt-6 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger">{{ auth.error }}</div>
+        <div
+          v-if="auth.error"
+          class="mt-6 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+        >
+          {{ auth.error }}
+        </div>
 
-        <label class="mt-7 block text-xs font-semibold text-slate-600">Email address
-          <input v-model="credentials.email" type="email" autocomplete="username" required class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100" />
+        <label class="mt-7 block text-xs font-semibold text-slate-600"
+          >Email address
+          <input
+            v-model="credentials.email"
+            type="email"
+            autocomplete="username"
+            required
+            class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100"
+          />
         </label>
-        <label class="mt-5 block text-xs font-semibold text-slate-600">Password
-          <input v-model="credentials.password" type="password" autocomplete="current-password" required class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100" />
+        <label class="mt-5 block text-xs font-semibold text-slate-600"
+          >Password
+          <input
+            v-model="credentials.password"
+            type="password"
+            autocomplete="current-password"
+            required
+            class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100"
+          />
         </label>
-        <label class="mt-5 flex items-center gap-2 text-xs text-slate-500"><input v-model="credentials.remember" type="checkbox" class="size-4 accent-brand-500" /> Remember me</label>
+        <label class="mt-5 flex items-center gap-2 text-xs text-slate-500"
+          ><input v-model="credentials.remember" type="checkbox" class="size-4 accent-brand-500" />
+          Remember me</label
+        >
 
-        <button type="submit" :disabled="auth.loading" class="mt-7 h-11 w-full rounded-md bg-brand-500 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60">{{ auth.loading ? 'Signing in…' : 'Sign in' }}</button>
-        <p class="mt-5 text-center text-[11px] text-slate-400">Local defaults are prefilled for development only.</p>
+        <button
+          type="submit"
+          :disabled="auth.loading"
+          class="mt-7 h-11 w-full rounded-md bg-brand-500 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
+        >
+          {{ auth.loading ? 'Signing in…' : 'Sign in' }}
+        </button>
+        <p class="mt-5 text-center text-[11px] text-slate-400">
+          Local defaults are prefilled for development only.
+        </p>
       </form>
     </section>
   </main>

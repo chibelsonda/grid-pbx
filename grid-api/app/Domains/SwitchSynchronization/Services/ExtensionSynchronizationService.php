@@ -2,24 +2,36 @@
 
 namespace App\Domains\SwitchSynchronization\Services;
 
+use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\CallRouting\Services\CallflowReferenceResolver;
+use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
-use App\Domains\Extensions\Models\SwitchCallflow;
 use App\Domains\Extensions\Models\SwitchExtension;
-use App\Domains\Extensions\Models\SwitchVoicemailBox;
+use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Contracts\SwitchExtensionGateway;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Enums\SyncRunStatus;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Domains\SwitchSynchronization\Models\SyncRun;
+use App\Domains\Voicemail\Models\SwitchVoicemailBox;
+use App\Domains\Voicemail\Models\SwitchVoicemailGreeting;
+use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
+use App\Domains\Voicemail\Services\VoicemailGreetingProjectionService;
+use Carbon\CarbonImmutable;
 use DateTimeInterface;
+use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 class ExtensionSynchronizationService
 {
+    private const GREGORIAN_UNIX_OFFSET = 62167219200;
+
     public function __construct(
         private readonly SwitchExtensionGateway $gateway,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
+        private readonly VoicemailGreetingProjectionService $voicemailGreetingProjection,
+        private readonly CallflowReferenceResolver $callflowReferences,
     ) {}
 
     public function handle(SyncRun $run): void
@@ -46,21 +58,66 @@ class ExtensionSynchronizationService
         }
 
         $deviceRecords = $this->mapResources($this->gateway->devices($account), $this->mapDevice(...));
+        $deviceStatuses = $this->gateway->deviceStatuses($account);
         $voicemailRecords = $this->mapResources($this->gateway->voicemailBoxes($account), $this->mapVoicemailBox(...));
+        $voicemailMessageRecords = [];
+        $voicemailGreetingRecords = [];
+
+        foreach ($voicemailRecords as $voicemailBoxResourceId => $voicemailRecord) {
+            $voicemailMessageRecords[$voicemailBoxResourceId] = $this->mapVoicemailMessages(
+                $this->gateway->voicemailMessages($account, $voicemailBoxResourceId),
+            );
+            $greetingResourceId = Arr::get($voicemailRecord, 'switch_json.media.unavailable');
+
+            if (is_string($greetingResourceId) && $greetingResourceId !== '') {
+                $voicemailGreetingRecords[$voicemailBoxResourceId] = $this->gateway->media(
+                    $account,
+                    $greetingResourceId,
+                );
+            }
+        }
+
         $callflowRecords = $this->mapCallflows($this->gateway->callflows($account), $extensionRecords);
 
-        DB::transaction(function () use ($run, $account, $extensionRecords, $deviceRecords, $voicemailRecords, $callflowRecords): void {
+        DB::transaction(function () use ($run, $account, $extensionRecords, $deviceRecords, $deviceStatuses, $voicemailRecords, $voicemailMessageRecords, $voicemailGreetingRecords, $callflowRecords): void {
             $syncedAt = now();
             $deletedCount = 0;
             $deletedCount += $this->synchronizeProjection(SwitchExtension::class, $account->getKey(), $extensionRecords, $syncedAt);
             $extensionIdsByResource = SwitchExtension::query()
                 ->where('switch_account_id', $account->getKey())
-                ->pluck('id', 'switch_resource_id')
+                ->pluck('extension_id', 'switch_resource_id')
                 ->all();
-            $deletedCount += $this->synchronizeProjection(SwitchDevice::class, $account->getKey(), $this->associateExtensions($deviceRecords, $extensionIdsByResource), $syncedAt);
+            $devices = $this->associateExtensions($deviceRecords, $extensionIdsByResource);
+
+            foreach ($devices as $resourceId => &$device) {
+                $device['registration_status'] = ($deviceStatuses[$resourceId] ?? false)
+                    ? DeviceRegistrationStatus::Registered
+                    : DeviceRegistrationStatus::Unregistered;
+                $device['registration_checked_at'] = $syncedAt;
+            }
+            unset($device);
+
+            $deletedCount += $this->synchronizeProjection(SwitchDevice::class, $account->getKey(), $devices, $syncedAt);
             $deletedCount += $this->synchronizeProjection(SwitchVoicemailBox::class, $account->getKey(), $this->associateExtensions($voicemailRecords, $extensionIdsByResource), $syncedAt);
+            $voicemailBoxIdsByResource = SwitchVoicemailBox::query()
+                ->where('switch_account_id', $account->getKey())
+                ->pluck('voicemail_box_id', 'switch_resource_id')
+                ->all();
+            $deletedCount += $this->synchronizeVoicemailMessages(
+                $account->getKey(),
+                $voicemailMessageRecords,
+                $voicemailBoxIdsByResource,
+                $syncedAt,
+            );
+            $deletedCount += $this->synchronizeVoicemailGreetings(
+                $account,
+                $voicemailGreetingRecords,
+                $syncedAt,
+            );
             $deletedCount += $this->synchronizeProjection(SwitchCallflow::class, $account->getKey(), $this->associateExtensions($callflowRecords, $extensionIdsByResource), $syncedAt);
-            $processedCount = count($extensionRecords) + count($deviceRecords) + count($voicemailRecords) + count($callflowRecords);
+            $this->callflowReferences->refresh($account);
+            $voicemailMessageCount = array_sum(array_map('count', $voicemailMessageRecords));
+            $processedCount = count($extensionRecords) + count($deviceRecords) + count($voicemailRecords) + $voicemailMessageCount + count($voicemailGreetingRecords) + count($callflowRecords);
 
             $run->update([
                 'status' => SyncRunStatus::Succeeded,
@@ -112,6 +169,83 @@ class ExtensionSynchronizationService
             ->get();
 
         $modelClass::destroy($missing->modelKeys());
+
+        return $missing->count();
+    }
+
+    /**
+     * @param  array<string, array<string, array<string, mixed>>>  $recordsByVoicemailBox
+     * @param  array<string, string>  $voicemailBoxIdsByResource
+     */
+    private function synchronizeVoicemailMessages(
+        string $accountId,
+        array $recordsByVoicemailBox,
+        array $voicemailBoxIdsByResource,
+        DateTimeInterface $syncedAt,
+    ): int {
+        $resourceIds = [];
+
+        foreach ($recordsByVoicemailBox as $voicemailBoxResourceId => $records) {
+            $voicemailBoxId = $voicemailBoxIdsByResource[$voicemailBoxResourceId] ?? null;
+
+            if ($voicemailBoxId === null) {
+                continue;
+            }
+
+            foreach ($records as $resourceId => $attributes) {
+                $resourceIds[] = $resourceId;
+                $projection = SwitchVoicemailMessage::withTrashed()->firstOrNew([
+                    'switch_account_id' => $accountId,
+                    'switch_resource_id' => $resourceId,
+                ]);
+                $projection->fill($attributes + [
+                    'switch_voicemail_box_id' => $voicemailBoxId,
+                    'last_synced_at' => $syncedAt,
+                    'sync_status' => ProjectionStatus::Healthy,
+                    'projection_version' => 1,
+                ]);
+                $projection->deleted_at = null;
+                $projection->save();
+            }
+        }
+
+        $missing = SwitchVoicemailMessage::query()
+            ->where('switch_account_id', $accountId)
+            ->when($resourceIds !== [], fn ($query) => $query->whereNotIn('switch_resource_id', $resourceIds))
+            ->get();
+        SwitchVoicemailMessage::destroy($missing->modelKeys());
+
+        return $missing->count();
+    }
+
+    /** @param array<string, array<string, mixed>> $recordsByVoicemailBox */
+    private function synchronizeVoicemailGreetings(
+        SwitchAccount $account,
+        array $recordsByVoicemailBox,
+        DateTimeInterface $syncedAt,
+    ): int {
+        $voicemailBoxes = SwitchVoicemailBox::query()
+            ->where('switch_account_id', $account->getKey())
+            ->whereIn('switch_resource_id', array_keys($recordsByVoicemailBox))
+            ->get()
+            ->keyBy('switch_resource_id');
+        $projectedIds = [];
+
+        foreach ($recordsByVoicemailBox as $voicemailBoxResourceId => $snapshot) {
+            $voicemailBox = $voicemailBoxes->get($voicemailBoxResourceId);
+
+            if ($voicemailBox !== null) {
+                $greeting = $this->voicemailGreetingProjection->project($account, $voicemailBox, $snapshot);
+                $greeting->update(['last_synced_at' => $syncedAt]);
+                $projectedIds[] = $greeting->getKey();
+            }
+        }
+
+        $missing = SwitchVoicemailGreeting::query()
+            ->where('switch_account_id', $account->getKey())
+            ->when($projectedIds !== [], fn ($query) => $query->whereNotIn('voicemail_greeting_id', $projectedIds))
+            ->get();
+        SwitchVoicemailGreeting::destroy($missing->modelKeys());
 
         return $missing->count();
     }
@@ -177,7 +311,7 @@ class ExtensionSynchronizationService
             'is_enabled' => (bool) ($user['enabled'] ?? true),
             'source_revision' => $this->stringValue($user['_rev'] ?? null),
             'source_updated_at' => null,
-            'source_payload' => $this->redactSensitiveData->handle($user),
+            'switch_json' => $this->redactSensitiveData->handle($user),
         ];
     }
 
@@ -195,7 +329,7 @@ class ExtensionSynchronizationService
             'model' => $this->stringValue($device['model'] ?? Arr::get($device, 'provision.endpoint_model')),
             'mac_address' => $this->stringValue($device['mac_address'] ?? Arr::get($device, 'provision.mac_address')),
             'is_enabled' => (bool) ($device['enabled'] ?? true),
-            'source_payload' => $this->redactSensitiveData->handle($device),
+            'switch_json' => $this->redactSensitiveData->handle($device),
         ];
     }
 
@@ -209,13 +343,66 @@ class ExtensionSynchronizationService
             'owner_switch_resource_id' => $this->stringValue($voicemailBox['owner_id'] ?? null),
             'name' => $this->stringValue($voicemailBox['name'] ?? null),
             'mailbox' => $this->stringValue($voicemailBox['mailbox'] ?? null),
+            'timezone' => $this->stringValue($voicemailBox['timezone'] ?? null),
+            'notification_emails' => array_values(array_filter(
+                is_array($voicemailBox['notify_email_addresses'] ?? null) ? $voicemailBox['notify_email_addresses'] : [],
+                static fn (mixed $email): bool => is_string($email) && $email !== '',
+            )),
+            'transcribe' => (bool) ($voicemailBox['transcribe'] ?? false),
+            'require_pin' => (bool) ($voicemailBox['require_pin'] ?? false),
             'is_setup' => array_key_exists('is_setup', $voicemailBox) ? (bool) $voicemailBox['is_setup'] : null,
-            'source_payload' => $this->redactSensitiveData->handle($voicemailBox),
+            'switch_json' => $this->redactSensitiveData->handle($voicemailBox),
         ];
     }
 
     /**
-     * @param  iterable<int, array<string, mixed>>  $callflows
+     * @param  array<string, mixed>  $message
+     * @return array<string, mixed>
+     */
+    private function mapVoicemailMessage(array $message): array
+    {
+        $sourceTimestamp = is_int($message['timestamp'] ?? null) ? $message['timestamp'] : null;
+        $unixTimestamp = $sourceTimestamp === null ? null : $sourceTimestamp - self::GREGORIAN_UNIX_OFFSET;
+        $transcription = is_array($message['transcription'] ?? null) ? $message['transcription'] : [];
+
+        return [
+            'folder' => $this->stringValue($message['folder'] ?? null),
+            'caller_id_name' => $this->stringValue($message['caller_id_name'] ?? null),
+            'caller_id_number' => $this->stringValue($message['caller_id_number'] ?? null),
+            'from_address' => $this->stringValue($message['from'] ?? null),
+            'to_address' => $this->stringValue($message['to'] ?? null),
+            'length' => is_int($message['length'] ?? null) && $message['length'] >= 0 ? $message['length'] : null,
+            'source_timestamp' => $sourceTimestamp,
+            'occurred_at' => $unixTimestamp !== null && $unixTimestamp >= 0
+                ? CarbonImmutable::createFromTimestampUTC($unixTimestamp)
+                : null,
+            'transcription_result' => $this->stringValue($transcription['result'] ?? null),
+            'transcription_text' => $this->stringValue($transcription['text'] ?? null),
+            'switch_json' => $this->redactSensitiveData->handle($message),
+        ];
+    }
+
+    /**
+     * @param  iterable<int, array<string, mixed>>  $messages
+     * @return array<string, array<string, mixed>>
+     */
+    private function mapVoicemailMessages(iterable $messages): array
+    {
+        $records = [];
+
+        foreach ($messages as $message) {
+            $resourceId = $this->stringValue($message['media_id'] ?? null);
+
+            if ($resourceId !== null) {
+                $records[$resourceId] = $this->mapVoicemailMessage($message);
+            }
+        }
+
+        return $records;
+    }
+
+    /**
+     * @param  iterable<int, CallflowSnapshot>  $callflows
      * @param  array<string, array<string, mixed>>  $extensionRecords
      * @return array<string, array<string, mixed>>
      */
@@ -229,32 +416,37 @@ class ExtensionSynchronizationService
             }
         }
 
-        return $this->mapResources($callflows, function (array $callflow) use ($ownersByExtension): array {
-            $numbers = array_values(array_filter(
-                is_array($callflow['numbers'] ?? null) ? $callflow['numbers'] : [],
-                fn (mixed $number): bool => is_string($number) && $number !== '',
-            ));
-            $modules = array_values(array_filter(
-                is_array($callflow['modules'] ?? null) ? $callflow['modules'] : [],
-                fn (mixed $module): bool => is_string($module) && $module !== '',
-            ));
+        $records = [];
+
+        foreach ($callflows as $callflow) {
             $ownerId = null;
 
-            foreach ($numbers as $number) {
+            foreach ($callflow->numbers as $number) {
                 if (isset($ownersByExtension[$number])) {
                     $ownerId = $ownersByExtension[$number];
                     break;
                 }
             }
 
-            return [
+            $records[$callflow->id] = [
                 'owner_switch_resource_id' => $ownerId,
-                'name' => $this->stringValue($callflow['name'] ?? null),
-                'numbers' => $numbers,
-                'modules' => $modules,
-                'source_payload' => $this->redactSensitiveData->handle($callflow),
+                'name' => $callflow->name,
+                'numbers' => $callflow->numbers,
+                'patterns' => $callflow->patterns,
+                'flags' => $callflow->flags,
+                'modules' => $callflow->modules,
+                'root_module' => $callflow->flow?->module,
+                'node_count' => $callflow->nodeCount,
+                'max_depth' => $callflow->maxDepth,
+                'is_feature_code' => $callflow->featureCodeName !== null || $callflow->featureCodeNumber !== null,
+                'feature_code_name' => $callflow->featureCodeName,
+                'feature_code_number' => $callflow->featureCodeNumber,
+                'flow_structure' => $callflow->flow?->toArray(),
+                'switch_json' => $this->redactSensitiveData->handle($callflow->toArray()),
             ];
-        });
+        }
+
+        return $records;
     }
 
     private function stringValue(mixed $value): ?string

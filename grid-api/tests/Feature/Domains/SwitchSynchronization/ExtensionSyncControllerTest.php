@@ -23,7 +23,7 @@ class ExtensionSyncControllerTest extends TestCase
         $account = SwitchAccount::factory()->for($organization)->create();
 
         $this->actingAs($user)
-            ->postJson("/api/v1/accounts/{$account->getKey()}/sync/extensions")
+            ->postJson("/api/v1/accounts/{$account->id}/sync/extensions")
             ->assertAccepted()
             ->assertJsonPath('data.status', 'queued');
 
@@ -47,11 +47,11 @@ class ExtensionSyncControllerTest extends TestCase
         $account = SwitchAccount::factory()->for($organization)->create();
 
         $first = $this->actingAs($user)
-            ->postJson("/api/v1/accounts/{$account->getKey()}/sync/extensions")
+            ->postJson("/api/v1/accounts/{$account->id}/sync/extensions")
             ->assertAccepted()
             ->json('data.id');
         $second = $this->actingAs($user)
-            ->postJson("/api/v1/accounts/{$account->getKey()}/sync/extensions")
+            ->postJson("/api/v1/accounts/{$account->id}/sync/extensions")
             ->assertAccepted()
             ->json('data.id');
 
@@ -67,7 +67,7 @@ class ExtensionSyncControllerTest extends TestCase
         $account = SwitchAccount::factory()->create();
 
         $this->actingAs($user)
-            ->postJson("/api/v1/accounts/{$account->getKey()}/sync/extensions")
+            ->postJson("/api/v1/accounts/{$account->id}/sync/extensions")
             ->assertNotFound();
 
         Queue::assertNothingPushed();

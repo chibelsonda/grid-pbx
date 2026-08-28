@@ -22,6 +22,7 @@ class ExtensionResource extends JsonResource
             'extension' => $this->extension,
             'timezone' => $this->timezone,
             'is_enabled' => $this->is_enabled,
+            'is_managed' => $this->is_managed,
             'sync_status' => $this->sync_status->value,
             'last_synced_at' => $this->last_synced_at?->toIso8601String(),
         ];

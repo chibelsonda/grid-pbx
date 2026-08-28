@@ -4,7 +4,7 @@ namespace App\Domains\Devices\Gateways;
 
 use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
-use GridPbx\Switch\Dto\DeviceWriteData;
+use GridPbx\Switch\Dto\Devices\DeviceWriteData;
 use GridPbx\Switch\Resources\DeviceResourceClient;
 
 class CrossbarSwitchDeviceGateway implements SwitchDeviceGateway

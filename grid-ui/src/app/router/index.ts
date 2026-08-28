@@ -51,12 +51,43 @@ const router = createRouter({
           name: 'device-detail',
           component: () => import('@/domains/devices/pages/DeviceDetailPage.vue'),
         },
+        {
+          path: 'voicemail',
+          name: 'voicemail',
+          component: () => import('@/domains/voicemail/pages/VoicemailBoxesPage.vue'),
+        },
+        {
+          path: 'voicemail/new',
+          name: 'voicemail-create',
+          component: () => import('@/domains/voicemail/pages/VoicemailBoxFormPage.vue'),
+        },
+        {
+          path: 'voicemail/:voicemailBoxId/edit',
+          name: 'voicemail-edit',
+          component: () => import('@/domains/voicemail/pages/VoicemailBoxFormPage.vue'),
+        },
+        {
+          path: 'voicemail/:voicemailBoxId',
+          name: 'voicemail-detail',
+          component: () => import('@/domains/voicemail/pages/VoicemailBoxDetailPage.vue'),
+        },
+        {
+          path: 'phone-numbers',
+          name: 'phone-numbers',
+          component: () => import('@/domains/phone-numbers/pages/PhoneNumbersPage.vue'),
+        },
+        {
+          path: 'call-routing',
+          name: 'call-routing',
+          component: () => import('@/domains/call-routing/pages/CallRoutingPage.vue'),
+        },
+        {
+          path: 'call-history',
+          name: 'call-history',
+          component: () => import('@/domains/call-detail-records/pages/CallDetailRecordsPage.vue'),
+        },
         ...(
           [
-            ['phone-numbers', 'Phone Numbers', 'View number inventory and assignments.'],
-            ['call-routing', 'Call Routing', 'Build and understand incoming call paths.'],
-            ['voicemail', 'Voicemail & Media', 'Manage greetings, messages, and audio.'],
-            ['call-history', 'Call History', 'Search and inspect account call records.'],
             ['accounts', 'Accounts', 'Manage accessible Switch accounts and context.'],
             ['settings', 'Settings', 'Configure account and application preferences.'],
           ] as const

@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Domains\Devices;
 
+use App\Domains\Auditing\Models\AuditLog;
 use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
@@ -22,7 +24,7 @@ class DeviceControllerTest extends TestCase
     {
         $account = SwitchAccount::factory()->create();
 
-        $this->getJson("/api/v1/accounts/{$account->getKey()}/devices")
+        $this->getJson("/api/v1/accounts/{$account->id}/devices")
             ->assertUnauthorized();
     }
 
@@ -50,7 +52,7 @@ class DeviceControllerTest extends TestCase
         ]);
 
         $this->actingAs($user)
-            ->getJson("/api/v1/accounts/{$account->getKey()}/devices?search=1001")
+            ->getJson("/api/v1/accounts/{$account->id}/devices?search=1001")
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.name', 'Reception Desk Phone')
@@ -66,11 +68,11 @@ class DeviceControllerTest extends TestCase
         $account = SwitchAccount::factory()->create();
 
         $this->actingAs($user)
-            ->getJson("/api/v1/accounts/{$account->getKey()}/devices")
+            ->getJson("/api/v1/accounts/{$account->id}/devices")
             ->assertNotFound();
     }
 
-    public function test_it_returns_device_details_without_the_source_payload(): void
+    public function test_it_returns_device_details_without_the_switch_json(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $extension = SwitchExtension::factory()->for($account)->create([
@@ -84,16 +86,20 @@ class DeviceControllerTest extends TestCase
             'make' => 'Yealink',
             'model' => 'T54W',
             'mac_address' => '00:11:22:33:44:55',
-            'source_payload' => ['sip' => ['password' => '[REDACTED]']],
+            'switch_json' => ['sip' => ['password' => '[REDACTED]']],
+            'registration_status' => 'registered',
+            'registration_checked_at' => '2026-08-28 07:00:00',
         ]);
 
         $this->actingAs($user)
-            ->getJson("/api/v1/accounts/{$account->getKey()}/devices/{$device->getKey()}")
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}")
             ->assertOk()
             ->assertJsonPath('data.name', 'Alice Desk Phone')
             ->assertJsonPath('data.device_type', 'sip_device')
-            ->assertJsonPath('data.assigned_extension.id', $extension->getKey())
-            ->assertJsonMissingPath('data.source_payload');
+            ->assertJsonPath('data.registration_status', 'registered')
+            ->assertJsonPath('data.registration_checked_at', '2026-08-28T07:00:00+00:00')
+            ->assertJsonPath('data.assigned_extension.id', $extension->id)
+            ->assertJsonMissingPath('data.switch_json');
     }
 
     public function test_it_returns_404_when_the_device_belongs_to_another_account(): void
@@ -102,7 +108,7 @@ class DeviceControllerTest extends TestCase
         $otherDevice = SwitchDevice::factory()->create();
 
         $this->actingAs($user)
-            ->getJson("/api/v1/accounts/{$account->getKey()}/devices/{$otherDevice->getKey()}")
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$otherDevice->id}")
             ->assertNotFound();
     }
 
@@ -111,7 +117,7 @@ class DeviceControllerTest extends TestCase
         [$user, $account] = $this->accessibleAccount();
 
         $this->actingAs($user)
-            ->getJson("/api/v1/accounts/{$account->getKey()}/devices?per_page=101")
+            ->getJson("/api/v1/accounts/{$account->id}/devices?per_page=101")
             ->assertUnprocessable()
             ->assertJsonValidationErrors('per_page');
     }
@@ -120,7 +126,7 @@ class DeviceControllerTest extends TestCase
     {
         $account = SwitchAccount::factory()->create();
 
-        $this->postJson("/api/v1/accounts/{$account->getKey()}/devices", [])
+        $this->postJson("/api/v1/accounts/{$account->id}/devices", [])
             ->assertUnauthorized();
     }
 
@@ -156,7 +162,7 @@ class DeviceControllerTest extends TestCase
             ]);
 
         $response = $this->actingAs($user)->postJson(
-            "/api/v1/accounts/{$account->getKey()}/devices",
+            "/api/v1/accounts/{$account->id}/devices",
             [
                 'name' => 'Reception Desk Phone',
                 'device_type' => 'sip_device',
@@ -164,7 +170,7 @@ class DeviceControllerTest extends TestCase
                 'model' => 'T54W',
                 'mac_address' => '00:11:22:33:44:55',
                 'is_enabled' => true,
-                'assigned_extension_id' => $extension->getKey(),
+                'assigned_extension_id' => $extension->id,
                 'sip_username' => 'reception',
                 'sip_password' => 'a-long-random-secret',
             ],
@@ -173,12 +179,24 @@ class DeviceControllerTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonPath('data.name', 'Reception Desk Phone')
-            ->assertJsonPath('data.assigned_extension.id', $extension->getKey())
-            ->assertJsonMissingPath('data.source_payload')
+            ->assertJsonPath('data.assigned_extension.id', $extension->id)
+            ->assertJsonMissingPath('data.switch_json')
             ->assertDontSee('a-long-random-secret');
         $device = SwitchDevice::query()->where('switch_resource_id', 'switch-device-1')->firstOrFail();
         $this->assertSame($extension->getKey(), $device->switch_extension_id);
-        $this->assertSame('[REDACTED]', $device->source_payload['sip']['password']);
+        $this->assertSame('[REDACTED]', $device->switch_json['sip']['password']);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->getKey(),
+            'switch_account_id' => $account->getKey(),
+            'action' => 'device.created',
+            'resource_id' => 'switch-device-1',
+            'outcome' => 'succeeded',
+        ]);
+        $audit = AuditLog::query()->where('action', 'device.created')->firstOrFail();
+        $this->assertStringNotContainsString(
+            'a-long-random-secret',
+            json_encode($audit->metadata, JSON_THROW_ON_ERROR),
+        );
     }
 
     public function test_update_can_unassign_a_device_without_returning_or_storing_the_new_secret(): void
@@ -205,7 +223,7 @@ class DeviceControllerTest extends TestCase
             ]);
 
         $response = $this->actingAs($user)->putJson(
-            "/api/v1/accounts/{$account->getKey()}/devices/{$device->getKey()}",
+            "/api/v1/accounts/{$account->id}/devices/{$device->id}",
             [
                 'name' => 'Shared Phone',
                 'device_type' => 'sip_device',
@@ -227,7 +245,7 @@ class DeviceControllerTest extends TestCase
         $device->refresh();
         $this->assertNull($device->switch_extension_id);
         $this->assertFalse($device->is_enabled);
-        $this->assertSame('[REDACTED]', $device->source_payload['sip']['password']);
+        $this->assertSame('[REDACTED]', $device->switch_json['sip']['password']);
     }
 
     public function test_invalid_payload_does_not_call_the_upstream_gateway(): void
@@ -236,7 +254,7 @@ class DeviceControllerTest extends TestCase
         $this->mock(SwitchDeviceGateway::class)->shouldNotReceive('create');
 
         $this->actingAs($user)
-            ->postJson("/api/v1/accounts/{$account->getKey()}/devices", [
+            ->postJson("/api/v1/accounts/{$account->id}/devices", [
                 'name' => '',
                 'device_type' => '',
                 'is_enabled' => true,
@@ -255,7 +273,7 @@ class DeviceControllerTest extends TestCase
         $this->mock(SwitchDeviceGateway::class)->shouldNotReceive('update');
 
         $this->actingAs($user)->putJson(
-            "/api/v1/accounts/{$account->getKey()}/devices/{$otherDevice->getKey()}",
+            "/api/v1/accounts/{$account->id}/devices/{$otherDevice->id}",
             [
                 'name' => 'Foreign Device',
                 'device_type' => 'sip_device',
@@ -277,10 +295,15 @@ class DeviceControllerTest extends TestCase
                 && $resourceId === 'switch-device-1');
 
         $this->actingAs($user)
-            ->deleteJson("/api/v1/accounts/{$account->getKey()}/devices/{$device->getKey()}")
+            ->deleteJson("/api/v1/accounts/{$account->id}/devices/{$device->id}")
             ->assertNoContent();
 
         $this->assertSoftDeleted($device);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'device.deleted',
+            'resource_id' => 'switch-device-1',
+            'outcome' => 'succeeded',
+        ]);
     }
 
     public function test_upstream_failure_returns_a_safe_502_without_creating_a_projection(): void
@@ -296,7 +319,7 @@ class DeviceControllerTest extends TestCase
             ));
 
         $this->actingAs($user)
-            ->postJson("/api/v1/accounts/{$account->getKey()}/devices", [
+            ->postJson("/api/v1/accounts/{$account->id}/devices", [
                 'name' => 'Reception Desk Phone',
                 'device_type' => 'sip_device',
                 'is_enabled' => true,
@@ -306,14 +329,40 @@ class DeviceControllerTest extends TestCase
             ->assertDontSee('a-secret-value');
 
         $this->assertDatabaseCount('switch_devices', 0);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'device.create_failed',
+            'outcome' => 'failed',
+        ]);
+        $audit = AuditLog::query()->where('action', 'device.create_failed')->firstOrFail();
+        $this->assertStringNotContainsString(
+            'a-secret-value',
+            json_encode($audit->metadata, JSON_THROW_ON_ERROR),
+        );
+    }
+
+    public function test_read_only_user_receives_403_before_the_upstream_mutation(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $this->mock(SwitchDeviceGateway::class)->shouldNotReceive('create');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/devices", [
+                'name' => 'Reception Desk Phone',
+                'device_type' => 'sip_device',
+                'is_enabled' => true,
+            ])
+            ->assertForbidden();
+
+        $this->assertDatabaseCount('audit_logs', 0);
     }
 
     /** @return array{User, SwitchAccount} */
-    private function accessibleAccount(): array
-    {
+    private function accessibleAccount(
+        OrganizationRole $role = OrganizationRole::AccountOperator,
+    ): array {
         $user = User::factory()->create();
         $organization = Organization::factory()->create();
-        $organization->users()->attach($user, ['role' => 'account_operator']);
+        $organization->users()->attach($user, ['role' => $role->value]);
 
         return [$user, SwitchAccount::factory()->for($organization)->create()];
     }

@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Resources;
 
-use GridPbx\Switch\Dto\CallflowSnapshot;
-use GridPbx\Switch\Dto\DeviceSnapshot;
-use GridPbx\Switch\Dto\EntitySnapshot;
-use GridPbx\Switch\Dto\UserSnapshot;
-use GridPbx\Switch\Dto\VoicemailBoxSnapshot;
+use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
+use GridPbx\Switch\Dto\Common\EntitySnapshot;
+use GridPbx\Switch\Dto\Devices\DeviceSnapshot;
+use GridPbx\Switch\Dto\Users\UserSnapshot;
+use GridPbx\Switch\Dto\Voicemail\VoicemailBoxSnapshot;
 
 enum AccountResource: string
 {

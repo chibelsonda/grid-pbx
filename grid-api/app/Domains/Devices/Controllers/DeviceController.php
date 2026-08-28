@@ -2,6 +2,7 @@
 
 namespace App\Domains\Devices\Controllers;
 
+use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Devices\Requests\ListDevicesRequest;
 use App\Domains\Devices\Requests\SaveDeviceRequest;
 use App\Domains\Devices\Resources\DeviceResource;
@@ -15,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 
 class DeviceController extends Controller
 {
@@ -71,8 +73,14 @@ class DeviceController extends Controller
         /** @var User $user */
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
+        Gate::authorize('create', [SwitchDevice::class, $switchAccount]);
 
-        return (new DeviceResource($mutations->create($switchAccount, $request->validated())))
+        return (new DeviceResource($mutations->create(
+            $switchAccount,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        )))
             ->response()
             ->setStatusCode(Response::HTTP_CREATED);
     }
@@ -89,11 +97,14 @@ class DeviceController extends Controller
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
         $switchDevice = $devices->find($switchAccount, $device);
+        Gate::authorize('update', [$switchDevice, $switchAccount]);
 
         return new DeviceResource($mutations->update(
             $switchAccount,
             $switchDevice,
+            $user,
             $request->validated(),
+            $request->ip(),
         ));
     }
 
@@ -108,9 +119,13 @@ class DeviceController extends Controller
         /** @var User $user */
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
+        $switchDevice = $devices->find($switchAccount, $device);
+        Gate::authorize('delete', [$switchDevice, $switchAccount]);
         $mutations->delete(
             $switchAccount,
-            $devices->find($switchAccount, $device),
+            $switchDevice,
+            $user,
+            $request->ip(),
         );
 
         return response()->noContent();
