@@ -16,7 +16,16 @@ export type CallflowNode = {
   children: Record<string, CallflowNode>
 }
 
-export type CallflowDestinationType = 'extension' | 'device' | 'voicemail' | 'callflow' | 'media'
+export type CallflowDestinationType =
+  | 'extension'
+  | 'device'
+  | 'voicemail'
+  | 'callflow'
+  | 'media'
+  | 'directory'
+  | 'group'
+  | 'queue'
+  | 'menu'
 
 export type CallflowDestination = {
   id: string

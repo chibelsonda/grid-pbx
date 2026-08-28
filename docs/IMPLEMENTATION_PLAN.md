@@ -554,10 +554,27 @@ Acceptance criteria:
 
 ### Phase 3: Supporting PBX modules
 
-- Media and music on hold.
-- Directories and groups.
+- Media and music on hold foundation: metadata projection, upload and protected
+  range streaming, rename, audio replacement, account MOH assignment, and
+  dependency-aware deletion. Binary content remains in Switch storage.
+- Directory and group foundation: typed CRUD, queued projection rebuilds,
+  normalized membership relationships, complete redacted `switch_json`, safe
+  public references, dependency-aware deletion, and guided callflow targets.
+  Inline `ring_group` timing/strategy canvas editing remains part of advanced
+  visual callflow work.
+- Queue and agent foundation: ACDc-aware typed queue CRUD, normalized roster
+  projection, redacted `switch_json`, queued synchronization, compensating
+  roster updates, live agent status commands, right-side panels, and guided
+  `acdc_member` callflow targets. Agent identity reuses projected users rather
+  than creating a duplicate durable identity; live status remains operational
+  Switch state. Statistics remain a later capability-gated slice.
+- Menu/IVR foundation: typed Menu CRUD, normalized prompt and behavior
+  projection with full redacted `switch_json`, media relationship resolution,
+  dependency-safe deletion, queued synchronization, guided call-routing
+  integration, and Vue management through a right-side panel. Advanced DTMF
+  branch editing remains part of the visual callflow slice.
 - Conferences and fax boxes.
-- Time-of-day rules, blacklists, queues, and recordings.
+- Time-of-day rules, blacklists, and recordings.
 - Advanced visual callflow editing.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after

@@ -14,11 +14,15 @@ final readonly class MediaSnapshot
 
     public ?string $description;
 
+    public ?string $language;
+
     public ?string $contentType;
 
     public ?int $contentLength;
 
     public ?string $mediaSource;
+
+    public ?string $promptId;
 
     public bool $streamable;
 
@@ -34,9 +38,11 @@ final readonly class MediaSnapshot
         $this->id = $id;
         $this->name = $this->nullableString($data['name'] ?? null);
         $this->description = $this->nullableString($data['description'] ?? null);
+        $this->language = $this->nullableString($data['language'] ?? null);
         $this->contentType = $this->nullableString($data['content_type'] ?? null);
         $this->contentLength = is_int($data['content_length'] ?? null) ? $data['content_length'] : null;
         $this->mediaSource = $this->nullableString($data['media_source'] ?? null);
+        $this->promptId = $this->nullableString($data['prompt_id'] ?? null);
         $this->streamable = (bool) ($data['streamable'] ?? true);
     }
 

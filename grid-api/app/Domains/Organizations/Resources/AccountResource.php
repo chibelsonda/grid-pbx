@@ -31,6 +31,7 @@ class AccountResource extends JsonResource
                 'can_manage_devices' => $role?->canManageDevices() ?? false,
                 'can_manage_voicemail' => $role?->canManageVoicemail() ?? false,
                 'can_manage_call_routing' => $role?->canManageCallRouting() ?? false,
+                'can_manage_media' => $role?->canManageMedia() ?? false,
                 'can_sync_call_detail_records' => $role?->canSyncCallDetailRecords() ?? false,
             ],
         ];

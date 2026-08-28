@@ -57,6 +57,31 @@ const router = createRouter({
           component: () => import('@/domains/voicemail/pages/VoicemailBoxesPage.vue'),
         },
         {
+          path: 'media',
+          name: 'media',
+          component: () => import('@/domains/media/pages/MediaPage.vue'),
+        },
+        {
+          path: 'directories',
+          name: 'directories',
+          component: () => import('@/domains/directories/pages/DirectoriesPage.vue'),
+        },
+        {
+          path: 'groups',
+          name: 'groups',
+          component: () => import('@/domains/groups/pages/GroupsPage.vue'),
+        },
+        {
+          path: 'queues',
+          name: 'queues',
+          component: () => import('@/domains/queues/pages/QueuesPage.vue'),
+        },
+        {
+          path: 'menus',
+          name: 'menus',
+          component: () => import('@/domains/menus/pages/MenusPage.vue'),
+        },
+        {
           path: 'voicemail/new',
           name: 'voicemail-create',
           component: () => import('@/domains/voicemail/pages/VoicemailBoxFormPage.vue'),

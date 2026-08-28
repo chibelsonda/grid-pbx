@@ -5,8 +5,13 @@ namespace App\Domains\Organizations\Models;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Directories\Models\SwitchDirectory;
 use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\Groups\Models\SwitchGroup;
+use App\Domains\Media\Models\SwitchMedia;
+use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
+use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Domains\SwitchSynchronization\Models\SyncRun;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
@@ -32,6 +37,7 @@ class SwitchAccount extends Model
         'switch_account_id',
         'name',
         'realm',
+        'music_on_hold_media_id',
         'is_enabled',
     ];
 
@@ -57,6 +63,42 @@ class SwitchAccount extends Model
     public function voicemailBoxes(): HasMany
     {
         return $this->hasMany(SwitchVoicemailBox::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchMedia, $this> */
+    public function media(): HasMany
+    {
+        return $this->hasMany(SwitchMedia::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchMenu, $this> */
+    public function menus(): HasMany
+    {
+        return $this->hasMany(SwitchMenu::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchDirectory, $this> */
+    public function directories(): HasMany
+    {
+        return $this->hasMany(SwitchDirectory::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchGroup, $this> */
+    public function groups(): HasMany
+    {
+        return $this->hasMany(SwitchGroup::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchQueue, $this> */
+    public function queues(): HasMany
+    {
+        return $this->hasMany(SwitchQueue::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return BelongsTo<SwitchMedia, $this> */
+    public function musicOnHoldMedia(): BelongsTo
+    {
+        return $this->belongsTo(SwitchMedia::class, 'music_on_hold_media_id', 'media_id');
     }
 
     /** @return HasMany<SwitchVoicemailMessage, $this> */

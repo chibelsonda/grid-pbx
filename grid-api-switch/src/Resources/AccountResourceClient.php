@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Resources;
 
 use Generator;
+use GridPbx\Switch\Dto\Accounts\AccountSnapshot;
+use GridPbx\Switch\Dto\Accounts\MusicOnHoldWriteData;
 use GridPbx\Switch\Dto\Common\EntitySnapshot;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
@@ -100,6 +102,44 @@ final readonly class AccountResourceClient
 
         if ($snapshot->id !== $resourceId) {
             throw new InvalidSwitchPayloadException('Switch detail response id does not match the requested resource.');
+        }
+
+        return $snapshot;
+    }
+
+    public function account(string $accountId): AccountSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request('GET', sprintf('accounts/%s', rawurlencode($accountId)));
+
+        return $this->accountSnapshot($payload, $accountId);
+    }
+
+    public function updateMusicOnHold(string $accountId, MusicOnHoldWriteData $musicOnHold): AccountSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request(
+            'PATCH',
+            sprintf('accounts/%s', rawurlencode($accountId)),
+            ['json' => ['data' => $musicOnHold->toSwitchData()]],
+        );
+
+        return $this->accountSnapshot($payload, $accountId);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function accountSnapshot(array $payload, string $accountId): AccountSnapshot
+    {
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new InvalidSwitchPayloadException('Switch account response data must be an object.');
+        }
+
+        $snapshot = new AccountSnapshot($data);
+
+        if ($snapshot->id !== $accountId) {
+            throw new InvalidSwitchPayloadException('Switch account response id does not match the requested resource.');
         }
 
         return $snapshot;

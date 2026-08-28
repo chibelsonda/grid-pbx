@@ -5,6 +5,7 @@ namespace App\Domains\Extensions\Models;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Queues\Models\SwitchQueueAgent;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Shared\Models\Concerns\HasPublicUuid;
@@ -66,6 +67,12 @@ class SwitchExtension extends Model
     public function callflows(): HasMany
     {
         return $this->hasMany(SwitchCallflow::class, 'switch_extension_id', 'extension_id');
+    }
+
+    /** @return HasMany<SwitchQueueAgent, $this> */
+    public function queueMemberships(): HasMany
+    {
+        return $this->hasMany(SwitchQueueAgent::class, 'switch_extension_id', 'extension_id');
     }
 
     /** @return array<string, string> */

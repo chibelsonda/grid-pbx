@@ -73,6 +73,21 @@ the hostname `switch`. For another independently managed environment, replace
 the URL with a Crossbar `/v2` endpoint reachable from the API container. Switch
 credentials remain server-side and must never be added to the repository.
 
+Queue and agent management additionally requires the external Switch deployment
+to run ACDc and expose its Crossbar bindings. On the Switch node, enable ACDc in
+the deployment's persistent application list and register the HTTP modules once:
+
+```bash
+sup kapps_controller start_app acdc
+sup crossbar_maintenance start_module cb_queues
+sup crossbar_maintenance start_module cb_agents
+```
+
+`start_module` stores the Crossbar autoload setting. The external deployment
+must also keep `acdc` in its startup application configuration so the runtime
+service returns after a restart. GridPBX intentionally does not own or package
+that Switch configuration.
+
 ## Stop and inspect
 
 ```bash

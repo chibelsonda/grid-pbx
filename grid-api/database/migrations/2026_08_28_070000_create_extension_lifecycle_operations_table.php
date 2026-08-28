@@ -13,7 +13,7 @@ return new class extends Migration
             $table->uuid('id')->unique();
             $table->foreignUlid('switch_account_id')->constrained('switch_accounts', 'account_id')->cascadeOnDelete();
             $table->foreignUlid('switch_extension_id')->nullable()->constrained('switch_extensions', 'extension_id')->nullOnDelete();
-            $table->foreignUlid('requested_by_user_id')->nullable()->constrained('users', 'user_id')->nullOnDelete();
+            $table->foreignId('requested_by_user_id')->nullable()->constrained('users', 'user_id')->nullOnDelete();
             $table->string('operation', 32);
             $table->string('status', 32);
             $table->json('completed_steps');

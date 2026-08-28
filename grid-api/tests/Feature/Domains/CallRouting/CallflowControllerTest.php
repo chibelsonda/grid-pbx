@@ -7,10 +7,12 @@ use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
+use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -265,6 +267,44 @@ class CallflowControllerTest extends TestCase
                 'phone_number_ids' => [],
             ])
             ->assertForbidden();
+    }
+
+    public function test_it_creates_a_guided_queue_destination_with_the_acdc_member_module(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $queue = SwitchQueue::factory()->for($account)->create(['switch_resource_id' => 'switch-queue-support']);
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create(['number' => '+15550000900', 'assigned_callflow_id' => null]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')->once()->withArgs(fn (SwitchAccount $received, string $name, string $module, string $resourceId, array $numbers): bool => $received->is($account) && $name === 'Support line' && $module === 'acdc_member' && $resourceId === 'switch-queue-support' && $numbers === ['+15550000900'])
+            ->andReturn([
+                'id' => 'switch-callflow-queue', 'name' => 'Support line', 'numbers' => ['+15550000900'],
+                'flow' => ['module' => 'acdc_member', 'data' => ['id' => 'switch-queue-support'], 'children' => []],
+            ]);
+
+        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", [
+            'name' => 'Support line', 'destination_type' => 'queue', 'destination_id' => $queue->id,
+            'phone_number_ids' => [$phoneNumber->id],
+        ])->assertCreated()->assertJsonPath('data.root_module', 'acdc_member')
+            ->assertJsonPath('data.flow.target.type', 'queue')->assertJsonPath('data.flow.target.id', $queue->id);
+    }
+
+    public function test_it_creates_a_guided_menu_destination_with_the_menu_module(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create(['switch_resource_id' => 'switch-menu-main']);
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create(['number' => '+15550000901', 'assigned_callflow_id' => null]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')->once()->withArgs(fn (SwitchAccount $received, string $name, string $module, string $resourceId, array $numbers): bool => $received->is($account) && $name === 'Main IVR' && $module === 'menu' && $resourceId === 'switch-menu-main' && $numbers === ['+15550000901'])
+            ->andReturn([
+                'id' => 'switch-callflow-menu', 'name' => 'Main IVR', 'numbers' => ['+15550000901'],
+                'flow' => ['module' => 'menu', 'data' => ['id' => 'switch-menu-main'], 'children' => []],
+            ]);
+
+        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", [
+            'name' => 'Main IVR', 'destination_type' => 'menu', 'destination_id' => $menu->id,
+            'phone_number_ids' => [$phoneNumber->id],
+        ])->assertCreated()->assertJsonPath('data.root_module', 'menu')
+            ->assertJsonPath('data.flow.target.type', 'menu')->assertJsonPath('data.flow.target.id', $menu->id);
     }
 
     public function test_it_rejects_a_phone_number_assigned_to_another_route(): void

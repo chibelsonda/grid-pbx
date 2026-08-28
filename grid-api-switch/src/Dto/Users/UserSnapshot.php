@@ -24,6 +24,9 @@ final readonly class UserSnapshot extends EntitySnapshot
 
     public bool $enabled;
 
+    /** @var array<string, string> */
+    public array $directoryMappings;
+
     /** @param array<string, mixed> $data */
     public function __construct(array $data)
     {
@@ -37,5 +40,9 @@ final readonly class UserSnapshot extends EntitySnapshot
         $this->internalCallerIdNumber = $this->nestedString('caller_id', 'internal', 'number');
         $this->timezone = $this->nullableString($data['timezone'] ?? null);
         $this->enabled = (bool) ($data['enabled'] ?? true);
+        $directories = $data['directories'] ?? [];
+        $this->directoryMappings = is_array($directories)
+            ? array_filter($directories, static fn (mixed $value, mixed $key): bool => is_string($key) && is_string($value), ARRAY_FILTER_USE_BOTH)
+            : [];
     }
 }

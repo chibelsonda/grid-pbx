@@ -98,11 +98,32 @@ class CallflowReferenceResolver
                     'label' => $callflow->name ?? ($callflow->numbers[0] ?? 'Unnamed route'),
                 ],
             ])->all(),
-            'media' => $account->voicemailGreetings()->get()->mapWithKeys(fn ($media): array => [
+            'media' => $account->media()->get()->mapWithKeys(fn ($media): array => [
                 $media->switch_resource_id => [
                     'id' => $media->id,
-                    'label' => $media->name ?? 'Voicemail greeting',
+                    'label' => $media->name ?? 'Unnamed media',
                 ],
+            ])->all(),
+            'directory' => $account->directories()->get()->mapWithKeys(fn ($directory): array => [
+                $directory->switch_resource_id => [
+                    'id' => $directory->id,
+                    'label' => $directory->name,
+                ],
+            ])->all(),
+            'group' => $account->groups()->get()->mapWithKeys(fn ($group): array => [
+                $group->switch_resource_id => [
+                    'id' => $group->id,
+                    'label' => $group->name,
+                ],
+            ])->all(),
+            'queue' => $account->queues()->get()->mapWithKeys(fn ($queue): array => [
+                $queue->switch_resource_id => [
+                    'id' => $queue->id,
+                    'label' => $queue->name,
+                ],
+            ])->all(),
+            'menu' => $account->menus()->get()->mapWithKeys(fn ($menu): array => [
+                $menu->switch_resource_id => ['id' => $menu->id, 'label' => $menu->name],
             ])->all(),
         ];
     }
@@ -115,6 +136,10 @@ class CallflowReferenceResolver
             'voicemail' => 'voicemail',
             'callflow' => 'callflow',
             'play' => 'media',
+            'directory' => 'directory',
+            'group' => 'group',
+            'acdc_member', 'acdc_queue' => 'queue',
+            'menu' => 'menu',
             default => null,
         };
     }

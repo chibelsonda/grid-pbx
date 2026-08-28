@@ -82,14 +82,14 @@ to `Complete` only through the delivery checklist in section 11.
 | Callflow | Routing inventory, dependency resolution, guided editing, and safe unknown-branch preservation | Project routing summaries and a redacted detail snapshot | Foundation |
 | Conference | Conference configuration, numbers, members, and permitted controls | Project configuration without exposing PINs or other secrets | Planned |
 | Device | Device CRUD, user assignment, registrations, and provisioning metadata | Project safe device and registration state; never persist or return SIP secrets | Foundation |
-| Directory | Directory CRUD and user membership | Project directory metadata and relationships | Planned |
+| Directory | Directory CRUD and user membership | Project directory metadata and relationships | Foundation |
 | Fax | Fax-box configuration and authorized message/document access | Metadata projection only; stream documents on demand | Conditional |
-| Group | Group and ring-group configuration, membership, endpoints, and strategy | Project group/member relationships and safe configuration | Planned |
+| Group | Group and ring-group configuration, membership, endpoints, and strategy | Project group/member relationships and safe configuration | Foundation |
 | LineKey | Device line-key configuration and provisioning preview | Treat as device/provisioning configuration; enable only for confirmed device and provisioner schemas | Conditional |
 | Media | Media metadata, prompts, music-on-hold, upload, and authorized streaming | Project metadata and redacted detail only; do not duplicate binary content in MySQL by default | Foundation |
-| Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | Project options and public relationships to routing/media resources | Planned |
+| Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | CRUD, prompt/media relationships, sync, dependency-safe delete, and guided routing delivered; branch editing remains part of the visual callflow editor | Foundation |
 | PhoneNumber | Number inventory, features, assignment, and approved carrier workflows | Project normalized inventory plus redacted detail snapshots | Foundation |
-| Queue | Queue CRUD, agents, membership, state, and statistics | Capability-driven projection; requires the target ACD/queue application | Conditional |
+| Queue | Queue CRUD, agents, membership, state, and statistics | Capability-driven projection; configuration requires the target ACD/queue application | Foundation |
 | Recording | Recording search, metadata, and authorized playback/download | Metadata projection only by default; retention and access-audit policy required | Planned |
 | Services | Account service-plan, limits, quantities, and billing-impact summaries exposed by Switch | Project an authorized, safe summary; begin read-only and require explicit billing authority before any mutation | Planned |
 | SystemStatus | Connectivity, capability, and relevant telephony health summaries | Live checks or short-lived cache; do not persist full infrastructure payloads as durable projections | Foundation |
@@ -121,7 +121,7 @@ satisfied.
 | --- | --- | --- | --- |
 | Number purchasing, porting, releasing, CNAM, and E911 changes | Phone numbers, carriers, auditing | Carrier APIs and charges, porting workflow, emergency-service compliance, privileged confirmation, and reconciliation | Planned |
 | Advanced visual callflow editing | Call routing and referenced PBX domains | Version-safe writes, public-ID reference resolution, schema validation, dependency checks, and lossless preservation of unknown branches | Planned |
-| Queues and agents | Queues, users, devices, and call routing | Target ACD/queue capabilities, agent-state semantics, and near-real-time update strategy | Conditional |
+| Queues and agents | Queues, users, devices, and call routing | Foundation delivered for configuration, roster, live status commands, and guided routing; statistics remain conditional | Foundation |
 | SMS/MMS | Messaging, phone numbers, users, and auditing | Enabled carrier capability, consent, retention, attachment storage, delivery events, and abuse controls | Conditional |
 | Recordings | Recordings, call history, storage, and auditing | Retention policy, legal authorization, access audit, encryption, and streaming/storage decision | Planned |
 | Provisioning | Devices, line keys, templates, and vendor integrations | Supported vendors/models, template ownership, credential protection, and preview/rollback workflow | Conditional |
@@ -351,11 +351,11 @@ module-gated.
 | Domain | User-facing capabilities | Switch boundary | Projection notes | Status |
 | --- | --- | --- | --- | --- |
 | Advanced callflows | Visual tree editor, validation, version-safe updates, dependency view | Callflows and referenced resources | Searchable summary plus safe source snapshot | Planned |
-| IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | Menu options and relationships | Planned |
+| IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, and guided routing delivered; advanced DTMF branch editing remains planned | Foundation |
 | Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Effective schedule summary | Planned |
-| Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Metadata only; binary streamed/stored externally | Planned |
-| Directories | CRUD and user membership | Directories and users | Directory membership projection | Planned |
-| Groups and ring groups | CRUD, membership, endpoints, ring strategy | Groups, users, devices, callflows | Group/member relationships | Planned |
+| Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Metadata only; binary streamed/stored externally | Foundation |
+| Directories | CRUD and user membership | Directories and users | Directory membership projection | Foundation |
+| Groups and ring groups | CRUD, membership, endpoints, ring strategy | Groups, users, devices, callflows | Group/member relationships | Foundation |
 | Conferences | CRUD, numbers, pins, members, basic controls | Conferences and callflows | Conference configuration; no PIN exposure | Planned |
 | Fax boxes | CRUD, assignment, inbound/outbound message metadata | Fax boxes, faxes, users | Metadata; documents streamed on demand | Conditional |
 | Blacklists | CRUD, number entries, callflow use | Blacklists and callflows | Entries and dependency summary | Planned |
@@ -364,6 +364,21 @@ module-gated.
 | Call history | Search, direction/date/duration/outcome/cause filters, interaction detail | CDRs | Bounded, indexed CDR projection | Foundation |
 | Recordings | Search, metadata, authorized playback/download | Recordings and storage | Metadata only by default | Planned |
 | Active channels | Current calls and account activity | Channels | Short-lived cache, not durable projection | Conditional |
+
+Implementation status: Foundation. The entity-organized Switch client now
+paginates media inventory, hydrates full metadata, creates and updates bounded
+media documents, uploads and range-streams audio, and reads or patches the
+account `music_on_hold.media_id` reference. Laravel projects redacted metadata
+to `switch_media` with a named internal ULID primary key and public UUID,
+stores the selected MOH relationship on the account, synchronizes through a
+unique queued job, and never stores binary audio in MySQL. Authenticated API
+operations cover list/detail, upload, rename, audio replacement/streaming,
+MOH assignment, and deletion. Deletion is blocked when the projection detects
+account MOH, voicemail-greeting, or callflow play-node dependencies. The Vue
+domain uses Axios envelope unwrapping and ArchitectUI-style Tailwind inventory
+and right-side panels for every mutation. Broader dependency detection for
+menus, groups, conferences, and queues becomes active with those projections;
+production acceptance against the client Switch remains required.
 
 ### CDR and recording constraints
 
@@ -438,7 +453,7 @@ but their sequence still requires deployment discovery and dependency design.
 
 | Domain | Candidate capabilities | Status/constraint |
 | --- | --- | --- |
-| Queues and agents | Queue CRUD, membership, agent state, call statistics | Conditional; requires ACD/queue applications |
+| Queues and agents | Queue CRUD, membership, agent state, call statistics | Foundation for CRUD, roster, live status, sync, and guided routing; the external Switch must run ACDc and autoload `cb_queues` and `cb_agents`; statistics still require the live ACDc runtime |
 | Presence and parked calls | Presence status, parked-call visibility and actions | Conditional; near-real-time behavior required |
 | Webhooks | CRUD, event selection, delivery health, secret-safe configuration | Conditional; security review required |
 | SMS/MMS | Message threads, send/receive, number capability | Conditional; carrier and retention requirements |

@@ -80,8 +80,53 @@ final class MediaResourceClientTest extends TestCase
         self::assertSame('bytes=0-3', $this->history[0]['request']->getHeaderLine('Range'));
     }
 
+    public function test_it_paginates_media_details_and_updates_metadata(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response([
+                'data' => [['id' => 'media-1']],
+                'next_start_key' => 'next page',
+            ]),
+            $this->response(['data' => [
+                'id' => 'media-1',
+                'name' => 'Hold music',
+                'language' => 'en-us',
+            ]]),
+            $this->response(['data' => [['id' => 'media-2']]]),
+            $this->response(['data' => [
+                'id' => 'media-2',
+                'name' => 'After hours',
+            ]]),
+            $this->response(['data' => [
+                'id' => 'media-1',
+                'name' => 'Main hold music',
+                'language' => 'en-gb',
+                'media_source' => 'upload',
+                'streamable' => true,
+            ]]),
+        ], pageSize: 1);
+
+        $media = iterator_to_array($client->allDetails('account-1'));
+        $updated = $client->update('account-1', 'media-1', new MediaWriteData(
+            name: 'Main hold music',
+            language: 'en-gb',
+        ));
+        parse_str($this->history[2]['request']->getUri()->getQuery(), $secondPageQuery);
+
+        self::assertSame(['media-1', 'media-2'], array_map(
+            static fn ($snapshot): string => $snapshot->id,
+            $media,
+        ));
+        self::assertSame('Main hold music', $updated->name);
+        self::assertSame('en-gb', $updated->language);
+        self::assertSame('next page', $secondPageQuery['start_key']);
+        self::assertSame('POST', $this->history[4]['request']->getMethod());
+        self::assertSame('/v2/accounts/account-1/media/media-1', $this->history[4]['request']->getUri()->getPath());
+        self::assertSame('en-gb', json_decode((string) $this->history[4]['request']->getBody(), true)['data']['language']);
+    }
+
     /** @param list<Response> $responses */
-    private function clientWithResponses(array $responses): MediaResourceClient
+    private function clientWithResponses(array $responses, int $pageSize = 200): MediaResourceClient
     {
         $this->history = [];
         $stack = HandlerStack::create(new MockHandler($responses));
@@ -100,7 +145,7 @@ final class MediaResourceClientTest extends TestCase
             },
         );
 
-        return new MediaResourceClient($switch);
+        return new MediaResourceClient($switch, $pageSize);
     }
 
     /** @param array<string, mixed> $payload */

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Resources;
 
+use Generator;
 use GridPbx\Switch\Dto\Media\MediaSnapshot;
 use GridPbx\Switch\Dto\Media\MediaWriteData;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
@@ -14,7 +15,66 @@ use Psr\Http\Message\StreamInterface;
 
 final readonly class MediaResourceClient
 {
-    public function __construct(private SwitchClient $client) {}
+    public function __construct(
+        private SwitchClient $client,
+        private int $pageSize = 200,
+    ) {
+        if ($this->pageSize < 1) {
+            throw new InvalidArgumentException('Switch page size must be greater than zero.');
+        }
+    }
+
+    /** @return Generator<int, MediaSnapshot> */
+    public function allDetails(string $accountId): Generator
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $cursor = null;
+        $seenCursors = [];
+
+        do {
+            $query = ['paginate' => 'true', 'page_size' => $this->pageSize];
+
+            if ($cursor !== null) {
+                $query['start_key'] = $cursor;
+            }
+
+            $payload = $this->client->request(
+                'GET',
+                sprintf('accounts/%s/media', rawurlencode($accountId)),
+                ['query' => $query],
+            );
+            $summaries = $payload['data'] ?? null;
+
+            if (! is_array($summaries)) {
+                throw new InvalidSwitchPayloadException('Switch media collection response data must be an array.');
+            }
+
+            foreach ($summaries as $summary) {
+                if (! is_array($summary)) {
+                    throw new InvalidSwitchPayloadException('Switch media collection entries must be objects.');
+                }
+
+                $mediaId = $summary['id'] ?? null;
+
+                if (! is_string($mediaId) || $mediaId === '') {
+                    throw new InvalidSwitchPayloadException('Switch media collection entry must contain a non-empty string id.');
+                }
+
+                yield $this->get($accountId, $mediaId);
+            }
+
+            $nextCursor = $payload['next_start_key'] ?? null;
+            $cursor = is_string($nextCursor) && $nextCursor !== '' ? $nextCursor : null;
+
+            if ($cursor !== null && isset($seenCursors[$cursor])) {
+                throw new InvalidSwitchPayloadException('Switch media pagination returned a repeated cursor.');
+            }
+
+            if ($cursor !== null) {
+                $seenCursors[$cursor] = true;
+            }
+        } while ($cursor !== null);
+    }
 
     public function get(string $accountId, string $mediaId): MediaSnapshot
     {
@@ -33,6 +93,22 @@ final readonly class MediaResourceClient
         );
 
         return $this->snapshot($payload);
+    }
+
+    public function update(string $accountId, string $mediaId, MediaWriteData $media): MediaSnapshot
+    {
+        $payload = $this->client->request(
+            'POST',
+            $this->mediaPath($accountId, $mediaId),
+            ['json' => ['data' => $media->toSwitchData()]],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $mediaId) {
+            throw new InvalidSwitchPayloadException('Switch media response id does not match the requested resource.');
+        }
+
+        return $snapshot;
     }
 
     public function upload(

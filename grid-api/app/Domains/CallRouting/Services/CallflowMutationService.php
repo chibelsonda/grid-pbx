@@ -222,7 +222,11 @@ class CallflowMutationService
                 ->when($callflow !== null, fn ($query) => $query->whereKeyNot($callflow->getKey()))
                 ->where('id', $data['destination_id'])
                 ->firstOrFail(),
-            'media' => $account->voicemailGreetings()->where('id', $data['destination_id'])->firstOrFail(),
+            'media' => $account->media()->where('id', $data['destination_id'])->firstOrFail(),
+            'directory' => $account->directories()->where('id', $data['destination_id'])->firstOrFail(),
+            'group' => $account->groups()->where('id', $data['destination_id'])->firstOrFail(),
+            'queue' => $account->queues()->where('id', $data['destination_id'])->firstOrFail(),
+            'menu' => $account->menus()->where('id', $data['destination_id'])->firstOrFail(),
         };
 
         return [
@@ -232,6 +236,10 @@ class CallflowMutationService
                 'voicemail' => 'voicemail',
                 'callflow' => 'callflow',
                 'media' => 'play',
+                'directory' => 'directory',
+                'group' => 'group',
+                'queue' => 'acdc_member',
+                'menu' => 'menu',
             },
             $target->switch_resource_id,
         ];

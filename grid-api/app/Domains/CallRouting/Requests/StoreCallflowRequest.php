@@ -17,7 +17,7 @@ class StoreCallflowRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:128'],
-            'destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media'])],
+            'destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu'])],
             'destination_id' => ['required', 'uuid'],
             'phone_number_ids' => ['required', 'array', 'min:1', 'max:25'],
             'phone_number_ids.*' => ['uuid', 'distinct'],

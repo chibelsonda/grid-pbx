@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Resources;
 
 use GridPbx\Switch\Dto\Users\UserSnapshot;
+use GridPbx\Switch\Dto\Users\UserDirectoryMappingsWriteData;
 use GridPbx\Switch\Dto\Users\UserWriteData;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
@@ -26,6 +27,39 @@ final readonly class UserResourceClient
         );
 
         return $this->snapshot($payload);
+    }
+
+    public function get(string $accountId, string $userId): UserSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $userId = $this->requiredIdentifier($userId, 'user');
+
+        return $this->snapshot($this->client->request('GET', sprintf(
+            'accounts/%s/users/%s',
+            rawurlencode($accountId),
+            rawurlencode($userId),
+        )));
+    }
+
+    public function updateDirectoryMappings(
+        string $accountId,
+        string $userId,
+        UserDirectoryMappingsWriteData $directories,
+    ): UserSnapshot {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $userId = $this->requiredIdentifier($userId, 'user');
+        $payload = $this->client->request('PATCH', sprintf(
+            'accounts/%s/users/%s',
+            rawurlencode($accountId),
+            rawurlencode($userId),
+        ), ['json' => ['data' => $directories->toSwitchData()]]);
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $userId) {
+            throw new InvalidSwitchPayloadException('Switch user response id does not match the requested resource.');
+        }
+
+        return $snapshot;
     }
 
     public function update(string $accountId, string $userId, UserWriteData $user): UserSnapshot

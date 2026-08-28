@@ -25,6 +25,11 @@ enum OrganizationRole: string
         return $this !== self::ReadOnlyUser;
     }
 
+    public function canManageMedia(): bool
+    {
+        return $this !== self::ReadOnlyUser;
+    }
+
     public function canSyncCallDetailRecords(): bool
     {
         return $this !== self::ReadOnlyUser;

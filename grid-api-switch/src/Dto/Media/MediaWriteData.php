@@ -13,6 +13,7 @@ final readonly class MediaWriteData
         public ?string $description = null,
         public string $mediaSource = 'upload',
         public bool $streamable = true,
+        public ?string $language = null,
         public ?string $sourceId = null,
         public ?string $sourceType = null,
     ) {
@@ -29,6 +30,7 @@ final readonly class MediaWriteData
             'description' => $this->description,
             'media_source' => $this->mediaSource,
             'streamable' => $this->streamable,
+            'language' => $this->language,
             'source_id' => $this->sourceId,
             'source_type' => $this->sourceType,
         ], static fn (mixed $value): bool => $value !== null);

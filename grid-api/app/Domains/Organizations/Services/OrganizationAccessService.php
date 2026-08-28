@@ -37,6 +37,11 @@ class OrganizationAccessService
         return $this->roleFor($user, $account)?->canManageCallRouting() ?? false;
     }
 
+    public function canManageMedia(User $user, SwitchAccount $account): bool
+    {
+        return $this->roleFor($user, $account)?->canManageMedia() ?? false;
+    }
+
     public function canViewCallDetailRecords(User $user, SwitchAccount $account): bool
     {
         return $this->roleFor($user, $account) !== null;

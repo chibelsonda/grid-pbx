@@ -1,0 +1,91 @@
+<?php
+
+namespace Tests\Feature\Domains\Directories;
+
+use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\Directories\Contracts\SwitchDirectoryGateway;
+use App\Domains\Directories\Models\SwitchDirectory;
+use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Organizations\Enums\OrganizationRole;
+use App\Domains\Organizations\Models\Organization;
+use App\Domains\Organizations\Models\SwitchAccount;
+use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Tests\TestCase;
+
+class DirectoryControllerTest extends TestCase
+{
+    use LazilyRefreshDatabase;
+
+    public function test_accessible_user_lists_only_account_directories_without_internal_identifiers(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $directory = SwitchDirectory::factory()->for($account)->create(['name' => 'People']);
+        SwitchDirectory::factory()->create(['name' => 'Other tenant']);
+
+        $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/directories")
+            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $directory->id)
+            ->assertJsonMissingPath('data.0.directory_id')->assertJsonMissingPath('data.0.switch_resource_id')
+            ->assertJsonMissingPath('data.0.switch_json');
+    }
+
+    public function test_operator_creates_directory_and_resolves_members_server_side(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create(['switch_resource_id' => 'switch-user-1']);
+        SwitchCallflow::factory()->for($account)->for($extension, 'extension')->create(['switch_resource_id' => 'switch-callflow-1']);
+        $gateway = $this->mock(SwitchDirectoryGateway::class);
+        $gateway->shouldReceive('create')->once()->andReturn(['id' => 'switch-directory-1', 'name' => 'People']);
+        $gateway->shouldReceive('replaceMembers')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $members): bool => $received->is($account)
+                && $resourceId === 'switch-directory-1'
+                && $members === ['switch-user-1' => 'switch-callflow-1'],
+        )->andReturn([
+            'id' => 'switch-directory-1', 'name' => 'People', 'confirm_match' => true,
+            'min_dtmf' => 3, 'max_dtmf' => 0, 'sort_by' => 'last_name',
+            'users' => [['user_id' => 'switch-user-1', 'callflow_id' => 'switch-callflow-1']],
+        ]);
+
+        $response = $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/directories", [
+            'name' => 'People', 'confirm_match' => true, 'min_dtmf' => 3,
+            'max_dtmf' => 0, 'sort_by' => 'last_name', 'member_ids' => [$extension->id],
+        ]);
+
+        $response->assertCreated()->assertJsonPath('data.name', 'People')
+            ->assertJsonPath('data.members.0.extension.id', $extension->id)
+            ->assertJsonMissingPath('data.members.0.switch_user_resource_id');
+        $this->assertDatabaseHas('switch_directories', ['id' => $response->json('data.id'), 'switch_resource_id' => 'switch-directory-1']);
+        $this->assertDatabaseHas('switch_directory_members', ['switch_user_resource_id' => 'switch-user-1']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'directory.created']);
+    }
+
+    public function test_read_only_user_cannot_create_and_cross_tenant_member_is_rejected(): void
+    {
+        $this->mock(SwitchDirectoryGateway::class)->shouldNotReceive('create');
+        [$readOnly, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $this->actingAs($readOnly)->postJson("/api/v1/accounts/{$account->id}/directories", $this->payload([]))->assertForbidden();
+
+        [$operator, $managed] = $this->accessibleAccount();
+        $foreign = SwitchExtension::factory()->create();
+        $this->actingAs($operator)->postJson("/api/v1/accounts/{$managed->id}/directories", $this->payload([$foreign->id]))
+            ->assertUnprocessable()->assertJsonValidationErrors('member_ids');
+    }
+
+    /** @param list<string> $members
+     * @return array<string, mixed>
+     */
+    private function payload(array $members): array
+    {
+        return ['name' => 'People', 'confirm_match' => true, 'min_dtmf' => 3, 'max_dtmf' => 0, 'sort_by' => 'last_name', 'member_ids' => $members];
+    }
+
+    /** @return array{User, SwitchAccount} */
+    private function accessibleAccount(OrganizationRole $role = OrganizationRole::AccountOperator): array
+    {
+        $user = User::factory()->create();
+        $organization = Organization::factory()->create();
+        $organization->users()->attach($user, ['role' => $role->value]);
+
+        return [$user, SwitchAccount::factory()->for($organization)->create()];
+    }
+}

@@ -72,6 +72,27 @@ records in one bounded window are never treated as deletions. Retention,
 archival, partitioning, scheduled import, and recording authorization remain
 separate client-approved operational policies.
 
+Media foundation note: `switch_media` is the canonical account media metadata
+projection. The Switch remains authoritative for the binary, which is uploaded
+and streamed through the typed boundary rather than copied into MySQL. An
+account's default music-on-hold setting is stored as an internal foreign key to
+that projection while the UI receives only public UUIDs. Deletion rechecks
+known account MOH, voicemail greeting, and callflow play-node references. Menu,
+group, conference, and queue dependency checks must be added when those
+projections are delivered; an unknown future dependency must never justify a
+forced cascade delete.
+
+Directory/group foundation note: `switch_directories` and `switch_groups`
+retain each complete redacted Switch `data` object in `switch_json`, while
+`switch_directory_members` and `switch_group_members` normalize the
+relationships needed by the Laravel API and Vue UI. Directory membership is
+coordinated through each user's directory-to-callflow mapping with compensating
+patches on partial failure. Group endpoint maps support users, devices, nested
+groups, ordered weights, and optional projected music-on-hold media. Guided
+callflows may target a directory or reusable group using public UUIDs; inline
+`ring_group` endpoint timing and strategy editing remains an advanced-editor
+slice.
+
 ## 4. Guided extension aggregate
 
 “Create extension” is the clearest multi-resource workflow. The UI presents one
@@ -195,7 +216,7 @@ Relationships are projected with both forms where useful:
 - upstream IDs (`owner_switch_resource_id`) for deterministic rebuilds; and
 - public UUIDs (`id`) in API resources and UI payloads.
 
-Future many-to-many relationships use explicit projection tables, for example
+Many-to-many relationships use explicit projection tables, for example
 `switch_group_members`, `switch_directory_members`, and
 `switch_queue_agents`. Those tables store internal named foreign keys and
 relationship attributes such as endpoint type, priority, delay, timeout,
@@ -203,6 +224,26 @@ role, or state. They do not expose internal keys to the UI.
 
 MySQL foreign-key cascades apply only to disposable projection rows. They do
 not authorize or trigger deletion in Switch.
+
+Queue foundation note: `switch_queues` owns durable normalized configuration
+and the complete redacted queue `data` object in `switch_json`.
+`switch_queue_agents` maps a queue to the existing projected extension/user;
+it stores the upstream user reference only for deterministic synchronization.
+There is deliberately no duplicate agent identity table. Live login, logout,
+pause, resume, and wrap-up state is fetched or commanded through ACDc and is
+not treated as durable MySQL truth. Queue creation updates configuration first
+and roster second with cleanup on failure; updates restore both prior settings
+and roster on failure; deletion clears roster before deleting configuration.
+
+Menu foundation note: `switch_menus` stores normalized digit collection,
+recording, hunt, retry, and prompt settings while retaining the complete
+redacted Menu `data` object in `switch_json`. Prompt references resolve to
+public media resources when projected and preserve their upstream references
+for reconciliation. Menu deletion is blocked while a projected callflow uses
+the Menu; guided call routing resolves the UI UUID to the upstream Menu ID and
+writes a `menu` callflow node without exposing the MySQL `menu_id`. Recording
+PINs are write-only: MySQL stores only `record_pin_configured`, API responses
+never return the PIN, and the retained `switch_json` value is redacted.
 
 ## 7. Implementation sequence
 

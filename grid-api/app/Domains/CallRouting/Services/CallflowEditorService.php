@@ -24,6 +24,10 @@ class CallflowEditorService
                 ['value' => 'voicemail', 'label' => 'Voicemail'],
                 ['value' => 'callflow', 'label' => 'Another call route'],
                 ['value' => 'media', 'label' => 'Media'],
+                ['value' => 'directory', 'label' => 'Directory'],
+                ['value' => 'group', 'label' => 'Group / Ring Group'],
+                ['value' => 'queue', 'label' => 'Call Queue'],
+                ['value' => 'menu', 'label' => 'Menu / IVR'],
             ],
             'destinations' => [
                 'extension' => $account->extensions()->orderBy('display_name')->get()->map(fn ($item): array => [
@@ -48,10 +52,30 @@ class CallflowEditorService
                         'label' => $item->name ?? ($item->numbers[0] ?? 'Unnamed route'),
                         'detail' => $item->root_module,
                     ])->values()->all(),
-                'media' => $account->voicemailGreetings()->orderBy('name')->get()->map(fn ($item): array => [
+                'media' => $account->media()->orderBy('name')->get()->map(fn ($item): array => [
                     'id' => $item->id,
                     'label' => $item->name ?? 'Voicemail greeting',
                     'detail' => $item->content_type,
+                ])->values()->all(),
+                'directory' => $account->directories()->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'label' => $item->name,
+                    'detail' => 'Dial-by-name directory',
+                ])->values()->all(),
+                'group' => $account->groups()->withCount('members')->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'label' => $item->name,
+                    'detail' => $item->members_count.' members',
+                ])->values()->all(),
+                'queue' => $account->queues()->withCount('agents')->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'label' => $item->name,
+                    'detail' => $item->agents_count.' agents',
+                ])->values()->all(),
+                'menu' => $account->menus()->orderBy('name')->get()->map(fn ($item): array => [
+                    'id' => $item->id,
+                    'label' => $item->name,
+                    'detail' => 'Interactive voice menu',
                 ])->values()->all(),
             ],
             'phone_numbers' => $account->phoneNumbers()

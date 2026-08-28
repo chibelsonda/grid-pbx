@@ -500,6 +500,156 @@ test('shows projected voicemail metadata with protected audio controls', async (
   await expect(greetingPanel).toBeHidden()
 })
 
+test('manages media and music on hold through right-side panels', async ({ page }) => {
+  let mediaName = 'Main hold music'
+  let isMusicOnHold = false
+  const mediaRecord = () => ({
+    id: 'media-1',
+    name: mediaName,
+    description: 'Lobby loop',
+    language: 'en-us',
+    media_source: 'upload',
+    content_type: 'audio/mpeg',
+    content_length: 4096,
+    prompt_id: null,
+    streamable: true,
+    is_music_on_hold: isMusicOnHold,
+    dependencies: {
+      music_on_hold: Number(isMusicOnHold),
+      voicemail_greetings: 0,
+      callflows: 0,
+      total: Number(isMusicOnHold),
+      can_delete: !isMusicOnHold,
+    },
+    last_synced_at: '2026-08-28T05:00:00Z',
+    sync_status: 'healthy',
+    created_at: '2026-08-28T04:00:00Z',
+    updated_at: '2026-08-28T05:00:00Z',
+  })
+
+  await page.route('**/api/v1/session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: { user: { id: 'user-1', name: 'Grid Admin', email: 'admin@gridpbx.local' } },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/accounts', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'account-1',
+            name: 'GridPBX',
+            realm: 'gridpbx.local',
+            organization: { id: 'organization-1', name: 'GridPBX' },
+            organization_role: 'account_administrator',
+            permissions: {
+              can_manage_extensions: true,
+              can_manage_devices: true,
+              can_manage_voicemail: true,
+              can_manage_call_routing: true,
+              can_manage_media: true,
+              can_sync_call_detail_records: true,
+            },
+          },
+        ],
+      }),
+    }),
+  )
+  await page.route('**/api/v1/accounts/account-1/media**', async (route) => {
+    const request = route.request()
+    const path = new URL(request.url()).pathname
+
+    if (path.endsWith('/music-on-hold') && request.method() === 'PUT') {
+      isMusicOnHold = true
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: { media: mediaRecord() } }),
+      })
+    }
+
+    if (path.endsWith('/media-1/audio')) {
+      return route.fulfill({ status: 200, contentType: 'audio/mpeg', body: 'MP3!' })
+    }
+
+    if (path.endsWith('/media-1') && request.method() === 'PUT') {
+      mediaName = (request.postDataJSON() as { name: string }).name
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: mediaRecord() }),
+      })
+    }
+
+    if (path.endsWith('/media-1')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: mediaRecord() }),
+      })
+    }
+
+    if (request.method() === 'POST') {
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: mediaRecord() }),
+      })
+    }
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [mediaRecord()],
+        links: { prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: 1,
+          sync: { status: 'healthy', last_successful_at: '2026-08-28T05:00:00Z', error_message: null },
+        },
+      }),
+    })
+  })
+
+  await page.goto('/media')
+  await expect(page.getByRole('heading', { name: 'Media & Music on Hold' })).toBeVisible()
+  await page.getByRole('button', { name: 'Upload media' }).click()
+  const createPanel = page.getByRole('dialog', { name: 'Upload media' })
+  await expect(createPanel).toBeVisible()
+  await createPanel.getByLabel('Name').fill('Main hold music')
+  await createPanel.getByLabel('Description').fill('Lobby loop')
+  await createPanel.getByLabel('Audio file').setInputFiles({
+    name: 'hold.mp3',
+    mimeType: 'audio/mpeg',
+    buffer: Buffer.from('MP3!'),
+  })
+  await createPanel.getByRole('button', { name: 'Upload media' }).click()
+
+  const detailPanel = page.getByRole('dialog', { name: 'Main hold music' })
+  await expect(detailPanel).toBeVisible()
+  await detailPanel.getByRole('button', { name: 'Edit' }).click()
+  const editPanel = page.getByRole('dialog', { name: 'Edit media' })
+  await editPanel.getByLabel('Name').fill('Reception hold music')
+  await editPanel.getByRole('button', { name: 'Save changes' }).click()
+  await expect(page.getByRole('dialog', { name: 'Reception hold music' })).toBeVisible()
+  await page.keyboard.press('Escape')
+
+  await page.getByRole('button', { name: 'Music on hold' }).click()
+  const mohPanel = page.getByRole('dialog', { name: 'Music on hold' })
+  await mohPanel.getByLabel('Hold media').selectOption('media-1')
+  await mohPanel.getByRole('button', { name: 'Save music on hold' }).click()
+  await expect(page.getByText('Reception hold music').first()).toBeVisible()
+})
+
 test('shows phone number inventory and opens details in a right-side panel', async ({ page }) => {
   const phoneNumberId = '2baf74c0-70dc-486f-a345-e910034e032c'
   const phoneNumber = {
@@ -990,4 +1140,46 @@ test('filters projected call history and opens safe details in a right-side pane
     panel.getByText('Playback and download remain disabled', { exact: false }),
   ).toBeVisible()
   await expect(panel).not.toContainText('switch_resource_id')
+})
+
+test('creates directories and groups through right-side panels', async ({ page }) => {
+  let directoryPayload: Record<string, unknown> | null = null
+  let groupPayload: Record<string, unknown> | null = null
+  await page.route('**/api/v1/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { user: { id: 'user-1', name: 'Grid Admin', email: 'admin@gridpbx.local' } } }) }))
+  await page.route('**/api/v1/accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [{ id: 'account-1', name: 'GridPBX', realm: 'gridpbx.local', organization: { id: 'org-1', name: 'GridPBX' }, organization_role: 'account_operator', permissions: { can_manage_call_routing: true } }] }) }))
+  await page.route('**/api/v1/accounts/account-1/directories/options', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { extensions: [{ id: 'extension-1', label: 'Ada Lovelace', detail: '1001' }] } }) }))
+  await page.route('**/api/v1/accounts/account-1/directories**', (route) => {
+    if (route.request().method() === 'POST') {
+      directoryPayload = route.request().postDataJSON() as Record<string, unknown>
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { id: 'directory-1', name: 'People', confirm_match: true, min_dtmf: 3, max_dtmf: 0, sort_by: 'last_name', members: [], sync_status: 'healthy', last_synced_at: null } }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], links: { first: null, last: null, prev: null, next: null }, meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 } }) })
+  })
+  await page.route('**/api/v1/accounts/account-1/groups/options', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { users: [{ id: 'extension-1', label: 'Ada Lovelace', detail: '1001' }], devices: [], groups: [], media: [] } }) }))
+  await page.route('**/api/v1/accounts/account-1/groups**', (route) => {
+    if (route.request().method() === 'POST') {
+      groupPayload = route.request().postDataJSON() as Record<string, unknown>
+      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { id: 'group-1', name: 'Support', member_count: 1, members: [], music_on_hold_media: null, sync_status: 'healthy', last_synced_at: null } }) })
+    }
+    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], links: { first: null, last: null, prev: null, next: null }, meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 } }) })
+  })
+
+  await page.goto('/directories')
+  await page.getByRole('button', { name: 'New directory' }).click()
+  const directoryPanel = page.getByRole('dialog', { name: 'Create directory' })
+  await expect(directoryPanel).toBeVisible()
+  await directoryPanel.getByLabel('Name').fill('People')
+  await directoryPanel.getByRole('checkbox', { name: /Ada Lovelace/ }).check()
+  await directoryPanel.getByRole('button', { name: 'Save directory' }).click()
+  expect(directoryPayload).toMatchObject({ name: 'People', member_ids: ['extension-1'] })
+
+  await page.goto('/groups')
+  await page.getByRole('button', { name: 'New group' }).click()
+  const groupPanel = page.getByRole('dialog', { name: 'Create group' })
+  await expect(groupPanel).toBeVisible()
+  await groupPanel.getByLabel('Name').fill('Support')
+  await groupPanel.locator('select').nth(2).selectOption('extension-1')
+  await groupPanel.getByRole('button', { name: 'Add' }).click()
+  await groupPanel.getByRole('button', { name: 'Save group' }).click()
+  expect(groupPayload).toMatchObject({ name: 'Support', members: [{ type: 'user', id: 'extension-1', weight: 1 }] })
 })

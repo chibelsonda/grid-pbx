@@ -1,0 +1,30 @@
+<?php
+
+namespace Database\Factories;
+
+use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Queues\Models\SwitchQueue;
+use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use Illuminate\Database\Eloquent\Factories\Factory;
+
+/** @extends Factory<SwitchQueue> */
+class SwitchQueueFactory extends Factory
+{
+    protected $model = SwitchQueue::class;
+
+    /** @return array<string, mixed> */
+    public function definition(): array
+    {
+        return [
+            'switch_account_id' => SwitchAccount::factory(),
+            'switch_resource_id' => fake()->unique()->regexify('[a-f0-9]{32}'),
+            'name' => fake()->words(2, true), 'strategy' => 'round_robin',
+            'agent_ring_timeout' => 15, 'agent_wrapup_time' => 0,
+            'connection_timeout' => 3600, 'max_queue_size' => 0,
+            'ring_simultaneously' => 1, 'enter_when_empty' => true,
+            'record_caller' => false, 'caller_exit_key' => '#',
+            'last_synced_at' => now(), 'sync_status' => ProjectionStatus::Healthy,
+            'projection_version' => 1, 'switch_json' => [],
+        ];
+    }
+}

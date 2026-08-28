@@ -132,6 +132,10 @@ describe('callflow store', () => {
         voicemail: [],
         callflow: [],
         media: [],
+        directory: [],
+        group: [],
+        queue: [],
+        menu: [],
       },
       phone_numbers: [
         {
@@ -188,6 +192,10 @@ describe('callflow store', () => {
         voicemail: [],
         callflow: [],
         media: [],
+        directory: [],
+        group: [],
+        queue: [],
+        menu: [],
       },
       phone_numbers: [
         {
