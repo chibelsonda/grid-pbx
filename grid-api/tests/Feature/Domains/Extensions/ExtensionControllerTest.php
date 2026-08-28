@@ -97,7 +97,15 @@ class ExtensionControllerTest extends TestCase
     {
         [$user, $account] = $this->accessibleAccount();
         $gateway = $this->mock(SwitchExtensionProvisioningGateway::class);
-        $gateway->shouldReceive('createUser')->once()->andReturn([
+        $gateway->shouldReceive('createUser')->once()->withArgs(
+            fn ($providedAccount, array $data): bool => $providedAccount->is($account)
+                && $data['language'] === 'en-US'
+                && $data['presence_id'] === 'alice@pbx.example.test'
+                && $data['call_waiting']['enabled'] === false
+                && $data['do_not_disturb']['enabled'] === true
+                && $data['contact_list']['exclude'] === true
+                && $data['caller_id_options']['outbound_privacy'] === 'name',
+        )->andReturn([
             'id' => 'switch-user-1001',
             'first_name' => 'Alice',
             'last_name' => 'Operator',
@@ -106,7 +114,12 @@ class ExtensionControllerTest extends TestCase
             'timezone' => 'Asia/Manila',
             'enabled' => true,
             'caller_id' => ['internal' => ['name' => 'Alice Operator', 'number' => '1001']],
-            'presence_id' => '1001',
+            'presence_id' => 'alice@pbx.example.test',
+            'language' => 'en-US',
+            'call_waiting' => ['enabled' => false],
+            'do_not_disturb' => ['enabled' => true],
+            'contact_list' => ['exclude' => true],
+            'caller_id_options' => ['outbound_privacy' => 'name'],
         ]);
         $gateway->shouldReceive('createVoicemailBox')->once()->withArgs(
             fn ($providedAccount, array $data): bool => $providedAccount->is($account)
@@ -168,11 +181,19 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonPath('data.extension', '1001')
             ->assertJsonPath('data.devices.0.name', 'Alice desk phone')
             ->assertJsonPath('data.voicemail_boxes.0.mailbox', '1001')
+            ->assertJsonPath('data.configuration.language', 'en-US')
+            ->assertJsonPath('data.configuration.presence_id', 'alice@pbx.example.test')
+            ->assertJsonPath('data.configuration.call_waiting.enabled', false)
+            ->assertJsonPath('data.configuration.do_not_disturb.enabled', true)
+            ->assertJsonPath('data.configuration.contact_list.exclude', true)
+            ->assertJsonPath('data.configuration.caller_id_options.outbound_privacy', 'name')
             ->assertJsonPath('data.callflows.0.modules.0', 'user')
             ->assertJsonPath('data.callflows.0.modules.1', 'voicemail');
         $extension = SwitchExtension::query()->where('switch_resource_id', 'switch-user-1001')->firstOrFail();
         $this->assertTrue($extension->is_managed);
         $this->assertSame('extension_provisioning', $extension->managed_by_workflow);
+        $this->assertSame('en-US', $extension->switch_json['language']);
+        $this->assertTrue($extension->switch_json['do_not_disturb']['enabled']);
         $this->assertTrue($extension->devices()->firstOrFail()->is_managed);
         $this->assertSame('[REDACTED]', $extension->devices()->firstOrFail()->switch_json['sip']['password']);
         $this->assertTrue($extension->voicemailBoxes()->firstOrFail()->is_managed);
@@ -250,6 +271,25 @@ class ExtensionControllerTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_invalid_user_calling_options_return_422_without_calling_switch(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
+        $payload = $this->extensionPayload();
+        $payload['caller_id_options']['outbound_privacy'] = 'secret';
+        $payload['do_not_disturb']['private_state'] = true;
+        $payload['device']['device_type'] = 'carrier_trunk';
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'caller_id_options.outbound_privacy',
+                'do_not_disturb',
+                'device.device_type',
+            ]);
+    }
+
     public function test_it_updates_a_managed_extension_mailbox_and_callflow_as_one_workflow(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -279,7 +319,16 @@ class ExtensionControllerTest extends TestCase
             'managed_by_workflow' => 'extension_provisioning',
         ]);
         $gateway = $this->mock(SwitchExtensionProvisioningGateway::class);
-        $gateway->shouldReceive('updateUser')->once()->andReturn([
+        $gateway->shouldReceive('updateUser')->once()->withArgs(
+            fn ($providedAccount, string $resourceId, array $data): bool => $providedAccount->is($account)
+                && $resourceId === 'switch-user-1001'
+                && $data['language'] === 'en-US'
+                && $data['presence_id'] === 'alice@pbx.example.test'
+                && $data['call_waiting']['enabled'] === false
+                && $data['do_not_disturb']['enabled'] === true
+                && $data['contact_list']['exclude'] === true
+                && $data['caller_id_options']['outbound_privacy'] === 'name',
+        )->andReturn([
             'id' => 'switch-user-1001',
             'first_name' => 'Alice',
             'last_name' => 'Support',
@@ -288,7 +337,12 @@ class ExtensionControllerTest extends TestCase
             'timezone' => 'Asia/Manila',
             'enabled' => true,
             'caller_id' => ['internal' => ['name' => 'Alice Support', 'number' => '1010']],
-            'presence_id' => '1010',
+            'presence_id' => 'alice@pbx.example.test',
+            'language' => 'en-US',
+            'call_waiting' => ['enabled' => false],
+            'do_not_disturb' => ['enabled' => true],
+            'contact_list' => ['exclude' => true],
+            'caller_id_options' => ['outbound_privacy' => 'name'],
         ]);
         $gateway->shouldReceive('updateVoicemailBox')->once()->withArgs(
             fn ($providedAccount, string $resourceId, array $data): bool => $providedAccount->is($account)
@@ -337,6 +391,7 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonPath('data.id', $extension->id)
             ->assertJsonPath('data.display_name', 'Alice Support')
             ->assertJsonPath('data.extension', '1010')
+            ->assertJsonPath('data.configuration.do_not_disturb.enabled', true)
             ->assertJsonPath('data.voicemail_boxes.0.mailbox', '1010')
             ->assertJsonPath('data.callflows.0.numbers.0', '1010');
         $this->assertDatabaseHas('switch_extensions', [
@@ -672,6 +727,12 @@ class ExtensionControllerTest extends TestCase
             'email' => 'alice@example.test',
             'timezone' => 'Asia/Manila',
             'is_enabled' => true,
+            'language' => 'en-US',
+            'presence_id' => 'alice@pbx.example.test',
+            'call_waiting' => ['enabled' => false],
+            'do_not_disturb' => ['enabled' => true],
+            'contact_list' => ['exclude' => true],
+            'caller_id_options' => ['outbound_privacy' => 'name'],
             'voicemail' => [
                 'enabled' => true,
                 'notification_emails' => ['alice@example.test'],
@@ -703,6 +764,12 @@ class ExtensionControllerTest extends TestCase
             'email' => 'alice@example.test',
             'timezone' => 'Asia/Manila',
             'is_enabled' => true,
+            'language' => 'en-US',
+            'presence_id' => 'alice@pbx.example.test',
+            'call_waiting' => ['enabled' => false],
+            'do_not_disturb' => ['enabled' => true],
+            'contact_list' => ['exclude' => true],
+            'caller_id_options' => ['outbound_privacy' => 'name'],
             'voicemail' => [
                 'enabled' => true,
                 'notification_emails' => ['alice@example.test'],

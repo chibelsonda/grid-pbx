@@ -1,7 +1,13 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { deviceApi } from '../api/deviceApi'
-import type { Device, DeviceInput, ExtensionOption, SyncState } from '../types/device'
+import type {
+  Device,
+  DeviceInput,
+  DeviceRestrictionOption,
+  ExtensionOption,
+  SyncState,
+} from '../types/device'
 
 const defaultSync: SyncState = { status: 'stale', last_successful_at: null, error_message: null }
 
@@ -22,6 +28,8 @@ export const useDeviceStore = defineStore('devices', {
     mutationError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
     extensionOptions: [] as ExtensionOption[],
+    mediaOptions: [] as Array<{ id: string; name: string | null }>,
+    restrictionOptions: [] as DeviceRestrictionOption[],
   }),
   actions: {
     reset(): void {
@@ -36,6 +44,8 @@ export const useDeviceStore = defineStore('devices', {
       this.mutationError = null
       this.fieldErrors = {}
       this.extensionOptions = []
+      this.mediaOptions = []
+      this.restrictionOptions = []
     },
     async load(accountId: string, page?: number): Promise<void> {
       this.loading = true
@@ -71,11 +81,16 @@ export const useDeviceStore = defineStore('devices', {
         this.detailLoading = false
       }
     },
-    async loadExtensionOptions(accountId: string): Promise<void> {
+    async loadOptions(accountId: string): Promise<void> {
       try {
-        this.extensionOptions = await deviceApi.extensionOptions(accountId)
+        const options = await deviceApi.options(accountId)
+        this.extensionOptions = options.extensions
+        this.mediaOptions = options.media
+        this.restrictionOptions = options.restrictions
       } catch {
         this.extensionOptions = []
+        this.mediaOptions = []
+        this.restrictionOptions = []
       }
     },
     async create(accountId: string, input: DeviceInput): Promise<Device | null> {

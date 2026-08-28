@@ -53,6 +53,21 @@ final readonly class TemporalRuleResourceClient
         if ($snapshot->id !== $ruleId) throw new InvalidSwitchPayloadException('Switch temporal rule response id does not match the requested resource.');
         return $snapshot;
     }
+
+    public function setOverride(string $accountId, string $ruleId, ?bool $enabled): TemporalRuleSnapshot
+    {
+        $snapshot = $this->snapshot($this->client->request(
+            'PATCH',
+            $this->path($accountId, $ruleId),
+            ['json' => ['data' => ['enabled' => $enabled]]],
+        ));
+
+        if ($snapshot->id !== $ruleId) {
+            throw new InvalidSwitchPayloadException('Switch temporal rule response id does not match the requested resource.');
+        }
+
+        return $snapshot;
+    }
     public function delete(string $accountId, string $ruleId): void { $this->client->request('DELETE', $this->path($accountId, $ruleId)); }
     private function path(string $accountId, string $ruleId): string { return sprintf('accounts/%s/temporal_rules/%s', rawurlencode($this->required($accountId, 'account')), rawurlencode($this->required($ruleId, 'rule'))); }
     /** @param array<string, mixed> $payload */ private function snapshot(array $payload): TemporalRuleSnapshot

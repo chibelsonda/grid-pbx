@@ -22,6 +22,8 @@ use App\Domains\Faxes\Gateways\CrossbarSwitchFaxBoxGateway;
 use App\Domains\Faxes\Gateways\CrossbarSwitchFaxGateway;
 use App\Domains\Groups\Contracts\SwitchGroupGateway;
 use App\Domains\Groups\Gateways\CrossbarSwitchGroupGateway;
+use App\Domains\LineKeys\Contracts\SwitchLineKeyGateway;
+use App\Domains\LineKeys\Gateways\CrossbarSwitchLineKeyGateway;
 use App\Domains\Media\Contracts\SwitchMediaGateway;
 use App\Domains\Media\Gateways\CrossbarSwitchMediaGateway;
 use App\Domains\Menus\Contracts\SwitchMenuGateway;
@@ -51,8 +53,8 @@ use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailMessageGateway;
 use GridPbx\Switch\ApiKeyTokenProvider;
 use GridPbx\Switch\Contracts\TokenProvider;
 use GridPbx\Switch\Resources\AccountResourceClient;
-use GridPbx\Switch\Resources\BlacklistResourceClient;
 use GridPbx\Switch\Resources\AgentResourceClient;
+use GridPbx\Switch\Resources\BlacklistResourceClient;
 use GridPbx\Switch\Resources\CallDetailRecordResourceClient;
 use GridPbx\Switch\Resources\CallflowResourceClient;
 use GridPbx\Switch\Resources\ConferenceResourceClient;
@@ -61,6 +63,7 @@ use GridPbx\Switch\Resources\DirectoryResourceClient;
 use GridPbx\Switch\Resources\FaxBoxResourceClient;
 use GridPbx\Switch\Resources\FaxMessageResourceClient;
 use GridPbx\Switch\Resources\GroupResourceClient;
+use GridPbx\Switch\Resources\LineKeyResourceClient;
 use GridPbx\Switch\Resources\MediaResourceClient;
 use GridPbx\Switch\Resources\MenuResourceClient;
 use GridPbx\Switch\Resources\PhoneNumberResourceClient;
@@ -92,6 +95,7 @@ class SwitchServiceProvider extends ServiceProvider
         $this->app->bind(SwitchFaxBoxGateway::class, CrossbarSwitchFaxBoxGateway::class);
         $this->app->bind(SwitchFaxGateway::class, CrossbarSwitchFaxGateway::class);
         $this->app->bind(SwitchGroupGateway::class, CrossbarSwitchGroupGateway::class);
+        $this->app->bind(SwitchLineKeyGateway::class, CrossbarSwitchLineKeyGateway::class);
         $this->app->bind(SwitchMediaGateway::class, CrossbarSwitchMediaGateway::class);
         $this->app->bind(SwitchMenuGateway::class, CrossbarSwitchMenuGateway::class);
         $this->app->bind(SwitchPhoneNumberGateway::class, CrossbarSwitchPhoneNumberGateway::class);
@@ -180,6 +184,10 @@ class SwitchServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(GroupResourceClient::class, fn ($app) => new GroupResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(LineKeyResourceClient::class, fn ($app) => new LineKeyResourceClient(
             $app->make(SwitchClient::class),
         ));
 

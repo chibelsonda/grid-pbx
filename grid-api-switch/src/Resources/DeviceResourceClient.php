@@ -29,10 +29,33 @@ final readonly class DeviceResourceClient
         return $this->snapshot($payload);
     }
 
+    public function get(string $accountId, string $deviceId): DeviceSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $deviceId = $this->requiredIdentifier($deviceId, 'device');
+        $payload = $this->client->request(
+            'GET',
+            sprintf(
+                'accounts/%s/devices/%s',
+                rawurlencode($accountId),
+                rawurlencode($deviceId),
+            ),
+        );
+
+        return $this->snapshot($payload);
+    }
+
     public function update(string $accountId, string $deviceId, DeviceWriteData $device): DeviceSnapshot
     {
         $accountId = $this->requiredIdentifier($accountId, 'account');
         $deviceId = $this->requiredIdentifier($deviceId, 'device');
+        $current = $this->get($accountId, $deviceId)->toArray();
+        unset($current['id']);
+
+        if ($device->ownerId === null) {
+            unset($current['owner_id']);
+        }
+
         $payload = $this->client->request(
             'POST',
             sprintf(
@@ -40,7 +63,10 @@ final readonly class DeviceResourceClient
                 rawurlencode($accountId),
                 rawurlencode($deviceId),
             ),
-            ['json' => ['data' => $device->toSwitchData()]],
+            ['json' => ['data' => $this->mergePreservingUnknownFields(
+                $this->removeEmptyArrays($current),
+                $device->toSwitchData(),
+            )]],
         );
         $snapshot = $this->snapshot($payload);
 
@@ -49,6 +75,71 @@ final readonly class DeviceResourceClient
         }
 
         return $snapshot;
+    }
+
+    /**
+     * @param  array<string, mixed>  $current
+     * @param  array<string, mixed>  $updates
+     * @return array<string, mixed>
+     */
+    private function mergePreservingUnknownFields(array $current, array $updates): array
+    {
+        foreach ($updates as $key => $value) {
+            $existing = $current[$key] ?? null;
+
+            if (in_array($key, ['custom_sip_headers', 'dial_plan', 'music_on_hold', 'outbound_flags'], true)) {
+                $current[$key] = $value;
+
+                continue;
+            }
+
+            if (
+                is_array($existing)
+                && is_array($value)
+                && ! array_is_list($existing)
+                && ! array_is_list($value)
+            ) {
+                $current[$key] = $this->mergePreservingUnknownFields($existing, $value);
+
+                continue;
+            }
+
+            $current[$key] = $value;
+        }
+
+        return $current;
+    }
+
+    /**
+     * PHP's associative JSON decoding cannot distinguish `{}` from `[]` once
+     * an empty Switch object reaches an array DTO. Omitting empty structures on
+     * a full-document update preserves their empty semantics without changing
+     * the JSON type and failing schema validation.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function removeEmptyArrays(array $data): array
+    {
+        foreach ($data as $key => $value) {
+            if (! is_array($value)) {
+                continue;
+            }
+
+            if ($value === []) {
+                unset($data[$key]);
+
+                continue;
+            }
+
+            $data[$key] = $this->removeEmptyArrays($value);
+
+            if ($data[$key] === []) {
+                unset($data[$key]);
+            }
+        }
+
+        return $data;
     }
 
     public function delete(string $accountId, string $deviceId): void

@@ -15,7 +15,7 @@ vi.mock('../api/directoryApi', () => ({ directoryApi: {
   startSync: vi.fn<() => Promise<DirectorySyncRun>>(),
   syncStatus: vi.fn<() => Promise<DirectorySyncRun>>(),
 } }))
-const record: Directory = { id: 'public-directory', name: 'People', confirm_match: true, min_dtmf: 3, max_dtmf: 0, sort_by: 'last_name', member_count: 1, members: [], sync_status: 'healthy', last_synced_at: null }
+const record: Directory = { id: 'public-directory', name: 'People', confirm_match: true, min_dtmf: 3, max_dtmf: 0, sort_by: 'last_name', flags: ['public-directory'], member_count: 1, members: [], sync_status: 'healthy', last_synced_at: null }
 const options: DirectoryOptions = { extensions: [{ id: 'public-extension', label: 'Ada', detail: '1001' }] }
 
 describe('directory store', () => {
@@ -28,7 +28,7 @@ describe('directory store', () => {
   it('prepares public options and creates through the slide-over workflow', async () => {
     vi.mocked(directoryApi.options).mockResolvedValue(options); vi.mocked(directoryApi.create).mockResolvedValue(record)
     const store = useDirectoryStore(); await store.prepare('account-1')
-    const input: DirectoryInput = { name: 'People', confirm_match: true, min_dtmf: 3, max_dtmf: 0, sort_by: 'last_name', member_ids: ['public-extension'] }
+    const input: DirectoryInput = { name: 'People', confirm_match: true, min_dtmf: 3, max_dtmf: 0, sort_by: 'last_name', flags: ['public-directory'], member_ids: ['public-extension'] }
     expect(await store.save('account-1', input)).toBe(true); expect(store.options).toEqual(options); expect(store.detail).toEqual(record)
   })
 })

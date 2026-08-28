@@ -6,8 +6,8 @@ import {
   LinkIcon,
   ShieldCheckIcon,
   TrashIcon,
-  ExclamationTriangleIcon,
 } from '@heroicons/vue/24/outline'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import CallflowTreeNode from './CallflowTreeNode.vue'
 import type { Callflow } from '../types/callRouting'
@@ -178,38 +178,8 @@ function humanize(value: string | null): string {
       <p v-if="canManage && deletionBlocker" class="text-[10px] text-amber-700">
         {{ deletionBlocker }}
       </p>
-
-      <div v-if="confirmingDelete" class="rounded-md border border-red-200 bg-red-50 p-5">
-        <div class="flex gap-3">
-          <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0 text-danger" />
-          <div>
-            <h2 class="text-sm font-semibold text-red-800">Delete this route?</h2>
-            <p class="mt-1 text-xs leading-5 text-red-700">
-              GridPBX will check projected dependencies again before deleting it from Switch.
-            </p>
-          </div>
-        </div>
-        <p v-if="mutationError" class="mt-3 text-xs font-semibold text-danger">
-          {{ mutationError }}
-        </p>
-        <div class="mt-4 flex justify-end gap-3">
-          <button
-            type="button"
-            class="h-9 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600"
-            @click="confirmingDelete = false"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            :disabled="deleting"
-            class="h-9 rounded-md bg-red-600 px-4 text-xs font-semibold text-white disabled:opacity-50"
-            @click="$emit('delete')"
-          >
-            {{ deleting ? 'Deleting…' : 'Confirm delete' }}
-          </button>
-        </div>
-      </div>
+      <p v-if="mutationError" class="text-xs font-semibold text-danger">{{ mutationError }}</p>
     </div>
   </CrudSlideOver>
+  <ConfirmDialog :open="confirmingDelete" title="Delete this route?" description="GridPBX will check projected dependencies again before deleting it from Switch." confirm-label="Delete route" :busy="deleting" @close="confirmingDelete = false" @confirm="$emit('delete')" />
 </template>

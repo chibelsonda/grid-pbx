@@ -11,8 +11,16 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import FormListbox from '@/shared/components/FormListbox.vue'
+import { validateForm } from '@/shared/forms/zod'
+import { voicemailBoxFormSchema } from '../schemas/voicemailBoxFormSchema'
 import { useVoicemailStore } from '../stores/voicemailStore'
 import type { VoicemailBoxInput } from '../types/voicemail'
+import {
+  defaultVoicemailBoxConfiguration,
+  hydrateVoicemailBoxConfiguration,
+} from '../voicemailForm'
 
 const route = useRoute()
 const router = useRouter()
@@ -34,6 +42,7 @@ const form = reactive({
   require_pin: false,
   pin: '',
 })
+const configuration = reactive(defaultVoicemailBoxConfiguration())
 
 watch(
   [() => accounts.selectedId, voicemailBoxId],
@@ -54,6 +63,7 @@ watch(
     form.transcribe = record.transcribe
     form.require_pin = record.require_pin
     form.pin = ''
+    Object.assign(configuration, hydrateVoicemailBoxConfiguration(record.configuration))
   },
   { immediate: true },
 )
@@ -93,10 +103,20 @@ async function save(): Promise<void> {
     transcribe: form.transcribe,
     require_pin: form.require_pin,
     pin: nullable(form.pin),
+    ...configuration,
   }
+  const validation = validateForm(voicemailBoxFormSchema, input)
+
+  if (!validation.success) {
+    voicemail.fieldErrors = validation.errors
+    voicemail.mutationError = 'Check the highlighted fields and try again.'
+
+    return
+  }
+
   const record = voicemailBoxId.value
-    ? await voicemail.update(accounts.selectedId, voicemailBoxId.value, input)
-    : await voicemail.create(accounts.selectedId, input)
+    ? await voicemail.update(accounts.selectedId, voicemailBoxId.value, validation.data)
+    : await voicemail.create(accounts.selectedId, validation.data)
   if (record) await router.push({ name: 'voicemail-detail', params: { voicemailBoxId: record.id } })
 }
 </script>
@@ -142,6 +162,7 @@ async function save(): Promise<void> {
     <form
       v-else
       class="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]"
+      novalidate
       @submit.prevent="save"
     >
       <div class="grid content-start gap-5">
@@ -193,7 +214,7 @@ async function save(): Promise<void> {
                 placeholder="Account default"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
               /><datalist id="common-timezones">
-                <option value="UTC" />
+                <option value="Asia/Tokyo" />
                 <option value="Asia/Manila" />
                 <option value="America/New_York" />
                 <option value="America/Chicago" />
@@ -233,6 +254,49 @@ async function save(): Promise<void> {
             >
           </div>
         </article>
+
+        <DisclosureCard title="Advanced notification delivery">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <label class="grid gap-2 sm:col-span-2">
+              <span class="text-xs font-semibold text-slate-600">Voicemail audio format</span>
+              <FormListbox
+                v-model="configuration.media_extension"
+                :options="[
+                  { value: 'mp3', label: 'MP3' },
+                  { value: 'mp4', label: 'MP4' },
+                  { value: 'wav', label: 'WAV' },
+                ]"
+              />
+              <span v-if="fieldError('media_extension')" class="text-[11px] text-danger">{{
+                fieldError('media_extension')
+              }}</span>
+            </label>
+            <ToggleSwitch
+              v-model="configuration.include_message_on_notify"
+              label="Attach voicemail audio"
+              description="Include the recording with email notifications"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.include_transcription_on_notify"
+              label="Include transcription"
+              description="Add ASR text to notification emails"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.save_after_notify"
+              label="Save after notification"
+              description="Move the message to Saved after notification"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.delete_after_notify"
+              label="Delete after notification"
+              description="Move the message to Deleted unless Save is enabled"
+              class="rounded-md border border-slate-200 p-3"
+            />
+          </div>
+        </DisclosureCard>
       </div>
 
       <div class="grid content-start gap-5">
@@ -244,7 +308,7 @@ async function save(): Promise<void> {
           <div class="p-5">
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Extension</span
-              ><select
+              ><FormSelect
                 v-model="form.assigned_extension_id"
                 class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500"
               >
@@ -256,7 +320,7 @@ async function save(): Promise<void> {
                 >
                   {{ extension.display_name
                   }}{{ extension.extension ? ` · ${extension.extension}` : '' }}
-                </option></select
+                </option></FormSelect
               ><span v-if="fieldError('assigned_extension_id')" class="text-[11px] text-danger">{{
                 fieldError('assigned_extension_id')
               }}</span></label
@@ -270,31 +334,81 @@ async function save(): Promise<void> {
             <h2 class="text-sm font-semibold text-slate-700">Features</h2>
           </header>
           <div class="grid gap-3 p-5">
-            <label class="flex items-center gap-3 rounded-md border border-slate-200 p-3"
-              ><input
-                v-model="form.transcribe"
-                type="checkbox"
-                class="size-4 accent-brand-500"
-              /><span
-                ><span class="block text-xs font-semibold text-slate-600">Transcribe messages</span
-                ><span class="block text-[10px] text-slate-400"
-                  >Uses the configured Switch ASR provider</span
-                ></span
-              ></label
-            ><label class="flex items-center gap-3 rounded-md border border-slate-200 p-3"
-              ><input
-                v-model="form.require_pin"
-                type="checkbox"
-                class="size-4 accent-brand-500"
-              /><span
-                ><span class="block text-xs font-semibold text-slate-600">Require PIN</span
-                ><span class="block text-[10px] text-slate-400"
-                  >Prompt when checking from owner devices</span
-                ></span
-              ></label
-            >
+            <ToggleSwitch
+              v-model="form.transcribe"
+              label="Transcribe messages"
+              description="Uses the configured Switch ASR provider"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="form.require_pin"
+              label="Require PIN"
+              description="Prompt when checking from owner devices"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.check_if_owner"
+              label="Recognize owner devices"
+              description="Prompt the owner to sign in when calling this mailbox"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.not_configurable"
+              label="Lock mailbox configuration"
+              description="Prevent the mailbox owner from changing settings by phone"
+              class="rounded-md border border-slate-200 p-3"
+            />
           </div>
         </article>
+
+        <DisclosureCard title="Playback behavior">
+          <div class="grid gap-3">
+            <ToggleSwitch
+              v-model="configuration.oldest_message_first"
+              label="Play oldest messages first"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.skip_envelope"
+              label="Skip message envelope"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.skip_greeting"
+              label="Skip unavailable greeting"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.skip_instructions"
+              label="Skip recording instructions"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <ToggleSwitch
+              v-model="configuration.is_voicemail_ff_rw_enabled"
+              label="Enable fast-forward and rewind"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <label v-if="configuration.is_voicemail_ff_rw_enabled" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Seek duration</span>
+              <div class="relative">
+                <input
+                  v-model.number="configuration.seek_duration_ms"
+                  type="number"
+                  min="0"
+                  max="300000"
+                  step="1000"
+                  class="field-control pr-12"
+                />
+                <span class="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-slate-400"
+                  >ms</span
+                >
+              </div>
+              <span v-if="fieldError('seek_duration_ms')" class="text-[11px] text-danger">{{
+                fieldError('seek_duration_ms')
+              }}</span>
+            </label>
+          </div>
+        </DisclosureCard>
 
         <article class="card-surface overflow-hidden">
           <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">

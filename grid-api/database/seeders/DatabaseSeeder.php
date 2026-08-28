@@ -37,6 +37,7 @@ class DatabaseSeeder extends Seeder
             ], [
                 'name' => config('gridpbx.switch_account.name'),
                 'realm' => config('gridpbx.switch_account.realm'),
+                'timezone' => config('gridpbx.switch_account.timezone'),
                 'is_enabled' => true,
             ]);
         }

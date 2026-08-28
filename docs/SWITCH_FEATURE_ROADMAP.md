@@ -9,6 +9,10 @@ This document defines the Switch-backed capabilities planned for GridPBX. It is
 the product feature catalog that complements the architecture and delivery
 rules in [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md).
 
+The field-level parity contract for every included entity is maintained in
+[SWITCH_SCHEMA_PARITY.md](SWITCH_SCHEMA_PARITY.md). A feature cannot move to
+`Complete` while public schema fields remain silently unclassified.
+
 The catalog was prepared from the locally available Switch Crossbar
 documentation, the Monster UI applications, and the legacy GridPBX routes and
 screens. Those projects are reference material only and are intentionally not
@@ -85,7 +89,7 @@ to `Complete` only through the delivery checklist in section 11.
 | Directory | Directory CRUD and user membership | Project directory metadata and relationships | Foundation |
 | Fax | Fax-box configuration, inbound/outbound message inventory, authorized document access, and guided routing | Normalize safe searchable metadata, retain redacted `data` snapshots in `switch_json`, and stream documents on demand | Foundation |
 | Group | Group and ring-group configuration, membership, endpoints, and strategy | Project group/member relationships and safe configuration | Foundation |
-| LineKey | Device line-key configuration and provisioning preview | Treat as device/provisioning configuration; enable only for confirmed device and provisioner schemas | Conditional |
+| LineKey | Device line-key configuration and provisioning preview | Device-owned normalized projection plus redacted device `switch_json`; safe preview is always available and upstream apply is capability-gated | Foundation |
 | Media | Media metadata, prompts, music-on-hold, upload, and authorized streaming | Project metadata and redacted detail only; do not duplicate binary content in MySQL by default | Foundation |
 | Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | CRUD, prompt/media relationships, sync, dependency-safe delete, and guided routing delivered; branch editing remains part of the visual callflow editor | Foundation |
 | PhoneNumber | Number inventory, features, assignment, and approved carrier workflows | Project normalized inventory plus redacted detail snapshots | Foundation |
@@ -93,8 +97,8 @@ to `Complete` only through the delivery checklist in section 11.
 | Recording | Recording search, metadata, and authorized playback/download | Bounded metadata-only projection, redacted source snapshot, relationship resolution, audited range streaming, and right-side detail UI delivered; deletion remains disabled pending retention policy | Foundation |
 | Services | Account service-plan, limits, quantities, standing, billing-cycle, and billing-impact summaries exposed by Switch | Administrator-only normalized read projection with redacted `switch_json`; all billing mutations remain disabled | Foundation |
 | SystemStatus | Connectivity, capability, and relevant telephony health summaries | Live checks or short-lived cache; do not persist full infrastructure payloads as durable projections | Foundation |
-| TemporalRule | Business-hours, holiday, and time-of-day rule CRUD | Validated normalized schedules, redacted source snapshots, CRUD, sync, and dependency-safe deletion delivered | Foundation |
-| TemporalRuleSet | Rule-set CRUD, ordering, enable/disable, and reset workflows | Ordered membership, CRUD, sync, and guided `temporal_route` routing delivered; live enable/disable/reset commands remain planned | Foundation |
+| TemporalRule | Business-hours, holiday, time-of-day CRUD, effective status, and operational override | Validated normalized schedules, redacted source snapshots, CRUD, sync, dependency-safe deletion, timezone-aware status, and audited force-active/force-inactive/reset commands delivered | Foundation |
+| TemporalRuleSet | Rule-set CRUD, ordering, effective status, enable/disable, and reset workflows | Ordered membership, CRUD, sync, guided `temporal_route` routing, aggregate status, and compensating member-rule command fan-out delivered | Foundation |
 | User | User CRUD, identity, caller ID, feature state, and resource assignments | Project safe identity/settings and redacted detail snapshots | Foundation |
 | Voicemail | Mailbox CRUD, assignments, greetings, messages, and permitted lifecycle actions | Project mailbox/message metadata; stream audio and keep PINs write-only | Foundation |
 
@@ -132,6 +136,10 @@ satisfied.
 Every user-facing create or edit workflow in this scope uses the standard
 right-side slide-over panel. Large visual editors may use a dedicated workspace
 for the canvas, while node settings and CRUD forms still open from the right.
+The shared interaction layer uses `@headlessui/vue` for dialogs, listboxes,
+menus, switches, tabs, and disclosures, with Tailwind retaining full ownership
+of the visual design. Native multi-select checkboxes remain semantic inputs
+because Headless UI for Vue does not provide a checkbox primitive.
 
 ## 4. Platform and account foundation
 
@@ -241,8 +249,18 @@ metadata and status summaries but never SIP passwords.
 
 Implementation status: Foundation. Account-scoped list/detail/CRUD,
 registration projection, role authorization, audit logging, credential
-redaction, and Vue management screens are implemented. Provisioning and bulk
-settings remain planned.
+redaction, and Vue management screens are implemented. The LineKey foundation
+also projects `provision.combo_keys` and `provision.feature_keys`, exposes a
+credential-free payload preview, and provides a right-side editor. Applying a
+full key-map replacement uses the Switch device PATCH boundary and remains
+disabled unless `SWITCH_LINE_KEY_MUTATIONS_ENABLED=true` and the device has a
+confirmed endpoint brand and model. Vendor templates, generated provisioning
+documents, bulk settings, and zero-touch provisioning remain conditional.
+The first schema-parity form slice now adds all eight upstream device types,
+Basic/Advanced conditional controls, nested SIP/forwarding/media/caller-ID and
+common endpoint options, typed Switch DTOs, and safe configuration hydration.
+The remaining field groups and exact acceptance checklist are tracked in
+[SWITCH_SCHEMA_PARITY.md](SWITCH_SCHEMA_PARITY.md#6-device-implementation-acceptance-criteria).
 
 ### 5.4 Voicemail
 
@@ -365,6 +383,7 @@ module-gated.
 | Recordings | Search, metadata, authorized playback/download | Recordings and storage | Bounded metadata-only projection, audited protected playback/download, and no GridPBX deletion until retention/provider cleanup is approved | Foundation |
 | Active channels | Current calls and account activity | Channels | Short-lived cache, not durable projection | Conditional |
 | Services and limits | Assigned plans, account/cascade/manual quantities, standing, billing cycle, current limits, and aggregate billing impact | Services summary and limits | Administrator-only read projection, payment/bookkeeper redaction, queued sync, and right-side detail panel delivered; plan/limit/top-up/charge mutations remain disabled | Foundation |
+| Line keys and provisioning preview | Device combo/feature key inventory, safe full-replacement preview, and capability-gated apply | Device `provision.combo_keys` / `feature_keys` PATCH | Device-owned normalized rows plus the redacted device snapshot; no SIP credentials, provisioning URLs, templates, or generated documents exposed | Foundation |
 
 Implementation status: Foundation. The entity-organized Switch client now
 paginates media inventory, hydrates full metadata, creates and updates bounded

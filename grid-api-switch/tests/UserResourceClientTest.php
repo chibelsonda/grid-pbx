@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Contracts\TokenProvider;
+use GridPbx\Switch\Dto\Users\UserAdvancedData;
 use GridPbx\Switch\Dto\Users\UserWriteData;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\Resources\UserResourceClient;
@@ -40,6 +41,14 @@ final class UserResourceClientTest extends TestCase
             username: 'alice.operator',
             email: 'alice@example.test',
             timezone: 'America/Los_Angeles',
+            advanced: new UserAdvancedData(
+                language: 'en-US',
+                presenceId: 'alice@pbx.example.test',
+                callWaiting: false,
+                doNotDisturb: true,
+                excludeFromContactList: true,
+                outboundPrivacy: 'name',
+            ),
         ));
 
         self::assertSame('user-1', $snapshot->id);
@@ -56,10 +65,15 @@ final class UserResourceClientTest extends TestCase
                         'number' => '1001',
                     ],
                 ],
-                'presence_id' => '1001',
+                'presence_id' => 'alice@pbx.example.test',
                 'username' => 'alice.operator',
                 'email' => 'alice@example.test',
                 'timezone' => 'America/Los_Angeles',
+                'language' => 'en-US',
+                'call_waiting' => ['enabled' => false],
+                'do_not_disturb' => ['enabled' => true],
+                'contact_list' => ['exclude' => true],
+                'caller_id_options' => ['outbound_privacy' => 'name'],
             ],
         ], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
     }

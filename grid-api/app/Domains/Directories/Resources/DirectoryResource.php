@@ -15,6 +15,7 @@ class DirectoryResource extends JsonResource
         return [
             'id' => $this->id, 'name' => $this->name, 'confirm_match' => $this->confirm_match,
             'min_dtmf' => $this->min_dtmf, 'max_dtmf' => $this->max_dtmf, 'sort_by' => $this->sort_by,
+            'flags' => $this->safeStringList('flags'),
             'member_count' => $this->whenCounted('members'),
             'members' => $this->whenLoaded('members', fn (): array => $this->members->map(fn ($member): array => [
                 'id' => $member->id,
@@ -29,5 +30,16 @@ class DirectoryResource extends JsonResource
             'last_synced_at' => $this->last_synced_at?->toIso8601String(), 'sync_status' => $this->sync_status?->value,
             'created_at' => $this->created_at?->toIso8601String(), 'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /** @return list<string> */
+    private function safeStringList(string $key): array
+    {
+        $value = $this->switch_json[$key] ?? null;
+
+        return array_values(array_filter(
+            is_array($value) ? $value : [],
+            static fn (mixed $item): bool => is_string($item) && $item !== '',
+        ));
     }
 }

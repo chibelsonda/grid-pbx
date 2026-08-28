@@ -105,6 +105,7 @@ class CrossbarSwitchDirectoryGateway implements SwitchDirectoryGateway
             minDtmf: (int) ($data['min_dtmf'] ?? 3),
             maxDtmf: (int) ($data['max_dtmf'] ?? 0),
             sortBy: (string) ($data['sort_by'] ?? 'last_name'),
+            flags: is_array($data['flags'] ?? null) ? array_values($data['flags']) : [],
         );
     }
 }

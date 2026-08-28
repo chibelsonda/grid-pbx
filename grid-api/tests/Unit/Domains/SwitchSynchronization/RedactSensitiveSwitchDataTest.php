@@ -14,6 +14,11 @@ class RedactSensitiveSwitchDataTest extends TestCase
             'sip' => [
                 'username' => 'device-1',
                 'password' => 'sip-secret',
+                'custom_sip_headers' => [
+                    'Authorization' => 'Bearer private-value',
+                    'X-Session-Token' => 'private-token',
+                    'X-Device' => 'reception',
+                ],
             ],
             'hotdesk' => [
                 'hotdesk_pin' => 1234,
@@ -25,6 +30,8 @@ class RedactSensitiveSwitchDataTest extends TestCase
             'bookkeeper' => ['type' => 'private-provider'],
             'bookkeepers' => ['local' => ['id' => 'private-provider']],
             'billing_id' => 'billing-account-secret',
+            'provisioning_url' => 'https://provisioner.internal/tenant',
+            'provisioner_host' => 'provisioner.internal',
             'caller_id' => ['internal' => ['number' => '1001']],
         ];
 
@@ -33,6 +40,9 @@ class RedactSensitiveSwitchDataTest extends TestCase
         $this->assertSame('device-1', $redacted['id']);
         $this->assertSame('device-1', $redacted['sip']['username']);
         $this->assertSame('[REDACTED]', $redacted['sip']['password']);
+        $this->assertSame('[REDACTED]', $redacted['sip']['custom_sip_headers']['Authorization']);
+        $this->assertSame('[REDACTED]', $redacted['sip']['custom_sip_headers']['X-Session-Token']);
+        $this->assertSame('reception', $redacted['sip']['custom_sip_headers']['X-Device']);
         $this->assertSame('[REDACTED]', $redacted['hotdesk']['hotdesk_pin']);
         $this->assertSame('[REDACTED]', $redacted['member']['pins']);
         $this->assertTrue($redacted['hotdesk']['enabled']);
@@ -41,6 +51,8 @@ class RedactSensitiveSwitchDataTest extends TestCase
         $this->assertSame('[REDACTED]', $redacted['bookkeeper']);
         $this->assertSame('[REDACTED]', $redacted['bookkeepers']);
         $this->assertSame('[REDACTED]', $redacted['billing_id']);
+        $this->assertSame('[REDACTED]', $redacted['provisioning_url']);
+        $this->assertSame('[REDACTED]', $redacted['provisioner_host']);
         $this->assertSame('1001', $redacted['caller_id']['internal']['number']);
     }
 }

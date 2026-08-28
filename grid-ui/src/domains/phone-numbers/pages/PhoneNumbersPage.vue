@@ -145,7 +145,7 @@ function humanize(value: string | null): string {
           placeholder="Search number, carrier, CNAM, route…"
           class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
       /></label>
-      <select
+      <FormSelect
         v-model="phoneNumbers.filters.state"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none"
       >
@@ -154,15 +154,15 @@ function humanize(value: string | null): string {
         <option value="reserved">Reserved</option>
         <option value="port_in">Port in</option>
         <option value="aging">Aging</option>
-      </select>
-      <select
+      </FormSelect>
+      <FormSelect
         v-model="phoneNumbers.filters.assignment"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none"
       >
         <option value="">All assignments</option>
         <option value="assigned">Assigned</option>
         <option value="unassigned">Unassigned</option>
-      </select>
+      </FormSelect>
       <button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
       >

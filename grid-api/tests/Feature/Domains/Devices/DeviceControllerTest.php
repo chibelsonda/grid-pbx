@@ -7,6 +7,7 @@ use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
@@ -110,6 +111,43 @@ class DeviceControllerTest extends TestCase
         $this->actingAs($user)
             ->getJson("/api/v1/accounts/{$account->id}/devices/{$otherDevice->id}")
             ->assertNotFound();
+    }
+
+    public function test_it_returns_safe_device_form_options_with_dynamic_restrictions(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-1',
+            'display_name' => 'Alice Operator',
+            'extension' => '1001',
+        ]);
+        SwitchExtension::factory()->create([
+            'display_name' => 'Different account',
+        ]);
+        $media = SwitchMedia::factory()->for($account)->create(['name' => 'Office music']);
+        $this->mock(SwitchDeviceGateway::class)
+            ->shouldReceive('restrictionClassifiers')
+            ->once()
+            ->withArgs(fn (SwitchAccount $receivedAccount): bool => $receivedAccount->is($account))
+            ->andReturn([
+                ['key' => 'tollfree_us', 'label' => 'US TollFree', 'emergency' => false],
+                ['key' => 'emergency', 'label' => 'Emergency Dispatcher', 'emergency' => true],
+            ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/devices/options");
+
+        $response
+            ->assertOk()
+            ->assertJsonCount(1, 'data.extensions')
+            ->assertJsonPath('data.extensions.0.id', $extension->id)
+            ->assertJsonPath('data.extensions.0.display_name', 'Alice Operator')
+            ->assertJsonPath('data.media.0.id', $media->id)
+            ->assertJsonPath('data.media.0.name', 'Office music')
+            ->assertJsonPath('data.restrictions.0.key', 'tollfree_us')
+            ->assertJsonPath('data.restrictions.1.emergency', true)
+            ->assertJsonMissingPath('data.restrictions.0.regex')
+            ->assertDontSee('switch-user-1');
     }
 
     public function test_it_rejects_an_oversized_page(): void
@@ -246,6 +284,253 @@ class DeviceControllerTest extends TestCase
         $this->assertNull($device->switch_extension_id);
         $this->assertFalse($device->is_enabled);
         $this->assertSame('[REDACTED]', $device->switch_json['sip']['password']);
+    }
+
+    public function test_valid_nested_configuration_is_projected_and_returned_without_sip_credentials(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchDeviceGateway::class)
+            ->shouldReceive('create')
+            ->once()
+            ->withArgs(fn (SwitchAccount $receivedAccount, array $payload): bool => $receivedAccount->is($account)
+                && $payload['device_type'] === 'smartphone'
+                && $payload['call_forward']['number'] === '+15551234567'
+                && $payload['media']['audio']['codecs'] === ['OPUS', 'PCMU']
+                && $payload['media']['bypass_media'] === false
+                && $payload['caller_id']['internal']['number'] === '1001'
+                && $payload['call_recording']['inbound']['offnet']['time_limit'] === 3600)
+            ->andReturn([
+                'id' => 'switch-device-advanced',
+                'name' => 'Mobile Operator',
+                'device_type' => 'smartphone',
+                'enabled' => true,
+                'call_forward' => [
+                    'enabled' => true,
+                    'number' => '+15551234567',
+                    'require_keypress' => true,
+                ],
+                'sip' => [
+                    'username' => 'mobile-operator',
+                    'password' => 'a-long-random-secret',
+                    'method' => 'password',
+                ],
+                'media' => [
+                    'audio' => ['codecs' => ['OPUS', 'PCMU']],
+                    'bypass_media' => false,
+                ],
+                'caller_id' => ['internal' => ['name' => 'Mobile Operator', 'number' => '1001']],
+                'call_recording' => [
+                    'inbound' => [
+                        'offnet' => [
+                            'enabled' => true,
+                            'format' => 'mp3',
+                            'record_min_sec' => 5,
+                            'record_on_answer' => true,
+                            'time_limit' => 3600,
+                        ],
+                    ],
+                ],
+                'timezone' => 'America/Los_Angeles',
+            ]);
+
+        $response = $this->actingAs($user)->postJson(
+            "/api/v1/accounts/{$account->id}/devices",
+            [
+                'name' => 'Mobile Operator',
+                'device_type' => 'smartphone',
+                'is_enabled' => true,
+                'call_forward' => [
+                    'enabled' => true,
+                    'number' => '+15551234567',
+                    'require_keypress' => true,
+                ],
+                'sip' => [
+                    'method' => 'password',
+                    'username' => 'mobile-operator',
+                    'password' => 'a-long-random-secret',
+                ],
+                'media' => [
+                    'audio' => ['codecs' => ['OPUS', 'PCMU']],
+                    'bypass_media' => false,
+                ],
+                'caller_id' => ['internal' => ['name' => 'Mobile Operator', 'number' => '1001']],
+                'call_recording' => [
+                    'inbound' => [
+                        'offnet' => [
+                            'enabled' => true,
+                            'format' => 'mp3',
+                            'record_min_sec' => 5,
+                            'record_on_answer' => true,
+                            'time_limit' => 3600,
+                        ],
+                    ],
+                ],
+                'timezone' => 'America/Los_Angeles',
+            ],
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.device_type', 'smartphone')
+            ->assertJsonPath('data.configuration.call_forward.number', '+15551234567')
+            ->assertJsonPath('data.configuration.media.audio.codecs.0', 'OPUS')
+            ->assertJsonPath('data.configuration.caller_id.internal.number', '1001')
+            ->assertJsonPath('data.configuration.call_recording.inbound.offnet.time_limit', 3600)
+            ->assertJsonPath('data.configuration.sip.username_configured', true)
+            ->assertJsonMissingPath('data.configuration.sip.username')
+            ->assertJsonMissingPath('data.configuration.sip.password')
+            ->assertDontSee('a-long-random-secret');
+
+        $device = SwitchDevice::query()->where('switch_resource_id', 'switch-device-advanced')->firstOrFail();
+        $this->assertSame('[REDACTED]', $device->switch_json['sip']['password']);
+        $this->assertSame(['OPUS', 'PCMU'], $device->switch_json['media']['audio']['codecs']);
+    }
+
+    public function test_invalid_device_type_and_unknown_nested_sip_field_return_422(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchDeviceGateway::class)->shouldNotReceive('create');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/devices", [
+                'name' => 'Unsupported endpoint',
+                'device_type' => 'carrier_trunk',
+                'is_enabled' => true,
+                'sip' => [
+                    'method' => 'password',
+                    'password' => 'a-long-random-secret',
+                    'private_auth_hash' => 'must-not-pass-validation',
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['device_type', 'sip']);
+    }
+
+    public function test_it_maps_json_backed_device_fields_without_exposing_switch_resource_ids(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $media = SwitchMedia::factory()->for($account)->create([
+            'id' => '2ec6914e-91aa-4b09-bbe7-7bf81631ebf7',
+            'switch_resource_id' => 'switch-media-1',
+            'name' => 'Office music',
+        ]);
+        $this->mock(SwitchDeviceGateway::class)
+            ->shouldReceive('create')
+            ->once()
+            ->withArgs(fn (SwitchAccount $receivedAccount, array $payload): bool => $receivedAccount->is($account)
+                && $payload['music_on_hold']['media_id'] === 'switch-media-1'
+                && $payload['outbound_flags']['static'] === ['fax']
+                && $payload['sip']['custom_sip_headers']['out'][0]['name'] === 'X-Device'
+                && $payload['dial_plan']['rules'][0]['pattern'] === '^([2-9][0-9]{6})$'
+                && $payload['metaflows']['listen_on'] === 'both')
+            ->andReturn([
+                'id' => 'switch-device-json-fields',
+                'name' => 'Reception',
+                'device_type' => 'sip_device',
+                'enabled' => true,
+                'music_on_hold' => ['media_id' => 'switch-media-1'],
+                'outbound_flags' => ['static' => ['fax'], 'dynamic' => ['regional']],
+                'sip' => [
+                    'custom_sip_headers' => [
+                        'in' => ['X-Source' => 'carrier'],
+                        'out' => [
+                            'X-Device' => 'reception',
+                            'Authorization' => 'Bearer private-value',
+                        ],
+                    ],
+                ],
+                'dial_plan' => [
+                    'system' => ['north_america'],
+                    '^([2-9][0-9]{6})$' => ['description' => 'Local', 'prefix' => '+1555'],
+                ],
+                'metaflows' => [
+                    'binding_digit' => '*',
+                    'digit_timeout' => 2000,
+                    'listen_on' => 'both',
+                    'numbers' => ['1' => ['module' => 'transfer']],
+                ],
+                'hotdesk' => ['users' => ['0123456789abcdef0123456789abcdef' => []]],
+            ]);
+
+        $response = $this->actingAs($user)->postJson(
+            "/api/v1/accounts/{$account->id}/devices",
+            [
+                'name' => 'Reception',
+                'device_type' => 'sip_device',
+                'is_enabled' => true,
+                'music_on_hold' => ['media_id' => $media->id],
+                'outbound_flags' => ['static' => ['fax'], 'dynamic' => ['regional']],
+                'sip' => [
+                    'custom_sip_headers' => [
+                        'in' => [['name' => 'X-Source', 'value' => 'carrier']],
+                        'out' => [['name' => 'X-Device', 'value' => 'reception']],
+                    ],
+                ],
+                'dial_plan' => [
+                    'system' => ['north_america'],
+                    'rules' => [[
+                        'pattern' => '^([2-9][0-9]{6})$',
+                        'description' => 'Local',
+                        'prefix' => '+1555',
+                        'suffix' => null,
+                    ]],
+                ],
+                'metaflows' => [
+                    'binding_digit' => '*',
+                    'digit_timeout' => 2000,
+                    'listen_on' => 'both',
+                ],
+            ],
+        );
+
+        $response
+            ->assertCreated()
+            ->assertJsonPath('data.configuration.music_on_hold.media_id', $media->id)
+            ->assertJsonPath('data.configuration.music_on_hold.media_name', 'Office music')
+            ->assertJsonPath('data.configuration.sip.custom_sip_headers.out.0.name', 'X-Device')
+            ->assertJsonPath('data.configuration.dial_plan.rules.0.pattern', '^([2-9][0-9]{6})$')
+            ->assertJsonPath('data.configuration.metaflows.number_flow_count', 1)
+            ->assertJsonPath('data.configuration.hotdesk.active_user_count', 1)
+            ->assertDontSee('switch-media-1')
+            ->assertDontSee('Bearer private-value')
+            ->assertDontSee('0123456789abcdef0123456789abcdef');
+
+        $projected = SwitchDevice::query()
+            ->where('switch_resource_id', 'switch-device-json-fields')
+            ->firstOrFail();
+        $this->assertSame(
+            '[REDACTED]',
+            $projected->switch_json['sip']['custom_sip_headers']['out']['Authorization'],
+        );
+    }
+
+    public function test_invalid_recording_scope_returns_422_without_calling_switch(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchDeviceGateway::class)->shouldNotReceive('create');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/devices", [
+                'name' => 'Recorded device',
+                'device_type' => 'sip_device',
+                'is_enabled' => true,
+                'call_recording' => [
+                    'inbound' => [
+                        'offnet' => [
+                            'enabled' => true,
+                            'format' => 'flac',
+                            'time_limit' => 20000,
+                            'url' => 'http://127.0.0.1/private',
+                        ],
+                    ],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'call_recording.inbound.offnet',
+                'call_recording.inbound.offnet.format',
+                'call_recording.inbound.offnet.time_limit',
+            ]);
     }
 
     public function test_invalid_payload_does_not_call_the_upstream_gateway(): void

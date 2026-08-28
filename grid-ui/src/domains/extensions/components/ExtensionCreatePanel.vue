@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import {
   ArrowPathRoundedSquareIcon,
   DevicePhoneMobileIcon,
@@ -7,14 +7,23 @@ import {
   UserIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import { validateForm, type FormErrors } from '@/shared/forms/zod'
+import { deviceTypes } from '@/domains/devices/deviceForm'
+import { defaultExtensionUserConfiguration } from '../extensionForm'
+import { extensionCreateSchema } from '../schemas/extensionFormSchema'
 import type { ExtensionCreate } from '../types/extension'
+import ExtensionUserOptions from './ExtensionUserOptions.vue'
 
-defineProps<{
+const props = defineProps<{
   saving: boolean
   error: string | null
   fieldErrors: Record<string, string[]>
 }>()
 const emit = defineEmits<{ close: []; save: [input: ExtensionCreate] }>()
+const userConfiguration = reactive(defaultExtensionUserConfiguration())
+const clientErrors = ref<FormErrors>({})
+const validationError = ref<string | null>(null)
+const displayErrors = computed(() => ({ ...props.fieldErrors, ...clientErrors.value }))
 const form = reactive({
   firstName: '',
   lastName: '',
@@ -44,7 +53,7 @@ function nullable(value: string): string | null {
 }
 
 function submit(): void {
-  emit('save', {
+  const input: ExtensionCreate = {
     first_name: form.firstName.trim(),
     last_name: form.lastName.trim(),
     extension: form.extension.trim(),
@@ -52,6 +61,7 @@ function submit(): void {
     email: nullable(form.email),
     timezone: nullable(form.timezone),
     is_enabled: form.isEnabled,
+    ...userConfiguration,
     voicemail: {
       enabled: form.voicemailEnabled,
       notification_emails: form.notificationEmails
@@ -72,7 +82,19 @@ function submit(): void {
       sip_username: nullable(form.sipUsername),
       sip_password: nullable(form.sipPassword),
     },
-  })
+  }
+  const validation = validateForm(extensionCreateSchema, input)
+
+  if (!validation.success) {
+    clientErrors.value = validation.errors
+    validationError.value = 'Check the highlighted fields and try again.'
+
+    return
+  }
+
+  clientErrors.value = {}
+  validationError.value = null
+  emit('save', validation.data)
 }
 </script>
 
@@ -84,12 +106,12 @@ function submit(): void {
     width="medium"
     @close="emit('close')"
   >
-    <form class="grid gap-5" @submit.prevent="submit">
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div
-        v-if="error"
+        v-if="validationError || error"
         class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
       >
-        {{ error }}
+        {{ validationError ?? error }}
       </div>
 
       <article class="card-surface overflow-hidden">
@@ -111,8 +133,8 @@ function submit(): void {
               maxlength="128"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
-            <span v-if="fieldErrors.first_name" class="text-[10px] text-danger">{{
-              fieldErrors.first_name[0]
+            <span v-if="displayErrors.first_name" class="text-[10px] text-danger">{{
+              displayErrors.first_name[0]
             }}</span>
           </label>
           <label class="grid gap-2">
@@ -123,8 +145,8 @@ function submit(): void {
               maxlength="128"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
-            <span v-if="fieldErrors.last_name" class="text-[10px] text-danger">{{
-              fieldErrors.last_name[0]
+            <span v-if="displayErrors.last_name" class="text-[10px] text-danger">{{
+              displayErrors.last_name[0]
             }}</span>
           </label>
           <label class="grid gap-2">
@@ -136,8 +158,8 @@ function submit(): void {
               pattern="[0-9]{2,15}"
               class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
-            <span v-if="fieldErrors.extension" class="text-[10px] text-danger">{{
-              fieldErrors.extension[0]
+            <span v-if="displayErrors.extension" class="text-[10px] text-danger">{{
+              displayErrors.extension[0]
             }}</span>
           </label>
           <label class="grid gap-2">
@@ -147,8 +169,8 @@ function submit(): void {
               maxlength="256"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
-            <span v-if="fieldErrors.username" class="text-[10px] text-danger">{{
-              fieldErrors.username[0]
+            <span v-if="displayErrors.username" class="text-[10px] text-danger">{{
+              displayErrors.username[0]
             }}</span>
           </label>
           <label class="grid gap-2">
@@ -159,6 +181,9 @@ function submit(): void {
               maxlength="254"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
+            <span v-if="displayErrors.email" class="text-[10px] text-danger">{{
+              displayErrors.email[0]
+            }}</span>
           </label>
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Timezone</span>
@@ -167,13 +192,19 @@ function submit(): void {
               placeholder="Asia/Manila"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
+            <span v-if="displayErrors.timezone" class="text-[10px] text-danger">{{
+              displayErrors.timezone[0]
+            }}</span>
           </label>
-          <label class="flex items-center gap-3 sm:col-span-2">
-            <input v-model="form.isEnabled" type="checkbox" class="size-4 accent-brand-500" />
-            <span class="text-xs font-semibold text-slate-600">Enable this Switch user</span>
-          </label>
+          <ToggleSwitch
+            v-model="form.isEnabled"
+            label="Enable this Switch user"
+            class="sm:col-span-2"
+          />
         </div>
       </article>
+
+      <ExtensionUserOptions v-model="userConfiguration" :field-errors="displayErrors" />
 
       <article class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
@@ -186,12 +217,7 @@ function submit(): void {
               Creates an owned mailbox and attaches it to the managed callflow.
             </p>
           </div>
-          <input
-            v-model="form.voicemailEnabled"
-            type="checkbox"
-            class="size-4 accent-brand-500"
-            aria-label="Create voicemail box"
-          />
+          <ToggleSwitch v-model="form.voicemailEnabled" label="Create" />
         </header>
         <div v-if="form.voicemailEnabled" class="grid gap-4 p-5 sm:grid-cols-2">
           <label class="grid gap-2 sm:col-span-2">
@@ -202,21 +228,14 @@ function submit(): void {
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
             <span class="text-[10px] text-slate-400">Separate multiple addresses with commas.</span>
+            <span
+              v-if="displayErrors['voicemail.notification_emails']"
+              class="text-[10px] text-danger"
+              >{{ displayErrors['voicemail.notification_emails'][0] }}</span
+            >
           </label>
-          <label class="flex items-center gap-3"
-            ><input
-              v-model="form.transcribe"
-              type="checkbox"
-              class="size-4 accent-brand-500"
-            /><span class="text-xs text-slate-600">Enable transcription</span></label
-          >
-          <label class="flex items-center gap-3"
-            ><input
-              v-model="form.requirePin"
-              type="checkbox"
-              class="size-4 accent-brand-500"
-            /><span class="text-xs text-slate-600">Require mailbox PIN</span></label
-          >
+          <ToggleSwitch v-model="form.transcribe" label="Enable transcription" />
+          <ToggleSwitch v-model="form.requirePin" label="Require mailbox PIN" />
           <label v-if="form.requirePin" class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Mailbox PIN</span>
             <input
@@ -228,8 +247,8 @@ function submit(): void {
               autocomplete="new-password"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             />
-            <span v-if="fieldErrors['voicemail.pin']" class="text-[10px] text-danger">{{
-              fieldErrors['voicemail.pin'][0]
+            <span v-if="displayErrors['voicemail.pin']" class="text-[10px] text-danger">{{
+              displayErrors['voicemail.pin'][0]
             }}</span>
           </label>
         </div>
@@ -246,67 +265,72 @@ function submit(): void {
               Optional endpoint owned by the new Switch user.
             </p>
           </div>
-          <input
-            v-model="form.deviceEnabled"
-            type="checkbox"
-            class="size-4 accent-brand-500"
-            aria-label="Create initial device"
-          />
+          <ToggleSwitch v-model="form.deviceEnabled" label="Create" />
         </header>
         <div v-if="form.deviceEnabled" class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2"
-            ><span class="text-xs font-semibold text-slate-600">Device name</span
-            ><input
-              v-model="form.deviceName"
-              required
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          /></label>
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Type</span
-            ><select
+          <label class="grid gap-2 sm:col-span-2">
+            <span class="text-xs font-semibold text-slate-600">Device name</span>
+            <input v-model="form.deviceName" class="field-control" />
+            <span v-if="displayErrors['device.name']" class="text-[10px] text-danger">{{
+              displayErrors['device.name'][0]
+            }}</span>
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Type</span>
+            <FormSelect
               v-model="form.deviceType"
               class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
             >
-              <option value="sip_device">SIP device</option>
-              <option value="softphone">Softphone</option>
-              <option value="cellphone">Cellphone</option>
-            </select></label
-          >
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">MAC address</span
-            ><input
+              <option
+                v-for="deviceType in deviceTypes"
+                :key="deviceType.value"
+                :value="deviceType.value"
+              >
+                {{ deviceType.label }}
+              </option>
+            </FormSelect>
+            <span v-if="displayErrors['device.device_type']" class="text-[10px] text-danger">{{
+              displayErrors['device.device_type'][0]
+            }}</span>
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">MAC address</span>
+            <input
               v-model="form.macAddress"
               placeholder="00:11:22:33:44:55"
-              class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs"
-          /></label>
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Make</span
-            ><input
-              v-model="form.make"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-          /></label>
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Model</span
-            ><input
-              v-model="form.model"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-          /></label>
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">SIP username</span
-            ><input
-              v-model="form.sipUsername"
-              autocomplete="off"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-          /></label>
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">SIP password</span
-            ><input
+              class="field-control font-mono"
+            />
+            <span v-if="displayErrors['device.mac_address']" class="text-[10px] text-danger">{{
+              displayErrors['device.mac_address'][0]
+            }}</span>
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Make</span>
+            <input v-model="form.make" class="field-control" />
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Model</span>
+            <input v-model="form.model" class="field-control" />
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">SIP username</span>
+            <input v-model="form.sipUsername" autocomplete="off" class="field-control" />
+            <span v-if="displayErrors['device.sip_username']" class="text-[10px] text-danger">{{
+              displayErrors['device.sip_username'][0]
+            }}</span>
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">SIP password</span>
+            <input
               v-model="form.sipPassword"
               type="password"
-              minlength="12"
               autocomplete="new-password"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-          /></label>
+              class="field-control"
+            />
+            <span v-if="displayErrors['device.sip_password']" class="text-[10px] text-danger">{{
+              displayErrors['device.sip_password'][0]
+            }}</span>
+          </label>
         </div>
       </article>
 

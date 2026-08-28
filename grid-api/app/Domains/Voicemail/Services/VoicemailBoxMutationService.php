@@ -147,6 +147,19 @@ class VoicemailBoxMutationService
             'transcribe' => $data['transcribe'],
             'require_pin' => $data['require_pin'],
             'pin' => $data['pin'] ?? null,
+            'check_if_owner' => $data['check_if_owner'] ?? null,
+            'delete_after_notify' => $data['delete_after_notify'] ?? null,
+            'include_message_on_notify' => $data['include_message_on_notify'] ?? null,
+            'include_transcription_on_notify' => $data['include_transcription_on_notify'] ?? null,
+            'media_extension' => $data['media_extension'] ?? null,
+            'not_configurable' => $data['not_configurable'] ?? null,
+            'oldest_message_first' => $data['oldest_message_first'] ?? null,
+            'save_after_notify' => $data['save_after_notify'] ?? null,
+            'skip_envelope' => $data['skip_envelope'] ?? null,
+            'skip_greeting' => $data['skip_greeting'] ?? null,
+            'skip_instructions' => $data['skip_instructions'] ?? null,
+            'is_voicemail_ff_rw_enabled' => $data['is_voicemail_ff_rw_enabled'] ?? null,
+            'seek_duration_ms' => $data['seek_duration_ms'] ?? null,
         ];
     }
 

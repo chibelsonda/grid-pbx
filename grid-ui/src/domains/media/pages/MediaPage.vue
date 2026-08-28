@@ -110,7 +110,7 @@ function formatSize(bytes: number | null): string {
 
     <form class="mb-4 grid gap-3 sm:grid-cols-[minmax(240px,1fr)_180px_auto]" @submit.prevent="accounts.selectedId && media.load(accounts.selectedId, 1)">
       <label class="relative"><span class="sr-only">Search media</span><MagnifyingGlassIcon class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" /><input v-model="media.filters.search" type="search" placeholder="Search name, description, language…" class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500" /></label>
-      <select v-model="media.filters.media_source" aria-label="Media source" class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm"><option value="">All sources</option><option value="upload">Upload</option><option value="recording">Recording</option><option value="tts">Text to speech</option></select>
+      <FormSelect v-model="media.filters.media_source" aria-label="Media source" class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm"><option value="">All sources</option><option value="upload">Upload</option><option value="recording">Recording</option><option value="tts">Text to speech</option></FormSelect>
       <button class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 shadow-sm">Apply filters</button>
     </form>
     <div v-if="media.error" class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">{{ media.error }}</div>

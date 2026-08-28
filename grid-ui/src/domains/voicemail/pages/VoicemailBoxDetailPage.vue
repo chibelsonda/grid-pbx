@@ -356,7 +356,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
                   class="h-9 w-full rounded-md border border-slate-200 pr-3 pl-9 text-[11px] outline-none focus:border-brand-500"
                 />
               </form>
-              <select
+              <FormSelect
                 v-model="voicemail.messageFolder"
                 class="h-9 rounded-md border border-slate-200 bg-white px-3 text-[11px] outline-none"
                 @change="loadMessages(1)"
@@ -365,7 +365,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
                 <option value="new">New</option>
                 <option value="saved">Saved</option>
                 <option value="deleted">Deleted</option>
-              </select>
+              </FormSelect>
             </header>
             <div
               v-if="voicemail.messagesError"

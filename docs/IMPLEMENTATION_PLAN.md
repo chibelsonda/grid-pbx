@@ -32,6 +32,9 @@ checklist are maintained in
 Its Switch coverage register is the authoritative completeness checklist for
 the requested resources and package boundaries; inclusion in that register
 does not bypass capability, security, retention, or acceptance requirements.
+The public field-by-field contract, intentional exclusions, and implementation
+order are maintained in
+[SWITCH_SCHEMA_PARITY.md](SWITCH_SCHEMA_PARITY.md).
 
 The application will preserve the legacy three-project boundary:
 
@@ -123,7 +126,11 @@ allowed.
 - Vite
 - Vue Router and Pinia
 - Tailwind CSS 4 through the official Vite plugin
-- Headless, accessible primitives where a custom component needs behavior
+- `@headlessui/vue` for every supported interactive primitive: dialogs and
+  slide-overs, listboxes, menus, switches, tabs, and disclosures
+- Shared Tailwind-styled adapters for a consistent ArchitectUI-inspired visual
+  language; native semantic controls remain only where Headless UI has no Vue
+  primitive, such as multi-select checkboxes and ordinary text/file inputs
 - Vitest for component and composable tests
 - Playwright for critical browser flows
 
@@ -318,6 +325,13 @@ The snapshot and the normalized projection serve different purposes:
   snapshot is never sent wholesale back to Switch because it can include
   read-only, private, or unsupported fields.
 
+Display/edit-only nested properties are exposed as typed application virtual
+fields derived from `switch_json`; they do not require matching physical MySQL
+columns. MySQL virtual generated columns are added only for scalar JSON paths
+with a demonstrated database filtering, sorting, uniqueness, or indexing use
+case. They are not created for every JSON key or for arbitrary nested maps and
+arrays.
+
 The initial typed snapshots cover users, devices, voicemail boxes, voicemail
 message metadata, callflows, media, and phone numbers. Remaining Switch
 entities will adopt the same list/detail, typed field, raw-data preservation,
@@ -407,6 +421,12 @@ mobile layouts.
   the close button, and the backdrop close it safely when no mutation is in
   progress.
 - Keyboard focus, color contrast, labels, and error summaries are required.
+- Every mutation form uses a domain-owned Zod schema for immediate client-side
+  feedback. Zod issues are normalized to the same dotted field-error shape as
+  Laravel; Laravel request validation remains the authoritative trust boundary.
+- Interactive behavior is centralized in shared Headless UI adapters rather
+  than reimplemented inside a domain. Domain screens compose those adapters
+  and keep their domain state, validation, and API orchestration local.
 
 ## 9. Authentication and authorization
 
@@ -577,8 +597,11 @@ Acceptance criteria:
   normalized recurrence and ordered membership projections with redacted
   `switch_json`, Gregorian-date conversion, dependency-safe deletion, queued
   synchronization, guided `temporal_route` Rule Set destinations, and Vue
-  Rules/Rule Sets management through right-side panels. Live enable/disable
-  and reset commands remain a later operational enhancement.
+  Rules/Rule Sets management through right-side panels, timezone-aware
+  effective-status evaluation, and audited force-active, force-inactive, and
+  resume-schedule commands. Rule Set commands fan out to every resolved member
+  rule under an account lock and compensate completed writes if a later member
+  fails.
 - Blacklist foundation: typed CRUD and account-assignment boundary, normalized
   blacklist and E.164 number-entry projections with complete redacted
   `switch_json`, queued reconciliation of configuration plus active state,
@@ -611,7 +634,14 @@ Acceptance criteria:
   Billing identifiers, payment tokens, and bookkeeper configuration are
   redacted. Plan assignment, limit changes, top-ups, manual quantities,
   invoices, and charge acceptance remain outside this foundation.
-- Remaining time-of-day operational controls.
+- LineKey/provisioning-preview foundation: entity-organized typed DTOs and a
+  device PATCH client, normalized `switch_line_keys` owned by projected
+  devices, endpoint brand/family/model metadata, credential-free preview API,
+  audit logging, and a Vue inventory plus right-side editor. Preview is safe by
+  default; upstream apply requires both a recognized device identity and the
+  explicit `SWITCH_LINE_KEY_MUTATIONS_ENABLED=true` capability flag. Generated
+  vendor templates, SIP credentials, and provisioning infrastructure are never
+  returned to the UI.
 - Advanced visual callflow editing.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after

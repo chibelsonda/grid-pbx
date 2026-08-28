@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Resources;
 
 use Generator;
+use GridPbx\Switch\Dto\PhoneNumbers\NumberClassifierSnapshot;
 use GridPbx\Switch\Dto\PhoneNumbers\PhoneNumberSnapshot;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
@@ -99,6 +100,33 @@ final readonly class PhoneNumberResourceClient
         }
 
         return $snapshot;
+    }
+
+    /** @return list<NumberClassifierSnapshot> */
+    public function classifiers(string $accountId): array
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request(
+            'GET',
+            sprintf('accounts/%s/phone_numbers/classifiers', rawurlencode($accountId)),
+        );
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new InvalidSwitchPayloadException('Switch number classifier response data must be an object.');
+        }
+
+        $classifiers = [];
+
+        foreach ($data as $key => $classifier) {
+            if (! is_string($key) || ! is_array($classifier)) {
+                throw new InvalidSwitchPayloadException('Switch number classifier entries must be keyed objects.');
+            }
+
+            $classifiers[] = new NumberClassifierSnapshot($key, $classifier);
+        }
+
+        return $classifiers;
     }
 
     private function requiredIdentifier(string $identifier, string $name): string

@@ -16,5 +16,8 @@ interface SwitchTemporalRuleGateway
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function update(SwitchAccount $account, string $resourceId, array $data): array;
 
+    /** @return array<string, mixed> */
+    public function setOverride(SwitchAccount $account, string $resourceId, ?bool $enabled): array;
+
     public function delete(SwitchAccount $account, string $resourceId): void;
 }

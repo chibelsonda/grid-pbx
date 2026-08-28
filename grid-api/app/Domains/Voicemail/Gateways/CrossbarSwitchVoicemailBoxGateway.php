@@ -4,6 +4,7 @@ namespace App\Domains\Voicemail\Gateways;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
+use GridPbx\Switch\Dto\Voicemail\VoicemailBoxAdvancedData;
 use GridPbx\Switch\Dto\Voicemail\VoicemailBoxWriteData;
 use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
 
@@ -42,6 +43,21 @@ class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
             transcribe: $voicemailBox['transcribe'],
             requirePin: $voicemailBox['require_pin'],
             pin: $voicemailBox['pin'],
+            advanced: new VoicemailBoxAdvancedData(
+                checkIfOwner: $voicemailBox['check_if_owner'],
+                deleteAfterNotify: $voicemailBox['delete_after_notify'],
+                includeMessageOnNotify: $voicemailBox['include_message_on_notify'],
+                includeTranscriptionOnNotify: $voicemailBox['include_transcription_on_notify'],
+                mediaExtension: $voicemailBox['media_extension'],
+                notConfigurable: $voicemailBox['not_configurable'],
+                oldestMessageFirst: $voicemailBox['oldest_message_first'],
+                saveAfterNotify: $voicemailBox['save_after_notify'],
+                skipEnvelope: $voicemailBox['skip_envelope'],
+                skipGreeting: $voicemailBox['skip_greeting'],
+                skipInstructions: $voicemailBox['skip_instructions'],
+                fastForwardRewindEnabled: $voicemailBox['is_voicemail_ff_rw_enabled'],
+                seekDurationMilliseconds: $voicemailBox['seek_duration_ms'],
+            ),
         );
     }
 }

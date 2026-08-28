@@ -1,0 +1,71 @@
+<?php
+
+namespace App\Domains\LineKeys\Services;
+
+use App\Domains\Auditing\Services\AuditService;
+use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\IdentityAccess\Models\User;
+use App\Domains\LineKeys\Contracts\SwitchLineKeyGateway;
+use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Throwable;
+
+class LineKeyMutationService
+{
+    public function __construct(
+        private readonly SwitchLineKeyGateway $gateway,
+        private readonly LineKeyProjectionService $projection,
+        private readonly RedactSensitiveSwitchData $redactor,
+        private readonly AuditService $audit,
+    ) {}
+
+    /** @param list<array{category: string, position: int, type: string, value: string|int|null, label: string|null}> $keys */
+    public function update(SwitchAccount $account, SwitchDevice $device, User $actor, array $keys, ?string $ipAddress): SwitchDevice
+    {
+        if (! config('switch.line_key_mutations_enabled', false)) {
+            throw new ConflictHttpException('Line-key mutations are disabled by server configuration.');
+        }
+
+        if ($device->make === null || $device->model === null) {
+            throw new ConflictHttpException('The device needs an endpoint brand and model before it can be provisioned.');
+        }
+
+        try {
+            $snapshot = $this->gateway->update($account, $device->switch_resource_id, $keys);
+
+            return DB::transaction(function () use ($account, $device, $actor, $keys, $ipAddress, $snapshot): SwitchDevice {
+                $device->fill([
+                    'make' => $this->stringValue($snapshot['make'] ?? Arr::get($snapshot, 'provision.endpoint_brand')),
+                    'endpoint_family' => $this->stringValue(Arr::get($snapshot, 'provision.endpoint_family')),
+                    'model' => $this->stringValue($snapshot['model'] ?? Arr::get($snapshot, 'provision.endpoint_model')),
+                    'switch_json' => $this->redactor->handle($snapshot),
+                    'last_synced_at' => now(),
+                    'projection_version' => $device->projection_version + 1,
+                ]);
+                $device->save();
+                $this->projection->project($device, $snapshot);
+                $this->audit->record($actor, $account, 'line_keys.updated', 'succeeded', $device->switch_resource_id, [
+                    'device_id' => $device->id,
+                    'key_count' => count($keys),
+                ], $ipAddress);
+
+                return $device->load('lineKeys');
+            });
+        } catch (Throwable $exception) {
+            $this->audit->record($actor, $account, 'line_keys.update_failed', 'failed', $device->switch_resource_id, [
+                'device_id' => $device->id,
+                'error_type' => $exception::class,
+            ], $ipAddress);
+
+            throw $exception;
+        }
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        return (is_string($value) || is_int($value)) && (string) $value !== '' ? (string) $value : null;
+    }
+}

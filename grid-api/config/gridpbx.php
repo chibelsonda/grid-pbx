@@ -11,5 +11,6 @@ return [
         'id' => env('SWITCH_ACCOUNT_ID'),
         'name' => env('SWITCH_ACCOUNT_NAME', 'GridPBX'),
         'realm' => env('SWITCH_ACCOUNT_REALM', 'gridpbx.local'),
+        'timezone' => env('SWITCH_ACCOUNT_TIMEZONE', 'UTC'),
     ],
 ];

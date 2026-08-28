@@ -24,7 +24,7 @@ onMounted(() => accounts.load())
       class="min-h-screen transition-[padding] duration-300"
       :class="ui.sidebarCollapsed ? 'lg:pl-20' : 'lg:pl-[280px]'"
     >
-      <AppHeader @toggle-mobile="ui.toggleMobileSidebar" />
+      <AppHeader :sidebar-collapsed="ui.sidebarCollapsed" @toggle-mobile="ui.toggleMobileSidebar" />
       <main class="pt-[60px]">
         <RouterView />
       </main>

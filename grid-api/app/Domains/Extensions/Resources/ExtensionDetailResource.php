@@ -25,6 +25,22 @@ class ExtensionDetailResource extends JsonResource
             'is_managed' => $this->is_managed,
             'sync_status' => $this->sync_status->value,
             'last_synced_at' => $this->last_synced_at?->toIso8601String(),
+            'configuration' => [
+                'language' => $this->safeString('language'),
+                'presence_id' => $this->safeString('presence_id'),
+                'call_waiting' => [
+                    'enabled' => $this->safeBoolean(['call_waiting', 'enabled'], true),
+                ],
+                'do_not_disturb' => [
+                    'enabled' => $this->safeBoolean(['do_not_disturb', 'enabled'], false),
+                ],
+                'contact_list' => [
+                    'exclude' => $this->safeBoolean(['contact_list', 'exclude'], false),
+                ],
+                'caller_id_options' => [
+                    'outbound_privacy' => $this->safeOutboundPrivacy(),
+                ],
+            ],
             'devices' => $this->devices->map(fn ($device): array => [
                 'id' => $device->id,
                 'name' => $device->name,
@@ -61,5 +77,35 @@ class ExtensionDetailResource extends JsonResource
                 'last_synced_at' => $callflow->last_synced_at?->toIso8601String(),
             ])->all(),
         ];
+    }
+
+    private function safeString(string $key): ?string
+    {
+        $value = $this->switch_json[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @param list<string> $path */
+    private function safeBoolean(array $path, bool $default): bool
+    {
+        $value = $this->switch_json;
+
+        foreach ($path as $segment) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
+                return $default;
+            }
+
+            $value = $value[$segment];
+        }
+
+        return is_bool($value) ? $value : $default;
+    }
+
+    private function safeOutboundPrivacy(): string
+    {
+        $value = $this->switch_json['caller_id_options']['outbound_privacy'] ?? null;
+
+        return in_array($value, ['full', 'name', 'number', 'none'], true) ? $value : 'none';
     }
 }

@@ -18,6 +18,7 @@ final readonly class VoicemailBoxWriteData
         public bool $transcribe = false,
         public bool $requirePin = false,
         private ?string $pin = null,
+        public ?VoicemailBoxAdvancedData $advanced = null,
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch voicemail box name is required.');
@@ -48,6 +49,6 @@ final readonly class VoicemailBoxWriteData
             $data['pin'] = $this->pin;
         }
 
-        return $data;
+        return array_replace($data, $this->advanced?->toSwitchData() ?? []);
     }
 }

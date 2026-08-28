@@ -10,6 +10,7 @@ import {
   PhoneIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import CallDetailRecordPanel from '../components/CallDetailRecordPanel.vue'
 import { useCallDetailRecordStore } from '../stores/callDetailRecordStore'
 
@@ -156,7 +157,7 @@ function humanize(value: string | null): string {
             class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
           />
         </label>
-        <select
+        <FormSelect
           v-model="calls.filters.direction"
           aria-label="Call direction"
           class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none focus:border-brand-500"
@@ -164,8 +165,8 @@ function humanize(value: string | null): string {
           <option value="">All directions</option>
           <option value="inbound">Inbound</option>
           <option value="outbound">Outbound</option>
-        </select>
-        <select
+        </FormSelect>
+        <FormSelect
           v-model="calls.filters.outcome"
           aria-label="Call outcome"
           class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none focus:border-brand-500"
@@ -173,18 +174,15 @@ function humanize(value: string | null): string {
           <option value="">All outcomes</option>
           <option value="answered">Answered</option>
           <option value="unanswered">Unanswered</option>
-        </select>
+        </FormSelect>
         <button
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
         >
           Apply filters
         </button>
       </div>
-      <details class="card-surface px-4 py-3">
-        <summary class="cursor-pointer text-xs font-semibold text-slate-600">
-          Advanced filters
-        </summary>
-        <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <DisclosureCard title="Advanced filters">
+        <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
             Start date
             <input
@@ -240,7 +238,7 @@ function humanize(value: string | null): string {
             Clear all filters
           </button>
         </div>
-      </details>
+      </DisclosureCard>
     </form>
 
     <div

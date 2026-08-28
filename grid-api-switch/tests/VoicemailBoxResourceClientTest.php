@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Contracts\TokenProvider;
+use GridPbx\Switch\Dto\Voicemail\VoicemailBoxAdvancedData;
 use GridPbx\Switch\Dto\Voicemail\VoicemailMessageFolder;
 use GridPbx\Switch\Dto\Voicemail\VoicemailBoxWriteData;
 use GridPbx\Switch\Exceptions\InvalidSwitchPayloadException;
@@ -34,6 +35,19 @@ final class VoicemailBoxResourceClientTest extends TestCase
             'notify_email_addresses' => ['ops@example.com'],
             'transcribe' => true,
             'require_pin' => true,
+            'check_if_owner' => false,
+            'delete_after_notify' => true,
+            'include_message_on_notify' => false,
+            'include_transcription_on_notify' => true,
+            'media_extension' => 'wav',
+            'not_configurable' => true,
+            'oldest_message_first' => true,
+            'save_after_notify' => false,
+            'skip_envelope' => true,
+            'skip_greeting' => false,
+            'skip_instructions' => true,
+            'is_voicemail_ff_rw_enabled' => true,
+            'seek_duration_ms' => 15000,
         ]])]);
 
         $snapshot = $client->create('account-1', new VoicemailBoxWriteData(
@@ -45,10 +59,29 @@ final class VoicemailBoxResourceClientTest extends TestCase
             transcribe: true,
             requirePin: true,
             pin: '123456',
+            advanced: new VoicemailBoxAdvancedData(
+                checkIfOwner: false,
+                deleteAfterNotify: true,
+                includeMessageOnNotify: false,
+                includeTranscriptionOnNotify: true,
+                mediaExtension: 'wav',
+                notConfigurable: true,
+                oldestMessageFirst: true,
+                saveAfterNotify: false,
+                skipEnvelope: true,
+                skipGreeting: false,
+                skipInstructions: true,
+                fastForwardRewindEnabled: true,
+                seekDurationMilliseconds: 15000,
+            ),
         ));
 
         self::assertSame('vmbox-1', $snapshot->id);
         self::assertSame(['ops@example.com'], $snapshot->notificationEmails);
+        self::assertFalse($snapshot->checkIfOwner);
+        self::assertSame('wav', $snapshot->mediaExtension);
+        self::assertTrue($snapshot->fastForwardRewindEnabled);
+        self::assertSame(15000, $snapshot->seekDurationMilliseconds);
         self::assertSame('PUT', $this->history[0]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/vmboxes', $this->history[0]['request']->getUri()->getPath());
         self::assertSame([
@@ -61,6 +94,19 @@ final class VoicemailBoxResourceClientTest extends TestCase
                 'require_pin' => true,
                 'timezone' => 'Asia/Manila',
                 'pin' => '123456',
+                'check_if_owner' => false,
+                'delete_after_notify' => true,
+                'include_message_on_notify' => false,
+                'include_transcription_on_notify' => true,
+                'media_extension' => 'wav',
+                'not_configurable' => true,
+                'oldest_message_first' => true,
+                'save_after_notify' => false,
+                'skip_envelope' => true,
+                'skip_greeting' => false,
+                'skip_instructions' => true,
+                'is_voicemail_ff_rw_enabled' => true,
+                'seek_duration_ms' => 15000,
             ],
         ], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
     }

@@ -7,6 +7,7 @@ use App\Domains\Devices\Requests\ListDevicesRequest;
 use App\Domains\Devices\Requests\SaveDeviceRequest;
 use App\Domains\Devices\Resources\DeviceResource;
 use App\Domains\Devices\Services\DeviceMutationService;
+use App\Domains\Devices\Services\DeviceOptionsService;
 use App\Domains\Devices\Services\DeviceService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
@@ -62,6 +63,19 @@ class DeviceController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
 
         return new DeviceResource($devices->find($switchAccount, $device));
+    }
+
+    public function options(
+        Request $request,
+        string $account,
+        SwitchAccountService $accounts,
+        DeviceOptionsService $options,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+
+        return response()->json(['data' => $options->get($switchAccount)]);
     }
 
     public function store(

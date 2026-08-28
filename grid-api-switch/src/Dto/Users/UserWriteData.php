@@ -16,6 +16,7 @@ final readonly class UserWriteData
         public ?string $username = null,
         public ?string $email = null,
         public ?string $timezone = null,
+        public ?UserAdvancedData $advanced = null,
     ) {
         if (trim($this->firstName) === '') {
             throw new InvalidArgumentException('Switch user first name is required.');
@@ -54,6 +55,6 @@ final readonly class UserWriteData
             }
         }
 
-        return $data;
+        return array_replace($data, $this->advanced?->toSwitchData() ?? []);
     }
 }

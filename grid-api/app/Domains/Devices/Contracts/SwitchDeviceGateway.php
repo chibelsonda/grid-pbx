@@ -6,6 +6,9 @@ use App\Domains\Organizations\Models\SwitchAccount;
 
 interface SwitchDeviceGateway
 {
+    /** @return list<array{key: string, label: string, emergency: bool}> */
+    public function restrictionClassifiers(SwitchAccount $account): array;
+
     /**
      * @param  array<string, mixed>  $device
      * @return array<string, mixed>

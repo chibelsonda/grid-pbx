@@ -26,12 +26,25 @@ class SaveVoicemailBoxRequest extends FormRequest
                 Rule::exists('switch_extensions', 'id')
                     ->where('switch_account_id', $this->accountInternalId()),
             ],
-            'timezone' => ['nullable', 'string', 'max:64', 'timezone:all'],
+            'timezone' => ['nullable', 'string', 'min:5', 'max:32', 'timezone:all'],
             'notification_emails' => ['present', 'array', 'max:10'],
-            'notification_emails.*' => ['required', 'email:rfc', 'max:255', 'distinct'],
+            'notification_emails.*' => ['required', 'email:rfc', 'max:254', 'distinct'],
             'transcribe' => ['required', 'boolean'],
             'require_pin' => ['required', 'boolean'],
             'pin' => ['nullable', 'string', 'regex:/^\d{4,6}$/'],
+            'check_if_owner' => ['sometimes', 'boolean'],
+            'delete_after_notify' => ['sometimes', 'boolean'],
+            'include_message_on_notify' => ['sometimes', 'boolean'],
+            'include_transcription_on_notify' => ['sometimes', 'boolean'],
+            'media_extension' => ['sometimes', 'string', Rule::in(['mp3', 'mp4', 'wav'])],
+            'not_configurable' => ['sometimes', 'boolean'],
+            'oldest_message_first' => ['sometimes', 'boolean'],
+            'save_after_notify' => ['sometimes', 'boolean'],
+            'skip_envelope' => ['sometimes', 'boolean'],
+            'skip_greeting' => ['sometimes', 'boolean'],
+            'skip_instructions' => ['sometimes', 'boolean'],
+            'is_voicemail_ff_rw_enabled' => ['sometimes', 'boolean'],
+            'seek_duration_ms' => ['sometimes', 'integer', 'min:0', 'max:300000'],
         ];
     }
 

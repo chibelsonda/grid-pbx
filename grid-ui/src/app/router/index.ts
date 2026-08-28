@@ -52,6 +52,11 @@ const router = createRouter({
           component: () => import('@/domains/devices/pages/DeviceDetailPage.vue'),
         },
         {
+          path: 'line-keys',
+          name: 'line-keys',
+          component: () => import('@/domains/line-keys/pages/LineKeysPage.vue'),
+        },
+        {
           path: 'voicemail',
           name: 'voicemail',
           component: () => import('@/domains/voicemail/pages/VoicemailBoxesPage.vue'),

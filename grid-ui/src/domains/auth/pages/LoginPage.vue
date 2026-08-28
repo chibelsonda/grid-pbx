@@ -91,10 +91,7 @@ async function submit(): Promise<void> {
             class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100"
           />
         </label>
-        <label class="mt-5 flex items-center gap-2 text-xs text-slate-500"
-          ><input v-model="credentials.remember" type="checkbox" class="size-4 accent-brand-500" />
-          Remember me</label
-        >
+        <ToggleSwitch v-model="credentials.remember" label="Remember me" class="mt-5" />
 
         <button
           type="submit"

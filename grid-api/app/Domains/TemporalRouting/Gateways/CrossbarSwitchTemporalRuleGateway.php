@@ -37,6 +37,11 @@ class CrossbarSwitchTemporalRuleGateway implements SwitchTemporalRuleGateway
         $this->rules->delete($account->switch_account_id, $resourceId);
     }
 
+    public function setOverride(SwitchAccount $account, string $resourceId, ?bool $enabled): array
+    {
+        return $this->rules->setOverride($account->switch_account_id, $resourceId, $enabled)->toArray();
+    }
+
     /** @param array<string, mixed> $data */
     private function writeData(array $data): TemporalRuleWriteData
     {

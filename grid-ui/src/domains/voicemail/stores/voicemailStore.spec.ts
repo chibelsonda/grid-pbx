@@ -11,6 +11,7 @@ import type {
   VoicemailGreeting,
 } from '../types/voicemail'
 import { useVoicemailStore } from './voicemailStore'
+import { defaultVoicemailBoxConfiguration } from '../voicemailForm'
 
 vi.mock('../api/voicemailApi', () => ({
   voicemailApi: {
@@ -77,6 +78,7 @@ const voicemailBox: VoicemailBox = {
   transcribe: true,
   require_pin: true,
   is_setup: false,
+  configuration: defaultVoicemailBoxConfiguration(),
   message_counts: { total: 2, new: 1, saved: 1, deleted: 0 },
   unavailable_greeting: null,
   assigned_extension: { id: 'extension-1', display_name: 'Reception', extension: '1001' },
@@ -142,6 +144,7 @@ describe('voicemail store', () => {
       transcribe: true,
       require_pin: true,
       pin: '123456',
+      ...defaultVoicemailBoxConfiguration(),
     }
     vi.mocked(voicemailApi.create).mockResolvedValue(voicemailBox)
     const store = useVoicemailStore()

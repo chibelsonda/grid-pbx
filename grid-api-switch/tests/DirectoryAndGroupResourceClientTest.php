@@ -42,6 +42,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
                 'min_dtmf' => 2,
                 'max_dtmf' => 5,
                 'sort_by' => 'first_name',
+                'flags' => ['public-directory'],
                 'users' => [],
             ]]),
         ]);
@@ -54,6 +55,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
             minDtmf: 2,
             maxDtmf: 5,
             sortBy: 'first_name',
+            flags: ['public-directory'],
         ));
         $body = json_decode((string) $this->history[2]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
@@ -62,6 +64,8 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
         self::assertSame('PUT', $this->history[2]['request']->getMethod());
         self::assertArrayNotHasKey('users', $body['data']);
         self::assertSame('first_name', $body['data']['sort_by']);
+        self::assertSame(['public-directory'], $body['data']['flags']);
+        self::assertSame(['public-directory'], $created->flags);
     }
 
     public function test_group_client_maps_typed_endpoints_and_music_on_hold(): void

@@ -226,7 +226,7 @@ function humanizePhoneState(state: string | null): string {
         <div class="grid gap-5 p-5">
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Destination type</span>
-            <select
+            <FormSelect
               v-model="form.destination_type"
               class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
             >
@@ -238,11 +238,11 @@ function humanizePhoneState(state: string | null): string {
               >
                 {{ type.label }}
               </option>
-            </select>
+            </FormSelect>
           </label>
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Destination</span>
-            <select
+            <FormSelect
               v-model="form.destination_id"
               required
               class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
@@ -253,7 +253,7 @@ function humanizePhoneState(state: string | null): string {
               <option v-for="option in options" :key="option.id" :value="option.id">
                 {{ option.label }}{{ option.detail ? ` · ${option.detail}` : '' }}
               </option>
-            </select>
+            </FormSelect>
           </label>
           <div
             v-if="selectedOption"

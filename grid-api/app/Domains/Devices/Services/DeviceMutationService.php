@@ -7,6 +7,7 @@ use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\LineKeys\Services\LineKeyProjectionService;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
@@ -21,6 +22,7 @@ class DeviceMutationService
         private readonly SwitchDeviceGateway $gateway,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly AuditService $audit,
+        private readonly LineKeyProjectionService $lineKeyProjection,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -141,17 +143,57 @@ class DeviceMutationService
             ? $account->extensions()->where('id', $data['assigned_extension_id'])->firstOrFail()
             : null;
 
-        return [
+        $mutation = [
             'name' => $data['name'],
             'device_type' => $data['device_type'],
             'is_enabled' => $data['is_enabled'],
             'owner_switch_resource_id' => $extension?->switch_resource_id,
-            'make' => $data['make'] ?? null,
-            'model' => $data['model'] ?? null,
+            'make' => Arr::get($data, 'provision.endpoint_brand', $data['make'] ?? null),
+            'family' => Arr::get($data, 'provision.endpoint_family'),
+            'model' => Arr::get($data, 'provision.endpoint_model', $data['model'] ?? null),
             'mac_address' => $data['mac_address'] ?? null,
-            'sip_username' => $data['sip_username'] ?? null,
-            'sip_password' => $data['sip_password'] ?? null,
+            'sip_username' => Arr::get($data, 'sip.username', $data['sip_username'] ?? null),
+            'sip_password' => Arr::get($data, 'sip.password', $data['sip_password'] ?? null),
         ];
+
+        if (array_key_exists('music_on_hold', $data)) {
+            $mediaId = Arr::get($data, 'music_on_hold.media_id');
+            $mutation['music_on_hold'] = [
+                'media_id' => is_string($mediaId)
+                    ? $account->media()->where('id', $mediaId)->value('switch_resource_id')
+                    : null,
+            ];
+        }
+
+        foreach ([
+            'call_forward',
+            'sip',
+            'media',
+            'caller_id',
+            'caller_id_options',
+            'call_waiting',
+            'do_not_disturb',
+            'contact_list',
+            'exclude_from_queues',
+            'language',
+            'timezone',
+            'presence_id',
+            'mwi_unsolicited_updates',
+            'register_overwrite_notify',
+            'suppress_unregister_notifications',
+            'ringtones',
+            'call_restriction',
+            'call_recording',
+            'outbound_flags',
+            'dial_plan',
+            'metaflows',
+        ] as $field) {
+            if (array_key_exists($field, $data)) {
+                $mutation[$field] = $data[$field];
+            }
+        }
+
+        return $mutation;
     }
 
     /** @param array<string, mixed> $snapshot */
@@ -185,6 +227,7 @@ class DeviceMutationService
             'name' => $this->stringValue($snapshot['name'] ?? null),
             'device_type' => $this->stringValue($snapshot['device_type'] ?? null),
             'make' => $this->stringValue($snapshot['make'] ?? Arr::get($snapshot, 'provision.endpoint_brand')),
+            'endpoint_family' => $this->stringValue(Arr::get($snapshot, 'provision.endpoint_family')),
             'model' => $this->stringValue($snapshot['model'] ?? Arr::get($snapshot, 'provision.endpoint_model')),
             'mac_address' => $this->stringValue($snapshot['mac_address'] ?? Arr::get($snapshot, 'provision.mac_address')),
             'is_enabled' => (bool) ($snapshot['enabled'] ?? true),
@@ -195,6 +238,7 @@ class DeviceMutationService
         ]);
         $device->deleted_at = null;
         $device->save();
+        $this->lineKeyProjection->project($device, $snapshot);
 
         return $device->load('extension:extension_id,id,display_name,extension');
     }
@@ -215,7 +259,10 @@ class DeviceMutationService
             'device_type' => $data['device_type'],
             'assigned_extension_id' => $data['assigned_extension_id'] ?? null,
             'is_enabled' => $data['is_enabled'],
-            'credentials_changed' => isset($data['sip_username']) || isset($data['sip_password']),
+            'credentials_changed' => isset($data['sip_username'])
+                || isset($data['sip_password'])
+                || Arr::has($data, 'sip.username')
+                || Arr::has($data, 'sip.password'),
         ];
     }
 

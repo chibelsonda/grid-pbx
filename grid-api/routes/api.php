@@ -1,8 +1,8 @@
 <?php
 
-use App\Domains\CallDetailRecords\Controllers\CallDetailRecordController;
 use App\Domains\Blacklists\Controllers\BlacklistController;
 use App\Domains\Blacklists\Controllers\BlacklistSyncController;
+use App\Domains\CallDetailRecords\Controllers\CallDetailRecordController;
 use App\Domains\CallDetailRecords\Controllers\CallDetailRecordSyncController;
 use App\Domains\CallRouting\Controllers\CallflowController;
 use App\Domains\Conferences\Controllers\ConferenceController;
@@ -20,6 +20,7 @@ use App\Domains\Faxes\Controllers\FaxSyncController;
 use App\Domains\Groups\Controllers\GroupController;
 use App\Domains\Groups\Controllers\GroupSyncController;
 use App\Domains\IdentityAccess\Controllers\SessionController;
+use App\Domains\LineKeys\Controllers\LineKeyController;
 use App\Domains\Media\Controllers\MediaAudioController;
 use App\Domains\Media\Controllers\MediaController;
 use App\Domains\Media\Controllers\MediaSyncController;
@@ -38,6 +39,7 @@ use App\Domains\Recordings\Controllers\RecordingSyncController;
 use App\Domains\Services\Controllers\ServiceOverviewController;
 use App\Domains\Services\Controllers\ServiceSyncController;
 use App\Domains\SwitchSynchronization\Controllers\ExtensionSyncController;
+use App\Domains\TemporalRouting\Controllers\TemporalOperationalControlController;
 use App\Domains\TemporalRouting\Controllers\TemporalRoutingSyncController;
 use App\Domains\TemporalRouting\Controllers\TemporalRuleController;
 use App\Domains\TemporalRouting\Controllers\TemporalRuleSetController;
@@ -67,10 +69,14 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/accounts/{account}/extension-recovery', [ExtensionRecoveryController::class, 'index']);
         Route::post('/accounts/{account}/extension-recovery/{operation}', [ExtensionRecoveryController::class, 'recover']);
         Route::get('/accounts/{account}/devices', [DeviceController::class, 'index']);
+        Route::get('/accounts/{account}/devices/options', [DeviceController::class, 'options']);
         Route::post('/accounts/{account}/devices', [DeviceController::class, 'store']);
         Route::get('/accounts/{account}/devices/{device}', [DeviceController::class, 'show']);
         Route::put('/accounts/{account}/devices/{device}', [DeviceController::class, 'update']);
         Route::delete('/accounts/{account}/devices/{device}', [DeviceController::class, 'destroy']);
+        Route::get('/accounts/{account}/line-keys', [LineKeyController::class, 'index']);
+        Route::get('/accounts/{account}/devices/{device}/line-keys/preview', [LineKeyController::class, 'preview']);
+        Route::put('/accounts/{account}/devices/{device}/line-keys', [LineKeyController::class, 'update']);
         Route::get('/accounts/{account}/directories', [DirectoryController::class, 'index']);
         Route::get('/accounts/{account}/directories/options', [DirectoryController::class, 'options']);
         Route::post('/accounts/{account}/directories', [DirectoryController::class, 'store']);
@@ -118,12 +124,14 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/accounts/{account}/temporal-rules/{rule}', [TemporalRuleController::class, 'show']);
         Route::put('/accounts/{account}/temporal-rules/{rule}', [TemporalRuleController::class, 'update']);
         Route::delete('/accounts/{account}/temporal-rules/{rule}', [TemporalRuleController::class, 'destroy']);
+        Route::post('/accounts/{account}/temporal-rules/{rule}/commands', [TemporalOperationalControlController::class, 'rule']);
         Route::get('/accounts/{account}/temporal-rule-sets', [TemporalRuleSetController::class, 'index']);
         Route::get('/accounts/{account}/temporal-rule-sets/options', [TemporalRuleSetController::class, 'options']);
         Route::post('/accounts/{account}/temporal-rule-sets', [TemporalRuleSetController::class, 'store']);
         Route::get('/accounts/{account}/temporal-rule-sets/{set}', [TemporalRuleSetController::class, 'show']);
         Route::put('/accounts/{account}/temporal-rule-sets/{set}', [TemporalRuleSetController::class, 'update']);
         Route::delete('/accounts/{account}/temporal-rule-sets/{set}', [TemporalRuleSetController::class, 'destroy']);
+        Route::post('/accounts/{account}/temporal-rule-sets/{set}/commands', [TemporalOperationalControlController::class, 'ruleSet']);
         Route::post('/accounts/{account}/sync/temporal-routing', [TemporalRoutingSyncController::class, 'store']);
         Route::get('/accounts/{account}/sync/temporal-routing/{run}', [TemporalRoutingSyncController::class, 'show']);
         Route::get('/accounts/{account}/phone-numbers', [PhoneNumberController::class, 'index']);

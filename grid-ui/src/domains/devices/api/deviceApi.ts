@@ -1,5 +1,5 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
-import type { Device, DeviceInput, ExtensionOption, SyncState } from '../types/device'
+import type { Device, DeviceInput, DeviceOptions, SyncState } from '../types/device'
 
 export type DevicePage = {
   data: Device[]
@@ -47,10 +47,9 @@ export const deviceApi = {
   async remove(accountId: string, deviceId: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/devices/${deviceId}`)
   },
-  async extensionOptions(accountId: string): Promise<ExtensionOption[]> {
-    const response = await http.get<{ data: ExtensionOption[] }>(
-      `/api/v1/accounts/${accountId}/extensions`,
-      { params: { per_page: 100 } },
+  async options(accountId: string): Promise<DeviceOptions> {
+    const response = await http.get<ApiResponse<DeviceOptions>>(
+      `/api/v1/accounts/${accountId}/devices/options`,
     )
 
     return unwrapApiData(response)

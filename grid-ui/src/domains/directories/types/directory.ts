@@ -12,6 +12,7 @@ export type Directory = {
   min_dtmf: number
   max_dtmf: number
   sort_by: 'first_name' | 'last_name'
+  flags: string[]
   member_count?: number
   members?: DirectoryMember[]
   sync_status: 'healthy' | 'syncing' | 'stale' | 'error'
@@ -24,6 +25,7 @@ export type DirectoryInput = {
   min_dtmf: number
   max_dtmf: number
   sort_by: 'first_name' | 'last_name'
+  flags: string[]
   member_ids: string[]
 }
 

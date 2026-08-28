@@ -33,7 +33,14 @@ class VoicemailBoxControllerTest extends TestCase
             'timezone' => 'Asia/Manila',
             'notification_emails' => ['alice@example.com'],
             'transcribe' => true,
-            'switch_json' => ['pin' => '[REDACTED]'],
+            'switch_json' => [
+                'pin' => '[REDACTED]',
+                'check_if_owner' => false,
+                'media_extension' => 'wav',
+                'oldest_message_first' => true,
+                'is_voicemail_ff_rw_enabled' => true,
+                'seek_duration_ms' => 15000,
+            ],
         ]);
         SwitchVoicemailBox::factory()->for($account)->create(['mailbox' => '2001']);
         SwitchVoicemailMessage::factory()
@@ -54,6 +61,11 @@ class VoicemailBoxControllerTest extends TestCase
             ->assertJsonPath('data.timezone', 'Asia/Manila')
             ->assertJsonPath('data.notification_emails.0', 'alice@example.com')
             ->assertJsonPath('data.transcribe', true)
+            ->assertJsonPath('data.configuration.check_if_owner', false)
+            ->assertJsonPath('data.configuration.media_extension', 'wav')
+            ->assertJsonPath('data.configuration.oldest_message_first', true)
+            ->assertJsonPath('data.configuration.is_voicemail_ff_rw_enabled', true)
+            ->assertJsonPath('data.configuration.seek_duration_ms', 15000)
             ->assertJsonPath('data.message_counts.total', 1)
             ->assertJsonPath('data.message_counts.new', 1)
             ->assertJsonMissingPath('data.switch_json')
@@ -71,7 +83,12 @@ class VoicemailBoxControllerTest extends TestCase
             ->once()
             ->withArgs(fn (SwitchAccount $received, array $payload): bool => $received->is($account)
                 && $payload['owner_switch_resource_id'] === 'switch-user-1'
-                && $payload['pin'] === '123456')
+                && $payload['pin'] === '123456'
+                && $payload['check_if_owner'] === false
+                && $payload['include_message_on_notify'] === false
+                && $payload['media_extension'] === 'wav'
+                && $payload['is_voicemail_ff_rw_enabled'] === true
+                && $payload['seek_duration_ms'] === 15000)
             ->andReturn([
                 'id' => 'switch-vmbox-1',
                 'owner_id' => 'switch-user-1',
@@ -83,6 +100,19 @@ class VoicemailBoxControllerTest extends TestCase
                 'require_pin' => true,
                 'pin' => '123456',
                 'is_setup' => false,
+                'check_if_owner' => false,
+                'delete_after_notify' => true,
+                'include_message_on_notify' => false,
+                'include_transcription_on_notify' => true,
+                'media_extension' => 'wav',
+                'not_configurable' => true,
+                'oldest_message_first' => true,
+                'save_after_notify' => false,
+                'skip_envelope' => true,
+                'skip_greeting' => false,
+                'skip_instructions' => true,
+                'is_voicemail_ff_rw_enabled' => true,
+                'seek_duration_ms' => 15000,
             ]);
 
         $response = $this->actingAs($user)->postJson(
@@ -97,6 +127,8 @@ class VoicemailBoxControllerTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.mailbox', '1001')
             ->assertJsonPath('data.assigned_extension.id', $extension->id)
+            ->assertJsonPath('data.configuration.media_extension', 'wav')
+            ->assertJsonPath('data.configuration.seek_duration_ms', 15000)
             ->assertDontSee('123456');
         $mailbox = SwitchVoicemailBox::query()->where('switch_resource_id', 'switch-vmbox-1')->firstOrFail();
         $this->assertSame('[REDACTED]', $mailbox->switch_json['pin']);
@@ -121,15 +153,19 @@ class VoicemailBoxControllerTest extends TestCase
             ->withArgs(fn (SwitchAccount $received, string $resourceId, array $payload): bool => $received->is($account)
                 && $resourceId === 'switch-vmbox-1'
                 && $payload['owner_switch_resource_id'] === null
-                && $payload['pin'] === null)
+                && $payload['pin'] === null
+                && $payload['media_extension'] === 'wav'
+                && $payload['seek_duration_ms'] === 15000)
             ->andReturn([
                 'id' => 'switch-vmbox-1',
                 'name' => 'Shared voicemail',
                 'mailbox' => '1001',
-                'timezone' => 'UTC',
+                'timezone' => 'Europe/London',
                 'notify_email_addresses' => [],
                 'transcribe' => false,
                 'require_pin' => false,
+                'media_extension' => 'wav',
+                'seek_duration_ms' => 15000,
             ]);
 
         $this->actingAs($user)
@@ -137,7 +173,7 @@ class VoicemailBoxControllerTest extends TestCase
                 "/api/v1/accounts/{$account->id}/voicemail-boxes/{$mailbox->id}",
                 $this->payload([
                     'name' => 'Shared voicemail',
-                    'timezone' => 'UTC',
+                    'timezone' => 'Europe/London',
                     'notification_emails' => [],
                     'transcribe' => false,
                     'require_pin' => false,
@@ -178,9 +214,17 @@ class VoicemailBoxControllerTest extends TestCase
                 'mailbox' => 'not-a-number',
                 'notification_emails' => ['invalid'],
                 'pin' => '12',
+                'media_extension' => 'ogg',
+                'seek_duration_ms' => 300001,
             ]))
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['mailbox', 'notification_emails.0', 'pin']);
+            ->assertJsonValidationErrors([
+                'mailbox',
+                'notification_emails.0',
+                'pin',
+                'media_extension',
+                'seek_duration_ms',
+            ]);
 
         [$readOnly, $readOnlyAccount] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
         $this->actingAs($readOnly)
@@ -224,6 +268,19 @@ class VoicemailBoxControllerTest extends TestCase
             'transcribe' => true,
             'require_pin' => true,
             'pin' => null,
+            'check_if_owner' => false,
+            'delete_after_notify' => true,
+            'include_message_on_notify' => false,
+            'include_transcription_on_notify' => true,
+            'media_extension' => 'wav',
+            'not_configurable' => true,
+            'oldest_message_first' => true,
+            'save_after_notify' => false,
+            'skip_envelope' => true,
+            'skip_greeting' => false,
+            'skip_instructions' => true,
+            'is_voicemail_ff_rw_enabled' => true,
+            'seek_duration_ms' => 15000,
         ], $overrides);
     }
 

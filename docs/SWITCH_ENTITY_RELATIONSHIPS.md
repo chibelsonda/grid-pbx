@@ -47,6 +47,7 @@ not modify or package the Switch or Monster UI repositories.
 | Account | parent/reseller account, media and service settings | Tenant and authorization boundary | Root boundary; deleting an account is a separate destructive workflow |
 | User | directories mapped to callflows, media/MOH, feature callflows | Person/extension identity and endpoint policy | Aggregate root for the guided extension workflow |
 | Device | `owner_id` -> user; provisioning/media references | A device may be assigned to one owner while remaining an independent endpoint | Optional extension dependent; unassign rather than delete unless created exclusively by the workflow |
+| Line key | Child of device `provision.combo_keys` or `provision.feature_keys`; value may reference an extension, presence ID, parking slot, or dial string | Device-owned provisioning configuration, not an independent Switch resource | Rebuild with the device projection; delete with the device; apply only as an explicit full-map PATCH after preview and capability checks |
 | Voicemail box | `owner_id` -> user; `media.unavailable` -> media | Mailbox belongs to a user; greeting is a referenced media object | Optional managed dependent; never delete a non-empty mailbox automatically |
 | Callflow | node module data IDs -> user, device, voicemail, menu, group, media, callflow, conference, queue, temporal rule/set, and others | Routing graph that references targets | Managed extension callflow is a workflow dependent; ordinary callflows are independent roots |
 | Phone number | represented as a callflow entry number; inventory reports `used_by` | Number assignment is ownership by a callflow entry point | Assign/unassign by updating the callflow; purchasing/releasing is separate |
@@ -65,6 +66,16 @@ not modify or package the Switch or Monster UI repositories.
 | CDR | owner/device/call IDs and approved call-leg metadata | Operational call records | Bounded read/import workflow; never created as an entity CRUD side effect |
 | Service overview | account -> assigned plans, quantity dimensions, limits, standing, and billing-cycle summary | Account-scoped commercial and capacity projection | Administrator-only read model; never mutate plans, limits, quantities, top-ups, or accepted charges as an entity side effect |
 
+LineKey foundation note: line keys have no independent upstream endpoint or
+identifier. `switch_line_keys` therefore uses a GridPBX public UUID and is
+uniquely owned by device, category, and numeric position. Device synchronization
+rebuilds combo and feature rows from the complete redacted device `data`
+snapshot. The preview API returns only endpoint identity and the bounded
+line-key subtree. A mutation replaces both key maps through a device PATCH,
+which may trigger asynchronous provisioning; it is disabled by default, never
+auto-retried, and never exposes SIP credentials, provisioning URLs, vendor
+templates, or generated configuration documents.
+
 Temporal routing foundation note: `switch_temporal_rules` stores normalized
 recurrence, date, weekday, and time-window fields plus the complete redacted
 Rule `data` object. `switch_temporal_rule_sets` owns configuration and
@@ -73,6 +84,13 @@ resolving each member to a public Rule UUID. Rule deletion is blocked while it
 belongs to a Rule Set or an individual `temporal_route` node; Rule Set deletion
 is blocked while routing references it. Guided routing writes the upstream
 Rule Set ID under `flow.data.rule_set` without exposing MySQL primary keys.
+The account projection stores the schedule timezone used for effective-status
+evaluation. A Rule's optional upstream `enabled` field is an operational
+override: `true` forces active, `false` forces inactive, and reset PATCHes a
+null value so Switch removes the field and resumes schedule evaluation. Rule
+Sets have no independent upstream override; GridPBX applies the command to all
+resolved member Rules under one account-scoped lock and attempts compensation
+if the sequence fails partway through.
 
 Blacklist foundation note: upstream inbound routing merges every blacklist ID
 assigned through the account document and rejects matching normalized caller

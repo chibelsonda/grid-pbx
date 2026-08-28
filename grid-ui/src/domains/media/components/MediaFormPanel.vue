@@ -73,32 +73,63 @@ function submit(): void {
         <div class="grid gap-4 p-5 sm:grid-cols-2">
           <label class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Name</span>
-            <input v-model="form.name" required maxlength="128" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100" />
-            <span v-if="fieldErrors.name" class="text-[10px] text-danger">{{ fieldErrors.name[0] }}</span>
+            <input
+              v-model="form.name"
+              required
+              maxlength="128"
+              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            />
+            <span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
+              fieldErrors.name[0]
+            }}</span>
           </label>
           <label class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Description</span>
-            <input v-model="form.description" maxlength="128" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500" />
+            <input
+              v-model="form.description"
+              maxlength="128"
+              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500"
+            />
           </label>
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Language</span>
-            <input v-model="form.language" maxlength="35" placeholder="en-us" class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500" />
+            <input
+              v-model="form.language"
+              maxlength="35"
+              placeholder="en-us"
+              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500"
+            />
           </label>
-          <label class="flex items-center gap-3 self-end pb-2">
-            <input v-model="form.streamable" type="checkbox" class="size-4 accent-brand-500" />
-            <span class="text-xs font-semibold text-slate-600">Allow streaming</span>
-          </label>
+          <ToggleSwitch v-model="form.streamable" label="Allow streaming" class="self-end pb-2" />
           <label v-if="mode === 'create'" class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Audio file</span>
-            <input required type="file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white" @change="chooseAudio" />
+            <input
+              required
+              type="file"
+              accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+              class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+              @change="chooseAudio"
+            />
             <span class="text-[10px] text-slate-400">MP3, WAV, or OGG; maximum 5 MB.</span>
-            <span v-if="fieldErrors.audio" class="text-[10px] text-danger">{{ fieldErrors.audio[0] }}</span>
+            <span v-if="fieldErrors.audio" class="text-[10px] text-danger">{{
+              fieldErrors.audio[0]
+            }}</span>
           </label>
         </div>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
-        <button type="button" class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600" @click="emit('close')">Cancel</button>
-        <button type="submit" :disabled="saving || (mode === 'create' && !audio)" class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50">
+        <button
+          type="button"
+          class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
+          @click="emit('close')"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          :disabled="saving || (mode === 'create' && !audio)"
+          class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+        >
           {{ saving ? 'Saving…' : mode === 'create' ? 'Upload media' : 'Save changes' }}
         </button>
       </div>

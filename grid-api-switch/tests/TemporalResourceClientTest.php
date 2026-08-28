@@ -57,6 +57,20 @@ final class TemporalResourceClientTest extends TestCase
         self::assertSame(['rule-2', 'rule-1'], $body['data']['temporal_rules']);
     }
 
+    public function test_rule_client_uses_nullable_patch_for_operational_overrides(): void
+    {
+        $client = new TemporalRuleResourceClient($this->switchWithResponses([
+            $this->response(['data' => ['id' => 'rule-1', 'name' => 'Business hours', 'cycle' => 'weekly', 'enabled' => true]]),
+            $this->response(['data' => ['id' => 'rule-1', 'name' => 'Business hours', 'cycle' => 'weekly']]),
+        ]));
+
+        self::assertTrue($client->setOverride('account-1', 'rule-1', true)->enabled);
+        self::assertNull($client->setOverride('account-1', 'rule-1', null)->enabled);
+        self::assertSame('PATCH', $this->history[0]['request']->getMethod());
+        self::assertSame(['data' => ['enabled' => true]], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
+        self::assertSame(['data' => ['enabled' => null]], json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
     public function test_guided_temporal_callflow_uses_rule_set_payload_key(): void
     {
         $data = (new CallflowCreateData('Office routing', 'temporal_route', 'set-1', ['+15550001000']))->toSwitchData();

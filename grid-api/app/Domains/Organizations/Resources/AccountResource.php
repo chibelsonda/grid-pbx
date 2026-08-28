@@ -21,6 +21,7 @@ class AccountResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'realm' => $this->realm,
+            'timezone' => $this->timezone,
             'organization' => [
                 'id' => $this->whenLoaded('organization', fn () => $this->organization->id),
                 'name' => $this->whenLoaded('organization', fn () => $this->organization->name),

@@ -8,6 +8,7 @@ use GridPbx\Switch\Dto\Callflows\CallflowCreateData;
 use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
 use GridPbx\Switch\Dto\Callflows\ManagedExtensionCallflowWriteData;
 use GridPbx\Switch\Dto\Devices\DeviceWriteData;
+use GridPbx\Switch\Dto\Users\UserAdvancedData;
 use GridPbx\Switch\Dto\Users\UserWriteData;
 use GridPbx\Switch\Dto\Voicemail\VoicemailBoxWriteData;
 use GridPbx\Switch\Resources\AccountResource;
@@ -37,6 +38,7 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             username: $data['username'] ?? null,
             email: $data['email'] ?? null,
             timezone: $data['timezone'] ?? null,
+            advanced: $this->userAdvancedData($data),
         ))->toArray();
     }
 
@@ -55,7 +57,21 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             username: $data['username'] ?? null,
             email: $data['email'] ?? null,
             timezone: $data['timezone'] ?? null,
+            advanced: $this->userAdvancedData($data),
         ))->toArray();
+    }
+
+    /** @param array<string, mixed> $data */
+    private function userAdvancedData(array $data): UserAdvancedData
+    {
+        return new UserAdvancedData(
+            language: $data['language'] ?? null,
+            presenceId: $data['presence_id'] ?? null,
+            callWaiting: $data['call_waiting']['enabled'] ?? null,
+            doNotDisturb: $data['do_not_disturb']['enabled'] ?? null,
+            excludeFromContactList: $data['contact_list']['exclude'] ?? null,
+            outboundPrivacy: $data['caller_id_options']['outbound_privacy'] ?? null,
+        );
     }
 
     public function createVoicemailBox(SwitchAccount $account, array $data): array

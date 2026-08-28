@@ -159,7 +159,7 @@ const amount = (value: number): string =>
               type="search"
               placeholder="Search category or item…"
               class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs" /></label
-          ><select
+          ><FormSelect
             v-model="scope"
             class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
           >
@@ -167,7 +167,7 @@ const amount = (value: number): string =>
             <option value="account">Account</option>
             <option value="cascade">Cascade</option>
             <option value="manual">Manual</option>
-          </select>
+          </FormSelect>
         </div>
         <div class="card-surface overflow-hidden">
           <table class="w-full min-w-[640px] text-left">

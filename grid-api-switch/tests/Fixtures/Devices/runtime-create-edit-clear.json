@@ -1,0 +1,212 @@
+{
+  "scope": "Sanitized audited fields from local Switch request, response data, and immediate detail data",
+  "create": {
+    "request": {
+      "name": "GridPBX Audit Device",
+      "device_type": "sip_device",
+      "enabled": true,
+      "owner_id": "switch-user-audit",
+      "language": "en-US",
+      "timezone": "America/Los_Angeles",
+      "presence_id": "audit-device",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": false },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "none" },
+      "ringtones": {
+        "internal": "Audit-Internal",
+        "external": "Audit-External"
+      },
+      "call_restriction": {
+        "closed_groups": { "action": "inherit" },
+        "toll_us": { "action": "deny" },
+        "international": { "action": "deny" }
+      },
+      "sip": {
+        "method": "password",
+        "username": "[REDACTED]",
+        "password": "[REDACTED]",
+        "expire_seconds": 300,
+        "invite_format": "contact",
+        "ignore_completed_elsewhere": false
+      },
+      "media": {
+        "audio": { "codecs": ["OPUS", "PCMU", "PCMA"] },
+        "video": { "codecs": ["H264"] },
+        "bypass_media": false,
+        "encryption": { "enforce_security": false, "methods": [] },
+        "fax_option": false,
+        "ignore_early_media": false,
+        "progress_timeout": 15
+      }
+    },
+    "response": {
+      "name": "GridPBX Audit Device",
+      "device_type": "sip_device",
+      "enabled": true,
+      "owner_id": "switch-user-audit",
+      "language": "en-US",
+      "timezone": "America/Los_Angeles",
+      "presence_id": "audit-device",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": false },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "none" },
+      "ringtones": {
+        "internal": "Audit-Internal",
+        "external": "Audit-External"
+      },
+      "call_restriction": {
+        "closed_groups": { "action": "inherit" },
+        "toll_us": { "action": "deny" },
+        "international": { "action": "deny" }
+      }
+    },
+    "detail": {
+      "name": "GridPBX Audit Device",
+      "device_type": "sip_device",
+      "enabled": true,
+      "owner_id": "switch-user-audit",
+      "language": "en-US",
+      "timezone": "America/Los_Angeles",
+      "presence_id": "audit-device",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": false },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "none" },
+      "ringtones": {
+        "internal": "Audit-Internal",
+        "external": "Audit-External"
+      },
+      "call_restriction": {
+        "closed_groups": { "action": "inherit" },
+        "toll_us": { "action": "deny" },
+        "international": { "action": "deny" }
+      }
+    }
+  },
+  "edit": {
+    "request": {
+      "name": "GridPBX Audit Device Edited",
+      "device_type": "sip_device",
+      "enabled": true,
+      "owner_id": "switch-user-audit",
+      "language": "en-GB",
+      "presence_id": "audit-device-edited",
+      "do_not_disturb": { "enabled": true },
+      "caller_id_options": { "outbound_privacy": "name" },
+      "ringtones": { "internal": "Audit-Internal-Edited" },
+      "call_restriction": {
+        "closed_groups": { "action": "deny" },
+        "toll_us": { "action": "inherit" },
+        "international": { "action": "deny" }
+      }
+    },
+    "response": {
+      "name": "GridPBX Audit Device Edited",
+      "device_type": "sip_device",
+      "enabled": true,
+      "owner_id": "switch-user-audit",
+      "language": "en-GB",
+      "timezone": "America/Los_Angeles",
+      "presence_id": "audit-device-edited",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": true },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "name" },
+      "ringtones": {
+        "internal": "Audit-Internal-Edited",
+        "external": "Audit-External"
+      },
+      "call_restriction": {
+        "closed_groups": { "action": "deny" },
+        "toll_us": { "action": "inherit" },
+        "international": { "action": "deny" }
+      }
+    },
+    "detail": {
+      "name": "GridPBX Audit Device Edited",
+      "device_type": "sip_device",
+      "enabled": true,
+      "owner_id": "switch-user-audit",
+      "language": "en-GB",
+      "timezone": "America/Los_Angeles",
+      "presence_id": "audit-device-edited",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": true },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "name" },
+      "ringtones": {
+        "internal": "Audit-Internal-Edited",
+        "external": "Audit-External"
+      },
+      "call_restriction": {
+        "closed_groups": { "action": "deny" },
+        "toll_us": { "action": "inherit" },
+        "international": { "action": "deny" }
+      }
+    }
+  },
+  "clear": {
+    "request": {
+      "name": "GridPBX Audit Device Edited",
+      "device_type": "sip_device",
+      "enabled": true,
+      "language": "",
+      "timezone": "",
+      "presence_id": "",
+      "ringtones": { "internal": "", "external": "" },
+      "call_restriction": {
+        "closed_groups": { "action": "inherit" },
+        "toll_us": { "action": "inherit" },
+        "international": { "action": "inherit" }
+      }
+    },
+    "response": {
+      "name": "GridPBX Audit Device Edited",
+      "device_type": "sip_device",
+      "enabled": true,
+      "language": "",
+      "timezone": "",
+      "presence_id": "",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": true },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "name" },
+      "ringtones": { "internal": "", "external": "" },
+      "call_restriction": {
+        "closed_groups": { "action": "inherit" },
+        "toll_us": { "action": "inherit" },
+        "international": { "action": "inherit" }
+      }
+    },
+    "detail": {
+      "name": "GridPBX Audit Device Edited",
+      "device_type": "sip_device",
+      "enabled": true,
+      "language": "",
+      "timezone": "",
+      "presence_id": "",
+      "call_waiting": { "enabled": true },
+      "do_not_disturb": { "enabled": true },
+      "contact_list": { "exclude": false },
+      "caller_id_options": { "outbound_privacy": "name" },
+      "ringtones": { "internal": "", "external": "" },
+      "call_restriction": {
+        "closed_groups": { "action": "inherit" },
+        "toll_us": { "action": "inherit" },
+        "international": { "action": "inherit" }
+      }
+    }
+  },
+  "observations": [
+    "owner_id null is rejected on create and update",
+    "unassigned create omits owner_id",
+    "unassignment removes owner_id from the preserved full document",
+    "Device POST replaces omitted sections rather than merging them",
+    "typed read-merge-write preserved SIP, media, call waiting, contact list, timezone, and owner fields during edit",
+    "null is rejected for audited optional string fields",
+    "empty string clears language, timezone, presence_id, and ringtone values",
+    "empty JSON objects decoded as PHP arrays must be omitted before re-encoding"
+  ]
+}

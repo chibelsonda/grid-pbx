@@ -49,6 +49,7 @@ class SwitchAccount extends Model
         'switch_account_id',
         'name',
         'realm',
+        'timezone',
         'music_on_hold_media_id',
         'is_enabled',
     ];
@@ -65,12 +66,41 @@ class SwitchAccount extends Model
         return $this->hasMany(SwitchExtension::class, 'switch_account_id', 'account_id');
     }
 
-    /** @return HasMany<SwitchFaxBox, $this> */ public function faxBoxes(): HasMany { return $this->hasMany(SwitchFaxBox::class, 'switch_account_id', 'account_id'); }
-    /** @return HasMany<SwitchFax, $this> */ public function faxes(): HasMany { return $this->hasMany(SwitchFax::class, 'switch_account_id', 'account_id'); }
-    /** @return HasOne<SwitchServiceSummary, $this> */ public function serviceSummary(): HasOne { return $this->hasOne(SwitchServiceSummary::class, 'switch_account_id', 'account_id'); }
-    /** @return HasOne<SwitchServiceLimit, $this> */ public function serviceLimit(): HasOne { return $this->hasOne(SwitchServiceLimit::class, 'switch_account_id', 'account_id'); }
-    /** @return HasMany<SwitchServicePlan, $this> */ public function servicePlans(): HasMany { return $this->hasMany(SwitchServicePlan::class, 'switch_account_id', 'account_id'); }
-    /** @return HasMany<SwitchServiceQuantity, $this> */ public function serviceQuantities(): HasMany { return $this->hasMany(SwitchServiceQuantity::class, 'switch_account_id', 'account_id'); }
+    /** @return HasMany<SwitchFaxBox, $this> */
+    public function faxBoxes(): HasMany
+    {
+        return $this->hasMany(SwitchFaxBox::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchFax, $this> */
+    public function faxes(): HasMany
+    {
+        return $this->hasMany(SwitchFax::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasOne<SwitchServiceSummary, $this> */
+    public function serviceSummary(): HasOne
+    {
+        return $this->hasOne(SwitchServiceSummary::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasOne<SwitchServiceLimit, $this> */
+    public function serviceLimit(): HasOne
+    {
+        return $this->hasOne(SwitchServiceLimit::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchServicePlan, $this> */
+    public function servicePlans(): HasMany
+    {
+        return $this->hasMany(SwitchServicePlan::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchServiceQuantity, $this> */
+    public function serviceQuantities(): HasMany
+    {
+        return $this->hasMany(SwitchServiceQuantity::class, 'switch_account_id', 'account_id');
+    }
 
     /** @return HasMany<SwitchDevice, $this> */
     public function devices(): HasMany

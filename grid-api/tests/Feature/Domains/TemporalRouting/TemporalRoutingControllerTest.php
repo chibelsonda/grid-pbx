@@ -43,6 +43,8 @@ class TemporalRoutingControllerTest extends TestCase
     public function test_read_only_user_cannot_mutate_and_cross_tenant_rules_are_rejected(): void
     {
         [$readOnly, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $this->mock(SwitchTemporalRuleGateway::class)->shouldNotReceive('create');
+        $this->mock(SwitchTemporalRuleSetGateway::class)->shouldNotReceive('create');
         $this->actingAs($readOnly)->postJson("/api/v1/accounts/{$account->id}/temporal-rules", $this->rulePayload())->assertForbidden();
         [$operator, $managed] = $this->accessibleAccount();
         $foreign = SwitchTemporalRule::factory()->create();

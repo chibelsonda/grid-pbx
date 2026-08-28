@@ -195,7 +195,7 @@ function routeTitle(route: {
           placeholder="Search route, number, pattern, feature code…"
           class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
       /></label>
-      <select
+      <FormSelect
         v-model="callflows.filters.type"
         aria-label="Route type"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none"
@@ -206,8 +206,8 @@ function routeTitle(route: {
         <option value="feature_code">Feature code</option>
         <option value="pattern">Pattern</option>
         <option value="unassigned">Unassigned</option>
-      </select>
-      <select
+      </FormSelect>
+      <FormSelect
         v-model="callflows.filters.module"
         aria-label="Route module"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none"
@@ -216,7 +216,7 @@ function routeTitle(route: {
         <option v-for="module in availableModules" :key="module" :value="module">
           {{ humanize(module) }}
         </option>
-      </select>
+      </FormSelect>
       <button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
       >

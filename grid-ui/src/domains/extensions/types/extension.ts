@@ -16,6 +16,15 @@ export type Extension = {
   last_synced_at: string | null
 }
 
+export type ExtensionUserConfiguration = {
+  language: string | null
+  presence_id: string | null
+  call_waiting: { enabled: boolean }
+  do_not_disturb: { enabled: boolean }
+  contact_list: { exclude: boolean }
+  caller_id_options: { outbound_privacy: 'full' | 'name' | 'number' | 'none' }
+}
+
 export type ExtensionDevice = {
   id: string
   name: string | null
@@ -55,12 +64,13 @@ export type ExtensionCallflow = {
 }
 
 export type ExtensionDetail = Extension & {
+  configuration: ExtensionUserConfiguration
   devices: ExtensionDevice[]
   voicemail_boxes: ExtensionVoicemailBox[]
   callflows: ExtensionCallflow[]
 }
 
-export type ExtensionCreate = {
+export type ExtensionCreate = ExtensionUserConfiguration & {
   first_name: string
   last_name: string
   extension: string

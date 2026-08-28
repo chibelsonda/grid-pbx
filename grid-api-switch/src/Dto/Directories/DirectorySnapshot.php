@@ -19,6 +19,9 @@ final readonly class DirectorySnapshot extends EntitySnapshot
 
     public string $sortBy;
 
+    /** @var list<string> */
+    public array $flags;
+
     /** @var list<DirectoryMemberSnapshot> */
     public array $members;
 
@@ -40,6 +43,7 @@ final readonly class DirectorySnapshot extends EntitySnapshot
         $this->sortBy = in_array($data['sort_by'] ?? null, ['first_name', 'last_name'], true)
             ? $data['sort_by']
             : 'last_name';
+        $this->flags = $this->stringList($data['flags'] ?? []);
         $members = $data['users'] ?? [];
 
         if (! is_array($members)) {

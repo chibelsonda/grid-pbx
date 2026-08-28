@@ -14,6 +14,8 @@ final readonly class AccountSnapshot
 
     public ?string $musicOnHoldMediaId;
 
+    public ?string $timezone;
+
     /** @var list<string> */
     public array $blacklistIds;
 
@@ -30,6 +32,7 @@ final readonly class AccountSnapshot
         $this->id = $id;
         $this->name = $this->nullableString($data['name'] ?? null);
         $this->musicOnHoldMediaId = $this->nullableString($musicOnHold['media_id'] ?? null);
+        $this->timezone = $this->nullableString($data['timezone'] ?? null);
         $blacklists = is_array($data['blacklists'] ?? null) ? $data['blacklists'] : [];
         $this->blacklistIds = array_values(array_filter($blacklists, static fn (mixed $id): bool => is_string($id) && $id !== ''));
     }

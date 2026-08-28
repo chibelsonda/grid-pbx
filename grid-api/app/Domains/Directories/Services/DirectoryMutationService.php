@@ -53,7 +53,10 @@ class DirectoryMutationService
     public function update(SwitchAccount $account, SwitchDirectory $directory, User $actor, array $data, ?string $ipAddress = null): SwitchDirectory
     {
         $members = $this->resolveMembers($account, $data['member_ids']);
-        $previous = $directory->only(['name', 'confirm_match', 'min_dtmf', 'max_dtmf', 'sort_by']);
+        $previous = [
+            ...$directory->only(['name', 'confirm_match', 'min_dtmf', 'max_dtmf', 'sort_by']),
+            'flags' => $this->stringList($directory->switch_json['flags'] ?? null),
+        ];
 
         try {
             $this->gateway->update($account, $directory->switch_resource_id, $data);
@@ -131,6 +134,15 @@ class DirectoryMutationService
         }
 
         return $resourceId;
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        return array_values(array_filter(
+            is_array($value) ? $value : [],
+            static fn (mixed $item): bool => is_string($item) && $item !== '',
+        ));
     }
 
     private function containsDirectory(mixed $node, string $resourceId): bool

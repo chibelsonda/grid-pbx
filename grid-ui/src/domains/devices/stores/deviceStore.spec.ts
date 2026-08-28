@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { deviceApi, type DevicePage } from '../api/deviceApi'
-import type { Device, DeviceInput, ExtensionOption } from '../types/device'
+import type { Device, DeviceInput, DeviceOptions } from '../types/device'
 import { useDeviceStore } from './deviceStore'
 
 vi.mock('../api/deviceApi', () => ({
@@ -11,7 +11,7 @@ vi.mock('../api/deviceApi', () => ({
     create: vi.fn<(accountId: string, input: DeviceInput) => Promise<Device>>(),
     update: vi.fn<(accountId: string, deviceId: string, input: DeviceInput) => Promise<Device>>(),
     remove: vi.fn<(accountId: string, deviceId: string) => Promise<void>>(),
-    extensionOptions: vi.fn<(accountId: string) => Promise<ExtensionOption[]>>(),
+    options: vi.fn<(accountId: string) => Promise<DeviceOptions>>(),
   },
 }))
 
@@ -83,17 +83,48 @@ describe('device store', () => {
     expect(store.detailLoading).toBe(false)
   })
 
+  it('loads assignment and dynamic restriction options together', async () => {
+    vi.mocked(deviceApi.options).mockResolvedValue({
+      extensions: [{ id: 'extension-1', display_name: 'Alice Operator', extension: '1001' }],
+      media: [{ id: 'media-1', name: 'Office music' }],
+      restrictions: [{ key: 'international', label: 'International', emergency: false }],
+    })
+    const store = useDeviceStore()
+
+    await store.loadOptions('account-1')
+
+    expect(deviceApi.options).toHaveBeenCalledWith('account-1')
+    expect(store.extensionOptions[0]?.id).toBe('extension-1')
+    expect(store.mediaOptions[0]?.id).toBe('media-1')
+    expect(store.restrictionOptions[0]?.key).toBe('international')
+  })
+
   it('creates a device and makes it the active detail projection', async () => {
     const input: DeviceInput = {
       name: 'Reception Desk Phone',
       device_type: 'sip_device',
-      make: 'Yealink',
-      model: 'T54W',
+      provision: {
+        endpoint_brand: 'Yealink',
+        endpoint_family: null,
+        endpoint_model: 'T54W',
+      },
       mac_address: '00:11:22:33:44:55',
       is_enabled: true,
       assigned_extension_id: 'extension-1',
-      sip_username: 'reception',
-      sip_password: 'a-long-random-secret',
+      sip: {
+        method: 'password',
+        username: 'reception',
+        password: 'a-long-random-secret',
+        realm: null,
+        expire_seconds: 300,
+        invite_format: 'contact',
+        ip: null,
+        number: null,
+        route: null,
+        static_route: null,
+        ignore_completed_elsewhere: false,
+        custom_sip_headers: { in: [], out: [] },
+      },
     }
     vi.mocked(deviceApi.create).mockResolvedValue(device)
     const store = useDeviceStore()

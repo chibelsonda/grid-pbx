@@ -4,6 +4,7 @@ namespace App\Domains\Devices\Models;
 
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\LineKeys\Models\SwitchLineKey;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SwitchDevice extends Model
@@ -29,6 +31,7 @@ class SwitchDevice extends Model
         'name',
         'device_type',
         'make',
+        'endpoint_family',
         'model',
         'mac_address',
         'is_enabled',
@@ -52,6 +55,12 @@ class SwitchDevice extends Model
     public function extension(): BelongsTo
     {
         return $this->belongsTo(SwitchExtension::class, 'switch_extension_id', 'extension_id');
+    }
+
+    /** @return HasMany<SwitchLineKey, $this> */
+    public function lineKeys(): HasMany
+    {
+        return $this->hasMany(SwitchLineKey::class, 'switch_device_id', 'device_id');
     }
 
     /** @return array<string, string> */

@@ -85,6 +85,40 @@ final class PhoneNumberResourceClientTest extends TestCase
         iterator_to_array($client->allDetails('account-1'));
     }
 
+    public function test_it_returns_typed_number_classifiers_without_exposing_matching_rules(): void
+    {
+        $fixture = file_get_contents(__DIR__.'/Fixtures/PhoneNumbers/classifiers-response.json');
+        self::assertIsString($fixture);
+        $client = $this->clientWithResponses([
+            new Response(200, [], $fixture),
+        ]);
+
+        $classifiers = $client->classifiers('account-1');
+
+        self::assertCount(7, $classifiers);
+        self::assertSame('tollfree_us', $classifiers[0]->key);
+        self::assertSame('US TollFree', $classifiers[0]->friendlyName);
+        self::assertFalse($classifiers[0]->emergency);
+        self::assertSame('emergency', $classifiers[2]->key);
+        self::assertTrue($classifiers[2]->emergency);
+        self::assertSame(
+            '/v2/accounts/account-1/phone_numbers/classifiers',
+            $this->history[0]['request']->getUri()->getPath(),
+        );
+    }
+
+    public function test_it_rejects_a_number_classifier_without_a_friendly_name(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => ['unknown' => ['regex' => '^(.*)$']]]),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+        $this->expectExceptionMessage('friendly name');
+
+        $client->classifiers('account-1');
+    }
+
     /** @param list<Response> $responses */
     private function clientWithResponses(array $responses, int $pageSize = 200): PhoneNumberResourceClient
     {

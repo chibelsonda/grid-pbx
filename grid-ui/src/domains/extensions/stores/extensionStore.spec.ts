@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { extensionApi, type ExtensionPage } from '../api/extensionApi'
+import { defaultExtensionUserConfiguration } from '../extensionForm'
 import type {
   ExtensionCreate,
   ExtensionDeletionPreview,
@@ -51,6 +52,7 @@ const extension: ExtensionDetail = {
   is_managed: true,
   sync_status: 'healthy',
   last_synced_at: '2026-08-28T10:00:00+08:00',
+  configuration: defaultExtensionUserConfiguration(),
   devices: [],
   voicemail_boxes: [],
   callflows: [],
@@ -64,6 +66,7 @@ const input: ExtensionUpdate = {
   extension: '1002',
   timezone: 'Asia/Manila',
   is_enabled: true,
+  ...defaultExtensionUserConfiguration(),
   voicemail: {
     enabled: false,
     notification_emails: [],

@@ -7,6 +7,7 @@ use App\Domains\CallRouting\Services\CallflowReferenceResolver;
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\LineKeys\Services\LineKeyProjectionService;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Contracts\SwitchExtensionGateway;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
@@ -32,6 +33,7 @@ class ExtensionSynchronizationService
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly VoicemailGreetingProjectionService $voicemailGreetingProjection,
         private readonly CallflowReferenceResolver $callflowReferences,
+        private readonly LineKeyProjectionService $lineKeyProjection,
     ) {}
 
     public function handle(SyncRun $run): void
@@ -98,6 +100,14 @@ class ExtensionSynchronizationService
             unset($device);
 
             $deletedCount += $this->synchronizeProjection(SwitchDevice::class, $account->getKey(), $devices, $syncedAt);
+            SwitchDevice::query()
+                ->where('switch_account_id', $account->getKey())
+                ->get()
+                ->each(function (SwitchDevice $device): void {
+                    if (is_array($device->switch_json)) {
+                        $this->lineKeyProjection->project($device, $device->switch_json);
+                    }
+                });
             $deletedCount += $this->synchronizeProjection(SwitchVoicemailBox::class, $account->getKey(), $this->associateExtensions($voicemailRecords, $extensionIdsByResource), $syncedAt);
             $voicemailBoxIdsByResource = SwitchVoicemailBox::query()
                 ->where('switch_account_id', $account->getKey())
@@ -326,6 +336,7 @@ class ExtensionSynchronizationService
             'name' => $this->stringValue($device['name'] ?? null),
             'device_type' => $this->stringValue($device['device_type'] ?? null),
             'make' => $this->stringValue($device['make'] ?? Arr::get($device, 'provision.endpoint_brand')),
+            'endpoint_family' => $this->stringValue(Arr::get($device, 'provision.endpoint_family')),
             'model' => $this->stringValue($device['model'] ?? Arr::get($device, 'provision.endpoint_model')),
             'mac_address' => $this->stringValue($device['mac_address'] ?? Arr::get($device, 'provision.mac_address')),
             'is_enabled' => (bool) ($device['enabled'] ?? true),

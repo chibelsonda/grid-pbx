@@ -13,6 +13,7 @@ use App\Domains\Extensions\Exceptions\ExtensionUpdateException;
 use App\Domains\Extensions\Models\ExtensionLifecycleOperation;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\LineKeys\Services\LineKeyProjectionService;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
@@ -33,6 +34,7 @@ class ExtensionProvisioningService
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly CallflowReferenceResolver $callflowReferences,
         private readonly AuditService $audit,
+        private readonly LineKeyProjectionService $lineKeyProjection,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -525,6 +527,7 @@ class ExtensionProvisioningService
             'name' => $this->stringValue($snapshot['name'] ?? null),
             'device_type' => $this->stringValue($snapshot['device_type'] ?? null),
             'make' => $this->stringValue($snapshot['make'] ?? Arr::get($snapshot, 'provision.endpoint_brand')),
+            'endpoint_family' => $this->stringValue(Arr::get($snapshot, 'provision.endpoint_family')),
             'model' => $this->stringValue($snapshot['model'] ?? Arr::get($snapshot, 'provision.endpoint_model')),
             'mac_address' => $this->stringValue($snapshot['mac_address'] ?? Arr::get($snapshot, 'provision.mac_address')),
             'is_enabled' => (bool) ($snapshot['enabled'] ?? true),
@@ -539,6 +542,7 @@ class ExtensionProvisioningService
         ]);
         $device->deleted_at = null;
         $device->save();
+        $this->lineKeyProjection->project($device, $snapshot);
 
         return $device;
     }

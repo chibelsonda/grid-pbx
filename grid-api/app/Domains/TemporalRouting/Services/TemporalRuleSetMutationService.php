@@ -13,7 +13,7 @@ use Throwable;
 
 class TemporalRuleSetMutationService
 {
-    public function __construct(private readonly SwitchTemporalRuleSetGateway $gateway, private readonly TemporalRuleSetProjectionService $projection, private readonly AuditService $audit) {}
+    public function __construct(private readonly SwitchTemporalRuleSetGateway $gateway, private readonly TemporalRuleSetProjectionService $projection, private readonly TemporalRuleStatusService $status, private readonly AuditService $audit) {}
 
     /** @param array<string, mixed> $data */
     public function create(SwitchAccount $account, User $actor, array $data, ?string $ip = null): SwitchTemporalRuleSet
@@ -29,6 +29,7 @@ class TemporalRuleSetMutationService
 
             return DB::transaction(function () use ($account, $actor, $ip, $snapshot) {
                 $set = $this->projection->project($account, $snapshot);
+                $set->setAttribute('effective_status', $this->status->ruleSet($account, $set));
                 $this->audit->record($actor, $account, 'temporal_rule_set.created', 'succeeded', $set->switch_resource_id, [], $ip, 'temporal_rule_set');
 
                 return $set;
@@ -53,6 +54,7 @@ class TemporalRuleSetMutationService
 
             return DB::transaction(function () use ($account, $actor, $ip, $snapshot) {
                 $updated = $this->projection->project($account, $snapshot);
+                $updated->setAttribute('effective_status', $this->status->ruleSet($account, $updated));
                 $this->audit->record($actor, $account, 'temporal_rule_set.updated', 'succeeded', $updated->switch_resource_id, [], $ip, 'temporal_rule_set');
 
                 return $updated;
@@ -104,6 +106,6 @@ class TemporalRuleSetMutationService
             }
         }
 
-return false;
+        return false;
     }
 }

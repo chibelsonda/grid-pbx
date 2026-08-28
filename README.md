@@ -4,7 +4,7 @@ This repository contains the new GridPBX management application:
 
 - `grid-api`: Laravel API with Sanctum authentication and MySQL persistence
 - `grid-api-switch`: framework-independent PHP client boundary for Switch
-- `grid-ui`: Vue 3, TypeScript, Pinia, Vue Router, and Tailwind CSS application
+- `grid-ui`: Vue 3, TypeScript, Pinia, Vue Router, Headless UI, and Tailwind CSS application
 - Domain-driven modules in the API and domain-oriented feature modules in the UI
 - MySQL 8.4 and Redis 7 for the new application
 
@@ -16,6 +16,8 @@ The implementation roadmap and architecture decisions live in
 [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md). The PBX capability
 catalog and delivery priorities live in
 [docs/SWITCH_FEATURE_ROADMAP.md](docs/SWITCH_FEATURE_ROADMAP.md).
+The public Switch field coverage and intentional exclusions live in
+[docs/SWITCH_SCHEMA_PARITY.md](docs/SWITCH_SCHEMA_PARITY.md).
 
 All published ports bind to `127.0.0.1`.
 
@@ -135,6 +137,20 @@ quantities, current limits, account standing, billing-cycle metadata, and
 aggregate billing impact. Payment tokens, billing identifiers, and bookkeeper
 configuration are redacted. Plan assignment, limit changes, manual quantities,
 top-ups, and charge acceptance are not exposed by GridPBX.
+
+Line-key inventory and safe provisioning previews are available from the
+projected device `provision.combo_keys` and `provision.feature_keys` data.
+Applying a line-key map can cause the external provisioner to update a physical
+phone, so local and new deployments keep it disabled:
+
+```env
+SWITCH_LINE_KEY_MUTATIONS_ENABLED=false
+```
+
+Enable it only after confirming the target vendor/model mappings and testing a
+real device. The API still requires a device endpoint brand and model and never
+returns SIP credentials, provisioning infrastructure, templates, or generated
+phone configuration.
 
 ## Stop and inspect
 

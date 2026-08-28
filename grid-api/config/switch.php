@@ -10,4 +10,5 @@ return [
     'recording_import_window_days' => (int) env('SWITCH_RECORDING_IMPORT_WINDOW_DAYS', 31),
     'fax_page_size' => (int) env('SWITCH_FAX_PAGE_SIZE', 200),
     'fax_import_window_days' => (int) env('SWITCH_FAX_IMPORT_WINDOW_DAYS', 31),
+    'line_key_mutations_enabled' => (bool) env('SWITCH_LINE_KEY_MUTATIONS_ENABLED', false),
 ];

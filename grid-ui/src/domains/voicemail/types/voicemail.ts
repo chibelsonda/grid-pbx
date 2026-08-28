@@ -19,6 +19,22 @@ export type VoicemailGreeting = {
   last_synced_at: string | null
 }
 
+export type VoicemailBoxConfiguration = {
+  check_if_owner: boolean
+  delete_after_notify: boolean
+  include_message_on_notify: boolean
+  include_transcription_on_notify: boolean
+  media_extension: 'mp3' | 'mp4' | 'wav'
+  not_configurable: boolean
+  oldest_message_first: boolean
+  save_after_notify: boolean
+  skip_envelope: boolean
+  skip_greeting: boolean
+  skip_instructions: boolean
+  is_voicemail_ff_rw_enabled: boolean
+  seek_duration_ms: number
+}
+
 export type VoicemailBox = {
   id: string
   name: string | null
@@ -28,6 +44,7 @@ export type VoicemailBox = {
   transcribe: boolean
   require_pin: boolean
   is_setup: boolean | null
+  configuration: VoicemailBoxConfiguration
   message_counts: {
     total: number
     new: number
@@ -63,7 +80,7 @@ export type VoicemailMessageBulkResult = {
   failed: Array<{ id: string; reason: string }>
 }
 
-export type VoicemailBoxInput = {
+export type VoicemailBoxInput = VoicemailBoxConfiguration & {
   name: string
   mailbox: string
   assigned_extension_id: string | null
