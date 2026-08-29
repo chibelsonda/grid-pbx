@@ -2,6 +2,7 @@
 
 namespace App\Domains\Extensions\Gateways;
 
+use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Extensions\Contracts\SwitchExtensionProvisioningGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use GridPbx\Switch\Domains\Accounts\AccountResource;
@@ -10,10 +11,27 @@ use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use GridPbx\Switch\Domains\Callflows\Dto\ManagedExtensionCallflowWriteData;
-use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
-use GridPbx\Switch\Domains\Devices\Dto\DeviceWriteData;
+use GridPbx\Switch\Domains\Users\Dto\CallerId\UserCallerIdData;
+use GridPbx\Switch\Domains\Users\Dto\CallerId\UserCallerIdScopeData;
+use GridPbx\Switch\Domains\Users\Dto\CallForwarding\UserCallForwardData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserCallRecordingData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserRecordingParametersData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserRecordingRulesData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserRecordingSourceData;
+use GridPbx\Switch\Domains\Users\Dto\CallRestrictions\UserCallRestrictionsData;
 use GridPbx\Switch\Domains\Users\Dto\Credentials\UserCredentialsData;
 use GridPbx\Switch\Domains\Users\Dto\Hotdesk\UserHotdeskData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserMediaData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserMusicOnHoldData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserPronouncedNameData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserRingtonesData;
+use GridPbx\Switch\Domains\Users\Dto\Metaflows\UserMetaflowsData;
+use GridPbx\Switch\Domains\Users\Dto\Profile\UserProfileAddressData;
+use GridPbx\Switch\Domains\Users\Dto\Profile\UserProfileData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserDialPlanData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserDialPlanRuleData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserFormatterRuleData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserFormattersData;
 use GridPbx\Switch\Domains\Users\Dto\UserAdvancedData;
 use GridPbx\Switch\Domains\Users\Dto\UserWriteData;
 use GridPbx\Switch\Domains\Users\UserResourceClient;
@@ -25,7 +43,7 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
     public function __construct(
         private readonly UserResourceClient $users,
         private readonly VoicemailBoxResourceClient $voicemailBoxes,
-        private readonly DeviceResourceClient $devices,
+        private readonly SwitchDeviceGateway $devices,
         private readonly CallflowResourceClient $callflows,
         private readonly AccountResourceClient $resources,
     ) {}
@@ -75,7 +93,292 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             doNotDisturb: $data['do_not_disturb']['enabled'] ?? null,
             excludeFromContactList: $data['contact_list']['exclude'] ?? null,
             outboundPrivacy: $data['caller_id_options']['outbound_privacy'] ?? null,
+            metaflows: isset($data['metaflows']) && is_array($data['metaflows'])
+                ? new UserMetaflowsData(
+                    bindingDigit: $data['metaflows']['binding_digit'] ?? null,
+                    digitTimeout: $data['metaflows']['digit_timeout'] ?? null,
+                    listenOn: $data['metaflows']['listen_on'] ?? null,
+                    preservedOptions: is_array($data['metaflows']['preserved_options'] ?? null)
+                        ? $data['metaflows']['preserved_options']
+                        : [],
+                )
+                : null,
+            callerId: $this->userCallerIdData($data['caller_id'] ?? null),
+            callForward: $this->userCallForwardData($data['call_forward'] ?? null),
+            callRestrictions: $this->userCallRestrictionsData($data['call_restriction'] ?? null),
+            callRecording: $this->userCallRecordingData($data['call_recording'] ?? null),
+            media: $this->userMediaData($data['media'] ?? null),
+            musicOnHold: $this->userMusicOnHoldData($data['music_on_hold'] ?? null),
+            ringtones: $this->userRingtonesData($data['ringtones'] ?? null),
+            dialPlan: $this->userDialPlanData($data['dial_plan'] ?? null),
+            formatters: $this->userFormattersData($data['formatters'] ?? null),
+            profile: $this->userProfileData($data['profile'] ?? null),
+            pronouncedName: $this->userPronouncedNameData($data['pronounced_name'] ?? null),
+            preservedOptions: is_array($data['advanced_preserved_options'] ?? null)
+                ? $data['advanced_preserved_options']
+                : [],
         );
+    }
+
+    private function userDialPlanData(mixed $value): ?UserDialPlanData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserDialPlanData(
+            system: (array) ($value['system'] ?? []),
+            rules: array_map(
+                static fn (array $rule): UserDialPlanRuleData => new UserDialPlanRuleData(
+                    pattern: $rule['pattern'],
+                    description: $rule['description'] ?? null,
+                    prefix: $rule['prefix'] ?? null,
+                    suffix: $rule['suffix'] ?? null,
+                    preservedOptions: $rule['preserved_options'] ?? [],
+                ),
+                (array) ($value['rules'] ?? []),
+            ),
+        );
+    }
+
+    private function userFormattersData(mixed $value): ?UserFormattersData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserFormattersData(array_map(
+            static fn (array $formatter): UserFormatterRuleData => new UserFormatterRuleData(
+                field: $formatter['field'],
+                direction: $formatter['direction'] ?? null,
+                matchInviteFormat: $formatter['match_invite_format'] ?? null,
+                prefix: $formatter['prefix'] ?? null,
+                regex: $formatter['regex'] ?? null,
+                strip: $formatter['strip'] ?? null,
+                suffix: $formatter['suffix'] ?? null,
+                value: $formatter['value'] ?? null,
+                preservedOptions: $formatter['preserved_options'] ?? [],
+            ),
+            $value,
+        ));
+    }
+
+    private function userProfileData(mixed $value): ?UserProfileData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserProfileData(
+            addresses: array_map(
+                static fn (array $address): UserProfileAddressData => new UserProfileAddressData(
+                    address: $address['address'],
+                    types: $address['types'] ?? [],
+                ),
+                (array) ($value['addresses'] ?? []),
+            ),
+            assistant: $this->nullableString($value['assistant'] ?? null),
+            birthday: $this->nullableString($value['birthday'] ?? null),
+            nicknames: (array) ($value['nicknames'] ?? []),
+            note: $this->nullableString($value['note'] ?? null),
+            role: $this->nullableString($value['role'] ?? null),
+            sortString: $this->nullableString($value['sort_string'] ?? null),
+            title: $this->nullableString($value['title'] ?? null),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userPronouncedNameData(mixed $value): ?UserPronouncedNameData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserPronouncedNameData(
+            mediaId: $this->nullableString($value['media_id'] ?? null),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userMediaData(mixed $value): ?UserMediaData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserMediaData(
+            audioCodecs: (array) data_get($value, 'audio.codecs', []),
+            videoCodecs: (array) data_get($value, 'video.codecs', []),
+            bypassMedia: $value['bypass_media'] ?? false,
+            enforceEncryption: (bool) data_get($value, 'encryption.enforce_security', false),
+            encryptionMethods: (array) data_get($value, 'encryption.methods', []),
+            faxOption: (bool) ($value['fax_option'] ?? false),
+            ignoreEarlyMedia: (bool) ($value['ignore_early_media'] ?? false),
+            progressTimeout: isset($value['progress_timeout']) ? (int) $value['progress_timeout'] : null,
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userMusicOnHoldData(mixed $value): ?UserMusicOnHoldData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserMusicOnHoldData(
+            mediaId: $this->nullableString($value['media_id'] ?? null),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userRingtonesData(mixed $value): ?UserRingtonesData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserRingtonesData(
+            internal: $this->nullableString($value['internal'] ?? null),
+            external: $this->nullableString($value['external'] ?? null),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userCallerIdData(mixed $value): ?UserCallerIdData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserCallerIdData(
+            internal: $this->userCallerIdScopeData($value['internal'] ?? null),
+            external: $this->userCallerIdScopeData($value['external'] ?? null),
+            emergency: $this->userCallerIdScopeData($value['emergency'] ?? null),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userCallerIdScopeData(mixed $value): UserCallerIdScopeData
+    {
+        $value = is_array($value) ? $value : [];
+
+        return new UserCallerIdScopeData(
+            name: $this->nullableString($value['name'] ?? null),
+            number: $this->nullableString($value['number'] ?? null),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userCallForwardData(mixed $value): ?UserCallForwardData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserCallForwardData(
+            enabled: (bool) ($value['enabled'] ?? false),
+            number: $this->nullableString($value['number'] ?? null),
+            directCallsOnly: (bool) ($value['direct_calls_only'] ?? false),
+            failover: (bool) ($value['failover'] ?? false),
+            ignoreEarlyMedia: (bool) ($value['ignore_early_media'] ?? true),
+            keepCallerId: (bool) ($value['keep_caller_id'] ?? true),
+            requireKeypress: (bool) ($value['require_keypress'] ?? true),
+            substitute: (bool) ($value['substitute'] ?? true),
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function userCallRestrictionsData(mixed $value): ?UserCallRestrictionsData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        $preserved = is_array($value['preserved_options'] ?? null)
+            ? $value['preserved_options']
+            : [];
+        unset($value['preserved_options']);
+
+        return new UserCallRestrictionsData(
+            actions: array_map(
+                static fn (array $restriction): string => (string) $restriction['action'],
+                $value,
+            ),
+            preservedOptions: $preserved,
+        );
+    }
+
+    private function userCallRecordingData(mixed $value): ?UserCallRecordingData
+    {
+        if (! is_array($value)) {
+            return null;
+        }
+
+        return new UserCallRecordingData(
+            account: $this->userRecordingRulesData($value['account'] ?? null),
+            endpoint: $this->userRecordingRulesData($value['endpoint'] ?? null),
+        );
+    }
+
+    private function userRecordingRulesData(mixed $value): UserRecordingRulesData
+    {
+        $value = is_array($value) ? $value : [];
+
+        return new UserRecordingRulesData(
+            any: $this->userRecordingSourceData($value['any'] ?? null),
+            inbound: $this->userRecordingSourceData($value['inbound'] ?? null),
+            outbound: $this->userRecordingSourceData($value['outbound'] ?? null),
+        );
+    }
+
+    private function userRecordingSourceData(mixed $value): UserRecordingSourceData
+    {
+        $value = is_array($value) ? $value : [];
+
+        return new UserRecordingSourceData(
+            any: $this->userRecordingParametersData($value['any'] ?? null),
+            onnet: $this->userRecordingParametersData($value['onnet'] ?? null),
+            offnet: $this->userRecordingParametersData($value['offnet'] ?? null),
+        );
+    }
+
+    private function userRecordingParametersData(mixed $value): UserRecordingParametersData
+    {
+        $value = is_array($value) ? $value : [];
+
+        return new UserRecordingParametersData(
+            enabled: (bool) ($value['enabled'] ?? false),
+            format: is_string($value['format'] ?? null) ? $value['format'] : 'mp3',
+            minimumSeconds: is_int($value['record_min_sec'] ?? null) ? $value['record_min_sec'] : null,
+            recordOnAnswer: (bool) ($value['record_on_answer'] ?? false),
+            recordOnBridge: (bool) ($value['record_on_bridge'] ?? false),
+            sampleRate: is_int($value['record_sample_rate'] ?? null) ? $value['record_sample_rate'] : null,
+            timeLimit: is_int($value['time_limit'] ?? null) ? $value['time_limit'] : null,
+            preservedOptions: is_array($value['preserved_options'] ?? null)
+                ? $value['preserved_options']
+                : [],
+        );
+    }
+
+    private function nullableString(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /** @param array<string, mixed> $data */
@@ -160,22 +463,12 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
 
     public function createDevice(SwitchAccount $account, array $data): array
     {
-        return $this->devices->create($account->switch_account_id, new DeviceWriteData(
-            name: $data['name'],
-            deviceType: $data['device_type'],
-            enabled: true,
-            ownerId: $data['owner_id'],
-            make: $data['make'] ?? null,
-            model: $data['model'] ?? null,
-            macAddress: $data['mac_address'] ?? null,
-            sipUsername: $data['sip_username'] ?? null,
-            sipPassword: $data['sip_password'] ?? null,
-        ))->toArray();
+        return $this->devices->create($account, $data);
     }
 
     public function deleteDevice(SwitchAccount $account, string $resourceId): void
     {
-        $this->devices->delete($account->switch_account_id, $resourceId);
+        $this->devices->delete($account, $resourceId);
     }
 
     public function createManagedCallflow(

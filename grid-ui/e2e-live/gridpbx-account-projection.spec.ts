@@ -58,6 +58,28 @@ test('shows the safe account projection and explicit settings boundaries', async
           unresolved: false,
         },
       },
+      call_restriction: { international: { action: 'deny' } },
+      call_recording: {},
+      dial_plan: { system: ['north_america'], rules: [] },
+      formatters: [],
+      preflow: { callflow_id: null, name: null, unresolved: false },
+      metaflows: {
+        binding_digit: '*',
+        digit_timeout: 2000,
+        listen_on: 'both',
+        number_flow_count: 1,
+        pattern_flow_count: 1,
+        actions: [
+          {
+            trigger_type: 'number',
+            trigger: '3',
+            module: 'hangup',
+            data: {},
+            children: [],
+          },
+        ],
+        locked_action_count: 1,
+      },
     },
     options: {
       caller_id_numbers: [
@@ -80,11 +102,44 @@ test('shows the safe account projection and explicit settings boundaries', async
     configuration_boundaries: {
       identity_defaults: 'safe_fields_available',
       calling_defaults: 'safe_fields_available',
-      advanced_routing: 'planned',
+      advanced_routing: 'guided_rules_available',
       enable_disable: 'implemented_confirmed',
       billing_topup: 'provider_required',
     },
   })
+  await page.route('**/api/v1/accounts/*/settings-options', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          restrictions: [
+            { key: 'international', label: 'International', emergency: false },
+            { key: 'emergency', label: 'Emergency', emergency: true },
+          ],
+          callflows: [
+            {
+              id: '20000000-0000-4000-8000-000000000001',
+              name: 'Main inbound route',
+              description: '2000',
+            },
+          ],
+          metaflow_resources: {
+            media: [],
+            callflows: [
+              {
+                id: '20000000-0000-4000-8000-000000000001',
+                name: 'Main inbound route',
+                description: '2000',
+              },
+            ],
+            devices: [],
+            extensions: [],
+          },
+        },
+      }),
+    }),
+  )
   await page.route('**/api/v1/accounts/*/status', (route) => {
     statusPayload = route.request().postDataJSON() as Record<string, unknown>
     return route.fulfill({
@@ -119,6 +174,16 @@ test('shows the safe account projection and explicit settings boundaries', async
   await expect(page.getByText('Projected resources')).toBeVisible()
   await expect(page.getByText('Operational and billing controls')).toBeVisible()
   await page.getByRole('button', { name: 'Edit settings' }).click()
+  await expect(page.getByText('Account call restrictions')).toBeVisible()
+  await expect(page.getByText('Call-recording defaults')).toBeVisible()
+  await expect(page.getByText('Dial plan and formatters')).toBeVisible()
+  await expect(page.getByText('Preflow and in-call features')).toBeVisible()
+  await expect(page.getByText('1 number trigger(s) and 1 pattern trigger(s)')).toBeVisible()
+  await expect(page.getByText('Guided action trees')).toBeVisible()
+  await expect(page.getByText('1 unsupported or unprojected action tree(s)')).toBeVisible()
+  await page.getByRole('button', { name: 'Account preflow' }).click()
+  await page.getByRole('option', { name: /Main inbound route/ }).click()
+  await page.getByRole('switch', { name: 'Off-net' }).first().click()
   const name = page.getByRole('textbox', { name: 'Account name' })
   await name.fill('')
   await page.getByRole('button', { name: 'Save settings' }).click()
@@ -138,6 +203,33 @@ test('shows the safe account projection and explicit settings boundaries', async
       emergency: {
         phone_number_id: '10000000-0000-4000-8000-000000000002',
       },
+    },
+    call_restriction: {
+      international: { action: 'deny' },
+      emergency: { action: 'inherit' },
+    },
+    call_recording: {
+      account: { any: { offnet: { enabled: true, format: 'mp3' } } },
+    },
+    dial_plan: { system: ['north_america'], rules: [] },
+    formatters: [],
+    preflow: {
+      callflow_id: '20000000-0000-4000-8000-000000000001',
+      preserve_callflow: false,
+    },
+    metaflows: {
+      binding_digit: '*',
+      digit_timeout: 2000,
+      listen_on: 'both',
+      actions: [
+        {
+          trigger_type: 'number',
+          trigger: '3',
+          module: 'hangup',
+          data: {},
+          children: [],
+        },
+      ],
     },
   })
   await page.getByRole('button', { name: 'Disable account' }).click()

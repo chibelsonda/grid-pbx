@@ -60,8 +60,17 @@ class SwitchExtension extends Model
         return $this->hasMany(SwitchDevice::class, 'switch_extension_id', 'extension_id');
     }
 
-    /** @return HasMany<SwitchFaxBox, $this> */ public function faxBoxes(): HasMany { return $this->hasMany(SwitchFaxBox::class, 'owner_extension_id', 'extension_id'); }
-    /** @return HasMany<SwitchFax, $this> */ public function faxes(): HasMany { return $this->hasMany(SwitchFax::class, 'switch_extension_id', 'extension_id'); }
+    /** @return HasMany<SwitchFaxBox, $this> */
+    public function faxBoxes(): HasMany
+    {
+        return $this->hasMany(SwitchFaxBox::class, 'owner_extension_id', 'extension_id');
+    }
+
+    /** @return HasMany<SwitchFax, $this> */
+    public function faxes(): HasMany
+    {
+        return $this->hasMany(SwitchFax::class, 'switch_extension_id', 'extension_id');
+    }
 
     /** @return HasMany<SwitchVoicemailBox, $this> */
     public function voicemailBoxes(): HasMany

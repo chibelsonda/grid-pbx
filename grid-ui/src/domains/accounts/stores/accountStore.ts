@@ -1,14 +1,34 @@
 import { defineStore } from 'pinia'
 import { accountApi } from '../api/accountApi'
 import axios from 'axios'
-import type { Account, AccountDetail, AccountSettingsInput } from '../types/account'
+import type {
+  Account,
+  AccountDetail,
+  AccountSettingsInput,
+  AccountSettingsOptions,
+} from '../types/account'
 
 const storageKey = 'gridpbx:selected-account'
+
+function emptySettingsOptions(): AccountSettingsOptions {
+  return {
+    restrictions: [],
+    callflows: [],
+    metaflow_resources: {
+      media: [],
+      callflows: [],
+      devices: [],
+      extensions: [],
+    },
+  }
+}
 
 export const useAccountStore = defineStore('accounts', {
   state: () => ({
     accounts: [] as Account[],
     detail: null as AccountDetail | null,
+    settingsOptions: emptySettingsOptions(),
+    settingsOptionsError: null as string | null,
     selectedId: localStorage.getItem(storageKey),
     loading: false,
     detailLoading: false,
@@ -39,6 +59,8 @@ export const useAccountStore = defineStore('accounts', {
     select(accountId: string | null): void {
       this.selectedId = accountId
       this.detail = null
+      this.settingsOptions = emptySettingsOptions()
+      this.settingsOptionsError = null
       this.detailError = null
       this.clearMutationError()
 
@@ -52,9 +74,22 @@ export const useAccountStore = defineStore('accounts', {
     async loadDetail(accountId: string): Promise<void> {
       this.detailLoading = true
       this.detailError = null
+      this.settingsOptionsError = null
 
       try {
-        this.detail = await accountApi.detail(accountId)
+        const [detailResult, optionsResult] = await Promise.allSettled([
+          accountApi.detail(accountId),
+          accountApi.settingsOptions(accountId),
+        ])
+
+        if (detailResult.status === 'rejected') throw detailResult.reason
+        this.detail = detailResult.value
+
+        if (optionsResult.status === 'fulfilled') {
+          this.settingsOptions = optionsResult.value
+        } else {
+          this.settingsOptionsError = 'Live Switch settings choices are temporarily unavailable.'
+        }
       } catch (error) {
         this.detailError = axios.isAxiosError(error)
           ? (error.response?.data?.message ?? 'Unable to load account details.')

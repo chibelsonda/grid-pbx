@@ -45,32 +45,10 @@ export type DeviceFormatter = {
   value: string | null
 }
 
-export type DeviceMetaflowModule =
-  | 'audio_level'
-  | 'break'
-  | 'callflow'
-  | 'hangup'
-  | 'hold_control'
-  | 'move'
-  | 'play'
-  | 'record_call'
-  | 'resume'
-  | 'say'
-  | 'sound_touch'
-  | 'transfer'
-  | 'tts'
-
-export type DeviceMetaflowNode = {
-  module: DeviceMetaflowModule
-  data: Record<string, string | number | boolean | null>
-  children: DeviceMetaflowChild[]
-}
-
-export type DeviceMetaflowChild = DeviceMetaflowNode & { key: string }
-export type DeviceMetaflowAction = DeviceMetaflowNode & {
-  trigger_type: 'number' | 'pattern'
-  trigger: string
-}
+export type DeviceMetaflowModule = MetaflowModule
+export type DeviceMetaflowNode = MetaflowNode
+export type DeviceMetaflowChild = MetaflowChild
+export type DeviceMetaflowAction = MetaflowAction
 
 export type DeviceRecordingParameters = {
   enabled: boolean
@@ -375,3 +353,9 @@ export type DeviceMetaflowResources = {
   callflows: Array<{ id: string; name: string | null; description: string | null }>
   devices: Array<{ id: string; name: string | null }>
 }
+import type {
+  MetaflowAction,
+  MetaflowChild,
+  MetaflowModule,
+  MetaflowNode,
+} from '@/shared/switch/metaflows/types'

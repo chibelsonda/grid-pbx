@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { defaultExtensionHotdeskInput, defaultExtensionUserConfiguration } from '../extensionForm'
+import {
+  defaultExtensionAdvancedCallingConfiguration,
+  defaultExtensionHotdeskInput,
+  defaultExtensionUserConfiguration,
+  hydrateExtensionAdvancedCalling,
+} from '../extensionForm'
 import {
   extensionCreateSchema,
   extensionUpdateSchema,
@@ -31,6 +36,13 @@ function validInput() {
   }
 }
 
+function validUpdateInput() {
+  return {
+    ...validInput(),
+    ...hydrateExtensionAdvancedCalling(defaultExtensionAdvancedCallingConfiguration(), []),
+  }
+}
+
 describe('extension form schemas', () => {
   it('accepts valid create and edit payloads', () => {
     const input = validInput()
@@ -40,32 +52,134 @@ describe('extension form schemas', () => {
         ...input,
         device: {
           enabled: false,
-          name: null,
-          device_type: null,
-          mac_address: null,
-          sip_username: null,
-          sip_password: null,
+          input: null,
         },
       }).success,
     ).toBe(true)
     expect(
-      extensionUpdateSchema.safeParse({ ...input, voicemail: { ...input.voicemail, pin: null } })
-        .success,
+      extensionUpdateSchema.safeParse({
+        ...validUpdateInput(),
+        voicemail: { ...input.voicemail, pin: null },
+      }).success,
     ).toBe(true)
   })
 
-  it('rejects invalid identity, mailbox, and initial-device fields', () => {
+  it('rejects unsafe User metaflow actions', () => {
+    const result = extensionUpdateSchema.safeParse({
+      ...validUpdateInput(),
+      metaflows: {
+        binding_digit: '*',
+        digit_timeout: 2000,
+        listen_on: 'both',
+        actions: [
+          {
+            trigger_type: 'pattern',
+            trigger: '(?R)',
+            module: 'play',
+            data: { media_id: 'private-switch-id' },
+            children: [],
+          },
+        ],
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      expect.arrayContaining(['metaflows.actions.0.trigger', 'metaflows.actions.0.data.media_id']),
+    )
+  })
+
+  it('rejects invalid identity, mailbox, and missing initial-device configuration', () => {
     const result = extensionCreateSchema.safeParse({
       ...validInput(),
       extension: '1A',
       voicemail: { ...validInput().voicemail, pin: null },
       device: {
         enabled: true,
-        name: null,
-        device_type: 'sip_device',
-        mac_address: 'invalid',
-        sip_username: null,
-        sip_password: 'short',
+        input: null,
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+
+    expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      expect.arrayContaining(['extension', 'voicemail.pin', 'device.input']),
+    )
+  })
+
+  it('rejects unsupported caller ID privacy modes', () => {
+    const result = extensionUpdateSchema.safeParse({
+      ...validUpdateInput(),
+      caller_id_options: { outbound_privacy: 'secret' },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('attaches an enabled forwarding error to the destination alongside other errors', () => {
+    const result = extensionUpdateSchema.safeParse({
+      ...validUpdateInput(),
+      first_name: '',
+      call_forward: {
+        ...validUpdateInput().call_forward,
+        enabled: true,
+        number: null,
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+
+    expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      expect.arrayContaining(['first_name', 'call_forward.number']),
+    )
+  })
+
+  it('rejects duplicate codecs and invalid User media values', () => {
+    const result = extensionUpdateSchema.safeParse({
+      ...validUpdateInput(),
+      media: {
+        ...validUpdateInput().media,
+        audio: { codecs: ['PCMU', 'PCMU'] },
+        progress_timeout: 3601,
+      },
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+
+    expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      expect.arrayContaining(['media.audio.codecs', 'media.progress_timeout']),
+    )
+  })
+
+  it('rejects unsafe advanced User routing and incomplete profile addresses', () => {
+    const result = extensionUpdateSchema.safeParse({
+      ...validUpdateInput(),
+      dial_plan: {
+        system: [],
+        rules: [
+          { pattern: '(?R)', description: null, prefix: null, suffix: null },
+          { pattern: '(?R)', description: null, prefix: null, suffix: null },
+        ],
+      },
+      formatters: [
+        {
+          field: 'request-header',
+          direction: 'both',
+          match_invite_format: false,
+          prefix: null,
+          regex: '(?R)',
+          strip: false,
+          suffix: null,
+          value: null,
+        },
+      ],
+      profile: {
+        ...validUpdateInput().profile,
+        addresses: [{ address: '', types: ['work'] }],
       },
     })
 
@@ -74,49 +188,42 @@ describe('extension form schemas', () => {
 
     expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
       expect.arrayContaining([
-        'extension',
-        'voicemail.pin',
-        'device.name',
-        'device.mac_address',
-        'device.sip_password',
+        'dial_plan.rules.0.pattern',
+        'dial_plan.rules.1.pattern',
+        'formatters.0.field',
+        'formatters.0.regex',
+        'profile.addresses.0.address',
       ]),
     )
   })
 
-  it('rejects unsupported caller ID privacy modes', () => {
-    const result = extensionUpdateSchema.safeParse({
-      ...validInput(),
-      caller_id_options: { outbound_privacy: 'secret' },
-    })
-
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects full-editor device types and hidden starter credentials', () => {
-    const unsupportedType = extensionCreateSchema.safeParse({
+  it('accepts a configured full-editor device and rejects hidden disabled configuration', () => {
+    const configuredDevice = extensionCreateSchema.safeParse({
       ...validInput(),
       device: {
         enabled: true,
-        name: 'Mobile forwarding',
-        device_type: 'cellphone',
-        mac_address: null,
-        sip_username: null,
-        sip_password: null,
+        input: {
+          name: 'Mobile forwarding',
+          device_type: 'cellphone',
+          is_enabled: true,
+          assigned_extension_id: null,
+        },
       },
     })
     const disabledCredentials = extensionCreateSchema.safeParse({
       ...validInput(),
       device: {
         enabled: false,
-        name: null,
-        device_type: null,
-        mac_address: null,
-        sip_username: 'alice-1001',
-        sip_password: 'a-long-random-secret',
+        input: {
+          name: 'Hidden device',
+          device_type: 'sip_device',
+          is_enabled: true,
+          assigned_extension_id: null,
+        },
       },
     })
 
-    expect(unsupportedType.success).toBe(false)
+    expect(configuredDevice.success).toBe(true)
     expect(disabledCredentials.success).toBe(false)
   })
 
@@ -127,26 +234,22 @@ describe('extension form schemas', () => {
       password_confirmation: null,
       device: {
         enabled: false,
-        name: null,
-        device_type: null,
-        mac_address: null,
-        sip_username: null,
-        sip_password: null,
+        input: null,
       },
     })
     const unchangedLogin = extensionUpdateSchemaFor('alice.operator').safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       password: null,
       password_confirmation: null,
     })
     const changedLogin = extensionUpdateSchemaFor('alice.operator').safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       username: 'alice.changed',
       password: null,
       password_confirmation: null,
     })
     const mismatchedPassword = extensionUpdateSchemaFor('alice.operator').safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       password_confirmation: 'different-password',
     })
 
@@ -158,7 +261,7 @@ describe('extension form schemas', () => {
 
   it('requires explicit confirmation before removing configured login credentials', () => {
     const unconfirmed = extensionUpdateSchemaFor('alice.operator').safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       username: null,
       password: null,
       password_confirmation: null,
@@ -166,7 +269,7 @@ describe('extension form schemas', () => {
       clear_credentials: false,
     })
     const confirmed = extensionUpdateSchemaFor('alice.operator').safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       username: null,
       password: null,
       password_confirmation: null,
@@ -191,11 +294,7 @@ describe('extension form schemas', () => {
       },
       device: {
         enabled: false,
-        name: null,
-        device_type: null,
-        mac_address: null,
-        sip_username: null,
-        sip_password: null,
+        input: null,
       },
     })
 
@@ -209,7 +308,7 @@ describe('extension form schemas', () => {
 
   it('allows an unchanged write-only hotdesk PIN on edit but rejects clearing a required PIN', () => {
     const unchanged = extensionUpdateSchema.safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       hotdesk: {
         enabled: true,
         id: '1001',
@@ -220,7 +319,7 @@ describe('extension form schemas', () => {
       },
     })
     const invalidClear = extensionUpdateSchema.safeParse({
-      ...validInput(),
+      ...validUpdateInput(),
       hotdesk: {
         enabled: true,
         id: '1001',

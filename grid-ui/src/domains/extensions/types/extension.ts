@@ -13,6 +13,10 @@ export type ExtensionFormOptions = {
     provisionable_types: string[]
     sip_credential_types: string[]
   }
+  caller_id_numbers: ExtensionCallerIdNumberOption[]
+  media: Array<{ id: string; name: string | null }>
+  restrictions: ExtensionRestrictionOption[]
+  metaflow_resources: MetaflowResources
 }
 
 export type Extension = {
@@ -37,6 +41,156 @@ export type ExtensionUserConfiguration = {
   do_not_disturb: { enabled: boolean }
   contact_list: { exclude: boolean }
   caller_id_options: { outbound_privacy: 'full' | 'name' | 'number' | 'none' }
+}
+
+export type ExtensionCallerIdNumber = {
+  name: string | null
+  phone_number_id: string | null
+  number: string | null
+  unresolved: boolean
+}
+
+export type ExtensionCallerIdSelection = {
+  name: string | null
+  phone_number_id: string | null
+  preserve_number: boolean
+}
+
+export type ExtensionCallerIdNumberOption = {
+  id: string
+  number: string
+  display_name: string | null
+  e911_enabled: boolean
+}
+
+export type ExtensionRestrictionOption = { key: string; label: string; emergency: boolean }
+export type ExtensionCallRestriction = { action: 'inherit' | 'deny' }
+
+export type ExtensionCallForward = {
+  enabled: boolean
+  number: string | null
+  direct_calls_only: boolean
+  failover: boolean
+  ignore_early_media: boolean
+  keep_caller_id: boolean
+  require_keypress: boolean
+  substitute: boolean
+}
+
+export type ExtensionRecordingParameters = {
+  enabled: boolean
+  format: 'mp3' | 'wav'
+  record_min_sec: number | null
+  record_on_answer: boolean
+  record_on_bridge: boolean
+  record_sample_rate: 8000 | 16000 | 32000 | 48000 | null
+  time_limit: number | null
+}
+
+export type ExtensionRecordingSource = Record<
+  'any' | 'onnet' | 'offnet',
+  ExtensionRecordingParameters
+>
+export type ExtensionRecordingRules = Record<
+  'any' | 'inbound' | 'outbound',
+  ExtensionRecordingSource
+>
+export type ExtensionCallRecording = Record<'account' | 'endpoint', ExtensionRecordingRules>
+
+export type ExtensionAdvancedCallingConfiguration = {
+  caller_id: {
+    internal: { name: string | null; number: string | null }
+    external: ExtensionCallerIdNumber
+    emergency: ExtensionCallerIdNumber
+  }
+  call_forward: ExtensionCallForward
+  call_restriction: Record<string, ExtensionCallRestriction>
+  call_recording: Partial<ExtensionCallRecording>
+  media: ExtensionEndpointMedia
+  music_on_hold: ExtensionMusicOnHold
+  ringtones: ExtensionRingtones
+  dial_plan: ExtensionDialPlan
+  formatters: ExtensionFormatter[]
+  profile: ExtensionProfile
+  pronounced_name: ExtensionPronouncedName
+}
+
+export type ExtensionEndpointMedia = {
+  audio: { codecs: string[] }
+  video: { codecs: string[] }
+  bypass_media: boolean | 'auto'
+  encryption: { enforce_security: boolean; methods: Array<'srtp' | 'zrtp'> }
+  fax_option: boolean
+  ignore_early_media: boolean
+  progress_timeout: number | null
+}
+
+export type ExtensionMusicOnHold = {
+  media_id: string | null
+  configured: boolean
+  unresolved: boolean
+}
+
+export type ExtensionMusicOnHoldInput = {
+  media_id: string | null
+  preserve_media: boolean
+}
+
+export type ExtensionRingtones = { internal: string | null; external: string | null }
+
+export type ExtensionDialPlanRule = {
+  pattern: string
+  description: string | null
+  prefix: string | null
+  suffix: string | null
+}
+
+export type ExtensionDialPlan = { system: string[]; rules: ExtensionDialPlanRule[] }
+
+export type ExtensionFormatter = {
+  field: string
+  direction: 'inbound' | 'outbound' | 'both' | null
+  match_invite_format: boolean
+  prefix: string | null
+  regex: string | null
+  strip: boolean
+  suffix: string | null
+  value: string | null
+}
+
+export type ExtensionProfileAddressType =
+  'dom' | 'postal' | 'intl' | 'parcel' | 'home' | 'work' | 'pref'
+
+export type ExtensionProfile = {
+  addresses: Array<{ address: string; types: ExtensionProfileAddressType[] }>
+  assistant: string | null
+  birthday: string | null
+  nicknames: string[]
+  note: string | null
+  role: string | null
+  sort_string: string | null
+  title: string | null
+}
+
+export type ExtensionPronouncedName = {
+  media_id: string | null
+  configured: boolean
+  unresolved: boolean
+}
+
+export type ExtensionPronouncedNameInput = {
+  media_id: string | null
+  preserve_media: boolean
+}
+
+export type ExtensionMetaflows = {
+  binding_digit: string | null
+  digit_timeout: number | null
+  listen_on: 'both' | 'self' | 'peer' | null
+  number_flow_count: number
+  pattern_flow_count: number
+  actions: MetaflowAction[]
+  locked_action_count: number
 }
 
 export type ExtensionHotdeskProfile = {
@@ -104,10 +258,18 @@ export type ExtensionCallflow = {
 }
 
 export type ExtensionDetail = Extension & {
-  configuration: ExtensionUserConfiguration & {
-    credentials: ExtensionCredentialsProfile
-    hotdesk: ExtensionHotdeskProfile
-  }
+  configuration: ExtensionUserConfiguration &
+    ExtensionAdvancedCallingConfiguration & {
+      credentials: ExtensionCredentialsProfile
+      hotdesk: ExtensionHotdeskProfile
+      metaflows: ExtensionMetaflows
+      policy: {
+        verified: boolean
+        privilege: 'user' | 'admin' | null
+        feature_level: string | null
+        external_flag_count: number
+      }
+    }
   devices: ExtensionDevice[]
   voicemail_boxes: ExtensionVoicemailBox[]
   callflows: ExtensionCallflow[]
@@ -135,15 +297,28 @@ export type ExtensionCreate = ExtensionUserConfiguration & {
   }
   device: {
     enabled: boolean
-    name: string | null
-    device_type: string | null
-    mac_address: string | null
-    sip_username: string | null
-    sip_password: string | null
+    input: DeviceInput | null
   }
 }
 
-export type ExtensionUpdate = Omit<ExtensionCreate, 'device'>
+export type ExtensionUpdate = Omit<ExtensionCreate, 'device'> & {
+  metaflows: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
+  caller_id: {
+    internal: { name: string | null; number: string | null }
+    external: ExtensionCallerIdSelection
+    emergency: ExtensionCallerIdSelection
+  }
+  call_forward: ExtensionCallForward
+  call_restriction: Record<string, ExtensionCallRestriction>
+  call_recording: ExtensionCallRecording
+  media: ExtensionEndpointMedia
+  music_on_hold: ExtensionMusicOnHoldInput
+  ringtones: ExtensionRingtones
+  dial_plan: ExtensionDialPlan
+  formatters: ExtensionFormatter[]
+  profile: ExtensionProfile
+  pronounced_name: ExtensionPronouncedNameInput
+}
 
 export type ExtensionDeletionPreview = {
   extension: {
@@ -213,3 +388,5 @@ export type SyncRun = {
   error_message: string | null
   created_at: string
 }
+import type { MetaflowAction, MetaflowResources } from '@/shared/switch/metaflows/types'
+import type { DeviceInput } from '@/domains/devices/types/device'

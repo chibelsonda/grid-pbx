@@ -1,5 +1,10 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
-import type { Account, AccountDetail, AccountSettingsInput } from '../types/account'
+import type {
+  Account,
+  AccountDetail,
+  AccountSettingsInput,
+  AccountSettingsOptions,
+} from '../types/account'
 
 export const accountApi = {
   async list(): Promise<Account[]> {
@@ -9,6 +14,13 @@ export const accountApi = {
   },
   async detail(accountId: string): Promise<AccountDetail> {
     const response = await http.get<ApiResponse<AccountDetail>>(`/api/v1/accounts/${accountId}`)
+
+    return unwrapApiData(response)
+  },
+  async settingsOptions(accountId: string): Promise<AccountSettingsOptions> {
+    const response = await http.get<ApiResponse<AccountSettingsOptions>>(
+      `/api/v1/accounts/${accountId}/settings-options`,
+    )
 
     return unwrapApiData(response)
   },

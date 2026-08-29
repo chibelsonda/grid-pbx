@@ -9,8 +9,11 @@ use App\Domains\Extensions\Exceptions\ExtensionProvisioningException;
 use App\Domains\Extensions\Models\ExtensionLifecycleOperation;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Media\Models\SwitchMedia;
+use App\Domains\Organizations\Contracts\SwitchAccountGateway;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -51,11 +54,21 @@ class ExtensionControllerTest extends TestCase
 
     public function test_it_returns_safe_extension_form_options_for_the_accessible_account(): void
     {
+        $this->mock(SwitchAccountGateway::class)
+            ->shouldReceive('restrictionClassifiers')
+            ->once()
+            ->andReturn([
+                ['key' => 'international', 'label' => 'International', 'emergency' => false],
+            ]);
         [$user, $account] = $this->accessibleAccount();
         $account->update(['timezone' => 'Asia/Manila']);
-        SwitchExtension::factory()->for($account)->create([
+        $resource = SwitchExtension::factory()->for($account)->create([
             'display_name' => 'Alice Operator',
             'extension' => '1001',
+        ]);
+        $media = SwitchMedia::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-media-1',
+            'name' => 'Support hold music',
         ]);
 
         $this->actingAs($user)
@@ -65,6 +78,9 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonPath('data.languages.0.value', 'en-US')
             ->assertJsonPath('data.presence_ids.0.value', '1001')
             ->assertJsonPath('data.starter_device.supported_types.0', 'sip_device')
+            ->assertJsonPath('data.restrictions.0.key', 'international')
+            ->assertJsonPath('data.media.0.id', $media->id)
+            ->assertJsonPath('data.metaflow_resources.extensions.0.id', $resource->id)
             ->assertJsonCount(5, 'data.starter_device.supported_types')
             ->assertJsonFragment(['Europe/London']);
     }
@@ -173,8 +189,10 @@ class ExtensionControllerTest extends TestCase
         ]);
         $gateway->shouldReceive('createDevice')->once()->withArgs(
             fn ($providedAccount, array $data): bool => $providedAccount->is($account)
-                && $data['owner_id'] === 'switch-user-1001'
-                && $data['name'] === 'Alice desk phone',
+                && $data['owner_switch_resource_id'] === 'switch-user-1001'
+                && $data['name'] === 'Alice desk phone'
+                && $data['contact_list']['exclude'] === true
+                && $data['call_restriction']['international']['action'] === 'deny',
         )->andReturn([
             'id' => 'switch-device-1001',
             'owner_id' => 'switch-user-1001',
@@ -326,7 +344,7 @@ class ExtensionControllerTest extends TestCase
         $payload['do_not_disturb']['private_state'] = true;
         $payload['hotdesk']['id'] = 'abc';
         $payload['hotdesk']['pin'] = '12ab';
-        $payload['device']['device_type'] = 'carrier_trunk';
+        $payload['device']['input']['device_type'] = 'carrier_trunk';
 
         $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
@@ -336,21 +354,21 @@ class ExtensionControllerTest extends TestCase
                 'do_not_disturb',
                 'hotdesk.id',
                 'hotdesk.pin',
-                'device.device_type',
+                'device.input.device_type',
             ]);
     }
 
-    public function test_create_rejects_device_types_that_require_the_full_device_workflow(): void
+    public function test_create_applies_device_workflow_rules_to_the_embedded_editor(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
         $payload = $this->extensionPayload();
-        $payload['device']['device_type'] = 'cellphone';
+        $payload['device']['input']['device_type'] = 'sip_uri';
 
         $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('device.device_type');
+            ->assertJsonValidationErrors('device.input.sip');
     }
 
     public function test_create_rejects_a_device_mac_address_already_used_by_the_account(): void
@@ -361,12 +379,12 @@ class ExtensionControllerTest extends TestCase
         ]);
         $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
         $payload = $this->extensionPayload();
-        $payload['device']['mac_address'] = '00-11-22-33-44-55';
+        $payload['device']['input']['mac_address'] = '00-11-22-33-44-55';
 
         $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('device.mac_address');
+            ->assertJsonValidationErrors('device.input.mac_address');
     }
 
     public function test_update_returns_422_when_pin_protection_has_no_new_or_configured_hotdesk_pin(): void
@@ -458,6 +476,17 @@ class ExtensionControllerTest extends TestCase
     public function test_it_updates_a_managed_extension_mailbox_and_callflow_as_one_workflow(): void
     {
         [$user, $account] = $this->accessibleAccount();
+        $externalNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550001001',
+        ]);
+        $emergencyNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550001911',
+            'features' => ['e911'],
+        ]);
+        $holdMusic = SwitchMedia::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-media-hold',
+            'name' => 'Support hold music',
+        ]);
         $extension = SwitchExtension::factory()->for($account)->create([
             'switch_resource_id' => 'switch-user-1001',
             'first_name' => 'Alice',
@@ -469,6 +498,58 @@ class ExtensionControllerTest extends TestCase
             'managed_by_workflow' => 'extension_provisioning',
             'switch_json' => [
                 'hotdesk' => ['enabled' => true, 'id' => '1001', 'require_pin' => true, 'pin' => '[REDACTED]'],
+                'metaflows' => [
+                    'binding_digit' => '*',
+                    'numbers' => [
+                        '3' => ['module' => 'hangup', 'data' => [], 'children' => []],
+                        '9' => ['module' => 'future_module', 'data' => ['private' => true], 'children' => []],
+                    ],
+                    'future_option' => true,
+                ],
+                'caller_id' => [
+                    'internal' => ['name' => 'Alice Operator', 'number' => '1001'],
+                    'external' => ['name' => 'Alice', 'number' => '+15550009999'],
+                    'asserted' => ['realm' => 'pbx.example.test'],
+                ],
+                'call_forward' => ['enabled' => false, 'future_option' => true],
+                'call_restriction' => [
+                    'international' => ['action' => 'inherit', 'future_option' => true],
+                ],
+                'call_recording' => [
+                    'endpoint' => [
+                        'outbound' => [
+                            'offnet' => [
+                                'enabled' => false,
+                                'url' => 'https://recordings.example.test/user',
+                            ],
+                        ],
+                    ],
+                ],
+                'media' => [
+                    'audio' => ['codecs' => ['PCMU'], 'future_audio_option' => true],
+                    'future_media_option' => true,
+                ],
+                'music_on_hold' => ['media_id' => 'unresolved-media', 'future_moh_option' => true],
+                'ringtones' => ['internal' => 'Old-ring', 'future_ringtone_option' => true],
+                'dial_plan' => [
+                    'system' => ['legacy'],
+                    '^9(.*)$' => ['prefix' => '9', 'future_rule_option' => true],
+                ],
+                'formatters' => [
+                    'request' => [[
+                        'direction' => 'inbound',
+                        'future_formatter_option' => true,
+                    ]],
+                ],
+                'profile' => ['title' => 'Operator', 'future_profile_option' => true],
+                'pronounced_name' => [
+                    'media_id' => 'unresolved-spoken-name',
+                    'future_name_option' => true,
+                ],
+                'verified' => true,
+                'priv_level' => 'user',
+                'feature_level' => 'standard',
+                'flags' => ['externally-managed'],
             ],
         ]);
         $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
@@ -497,6 +578,34 @@ class ExtensionControllerTest extends TestCase
                 && $data['do_not_disturb']['enabled'] === true
                 && $data['contact_list']['exclude'] === true
                 && $data['caller_id_options']['outbound_privacy'] === 'name'
+                && $data['caller_id']['external']['number'] === '+15550001001'
+                && $data['caller_id']['emergency']['number'] === '+15550001911'
+                && $data['caller_id']['preserved_options']['asserted']['realm'] === 'pbx.example.test'
+                && $data['call_forward']['number'] === '+15550001002'
+                && $data['call_forward']['preserved_options']['future_option'] === true
+                && $data['call_restriction']['international']['action'] === 'deny'
+                && $data['call_restriction']['preserved_options']['international']['future_option'] === true
+                && $data['call_recording']['endpoint']['outbound']['offnet']['preserved_options']['url'] === 'https://recordings.example.test/user'
+                && $data['media']['audio']['codecs'] === ['OPUS', 'PCMU']
+                && $data['media']['preserved_options']['audio']['future_audio_option'] === true
+                && $data['media']['preserved_options']['future_media_option'] === true
+                && $data['music_on_hold']['media_id'] === 'switch-media-hold'
+                && $data['music_on_hold']['preserved_options']['future_moh_option'] === true
+                && $data['ringtones']['internal'] === 'Internal-ring'
+                && $data['ringtones']['preserved_options']['future_ringtone_option'] === true
+                && $data['dial_plan']['rules'][0]['preserved_options']['future_rule_option'] === true
+                && $data['formatters'][0]['preserved_options']['future_formatter_option'] === true
+                && $data['profile']['preserved_options']['future_profile_option'] === true
+                && $data['pronounced_name']['media_id'] === 'switch-media-hold'
+                && $data['pronounced_name']['preserved_options']['future_name_option'] === true
+                && ! array_key_exists('verified', $data)
+                && ! array_key_exists('priv_level', $data)
+                && ! array_key_exists('feature_level', $data)
+                && ! array_key_exists('flags', $data)
+                && $data['metaflows']['preserved_options']['future_option'] === true
+                && ! array_key_exists('3', $data['metaflows']['preserved_options']['numbers'])
+                && $data['metaflows']['preserved_options']['numbers']['4']['data']['id'] === 'switch-callflow-1001'
+                && $data['metaflows']['preserved_options']['numbers']['9']['module'] === 'future_module'
                 && $data['hotdesk']['pin'] === null
                 && $data['hotdesk']['clear_pin'] === false
                 && $data['password'] === null
@@ -512,6 +621,42 @@ class ExtensionControllerTest extends TestCase
             'timezone' => 'Asia/Manila',
             'enabled' => true,
             'caller_id' => ['internal' => ['name' => 'Alice Support', 'number' => '1010']],
+            'call_forward' => ['enabled' => true, 'number' => '+15550001002'],
+            'call_restriction' => ['international' => ['action' => 'deny']],
+            'call_recording' => $this->recordingPayload(),
+            'media' => [
+                'audio' => ['codecs' => ['OPUS', 'PCMU']],
+                'video' => ['codecs' => ['H264']],
+                'bypass_media' => 'auto',
+                'encryption' => ['enforce_security' => true, 'methods' => ['srtp']],
+                'fax_option' => false,
+                'ignore_early_media' => true,
+                'progress_timeout' => 30,
+            ],
+            'music_on_hold' => ['media_id' => 'switch-media-hold'],
+            'ringtones' => ['internal' => 'Internal-ring', 'external' => 'External-ring'],
+            'dial_plan' => [
+                'system' => ['north_america'],
+                '^9(.*)$' => ['description' => 'Outside line', 'prefix' => '+1'],
+            ],
+            'formatters' => [
+                'request' => [[
+                    'direction' => 'outbound',
+                    'match_invite_format' => false,
+                    'regex' => '^(.*)$',
+                    'strip' => false,
+                ]],
+            ],
+            'profile' => [
+                'addresses' => [['address' => '100 Main Street', 'types' => ['work']]],
+                'nicknames' => ['Ops'],
+                'title' => 'Support Engineer',
+            ],
+            'pronounced_name' => ['media_id' => 'switch-media-hold'],
+            'verified' => true,
+            'priv_level' => 'user',
+            'feature_level' => 'standard',
+            'flags' => ['externally-managed'],
             'presence_id' => 'alice@pbx.example.test',
             'language' => 'en-US',
             'call_waiting' => ['enabled' => false],
@@ -524,6 +669,20 @@ class ExtensionControllerTest extends TestCase
                 'keep_logged_in_elsewhere' => true,
                 'require_pin' => true,
                 'pin' => '2468',
+            ],
+            'metaflows' => [
+                'binding_digit' => '#',
+                'digit_timeout' => 2500,
+                'listen_on' => 'self',
+                'numbers' => [
+                    '4' => [
+                        'module' => 'callflow',
+                        'data' => ['id' => 'switch-callflow-1001'],
+                        'children' => [],
+                    ],
+                    '9' => ['module' => 'future_module', 'data' => ['private' => true], 'children' => []],
+                ],
+                'future_option' => true,
             ],
         ]);
         $gateway->shouldReceive('updateVoicemailBox')->once()->withArgs(
@@ -567,8 +726,94 @@ class ExtensionControllerTest extends TestCase
             ],
         ]);
 
+        $payload = $this->updatePayload();
+        $payload['caller_id'] = [
+            'internal' => ['name' => 'Alice Support', 'number' => '1010'],
+            'external' => [
+                'name' => 'Support',
+                'phone_number_id' => $externalNumber->id,
+                'preserve_number' => false,
+            ],
+            'emergency' => [
+                'name' => 'Alice',
+                'phone_number_id' => $emergencyNumber->id,
+                'preserve_number' => false,
+            ],
+        ];
+        $payload['call_forward'] = [
+            'enabled' => true,
+            'number' => '+15550001002',
+            'direct_calls_only' => false,
+            'failover' => false,
+            'ignore_early_media' => true,
+            'keep_caller_id' => true,
+            'require_keypress' => false,
+            'substitute' => true,
+        ];
+        $payload['call_restriction'] = ['international' => ['action' => 'deny']];
+        $payload['call_recording'] = $this->recordingPayload();
+        $payload['media'] = [
+            'audio' => ['codecs' => ['OPUS', 'PCMU']],
+            'video' => ['codecs' => ['H264']],
+            'bypass_media' => 'auto',
+            'encryption' => ['enforce_security' => true, 'methods' => ['srtp']],
+            'fax_option' => false,
+            'ignore_early_media' => true,
+            'progress_timeout' => 30,
+        ];
+        $payload['music_on_hold'] = [
+            'media_id' => $holdMusic->id,
+            'preserve_media' => false,
+        ];
+        $payload['ringtones'] = ['internal' => 'Internal-ring', 'external' => 'External-ring'];
+        $payload['dial_plan'] = [
+            'system' => ['north_america'],
+            'rules' => [[
+                'pattern' => '^9(.*)$',
+                'description' => 'Outside line',
+                'prefix' => '+1',
+                'suffix' => null,
+            ]],
+        ];
+        $payload['formatters'] = [[
+            'field' => 'request',
+            'direction' => 'outbound',
+            'match_invite_format' => false,
+            'prefix' => null,
+            'regex' => '^(.*)$',
+            'strip' => false,
+            'suffix' => null,
+            'value' => null,
+        ]];
+        $payload['profile'] = [
+            'addresses' => [['address' => '100 Main Street', 'types' => ['work']]],
+            'assistant' => null,
+            'birthday' => null,
+            'nicknames' => ['Ops'],
+            'note' => null,
+            'role' => null,
+            'sort_string' => null,
+            'title' => 'Support Engineer',
+        ];
+        $payload['pronounced_name'] = [
+            'media_id' => $holdMusic->id,
+            'preserve_media' => false,
+        ];
+        $payload['metaflows'] = [
+            'binding_digit' => '#',
+            'digit_timeout' => 2500,
+            'listen_on' => 'self',
+            'actions' => [[
+                'trigger_type' => 'number',
+                'trigger' => '4',
+                'module' => 'callflow',
+                'data' => ['callflow_id' => $callflow->id],
+                'children' => [],
+            ]],
+        ];
+
         $this->actingAs($user)
-            ->putJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}", $this->updatePayload())
+            ->putJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}", $payload)
             ->assertOk()
             ->assertJsonPath('data.id', $extension->id)
             ->assertJsonPath('data.display_name', 'Alice Support')
@@ -577,6 +822,26 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonPath('data.configuration.credentials.password_configured', true)
             ->assertJsonPath('data.configuration.credentials.require_password_update', false)
             ->assertJsonPath('data.configuration.hotdesk.pin_configured', true)
+            ->assertJsonPath('data.configuration.call_forward.number', '+15550001002')
+            ->assertJsonPath('data.configuration.call_restriction.international.action', 'deny')
+            ->assertJsonPath('data.configuration.media.audio.codecs.0', 'OPUS')
+            ->assertJsonPath('data.configuration.media.bypass_media', 'auto')
+            ->assertJsonPath('data.configuration.music_on_hold.media_id', $holdMusic->id)
+            ->assertJsonPath('data.configuration.music_on_hold.unresolved', false)
+            ->assertJsonPath('data.configuration.ringtones.internal', 'Internal-ring')
+            ->assertJsonPath('data.configuration.dial_plan.rules.0.pattern', '^9(.*)$')
+            ->assertJsonPath('data.configuration.formatters.0.field', 'request')
+            ->assertJsonPath('data.configuration.profile.title', 'Support Engineer')
+            ->assertJsonPath('data.configuration.pronounced_name.media_id', $holdMusic->id)
+            ->assertJsonPath('data.configuration.policy.verified', true)
+            ->assertJsonPath('data.configuration.policy.privilege', 'user')
+            ->assertJsonPath('data.configuration.policy.feature_level', 'standard')
+            ->assertJsonPath('data.configuration.policy.external_flag_count', 1)
+            ->assertJsonMissing(['externally-managed'])
+            ->assertJsonMissing(['url' => 'https://recordings.example.test/user'])
+            ->assertJsonPath('data.configuration.metaflows.actions.0.trigger', '4')
+            ->assertJsonPath('data.configuration.metaflows.actions.0.data.callflow_id', $callflow->id)
+            ->assertJsonPath('data.configuration.metaflows.locked_action_count', 1)
             ->assertJsonPath('data.voicemail_boxes.0.mailbox', '1010')
             ->assertJsonPath('data.callflows.0.numbers.0', '1010');
         $this->assertDatabaseHas('switch_extensions', [
@@ -616,6 +881,7 @@ class ExtensionControllerTest extends TestCase
         $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('updateUser');
         $payload = $this->updatePayload();
         $payload['extension'] = $extension->extension;
+        $payload['username'] = $extension->username;
         $payload['voicemail']['enabled'] = false;
 
         $this->actingAs($user)
@@ -688,6 +954,57 @@ class ExtensionControllerTest extends TestCase
         $codes = collect($response->json('data.blockers'))->pluck('code');
         $this->assertTrue($codes->contains('shared_voicemail'));
         $this->assertTrue($codes->contains('referenced_by_callflow'));
+    }
+
+    public function test_deletion_preview_ignores_unrelated_unresolved_routes_but_blocks_raw_target_matches(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-target',
+            'is_managed' => true,
+            'managed_by_workflow' => 'extension_provisioning',
+        ]);
+        SwitchCallflow::factory()->for($account)->create([
+            'switch_extension_id' => $extension->getKey(),
+            'is_managed' => true,
+            'managed_by_workflow' => 'extension_provisioning',
+        ]);
+        SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'play',
+                'target' => null,
+                'reference_status' => 'unresolved',
+                'children' => [],
+            ],
+            'switch_json' => [
+                'flow' => ['module' => 'play', 'data' => ['id' => 'unrelated-switch-media']],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}/deletion-preview")
+            ->assertOk()
+            ->assertJsonPath('data.can_delete', true)
+            ->assertJsonCount(0, 'data.unresolved_callflows');
+
+        SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => null,
+                'reference_status' => 'unresolved',
+                'children' => [],
+            ],
+            'switch_json' => [
+                'flow' => ['module' => 'user', 'data' => ['id' => 'switch-user-target']],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}/deletion-preview")
+            ->assertOk()
+            ->assertJsonPath('data.can_delete', false)
+            ->assertJsonPath('data.blockers.0.code', 'unresolved_callflows')
+            ->assertJsonCount(1, 'data.unresolved_callflows');
     }
 
     public function test_it_deletes_only_managed_extension_resources_in_reverse_dependency_order(): void
@@ -925,6 +1242,12 @@ class ExtensionControllerTest extends TestCase
             'do_not_disturb' => ['enabled' => true],
             'contact_list' => ['exclude' => true],
             'caller_id_options' => ['outbound_privacy' => 'name'],
+            'metaflows' => [
+                'binding_digit' => '*',
+                'digit_timeout' => 2000,
+                'listen_on' => 'both',
+                'actions' => [],
+            ],
             'hotdesk' => [
                 'enabled' => true,
                 'id' => '1001',
@@ -942,11 +1265,22 @@ class ExtensionControllerTest extends TestCase
             ],
             'device' => [
                 'enabled' => true,
-                'name' => 'Alice desk phone',
-                'device_type' => 'sip_device',
-                'mac_address' => null,
-                'sip_username' => 'alice-1001',
-                'sip_password' => 'a-long-random-secret',
+                'input' => [
+                    'name' => 'Alice desk phone',
+                    'device_type' => 'sip_device',
+                    'mac_address' => null,
+                    'is_enabled' => true,
+                    'assigned_extension_id' => null,
+                    'sip' => [
+                        'username' => 'alice-1001',
+                        'password' => 'a-long-random-secret',
+                    ],
+                    'contact_list' => ['exclude' => true],
+                    'call_restriction' => [
+                        'closed_groups' => ['action' => 'inherit'],
+                        'international' => ['action' => 'deny'],
+                    ],
+                ],
             ],
         ];
     }
@@ -988,6 +1322,24 @@ class ExtensionControllerTest extends TestCase
                 'pin' => null,
             ],
         ];
+    }
+
+    /** @return array<string, array<string, array<string, array<string, mixed>>>> */
+    private function recordingPayload(): array
+    {
+        $parameters = [
+            'enabled' => false,
+            'format' => 'mp3',
+            'record_min_sec' => null,
+            'record_on_answer' => false,
+            'record_on_bridge' => false,
+            'record_sample_rate' => null,
+            'time_limit' => null,
+        ];
+        $source = ['any' => $parameters, 'onnet' => $parameters, 'offnet' => $parameters];
+        $rules = ['any' => $source, 'inbound' => $source, 'outbound' => $source];
+
+        return ['account' => $rules, 'endpoint' => $rules];
     }
 
     /** @return array{User, SwitchAccount} */

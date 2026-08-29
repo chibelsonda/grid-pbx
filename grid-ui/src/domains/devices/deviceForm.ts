@@ -4,10 +4,12 @@ import type {
   DeviceRecordingParameters,
   DeviceRecordingSource,
   DeviceRestrictionOption,
+  DeviceOptions,
   DeviceSchemaCompatibility,
   DeviceType,
 } from './types/device'
 import type { Component } from 'vue'
+import { endpointAudioCodecs, endpointVideoCodecs } from '@/shared/switch/endpointMedia'
 import {
   ComputerDesktopIcon,
   CpuChipIcon,
@@ -70,28 +72,8 @@ export const deviceTypes: Array<{
   },
 ]
 
-export const audioCodecs = [
-  'OPUS',
-  'CELT@32000h',
-  'G7221@32000h',
-  'G7221@16000h',
-  'G722',
-  'speex@32000h',
-  'speex@16000h',
-  'PCMU',
-  'PCMA',
-  'G729',
-  'GSM',
-  'CELT@48000h',
-  'CELT@64000h',
-  'G722_16',
-  'G722_32',
-  'CELT_48',
-  'CELT_64',
-  'Speex',
-  'speex',
-] as const
-export const videoCodecs = ['H261', 'H263', 'H264', 'VP8'] as const
+export const audioCodecs = endpointAudioCodecs
+export const videoCodecs = endpointVideoCodecs
 
 export const legacyDeviceSchemaCompatibility: DeviceSchemaCompatibility = {
   source: 'bundled_legacy_fallback',
@@ -112,6 +94,22 @@ export const legacyDeviceSchemaCompatibility: DeviceSchemaCompatibility = {
     check_sync_reload: true,
     check_sync_reboot: true,
   },
+}
+
+export function defaultDeviceOptions(): DeviceOptions {
+  return {
+    extensions: [],
+    media: [],
+    metaflow_resources: { callflows: [], devices: [] },
+    caller_id_numbers: [],
+    provisioning_catalog: {
+      available: false,
+      reason: 'Provisioning catalog has not been loaded.',
+      brands: [],
+    },
+    device_schema: structuredClone(legacyDeviceSchemaCompatibility),
+    restrictions: [],
+  }
 }
 
 export function defaultDeviceConfiguration(): DeviceConfiguration {
@@ -360,16 +358,9 @@ export function supportsMusicOnHold(deviceType: DeviceType): boolean {
 }
 
 export type DeviceOptionCapability =
-  | 'forwarding'
-  | 'ringtones'
-  | 'fax'
-  | 'contact-list'
-  | 'ignore-completed-elsewhere'
+  'forwarding' | 'ringtones' | 'fax' | 'contact-list' | 'ignore-completed-elsewhere'
 
-export const deviceOptionCapabilities: Record<
-  DeviceType,
-  ReadonlySet<DeviceOptionCapability>
-> = {
+export const deviceOptionCapabilities: Record<DeviceType, ReadonlySet<DeviceOptionCapability>> = {
   sip_device: new Set(['ringtones', 'fax', 'contact-list', 'ignore-completed-elsewhere']),
   cellphone: new Set(['forwarding', 'contact-list']),
   smartphone: new Set(['forwarding', 'contact-list']),

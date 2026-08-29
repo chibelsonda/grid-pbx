@@ -45,14 +45,34 @@ The public field-by-field contract, intentional exclusions, and implementation
 order are maintained in
 [SWITCH_SCHEMA_PARITY.md](SWITCH_SCHEMA_PARITY.md).
 
-The application will preserve the legacy three-project boundary:
+The application preserves a three-project boundary for clear ownership:
 
 - `grid-api`: Laravel application API and application-owned data.
 - `grid-api-switch`: framework-independent Switch Crossbar client package.
 - `grid-ui`: Vue 3 and TypeScript single-page application.
 
-The legacy projects under `/home/chicote/App/gridpbx-old` are reference
-material only. New code must not depend on or modify those projects.
+The legacy projects under `/home/chicote/App/gridpbx-old` are migration evidence
+only. New code must not depend on or modify those projects, and new behavior is
+not derived from them when the current Switch API schema or Kazoo workflow
+provides authoritative evidence.
+
+### Implementation reference order
+
+Every entity and workflow uses this evidence order:
+
+1. The connected Switch/Kazoo API schema and observed create, update, clear,
+   relationship, and command behavior define the accepted contract.
+2. Current Kazoo/Monster workflows inform field grouping, conditional
+   visibility, relationship prompts, and operator terminology.
+3. The old GridPBX projects are consulted only for confirmed client-specific
+   requirements or migration mappings absent from the first two sources.
+
+Reusable domain form components are the UI source of truth. A Device created
+from People & Extensions uses the same Device Basic/Advanced editor, Zod schema,
+capability matrix, and payload mapper as the standalone Device slide-over. The
+relationship workflow presents that editor as a subview of the existing
+slide-over, preserving the aggregate draft and avoiding stacked dialogs or
+competing focus traps. It must not fork or duplicate Device fields.
 
 ## 2. Product principles
 
@@ -62,8 +82,8 @@ material only. New code must not depend on or modify those projects.
 4. Use MySQL as the source of truth for GridPBX application data and as a
    synchronized, searchable read model of selected Switch resources.
 5. Deliver vertical slices that are usable and testable end to end.
-6. Use the separately maintained Monster UI environment only as a workflow
-   reference until replacement functionality has been verified.
+6. Use current Kazoo/Monster workflows as interaction evidence while keeping
+   the connected API schema and observed Switch behavior authoritative.
 7. Make every account-scoped action explicitly authorized and auditable.
 
 ## 3. System architecture
@@ -341,6 +361,12 @@ with a demonstrated database filtering, sorting, uniqueness, or indexing use
 case. They are not created for every JSON key or for arbitrary nested maps and
 arrays.
 
+All future free-entry public telephone-number controls use a shared,
+libphonenumber-grade validator in Vue plus independent Laravel validation and
+E.164 normalization. The validator must distinguish public numbers from PBX
+extensions; selecting an already projected number continues to use its public
+UUID rather than trusting a number supplied by the browser.
+
 The initial typed snapshots cover users, devices, voicemail boxes, voicemail
 message metadata, callflows, media, and phone numbers. Remaining Switch
 entities will adopt the same list/detail, typed field, raw-data preservation,
@@ -590,8 +616,14 @@ Acceptance criteria:
   `switch_json`, and administrator-only typed refresh/update for the audited
   identity and calling-default subset. External/emergency caller IDs resolve
   from public Phone Number UUIDs with E911 enforcement, while enable/disable is
-  a separate exact-name-confirmed audited command. Higher-risk operations stay
-  gated.
+  a separate exact-name-confirmed audited command. Dynamic restrictions,
+  recording defaults, dial-plan rules, and request formatters use guided
+  virtual fields with server-owned nested metadata preserved. Account preflow
+  resolves a projected Callflow public UUID, and bounded metaflow activation
+  defaults and supported recursive action trees use the shared Device/Account
+  guided editor. Resource references are public UUIDs, while unsupported or
+  unresolved roots remain locked and are preserved losslessly. Higher-risk
+  operations stay gated.
 - Add projections and incremental synchronization for each delivered resource
   domain.
 

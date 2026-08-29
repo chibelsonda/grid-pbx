@@ -6,6 +6,7 @@ import FormListbox from '@/shared/components/FormListbox.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import {
+  hydrateExtensionAdvancedCalling,
   hydrateExtensionCredentialsInput,
   hydrateExtensionHotdeskInput,
   hydrateExtensionUserConfiguration,
@@ -17,11 +18,18 @@ import type {
   ExtensionDetail,
   ExtensionHotdeskInput,
   ExtensionFormOptions,
+  ExtensionMetaflows,
   ExtensionUpdate,
   ExtensionUserConfiguration,
 } from '../types/extension'
+import type { MetaflowAction, MetaflowChild } from '@/shared/switch/metaflows/types'
 import ExtensionCredentialsProfile from './ExtensionCredentialsProfile.vue'
+import ExtensionAdvancedCallingSettings from './ExtensionAdvancedCallingSettings.vue'
+import ExtensionCallRecordingSettings from './ExtensionCallRecordingSettings.vue'
 import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
+import ExtensionMetaflowSettings from './ExtensionMetaflowSettings.vue'
+import ExtensionMediaSettings from './ExtensionMediaSettings.vue'
+import ExtensionRoutingProfileSettings from './ExtensionRoutingProfileSettings.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
 
 const props = defineProps<{
@@ -34,6 +42,12 @@ const props = defineProps<{
 const emit = defineEmits<{ close: []; save: [input: ExtensionUpdate] }>()
 const voicemail = props.extension.voicemail_boxes.find((box) => box.is_managed)
 const userConfiguration = reactive(hydrateExtensionUserConfiguration(props.extension.configuration))
+const advancedCalling = reactive(
+  hydrateExtensionAdvancedCalling(
+    props.extension.configuration,
+    props.options.restrictions.map(({ key }) => key),
+  ),
+)
 const credentials = reactive(
   hydrateExtensionCredentialsInput(
     props.extension.username,
@@ -41,8 +55,26 @@ const credentials = reactive(
   ),
 )
 const hotdesk = reactive(hydrateExtensionHotdeskInput(props.extension.configuration.hotdesk))
+const metaflows = reactive<
+  Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
+>({
+  binding_digit: props.extension.configuration.metaflows.binding_digit,
+  digit_timeout: props.extension.configuration.metaflows.digit_timeout,
+  listen_on: props.extension.configuration.metaflows.listen_on,
+  actions: cloneMetaflowActions(props.extension.configuration.metaflows.actions),
+})
 const clientErrors = ref<FormErrors>({})
 const displayErrors = computed(() => ({ ...props.fieldErrors, ...clientErrors.value }))
+const restrictionOptions = computed(() => {
+  const known = new Set(props.options.restrictions.map(({ key }) => key))
+
+  return [
+    ...props.options.restrictions,
+    ...Object.keys(props.extension.configuration.call_restriction)
+      .filter((key) => !known.has(key))
+      .map((key) => ({ key, label: key, emergency: false })),
+  ]
+})
 const form = reactive({
   firstName: props.extension.first_name ?? '',
   lastName: props.extension.last_name ?? '',
@@ -68,6 +100,22 @@ const { timezoneOptions, languageOptions, presenceOptions } = useExtensionFormOp
 
 function nullable(value: string): string | null {
   return value.trim() || null
+}
+
+function cloneMetaflowActions(actions: MetaflowAction[]): MetaflowAction[] {
+  return actions.map((action) => ({
+    ...action,
+    data: { ...action.data },
+    children: cloneMetaflowChildren(action.children),
+  }))
+}
+
+function cloneMetaflowChildren(children: MetaflowChild[]): MetaflowChild[] {
+  return children.map((child) => ({
+    ...child,
+    data: { ...child.data },
+    children: cloneMetaflowChildren(child.children),
+  }))
 }
 
 function fieldError(field: string): string | null {
@@ -107,6 +155,52 @@ function submit(): void {
     timezone: form.timezone,
     is_enabled: form.isEnabled,
     ...userConfiguration,
+    caller_id: advancedCalling.caller_id,
+    call_forward: {
+      ...advancedCalling.call_forward,
+      number: advancedCalling.call_forward.number?.trim() || null,
+    },
+    call_restriction: advancedCalling.call_restriction,
+    call_recording: advancedCalling.call_recording,
+    media: advancedCalling.media,
+    music_on_hold: advancedCalling.music_on_hold,
+    ringtones: {
+      internal: nullable(advancedCalling.ringtones.internal ?? ''),
+      external: nullable(advancedCalling.ringtones.external ?? ''),
+    },
+    dial_plan: {
+      system: [...advancedCalling.dial_plan.system],
+      rules: advancedCalling.dial_plan.rules.map((rule) => ({
+        pattern: rule.pattern.trim(),
+        description: nullable(rule.description ?? ''),
+        prefix: nullable(rule.prefix ?? ''),
+        suffix: nullable(rule.suffix ?? ''),
+      })),
+    },
+    formatters: advancedCalling.formatters.map((formatter) => ({
+      ...formatter,
+      field: formatter.field.trim(),
+      prefix: nullable(formatter.prefix ?? ''),
+      regex: nullable(formatter.regex ?? ''),
+      suffix: nullable(formatter.suffix ?? ''),
+      value: nullable(formatter.value ?? ''),
+    })),
+    profile: {
+      ...advancedCalling.profile,
+      addresses: advancedCalling.profile.addresses.map((address) => ({
+        address: address.address.trim(),
+        types: [...address.types],
+      })),
+      assistant: nullable(advancedCalling.profile.assistant ?? ''),
+      birthday: nullable(advancedCalling.profile.birthday ?? ''),
+      nicknames: advancedCalling.profile.nicknames.map((nickname) => nickname.trim()),
+      note: nullable(advancedCalling.profile.note ?? ''),
+      role: nullable(advancedCalling.profile.role ?? ''),
+      sort_string: nullable(advancedCalling.profile.sort_string ?? ''),
+      title: nullable(advancedCalling.profile.title ?? ''),
+    },
+    pronounced_name: advancedCalling.pronounced_name,
+    metaflows,
     hotdesk: {
       ...hotdesk,
       id: hotdesk.id ? hotdesk.id.trim() : null,
@@ -133,7 +227,10 @@ function submit(): void {
   }
 
   clientErrors.value = {}
-  emit('save', validation.data)
+  emit('save', {
+    ...validation.data,
+    metaflows: validation.data.metaflows ?? input.metaflows,
+  })
 }
 </script>
 
@@ -251,6 +348,42 @@ function submit(): void {
         :language-options="languageOptions"
         :presence-options="presenceOptions"
         @update:model-value="updateUserConfiguration"
+      />
+
+      <ExtensionAdvancedCallingSettings
+        v-model="advancedCalling"
+        :field-errors="displayErrors"
+        :phone-numbers="options.caller_id_numbers"
+        :restrictions="restrictionOptions"
+        :unresolved-numbers="{
+          external: extension.configuration.caller_id.external.number,
+          emergency: extension.configuration.caller_id.emergency.number,
+        }"
+      />
+
+      <ExtensionCallRecordingSettings
+        v-model="advancedCalling.call_recording"
+        :field-errors="displayErrors"
+      />
+
+      <ExtensionMediaSettings
+        v-model="advancedCalling"
+        :field-errors="displayErrors"
+        :media-options="options.media"
+      />
+
+      <ExtensionRoutingProfileSettings
+        v-model="advancedCalling"
+        :field-errors="displayErrors"
+        :media-options="options.media"
+        :policy="extension.configuration.policy"
+      />
+
+      <ExtensionMetaflowSettings
+        v-model="metaflows"
+        :current="extension.configuration.metaflows"
+        :resources="options.metaflow_resources"
+        :field-errors="displayErrors"
       />
 
       <ExtensionHotdeskProfile

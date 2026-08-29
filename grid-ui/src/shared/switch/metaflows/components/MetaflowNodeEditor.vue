@@ -5,31 +5,27 @@ import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
-import { metaflowDefinition, metaflowModuleOptions, newMetaflowNode } from '../deviceMetaflows'
-import type {
-  DeviceMetaflowChild,
-  DeviceMetaflowModule,
-  DeviceMetaflowNode,
-  ExtensionOption,
-} from '../types/device'
+import { metaflowDefinition, metaflowModuleOptions, newMetaflowNode } from '../catalog'
+import type { MetaflowChild, MetaflowExtensionOption, MetaflowModule, MetaflowNode } from '../types'
 
-defineOptions({ name: 'DeviceMetaflowNodeEditor' })
+defineOptions({ name: 'MetaflowNodeEditor' })
 const props = defineProps<{
-  node: DeviceMetaflowNode | DeviceMetaflowChild
   path: string
   fieldErrors: Record<string, string[]>
   showKey?: boolean
   mediaOptions: Array<{ id: string; name: string | null }>
   callflowOptions: Array<{ id: string; name: string | null; description: string | null }>
   deviceOptions: Array<{ id: string; name: string | null }>
-  extensionOptions: ExtensionOption[]
+  extensionOptions: MetaflowExtensionOption[]
 }>()
+const node = defineModel<MetaflowNode | MetaflowChild>({ required: true })
 const emit = defineEmits<{ remove: [] }>()
 const branchKey = computed({
-  get: () => ('key' in props.node ? props.node.key : ''),
+  get: () => ('key' in node.value ? node.value.key : ''),
   set: (value: string) => {
-    if ('key' in props.node) props.node.key = value
+    if ('key' in node.value) node.value = { ...node.value, key: value }
   },
 })
 
@@ -39,12 +35,21 @@ function error(field: string): string | null {
 
 function setModule(value: ListboxValue): void {
   if (!metaflowModuleOptions.some((module) => module.value === value)) return
-  props.node.module = value as DeviceMetaflowModule
-  props.node.data = { ...metaflowDefinition(props.node.module).defaults }
+  const module = value as MetaflowModule
+  node.value = {
+    ...node.value,
+    module,
+    data: { ...metaflowDefinition(module).defaults },
+  }
 }
 
 function setData(field: string, value: ListboxValue): void {
-  props.node.data[field] = value
+  node.value = { ...node.value, data: { ...node.value.data, [field]: value } }
+}
+
+function setInputData(field: string, event: Event, numeric = false): void {
+  const value = (event.target as HTMLInputElement).value
+  setData(field, numeric ? (value === '' ? null : Number(value)) : value)
 }
 
 function resourceOptions(resource?: string): ListboxOptionValue[] {
@@ -76,7 +81,26 @@ function resourceOptions(resource?: string): ListboxOptionValue[] {
 }
 
 function addChild(): void {
-  props.node.children.push({ key: 'success', ...newMetaflowNode() })
+  node.value = {
+    ...node.value,
+    children: [...node.value.children, { key: 'success', ...newMetaflowNode() }],
+  }
+}
+
+function replaceChild(index: number, child: MetaflowNode | MetaflowChild): void {
+  node.value = {
+    ...node.value,
+    children: node.value.children.map((current, childIndex) =>
+      childIndex === index ? (child as MetaflowChild) : current,
+    ),
+  }
+}
+
+function removeChild(index: number): void {
+  node.value = {
+    ...node.value,
+    children: node.value.children.filter((_, childIndex) => childIndex !== index),
+  }
 }
 </script>
 
@@ -111,7 +135,7 @@ function addChild(): void {
         :model-value="Boolean(node.data[field.key])"
         :label="field.label"
         class="rounded-md border border-slate-200 px-3 py-2.5"
-        @update:model-value="node.data[field.key] = $event"
+        @update:model-value="setData(field.key, $event)"
       />
       <label v-else class="grid gap-1">
         <span class="text-[11px] font-semibold text-slate-500">{{ field.label }}</span>
@@ -128,7 +152,7 @@ function addChild(): void {
         />
         <input
           v-else-if="field.type === 'number'"
-          v-model.number="node.data[field.key]"
+          :value="node.data[field.key] ?? ''"
           type="number"
           :min="field.min"
           :max="field.max"
@@ -136,14 +160,16 @@ function addChild(): void {
           class="field-control"
           :class="validationControlClass(error(`data.${field.key}`))"
           :aria-invalid="Boolean(error(`data.${field.key}`))"
+          @input="setInputData(field.key, $event, true)"
         />
         <input
           v-else
-          v-model="node.data[field.key]"
+          :value="node.data[field.key] ?? ''"
           maxlength="2048"
           class="field-control"
           :class="validationControlClass(error(`data.${field.key}`))"
           :aria-invalid="Boolean(error(`data.${field.key}`))"
+          @input="setInputData(field.key, $event)"
         />
       </label>
     </template>
@@ -161,10 +187,10 @@ function addChild(): void {
           <PlusIcon class="size-3.5" /> Add branch
         </button>
       </div>
-      <DeviceMetaflowNodeEditor
+      <MetaflowNodeEditor
         v-for="(child, index) in node.children"
         :key="index"
-        :node="child"
+        :model-value="child"
         :path="`${path}.children.${index}`"
         :field-errors="fieldErrors"
         :media-options="mediaOptions"
@@ -172,7 +198,8 @@ function addChild(): void {
         :device-options="deviceOptions"
         :extension-options="extensionOptions"
         show-key
-        @remove="node.children.splice(index, 1)"
+        @update:model-value="replaceChild(index, $event)"
+        @remove="removeChild(index)"
       />
       <p v-if="node.children.length === 0" class="text-[11px] text-slate-400">
         No child branches; this action ends the sequence.

@@ -8,6 +8,7 @@ use App\Domains\CallRouting\Services\CallflowJsonNormalizer;
 use App\Domains\CallRouting\Services\CallflowReferenceResolver;
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Devices\Services\DeviceMutationDataFactory;
 use App\Domains\Extensions\Contracts\SwitchExtensionProvisioningGateway;
 use App\Domains\Extensions\Exceptions\ExtensionProvisioningException;
 use App\Domains\Extensions\Exceptions\ExtensionUpdateException;
@@ -19,6 +20,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
+use App\Shared\Switch\MetaflowPolicy;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
@@ -37,6 +39,8 @@ class ExtensionProvisioningService
         private readonly CallflowJsonNormalizer $callflowJson,
         private readonly AuditService $audit,
         private readonly LineKeyProjectionService $lineKeyProjection,
+        private readonly MetaflowPolicy $metaflowPolicy,
+        private readonly DeviceMutationDataFactory $deviceMutationData,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -79,16 +83,14 @@ class ExtensionProvisioningService
 
             if ($data['device']['enabled']) {
                 $currentStep = 'device';
-                $created['device'] = $this->gateway->createDevice($account, [
-                    'name' => $data['device']['name'],
-                    'device_type' => $data['device']['device_type'],
-                    'owner_id' => $userResourceId,
-                    'make' => $data['device']['make'] ?? null,
-                    'model' => $data['device']['model'] ?? null,
-                    'mac_address' => $data['device']['mac_address'] ?? null,
-                    'sip_username' => $data['device']['sip_username'] ?? null,
-                    'sip_password' => $data['device']['sip_password'] ?? null,
-                ]);
+                $created['device'] = $this->gateway->createDevice(
+                    $account,
+                    $this->deviceMutationData->make(
+                        $account,
+                        $data['device']['input'],
+                        $userResourceId,
+                    ),
+                );
                 $this->recordCreatedResource($operation, $created, 'device');
             }
 
@@ -207,6 +209,7 @@ class ExtensionProvisioningService
         ]);
 
         try {
+            $data = $this->prepareAdvancedSwitchData($account, $extension, $data);
             $snapshots['user'] = $this->gateway->updateUser(
                 $account,
                 $extension->switch_resource_id,
@@ -360,6 +363,406 @@ class ExtensionProvisioningService
 
             throw $workflowException;
         }
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function prepareAdvancedSwitchData(
+        SwitchAccount $account,
+        SwitchExtension $extension,
+        array $data,
+    ): array {
+        $data = $this->resolveCallerIdNumbers($account, $extension, $data);
+        $data = $this->resolveMediaReference(
+            $account,
+            $extension,
+            $data,
+            'music_on_hold',
+        );
+        $data = $this->resolveMediaReference(
+            $account,
+            $extension,
+            $data,
+            'pronounced_name',
+        );
+        $data = $this->preserveUserAdvancedMetadata($extension, $data);
+
+        if (! isset($data['metaflows']) || ! is_array($data['metaflows'])) {
+            return $data;
+        }
+
+        $current = is_array($extension->switch_json['metaflows'] ?? null)
+            ? $extension->switch_json['metaflows']
+            : [];
+        $preserved = array_diff_key(
+            $current,
+            array_flip(['binding_digit', 'digit_timeout', 'listen_on']),
+        );
+        $actions = is_array($data['metaflows']['actions'] ?? null)
+            ? $data['metaflows']['actions']
+            : [];
+        $maps = $this->metaflowPolicy->merge($current, $actions, $account);
+        $preserved['numbers'] = $maps['numbers'];
+        $preserved['patterns'] = $maps['patterns'];
+        $data['metaflows']['preserved_options'] = $preserved;
+        unset($data['metaflows']['actions']);
+
+        return $data;
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function resolveMediaReference(
+        SwitchAccount $account,
+        SwitchExtension $extension,
+        array $data,
+        string $field,
+    ): array {
+        if (! isset($data[$field]) || ! is_array($data[$field])) {
+            return $data;
+        }
+
+        if (($data[$field]['preserve_media'] ?? false) === true) {
+            $data[$field]['media_id'] = data_get(
+                $extension->switch_json,
+                "{$field}.media_id",
+            );
+        } else {
+            $publicId = $data[$field]['media_id'] ?? null;
+            $media = is_string($publicId) && $publicId !== ''
+                ? $account->media()->where('id', $publicId)->first()
+                : null;
+
+            if (is_string($publicId) && $publicId !== '' && $media === null) {
+                throw ValidationException::withMessages([
+                    "{$field}.media_id" => 'Select media projected for this account.',
+                ]);
+            }
+
+            $data[$field]['media_id'] = $media?->switch_resource_id;
+        }
+
+        unset($data[$field]['preserve_media']);
+
+        return $data;
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function resolveCallerIdNumbers(
+        SwitchAccount $account,
+        SwitchExtension $extension,
+        array $data,
+    ): array {
+        if (! isset($data['caller_id']) || ! is_array($data['caller_id'])) {
+            return $data;
+        }
+
+        foreach (['external' => false, 'emergency' => true] as $scope => $requiresE911) {
+            $selection = is_array($data['caller_id'][$scope] ?? null)
+                ? $data['caller_id'][$scope]
+                : [];
+
+            if (($selection['preserve_number'] ?? false) === true) {
+                $data['caller_id'][$scope]['number'] = data_get(
+                    $extension->switch_json,
+                    "caller_id.{$scope}.number",
+                );
+            } else {
+                $publicId = $selection['phone_number_id'] ?? null;
+                $phoneNumber = is_string($publicId) && $publicId !== ''
+                    ? $account->phoneNumbers()->where('id', $publicId)->first()
+                    : null;
+
+                if (is_string($publicId) && $publicId !== '' && $phoneNumber === null) {
+                    throw ValidationException::withMessages([
+                        "caller_id.{$scope}.phone_number_id" => 'Select a phone number assigned to this account.',
+                    ]);
+                }
+
+                if ($requiresE911 && $phoneNumber !== null && ! $phoneNumber->isE911Enabled()) {
+                    throw ValidationException::withMessages([
+                        'caller_id.emergency.phone_number_id' => 'Select a phone number with E911 enabled.',
+                    ]);
+                }
+
+                $data['caller_id'][$scope]['number'] = $phoneNumber?->number;
+            }
+
+            unset(
+                $data['caller_id'][$scope]['phone_number_id'],
+                $data['caller_id'][$scope]['preserve_number'],
+            );
+        }
+
+        return $data;
+    }
+
+    /**
+     * Preserve unmodeled Switch properties and recording storage URLs without accepting them from
+     * the browser. Redacted values are never sent back upstream.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function preserveUserAdvancedMetadata(SwitchExtension $extension, array $data): array
+    {
+        $snapshot = is_array($extension->switch_json) ? $extension->switch_json : [];
+        $data['advanced_preserved_options'] = $this->safePreservedOptions($snapshot, [
+            'id',
+            'first_name',
+            'last_name',
+            'enabled',
+            'email',
+            'timezone',
+            'language',
+            'presence_id',
+            'username',
+            'password',
+            'require_password_update',
+            'hotdesk',
+            'call_waiting',
+            'do_not_disturb',
+            'contact_list',
+            'caller_id_options',
+            'caller_id',
+            'call_forward',
+            'call_restriction',
+            'call_recording',
+            'media',
+            'music_on_hold',
+            'ringtones',
+            'dial_plan',
+            'formatters',
+            'profile',
+            'pronounced_name',
+            'metaflows',
+        ]);
+
+        if (isset($data['caller_id']) && is_array($data['caller_id'])) {
+            $callerId = is_array($snapshot['caller_id'] ?? null) ? $snapshot['caller_id'] : [];
+            $data['caller_id']['preserved_options'] = $this->safePreservedOptions(
+                $callerId,
+                ['internal', 'external', 'emergency'],
+            );
+
+            foreach (['internal', 'external', 'emergency'] as $scope) {
+                $current = is_array($callerId[$scope] ?? null) ? $callerId[$scope] : [];
+                $data['caller_id'][$scope]['preserved_options'] = $this->safePreservedOptions(
+                    $current,
+                    ['name', 'number'],
+                );
+            }
+        }
+
+        if (isset($data['call_forward']) && is_array($data['call_forward'])) {
+            $callForward = is_array($snapshot['call_forward'] ?? null) ? $snapshot['call_forward'] : [];
+            $data['call_forward']['preserved_options'] = $this->safePreservedOptions($callForward, [
+                'enabled',
+                'number',
+                'direct_calls_only',
+                'failover',
+                'ignore_early_media',
+                'keep_caller_id',
+                'require_keypress',
+                'substitute',
+            ]);
+        }
+
+        if (isset($data['call_restriction']) && is_array($data['call_restriction'])) {
+            $currentRestrictions = is_array($snapshot['call_restriction'] ?? null)
+                ? $snapshot['call_restriction']
+                : [];
+            $data['call_restriction']['preserved_options'] = [];
+
+            foreach ($data['call_restriction'] as $classification => $restriction) {
+                if ($classification === 'preserved_options' || ! is_array($restriction)) {
+                    continue;
+                }
+
+                $current = is_array($currentRestrictions[$classification] ?? null)
+                    ? $currentRestrictions[$classification]
+                    : [];
+                $data['call_restriction']['preserved_options'][$classification] = $this
+                    ->safePreservedOptions($current, ['action']);
+            }
+        }
+
+        if (isset($data['call_recording']) && is_array($data['call_recording'])) {
+            foreach (['account', 'endpoint'] as $target) {
+                foreach (['any', 'inbound', 'outbound'] as $direction) {
+                    foreach (['any', 'onnet', 'offnet'] as $network) {
+                        $path = "call_recording.{$target}.{$direction}.{$network}";
+                        $current = data_get($snapshot, $path);
+                        $current = is_array($current) ? $current : [];
+                        data_set(
+                            $data,
+                            "{$path}.preserved_options",
+                            $this->safePreservedOptions($current, [
+                                'enabled',
+                                'format',
+                                'record_min_sec',
+                                'record_on_answer',
+                                'record_on_bridge',
+                                'record_sample_rate',
+                                'time_limit',
+                            ]),
+                        );
+                    }
+                }
+            }
+        }
+
+        if (isset($data['media']) && is_array($data['media'])) {
+            $current = is_array($snapshot['media'] ?? null) ? $snapshot['media'] : [];
+            $data['media']['preserved_options'] = $this->safePreservedOptions($current, [
+                'audio',
+                'video',
+                'bypass_media',
+                'encryption',
+                'fax_option',
+                'ignore_early_media',
+                'progress_timeout',
+            ]);
+
+            foreach (['audio', 'video'] as $stream) {
+                $currentStream = is_array($current[$stream] ?? null) ? $current[$stream] : [];
+                $data['media']['preserved_options'][$stream] = $this->safePreservedOptions(
+                    $currentStream,
+                    ['codecs'],
+                );
+            }
+
+            $currentEncryption = is_array($current['encryption'] ?? null)
+                ? $current['encryption']
+                : [];
+            $data['media']['preserved_options']['encryption'] = $this->safePreservedOptions(
+                $currentEncryption,
+                ['enforce_security', 'methods'],
+            );
+        }
+
+        if (isset($data['music_on_hold']) && is_array($data['music_on_hold'])) {
+            $current = is_array($snapshot['music_on_hold'] ?? null)
+                ? $snapshot['music_on_hold']
+                : [];
+            $data['music_on_hold']['preserved_options'] = $this->safePreservedOptions(
+                $current,
+                ['media_id'],
+            );
+        }
+
+        if (isset($data['ringtones']) && is_array($data['ringtones'])) {
+            $current = is_array($snapshot['ringtones'] ?? null) ? $snapshot['ringtones'] : [];
+            $data['ringtones']['preserved_options'] = $this->safePreservedOptions(
+                $current,
+                ['internal', 'external'],
+            );
+        }
+
+        if (isset($data['dial_plan']) && is_array($data['dial_plan'])) {
+            $current = is_array($snapshot['dial_plan'] ?? null) ? $snapshot['dial_plan'] : [];
+
+            foreach ($data['dial_plan']['rules'] ?? [] as $index => $rule) {
+                if (! is_array($rule) || ! is_string($rule['pattern'] ?? null)) {
+                    continue;
+                }
+
+                $currentRule = is_array($current[$rule['pattern']] ?? null)
+                    ? $current[$rule['pattern']]
+                    : [];
+                $data['dial_plan']['rules'][$index]['preserved_options'] = $this
+                    ->safePreservedOptions($currentRule, ['description', 'prefix', 'suffix']);
+            }
+        }
+
+        if (isset($data['formatters']) && is_array($data['formatters'])) {
+            $current = is_array($snapshot['formatters'] ?? null) ? $snapshot['formatters'] : [];
+            $occurrences = [];
+
+            foreach ($data['formatters'] as $index => $formatter) {
+                $field = is_array($formatter) ? ($formatter['field'] ?? null) : null;
+                if (! is_string($field)) {
+                    continue;
+                }
+
+                $occurrence = $occurrences[$field] ?? 0;
+                $occurrences[$field] = $occurrence + 1;
+                $stored = $current[$field] ?? null;
+                $storedRules = is_array($stored) && array_is_list($stored) ? $stored : [$stored];
+                $currentRule = is_array($storedRules[$occurrence] ?? null)
+                    ? $storedRules[$occurrence]
+                    : [];
+                $data['formatters'][$index]['preserved_options'] = $this->safePreservedOptions(
+                    $currentRule,
+                    [
+                        'direction',
+                        'match_invite_format',
+                        'prefix',
+                        'regex',
+                        'strip',
+                        'suffix',
+                        'value',
+                    ],
+                );
+            }
+        }
+
+        if (isset($data['profile']) && is_array($data['profile'])) {
+            $current = is_array($snapshot['profile'] ?? null) ? $snapshot['profile'] : [];
+            $data['profile']['preserved_options'] = $this->safePreservedOptions($current, [
+                'addresses',
+                'assistant',
+                'birthday',
+                'nicknames',
+                'note',
+                'role',
+                'sort-string',
+                'title',
+            ]);
+        }
+
+        if (isset($data['pronounced_name']) && is_array($data['pronounced_name'])) {
+            $current = is_array($snapshot['pronounced_name'] ?? null)
+                ? $snapshot['pronounced_name']
+                : [];
+            $data['pronounced_name']['preserved_options'] = $this->safePreservedOptions(
+                $current,
+                ['media_id'],
+            );
+        }
+
+        return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $source
+     * @param  list<string>  $editableKeys
+     * @return array<string, mixed>
+     */
+    private function safePreservedOptions(array $source, array $editableKeys): array
+    {
+        $preserved = $this->withoutRedactedValues(
+            array_diff_key($source, array_flip($editableKeys)),
+        );
+
+        return is_array($preserved) ? $preserved : [];
+    }
+
+    private function withoutRedactedValues(mixed $value): mixed
+    {
+        if (! is_array($value)) {
+            return $value === '[REDACTED]' ? null : $value;
+        }
+
+        $clean = [];
+
+        foreach ($value as $key => $item) {
+            $item = $this->withoutRedactedValues($item);
+
+            if ($item !== null) {
+                $clean[$key] = $item;
+            }
+        }
+
+        return $clean;
     }
 
     /** @param array<string, mixed> $data */
@@ -678,8 +1081,8 @@ class ExtensionProvisioningService
             'extension' => $data['extension'],
             'voicemail_created' => $data['voicemail']['enabled'],
             'device_created' => $data['device']['enabled'],
-            'sip_credentials_supplied' => isset($data['device']['sip_username'])
-                || isset($data['device']['sip_password']),
+            'sip_credentials_supplied' => isset($data['device']['input']['sip']['username'])
+                || isset($data['device']['input']['sip']['password']),
         ];
     }
 }

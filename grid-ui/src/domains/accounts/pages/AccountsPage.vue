@@ -218,8 +218,9 @@ async function changeStatus(): Promise<void> {
             <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
               <p class="text-xs font-semibold text-slate-700">Identity and calling defaults</p>
               <p class="mt-1 text-[11px] leading-5 text-slate-600">
-                Schema-audited forms are planned. Current values remain read-only so partial writes
-                cannot erase unknown account configuration.
+                Schema-audited identity, caller ID, recording, routing, preflow, and in-call
+                defaults are available. Unknown Switch-owned settings remain protected from partial
+                writes.
               </p>
             </div>
             <div class="rounded-md border border-amber-200 bg-amber-50 p-4">
@@ -247,6 +248,10 @@ async function changeStatus(): Promise<void> {
     :saving="accounts.saving"
     :error="accounts.mutationError"
     :field-errors="accounts.fieldErrors"
+    :restriction-options="accounts.settingsOptions.restrictions"
+    :callflow-options="accounts.settingsOptions.callflows"
+    :metaflow-resources="accounts.settingsOptions.metaflow_resources"
+    :options-error="accounts.settingsOptionsError"
     @close="settingsOpen = false"
     @save="saveSettings"
   />

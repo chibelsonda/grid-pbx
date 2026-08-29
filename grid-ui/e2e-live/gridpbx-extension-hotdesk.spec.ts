@@ -27,10 +27,32 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
 
   const starterDevice = page.locator('article').filter({ hasText: 'Initial device' })
   await starterDevice.getByRole('switch', { name: 'Create' }).click()
-  await expect(starterDevice.getByRole('radio', { name: /VoIP phone/ })).toBeVisible()
-  await expect(starterDevice.getByRole('radio', { name: /Cell phone/ })).toHaveCount(0)
-  await expect(starterDevice.getByRole('radio', { name: /Landline/ })).toHaveCount(0)
-  await expect(starterDevice.getByRole('radio', { name: /SIP URI/ })).toHaveCount(0)
+  if ((await page.getByRole('heading', { name: 'Configure device' }).count()) === 0) {
+    await starterDevice.getByRole('button', { name: /Configure the initial device/ }).click()
+  }
+  await expect(page.getByRole('heading', { name: 'Configure device' })).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  const deviceDrawer = page.getByRole('dialog', { name: 'Configure device' })
+  for (const type of [
+    'VoIP phone',
+    'Cell phone',
+    'Smartphone',
+    'Landline',
+    'Softphone',
+    'Fax',
+    'ATA',
+    'SIP URI',
+  ]) {
+    await expect(deviceDrawer.getByRole('button', { name: type })).toBeVisible()
+  }
+  await deviceDrawer.getByRole('tab', { name: 'Advanced' }).click()
+  await expect(deviceDrawer.getByRole('tab', { name: 'Caller ID' })).toBeVisible()
+  await expect(deviceDrawer.getByRole('tab', { name: 'Restrictions' })).toBeVisible()
+  await deviceDrawer.getByRole('tab', { name: 'Basic', exact: true }).first().click()
+  await deviceDrawer.getByPlaceholder('Reception Desk Phone').fill('Initial desk phone')
+  await deviceDrawer.getByRole('button', { name: 'Use this device' }).click()
+  await expect(page.getByRole('heading', { name: 'Configure device' })).toHaveCount(0)
+  await expect(starterDevice.getByText('Initial desk phone', { exact: true })).toBeVisible()
 
   const credentials = page.locator('article').filter({ hasText: 'Switch portal login' })
   const username = credentials.getByRole('textbox', { name: 'Login username' })
@@ -65,6 +87,171 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   ).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
   expect(issues).toEqual([])
+})
+
+test('shows schema-backed managed User calling fields without clipping or leaking storage URLs', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  let created: { deleteUrl: string; number: string } | null = null
+  await page.goto('/extensions')
+  await expect(page.getByRole('heading', { name: 'People & Extensions' })).toBeVisible()
+  const extensionHrefs = await page
+    .getByRole('link', { name: /^View / })
+    .evaluateAll((links) => links.map((link) => (link as HTMLAnchorElement).href))
+  let managedExtensionFound = false
+
+  for (const href of extensionHrefs) {
+    await page.goto(href)
+    if ((await page.getByRole('button', { name: 'Edit' }).count()) > 0) {
+      managedExtensionFound = true
+      break
+    }
+  }
+
+  if (!managedExtensionFound) {
+    const number = Date.now().toString().slice(-8)
+    await page.goto('/extensions')
+    await page.getByRole('button', { name: 'Create extension' }).click()
+    await page.getByLabel('First name').fill('GridPBX')
+    await page.getByLabel('Last name').fill('Calling Audit')
+    await page.getByLabel('Extension number').fill(number)
+    const voicemail = page.locator('article').filter({ hasText: 'Voicemail fallback' })
+    await voicemail.getByRole('switch', { name: 'Create' }).click()
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions$/.test(new URL(response.url()).pathname),
+    )
+    await page.getByRole('button', { name: 'Create extension', exact: true }).last().click()
+    const response = await createResponse
+    if (response.status() !== 201) {
+      throw new Error(`Disposable Extension creation failed: ${await response.text()}`)
+    }
+    const responseUrl = new URL(response.url())
+    const result = (await response.json()) as { data: { id: string } }
+    created = {
+      deleteUrl: `${responseUrl.origin}${responseUrl.pathname}/${result.data.id}`,
+      number,
+    }
+  }
+
+  try {
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible()
+    await page.getByRole('button', { name: 'Edit' }).click()
+    await page.waitForTimeout(300)
+    if ((await page.getByRole('heading', { name: 'Caller ID and forwarding' }).count()) === 0) {
+      throw new Error(`Extension editor did not mount: ${issues.join(' | ')}`)
+    }
+
+    await expect(page.getByRole('heading', { name: 'Caller ID and forwarding' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Call restrictions' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'User call recording' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Media and endpoint audio' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Routing and directory profile' })).toBeVisible()
+    await expect(page.getByText('asserted identity remains Switch-managed')).toBeVisible()
+    await expect(page.getByText(/recording.*url/i)).toBeVisible()
+    await expect(page.getByText('https://', { exact: false })).toHaveCount(0)
+
+    const externalCallerId = page.getByText('External caller-ID number').locator('..')
+    await externalCallerId.getByRole('button').click()
+    const listbox = page.getByRole('listbox')
+    await expect(listbox).toBeVisible()
+    const box = await listbox.boundingBox()
+    const viewport = page.viewportSize()
+    expect(box).not.toBeNull()
+    expect(viewport).not.toBeNull()
+    expect(box!.x).toBeGreaterThanOrEqual(0)
+    expect(box!.y).toBeGreaterThanOrEqual(0)
+    expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width)
+    expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
+    await page.getByRole('option', { name: 'Use account caller ID' }).click()
+
+    const forwarding = page.getByRole('switch', { name: 'Enable call forwarding' })
+    if (!(await forwarding.isChecked())) await forwarding.click()
+    const destination = page.getByText('Forwarding destination').locator('..').locator('input')
+    await destination.fill('')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await page.waitForTimeout(100)
+    if ((await destination.getAttribute('aria-invalid')) !== 'true') {
+      throw new Error(
+        `Forwarding error was not attached to its input: ${(await page.locator('.text-danger').allTextContents()).join(' | ')}`,
+      )
+    }
+    await expect(destination).toHaveAttribute('aria-invalid', 'true')
+    await expect(destination).toHaveClass(/border-red-400/)
+    await expect(page.getByText('Enter a forwarding destination.')).toBeVisible()
+    await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
+
+    await forwarding.click()
+    await page.getByRole('button', { name: 'Select extension music on hold' }).click()
+    const musicListbox = page.getByRole('listbox')
+    await expect(musicListbox).toBeVisible()
+    const musicBox = await musicListbox.boundingBox()
+    expect(musicBox).not.toBeNull()
+    expect(musicBox!.x).toBeGreaterThanOrEqual(0)
+    expect(musicBox!.y).toBeGreaterThanOrEqual(0)
+    expect(musicBox!.x + musicBox!.width).toBeLessThanOrEqual(viewport!.width)
+    expect(musicBox!.y + musicBox!.height).toBeLessThanOrEqual(viewport!.height)
+    await page.getByRole('option', { name: 'Inherit account music' }).click()
+
+    await page.getByRole('button', { name: 'Codec, transport, and ringtone controls' }).click()
+    await expect(page.getByText('Audio codec priority', { exact: true })).toBeVisible()
+    const progressTimeout = page.getByLabel('Progress timeout (seconds)')
+    await progressTimeout.fill('3601')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect(progressTimeout).toHaveAttribute('aria-invalid', 'true')
+    await expect(progressTimeout).toHaveClass(/border-red-400/)
+
+    await progressTimeout.fill('30')
+    await page.getByRole('button', { name: 'Dial plan', exact: true }).click()
+    await page.getByRole('button', { name: 'Add rule' }).click()
+    const dialPlanPattern = page.getByText('Regex pattern').locator('..').locator('input').last()
+    await dialPlanPattern.fill('(?R)')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expect(dialPlanPattern).toHaveAttribute('aria-invalid', 'true')
+    await expect(dialPlanPattern).toHaveClass(/border-red-400/)
+
+    await page.getByRole('button', { name: 'Directory profile and spoken name' }).click()
+    await page.getByRole('button', { name: 'Select pronounced-name media' }).click()
+    const pronouncedNameListbox = page.getByRole('listbox')
+    await expect(pronouncedNameListbox).toBeVisible()
+    const pronouncedNameBox = await pronouncedNameListbox.boundingBox()
+    expect(pronouncedNameBox).not.toBeNull()
+    expect(pronouncedNameBox!.x).toBeGreaterThanOrEqual(0)
+    expect(pronouncedNameBox!.y).toBeGreaterThanOrEqual(0)
+    expect(pronouncedNameBox!.x + pronouncedNameBox!.width).toBeLessThanOrEqual(viewport!.width)
+    expect(pronouncedNameBox!.y + pronouncedNameBox!.height).toBeLessThanOrEqual(viewport!.height)
+    await page.getByRole('option', { name: 'No pronounced-name media' }).click()
+    await expect(page.getByText('Switch-managed policy')).toBeVisible()
+    expect(issues).toEqual([])
+  } finally {
+    if (created) {
+      const cleanup = await page.evaluate(async ({ deleteUrl, number }) => {
+        const token = decodeURIComponent(
+          document.cookie
+            .split('; ')
+            .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+            ?.split('=')[1] ?? '',
+        )
+        const response = await fetch(deleteUrl, {
+          method: 'DELETE',
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            'X-XSRF-TOKEN': token,
+          },
+          body: JSON.stringify({ confirmation: number }),
+        })
+
+        return { status: response.status, body: await response.text() }
+      }, created)
+      if (cleanup.status !== 204) {
+        throw new Error(`Disposable Extension cleanup failed: ${cleanup.body}`)
+      }
+    }
+  }
 })
 
 test('keeps Voicemail validation inline and its assignment listbox inside the viewport', async ({

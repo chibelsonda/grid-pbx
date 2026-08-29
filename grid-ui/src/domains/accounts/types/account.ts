@@ -1,3 +1,5 @@
+import type { MetaflowAction, MetaflowResources } from '@/shared/switch/metaflows/types'
+
 export type Account = {
   id: string
   name: string
@@ -36,7 +38,7 @@ export type AccountDetail = Pick<Account, 'id' | 'name' | 'realm' | 'timezone' |
   configuration_boundaries: {
     identity_defaults: 'safe_fields_available'
     calling_defaults: 'safe_fields_available'
-    advanced_routing: 'planned'
+    advanced_routing: 'guided_rules_available'
     enable_disable: 'implemented_confirmed'
     billing_topup: 'provider_required'
   }
@@ -54,6 +56,12 @@ export type AccountDetail = Pick<Account, 'id' | 'name' | 'realm' | 'timezone' |
       external: AccountCallerIdNumber
       emergency: AccountCallerIdNumber
     }
+    call_restriction: Record<string, AccountCallRestriction>
+    call_recording: Partial<AccountCallRecording>
+    dial_plan: AccountDialPlan
+    formatters: AccountFormatter[]
+    preflow: AccountPreflow
+    metaflows: AccountMetaflows
   }
   options: { caller_id_numbers: AccountCallerIdNumberOption[] }
   projection: {
@@ -82,6 +90,115 @@ export type AccountSettingsInput = {
     external: AccountCallerIdSelection
     emergency: AccountCallerIdSelection
   }
+  call_restriction: Record<string, AccountCallRestriction>
+  call_recording: AccountCallRecordingInput
+  dial_plan: AccountDialPlan
+  formatters: AccountFormatter[]
+  preflow: AccountPreflowSelection
+  metaflows: Pick<AccountMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
+}
+
+export type AccountSettingsOptions = {
+  restrictions: AccountRestrictionOption[]
+  callflows: AccountCallflowOption[]
+  metaflow_resources: MetaflowResources
+}
+
+export type AccountCallflowOption = {
+  id: string
+  name: string
+  description: string | null
+}
+
+export type AccountRestrictionOption = {
+  key: string
+  label: string
+  emergency: boolean
+}
+
+export type AccountCallRestriction = { action: 'inherit' | 'deny' }
+
+export type AccountRecordingParameters = {
+  enabled: boolean
+  format: 'mp3' | 'wav'
+  record_min_sec: number | null
+  record_on_answer: boolean
+  record_on_bridge: boolean
+  record_sample_rate: 8000 | 16000 | 32000 | 48000 | null
+  time_limit: number | null
+}
+
+export type AccountRecordingSource = {
+  any: AccountRecordingParameters
+  onnet: AccountRecordingParameters
+  offnet: AccountRecordingParameters
+}
+
+export type AccountRecordingRules = {
+  any: AccountRecordingSource
+  inbound: AccountRecordingSource
+  outbound: AccountRecordingSource
+}
+
+export type AccountCallRecording = {
+  account: AccountRecordingRules
+  endpoint: AccountRecordingRules
+}
+
+export type AccountCallRecordingInput = Partial<
+  Record<
+    keyof AccountCallRecording,
+    Partial<
+      Record<
+        keyof AccountRecordingRules,
+        Partial<Record<keyof AccountRecordingSource, AccountRecordingParameters>>
+      >
+    >
+  >
+>
+
+export type AccountDialPlanRule = {
+  pattern: string
+  description: string | null
+  prefix: string | null
+  suffix: string | null
+}
+
+export type AccountDialPlan = {
+  system: string[]
+  rules: AccountDialPlanRule[]
+}
+
+export type AccountFormatter = {
+  field: string
+  direction: 'inbound' | 'outbound' | 'both' | null
+  match_invite_format: boolean
+  prefix: string | null
+  regex: string | null
+  strip: boolean
+  suffix: string | null
+  value: string | null
+}
+
+export type AccountPreflow = {
+  callflow_id: string | null
+  name: string | null
+  unresolved: boolean
+}
+
+export type AccountPreflowSelection = {
+  callflow_id: string | null
+  preserve_callflow: boolean
+}
+
+export type AccountMetaflows = {
+  binding_digit: string | null
+  digit_timeout: number | null
+  listen_on: 'both' | 'self' | 'peer' | null
+  number_flow_count: number
+  pattern_flow_count: number
+  actions: MetaflowAction[]
+  locked_action_count: number
 }
 
 export type AccountCallerIdNumber = {

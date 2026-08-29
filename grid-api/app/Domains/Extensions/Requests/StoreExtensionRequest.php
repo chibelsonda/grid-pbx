@@ -2,11 +2,11 @@
 
 namespace App\Domains\Extensions\Requests;
 
-use App\Domains\Devices\Rules\UniqueDeviceMacAddress;
-use App\Domains\Devices\Services\StarterDevicePolicy;
+use App\Domains\Devices\Requests\SaveDeviceRequest;
 use App\Domains\Devices\Support\MacAddress;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -21,14 +21,6 @@ class StoreExtensionRequest extends FormRequest
     public function rules(): array
     {
         $accountId = $this->accountInternalId();
-        $deviceEnabled = $this->boolean('device.enabled');
-        $deviceType = $this->input('device.device_type');
-        $provisionable = $deviceEnabled
-            && is_string($deviceType)
-            && in_array($deviceType, StarterDevicePolicy::PROVISIONABLE_TYPES, true);
-        $supportsSipCredentials = $deviceEnabled
-            && is_string($deviceType)
-            && in_array($deviceType, StarterDevicePolicy::SUPPORTED_TYPES, true);
 
         return [
             'first_name' => ['required', 'string', 'max:128'],
@@ -97,43 +89,34 @@ class StoreExtensionRequest extends FormRequest
             'hotdesk.clear_pin' => ['required', 'boolean'],
             'voicemail' => ['required', 'array:enabled,notification_emails,transcribe,require_pin,pin'],
             'voicemail.enabled' => ['required', 'boolean'],
-            'voicemail.notification_emails' => ['required', 'array', 'max:10'],
+            'voicemail.notification_emails' => ['present', 'array', 'max:10'],
             'voicemail.notification_emails.*' => ['email:rfc', 'max:254', 'distinct'],
             'voicemail.transcribe' => ['required', 'boolean'],
             'voicemail.require_pin' => ['required', 'boolean'],
             'voicemail.pin' => ['nullable', 'required_if:voicemail.require_pin,true', 'string', 'regex:/^[0-9]{4,6}$/'],
-            'device' => ['required', 'array:enabled,name,device_type,mac_address,sip_username,sip_password'],
+            'device' => ['required', 'array:enabled,input'],
             'device.enabled' => ['required', 'boolean'],
-            'device.name' => ['nullable', 'required_if:device.enabled,true', 'string', 'max:128'],
-            'device.device_type' => [
+            'device.input' => [
+                Rule::requiredIf($this->boolean('device.enabled')),
+                Rule::prohibitedIf(! $this->boolean('device.enabled')),
                 'nullable',
-                'required_if:device.enabled,true',
-                'string',
-                Rule::in(StarterDevicePolicy::SUPPORTED_TYPES),
+                'array',
             ],
-            'device.mac_address' => [
-                Rule::prohibitedIf(! $provisionable),
-                'nullable',
-                'string',
-                'max:64',
-                'regex:/^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/',
-                new UniqueDeviceMacAddress($accountId),
-            ],
-            'device.sip_username' => [Rule::prohibitedIf(! $supportsSipCredentials), 'nullable', 'string', 'min:2', 'max:32'],
-            'device.sip_password' => [Rule::prohibitedIf(! $supportsSipCredentials), 'nullable', 'string', 'min:12', 'max:32'],
         ];
     }
 
     protected function prepareForValidation(): void
     {
-        $macAddress = $this->input('device.mac_address');
+        $macAddress = $this->input('device.input.mac_address');
 
         if (! is_string($macAddress)) {
             return;
         }
 
         $device = (array) $this->input('device', []);
-        $device['mac_address'] = MacAddress::canonicalize($macAddress);
+        $deviceInput = (array) ($device['input'] ?? []);
+        $deviceInput['mac_address'] = MacAddress::canonicalize($macAddress);
+        $device['input'] = $deviceInput;
 
         $this->merge(['device' => $device]);
     }
@@ -142,6 +125,8 @@ class StoreExtensionRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            $this->validateDeviceInput($validator);
+
             $username = $this->input('username');
             $password = $this->input('password');
             $hasUsername = is_string($username) && $username !== '';
@@ -182,6 +167,49 @@ class StoreExtensionRequest extends FormRequest
                 );
             }
         }];
+    }
+
+    private function validateDeviceInput(Validator $validator): void
+    {
+        if (! $this->boolean('device.enabled')) {
+            return;
+        }
+
+        $input = $this->input('device.input');
+
+        if (! is_array($input)) {
+            return;
+        }
+
+        /** @var SaveDeviceRequest $deviceRequest */
+        $deviceRequest = SaveDeviceRequest::create($this->getUri(), 'POST', $input);
+        $deviceRequest->setContainer($this->container);
+        $deviceRequest->setRouteResolver($this->getRouteResolver());
+        $deviceRequest->setUserResolver($this->getUserResolver());
+        $deviceRequest->replace($input);
+
+        $deviceValidator = ValidatorFacade::make(
+            $input,
+            $this->container->call([$deviceRequest, 'rules']),
+        );
+
+        foreach ($deviceRequest->after() as $callback) {
+            $deviceValidator->after($callback);
+        }
+
+        if ($deviceValidator->fails()) {
+            foreach ($deviceValidator->errors()->messages() as $path => $messages) {
+                foreach ($messages as $message) {
+                    $validator->errors()->add("device.input.{$path}", $message);
+                }
+            }
+
+            return;
+        }
+
+        $device = (array) $this->input('device', []);
+        $device['input'] = $deviceValidator->validated();
+        $this->merge(['device' => $device]);
     }
 
     private function accountInternalId(): ?string

@@ -1,18 +1,53 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { accountApi } from '../api/accountApi'
-import type { AccountDetail } from '../types/account'
+import type { AccountCallRecording, AccountDetail, AccountRecordingSource } from '../types/account'
 import { useAccountStore } from './accountStore'
 
 vi.mock('../api/accountApi', () => ({
   accountApi: {
     list: vi.fn(),
     detail: vi.fn(),
+    settingsOptions: vi.fn(),
     update: vi.fn(),
     refresh: vi.fn(),
     updateStatus: vi.fn(),
   },
 }))
+
+const recordingSource = (): AccountRecordingSource => ({
+  any: {
+    enabled: false,
+    format: 'mp3',
+    record_min_sec: null,
+    record_on_answer: true,
+    record_on_bridge: false,
+    record_sample_rate: null,
+    time_limit: null,
+  },
+  onnet: {
+    enabled: false,
+    format: 'mp3',
+    record_min_sec: null,
+    record_on_answer: true,
+    record_on_bridge: false,
+    record_sample_rate: null,
+    time_limit: null,
+  },
+  offnet: {
+    enabled: false,
+    format: 'mp3',
+    record_min_sec: null,
+    record_on_answer: true,
+    record_on_bridge: false,
+    record_sample_rate: null,
+    time_limit: null,
+  },
+})
+const callRecording = (): AccountCallRecording => ({
+  account: { any: recordingSource(), inbound: recordingSource(), outbound: recordingSource() },
+  endpoint: { any: recordingSource(), inbound: recordingSource(), outbound: recordingSource() },
+})
 
 const detail: AccountDetail = {
   id: 'account-public-id',
@@ -34,7 +69,7 @@ const detail: AccountDetail = {
   configuration_boundaries: {
     identity_defaults: 'safe_fields_available',
     calling_defaults: 'safe_fields_available',
-    advanced_routing: 'planned',
+    advanced_routing: 'guided_rules_available',
     enable_disable: 'implemented_confirmed',
     billing_topup: 'provider_required',
   },
@@ -61,6 +96,25 @@ const detail: AccountDetail = {
         number: '+15550001911',
         unresolved: false,
       },
+    },
+    call_restriction: { international: { action: 'deny' } },
+    call_recording: callRecording(),
+    dial_plan: {
+      system: ['north_america'],
+      rules: [
+        { pattern: '^([2-9][0-9]{6})$', description: 'Local', prefix: '+1555', suffix: null },
+      ],
+    },
+    formatters: [],
+    preflow: { callflow_id: null, name: null, unresolved: false },
+    metaflows: {
+      binding_digit: '*',
+      digit_timeout: 2000,
+      listen_on: 'both',
+      number_flow_count: 1,
+      pattern_flow_count: 0,
+      actions: [],
+      locked_action_count: 0,
     },
   },
   options: {
@@ -92,13 +146,31 @@ describe('account store', () => {
 
   it('loads a safe account detail projection by public UUID', async () => {
     vi.mocked(accountApi.detail).mockResolvedValue(detail)
+    vi.mocked(accountApi.settingsOptions).mockResolvedValue({
+      restrictions: [{ key: 'international', label: 'International', emergency: false }],
+      callflows: [],
+      metaflow_resources: { media: [], callflows: [], devices: [], extensions: [] },
+    })
     const store = useAccountStore()
 
     await store.loadDetail(detail.id)
 
     expect(accountApi.detail).toHaveBeenCalledWith(detail.id)
+    expect(accountApi.settingsOptions).toHaveBeenCalledWith(detail.id)
     expect(store.detail).toEqual(detail)
     expect(store.detailError).toBeNull()
+  })
+
+  it('keeps the projected account available when live restriction options fail', async () => {
+    vi.mocked(accountApi.detail).mockResolvedValue(detail)
+    vi.mocked(accountApi.settingsOptions).mockRejectedValue(new Error('Switch unavailable'))
+    const store = useAccountStore()
+
+    await store.loadDetail(detail.id)
+
+    expect(store.detail).toEqual(detail)
+    expect(store.detailError).toBeNull()
+    expect(store.settingsOptionsError).toContain('temporarily unavailable')
   })
 
   it('updates account settings and replaces the detail projection', async () => {
@@ -129,6 +201,12 @@ describe('account store', () => {
           preserve_number: false,
         },
       },
+      call_restriction: { international: { action: 'deny' } },
+      call_recording: callRecording(),
+      dial_plan: detail.configuration.dial_plan,
+      formatters: [],
+      preflow: { callflow_id: null, preserve_callflow: false },
+      metaflows: { binding_digit: '*', digit_timeout: 2000, listen_on: 'both', actions: [] },
     })
 
     expect(saved).toBe(true)

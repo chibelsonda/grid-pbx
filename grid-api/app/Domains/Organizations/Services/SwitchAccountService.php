@@ -66,6 +66,10 @@ class SwitchAccountService
                     ])
                     ->orderBy('number')
                     ->orderBy('phone_number_id'),
+                'callflows' => fn ($query) => $query
+                    ->select(['callflow_id', 'id', 'switch_account_id', 'switch_resource_id', 'name'])
+                    ->orderBy('name')
+                    ->orderBy('callflow_id'),
             ])
             ->loadCount([
                 'extensions',

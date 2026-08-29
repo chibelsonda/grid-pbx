@@ -1,14 +1,13 @@
 import { z } from 'zod'
+import { endpointAudioCodecs, endpointVideoCodecs } from '@/shared/switch/endpointMedia'
+import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
+import { metaflowSettingsSchema } from '@/shared/switch/metaflows/schema'
+import type { DeviceInput } from '@/domains/devices/types/device'
 
 const nullableString = (maximum: number) => z.string().trim().max(maximum).nullable()
-const starterDeviceTypeSchema = z.enum([
-  'sip_device',
-  'smartphone',
-  'softphone',
-  'fax',
-  'ata',
-])
-const provisionableStarterDeviceTypes = new Set(['sip_device', 'fax', 'ata'])
+const nullableInteger = (minimum: number, maximum: number) =>
+  z.number().int().min(minimum).max(maximum).nullable()
+const uniqueValues = (values: string[]) => new Set(values).size === values.length
 const notificationEmailsSchema = z
   .array(z.email().max(254))
   .max(10)
@@ -72,6 +71,230 @@ const userFields = {
     .strict(),
   hotdesk: hotdeskSchema,
   voicemail: voicemailSchema,
+}
+
+const recordingParametersSchema = z
+  .object({
+    enabled: z.boolean(),
+    format: z.enum(['mp3', 'wav']),
+    record_min_sec: nullableInteger(0, 3600),
+    record_on_answer: z.boolean(),
+    record_on_bridge: z.boolean(),
+    record_sample_rate: z
+      .union([z.literal(8000), z.literal(16000), z.literal(32000), z.literal(48000)])
+      .nullable(),
+    time_limit: nullableInteger(5, 10800),
+  })
+  .strict()
+const recordingSourceSchema = z
+  .object({
+    any: recordingParametersSchema,
+    onnet: recordingParametersSchema,
+    offnet: recordingParametersSchema,
+  })
+  .strict()
+const recordingRulesSchema = z
+  .object({
+    any: recordingSourceSchema,
+    inbound: recordingSourceSchema,
+    outbound: recordingSourceSchema,
+  })
+  .strict()
+
+const advancedCallingFields = {
+  caller_id: z
+    .object({
+      internal: z.object({ name: nullableString(35), number: nullableString(35) }).strict(),
+      external: z
+        .object({
+          name: nullableString(35),
+          phone_number_id: z.uuid().nullable(),
+          preserve_number: z.boolean(),
+        })
+        .strict(),
+      emergency: z
+        .object({
+          name: nullableString(35),
+          phone_number_id: z.uuid().nullable(),
+          preserve_number: z.boolean(),
+        })
+        .strict(),
+    })
+    .strict(),
+  call_forward: z
+    .object({
+      enabled: z.boolean(),
+      number: z
+        .string()
+        .trim()
+        .max(35)
+        .regex(/^[0-9+*#(),.\-\s]+$/, 'Enter an extension or dialable phone number.')
+        .nullable(),
+      direct_calls_only: z.boolean(),
+      failover: z.boolean(),
+      ignore_early_media: z.boolean(),
+      keep_caller_id: z.boolean(),
+      require_keypress: z.boolean(),
+      substitute: z.boolean(),
+    })
+    .strict()
+    .superRefine((input, context) => {
+      if (input.enabled && input.number === null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['number'],
+          message: 'Enter a forwarding destination.',
+        })
+      }
+    }),
+  call_restriction: z
+    .record(
+      z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/),
+      z.object({ action: z.enum(['inherit', 'deny']) }).strict(),
+    )
+    .refine((value) => Object.keys(value).length <= 100, 'Use no more than 100 restrictions.'),
+  call_recording: z
+    .object({ account: recordingRulesSchema, endpoint: recordingRulesSchema })
+    .strict(),
+  media: z
+    .object({
+      audio: z
+        .object({
+          codecs: z
+            .array(z.enum(endpointAudioCodecs))
+            .max(endpointAudioCodecs.length)
+            .refine(uniqueValues, 'Select each audio codec once.'),
+        })
+        .strict(),
+      video: z
+        .object({
+          codecs: z
+            .array(z.enum(endpointVideoCodecs))
+            .max(endpointVideoCodecs.length)
+            .refine(uniqueValues, 'Select each video codec once.'),
+        })
+        .strict(),
+      bypass_media: z.union([z.boolean(), z.literal('auto')]),
+      encryption: z
+        .object({
+          enforce_security: z.boolean(),
+          methods: z
+            .array(z.enum(['srtp', 'zrtp']))
+            .max(2)
+            .refine(uniqueValues, 'Select each encryption method once.'),
+        })
+        .strict(),
+      fax_option: z.boolean(),
+      ignore_early_media: z.boolean(),
+      progress_timeout: nullableInteger(0, 3600),
+    })
+    .strict(),
+  music_on_hold: z
+    .object({
+      media_id: z.uuid().nullable(),
+      preserve_media: z.boolean(),
+    })
+    .strict(),
+  ringtones: z
+    .object({
+      internal: nullableString(256),
+      external: nullableString(256),
+    })
+    .strict(),
+  dial_plan: z
+    .object({
+      system: z.array(z.string().trim().min(1).max(255)).max(64),
+      rules: z
+        .array(
+          z
+            .object({
+              pattern: z
+                .string()
+                .trim()
+                .min(1, 'Enter a dial-plan pattern.')
+                .max(512)
+                .refine(isSafeSwitchRegex, 'Enter a supported regular expression.'),
+              description: nullableString(255),
+              prefix: nullableString(64),
+              suffix: nullableString(64),
+            })
+            .strict(),
+        )
+        .max(64),
+    })
+    .strict()
+    .superRefine((value, context) => {
+      const patterns = new Set<string>()
+
+      value.rules.forEach((rule, index) => {
+        if (patterns.has(rule.pattern)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['rules', index, 'pattern'],
+            message: 'Dial-plan patterns must be unique.',
+          })
+        }
+
+        patterns.add(rule.pattern)
+      })
+    }),
+  formatters: z
+    .array(
+      z
+        .object({
+          field: z
+            .string()
+            .trim()
+            .min(1, 'Enter the Switch field to format.')
+            .max(128)
+            .regex(/^[A-Za-z0-9_]+$/, 'Use only letters, numbers, and underscores.'),
+          direction: z.enum(['inbound', 'outbound', 'both']).nullable(),
+          match_invite_format: z.boolean(),
+          prefix: nullableString(1024),
+          regex: nullableString(2048).refine(
+            (value) => value === null || isSafeSwitchRegex(value),
+            'Enter a supported regular expression.',
+          ),
+          strip: z.boolean(),
+          suffix: nullableString(1024),
+          value: nullableString(1024),
+        })
+        .strict(),
+    )
+    .max(64),
+  profile: z
+    .object({
+      addresses: z
+        .array(
+          z
+            .object({
+              address: z.string().trim().min(1, 'Enter an address.').max(512),
+              types: z
+                .array(z.enum(['dom', 'postal', 'intl', 'parcel', 'home', 'work', 'pref']))
+                .max(7)
+                .refine(uniqueValues, 'Select each address type once.'),
+            })
+            .strict(),
+        )
+        .max(20),
+      assistant: nullableString(255),
+      birthday: nullableString(64),
+      nicknames: z
+        .array(z.string().trim().min(1).max(255))
+        .max(20)
+        .refine(uniqueValues, 'Use each nickname once.'),
+      note: nullableString(2000),
+      role: nullableString(255),
+      sort_string: nullableString(255),
+      title: nullableString(255),
+    })
+    .strict(),
+  pronounced_name: z
+    .object({
+      media_id: z.uuid().nullable(),
+      preserve_media: z.boolean(),
+    })
+    .strict(),
 }
 
 function validateCredentials(
@@ -214,16 +437,7 @@ export const extensionCreateSchema = z
     device: z
       .object({
         enabled: z.boolean(),
-        name: nullableString(128),
-        device_type: starterDeviceTypeSchema.nullable(),
-        mac_address: z
-          .string()
-          .trim()
-          .max(64)
-          .regex(/^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/, 'Enter a valid MAC address.')
-          .nullable(),
-        sip_username: z.string().trim().min(2).max(32).nullable(),
-        sip_password: z.string().min(12).max(32).nullable(),
+        input: z.custom<DeviceInput>((value) => value === null || typeof value === 'object'),
       })
       .strict(),
   })
@@ -233,53 +447,30 @@ export const extensionCreateSchema = z
     requireNewMailboxPin(input, context)
     validateHotdesk(input, context, true)
 
-    if (input.device.enabled && input.device.name === null) {
+    if (input.device.enabled && input.device.input === null) {
       context.addIssue({
         code: 'custom',
-        path: ['device', 'name'],
-        message: 'Enter a device name.',
+        path: ['device', 'input'],
+        message: 'Configure the initial device before creating the extension.',
       })
     }
 
-    if (input.device.enabled && input.device.device_type === null) {
+    if (!input.device.enabled && input.device.input !== null) {
       context.addIssue({
         code: 'custom',
-        path: ['device', 'device_type'],
-        message: 'Select a device type.',
-      })
-    }
-
-    if (
-      input.device.mac_address !== null &&
-      (!input.device.device_type || !provisionableStarterDeviceTypes.has(input.device.device_type))
-    ) {
-      context.addIssue({
-        code: 'custom',
-        path: ['device', 'mac_address'],
-        message: 'A MAC address is only available for provisionable desk, fax, and ATA devices.',
-      })
-    }
-
-    if (!input.device.enabled && input.device.sip_username !== null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['device', 'sip_username'],
-        message: 'Enable the initial device before setting SIP credentials.',
-      })
-    }
-
-    if (!input.device.enabled && input.device.sip_password !== null) {
-      context.addIssue({
-        code: 'custom',
-        path: ['device', 'sip_password'],
-        message: 'Enable the initial device before setting SIP credentials.',
+        path: ['device', 'input'],
+        message: 'Enable the initial device before configuring it.',
       })
     }
   })
 
 export function extensionUpdateSchemaFor(currentUsername: string | null) {
   return z
-    .object(userFields)
+    .object({
+      ...userFields,
+      ...advancedCallingFields,
+      metaflows: metaflowSettingsSchema.optional(),
+    })
     .strict()
     .superRefine((input, context) => {
       validateCredentials(input, context, currentUsername)
@@ -288,7 +479,7 @@ export function extensionUpdateSchemaFor(currentUsername: string | null) {
 }
 
 export const extensionUpdateSchema = z
-  .object(userFields)
+  .object({ ...userFields, ...advancedCallingFields, metaflows: metaflowSettingsSchema.optional() })
   .strict()
   .superRefine((input, context) => {
     validateCredentials(input, context)

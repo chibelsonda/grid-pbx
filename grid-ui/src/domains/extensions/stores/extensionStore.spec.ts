@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { extensionApi, type ExtensionPage } from '../api/extensionApi'
-import { defaultExtensionHotdeskInput, defaultExtensionUserConfiguration } from '../extensionForm'
+import {
+  defaultExtensionAdvancedCallingConfiguration,
+  defaultExtensionHotdeskInput,
+  defaultExtensionUserConfiguration,
+  hydrateExtensionAdvancedCalling,
+} from '../extensionForm'
 import type {
   ExtensionCreate,
   ExtensionDeletionPreview,
@@ -56,6 +61,7 @@ const extension: ExtensionDetail = {
   last_synced_at: '2026-08-28T10:00:00+08:00',
   configuration: {
     ...defaultExtensionUserConfiguration(),
+    ...defaultExtensionAdvancedCallingConfiguration(),
     credentials: {
       password_configured: true,
       require_password_update: false,
@@ -66,6 +72,21 @@ const extension: ExtensionDetail = {
       keep_logged_in_elsewhere: false,
       require_pin: true,
       pin_configured: true,
+    },
+    metaflows: {
+      binding_digit: '*',
+      digit_timeout: 2000,
+      listen_on: 'both',
+      number_flow_count: 0,
+      pattern_flow_count: 0,
+      actions: [],
+      locked_action_count: 0,
+    },
+    policy: {
+      verified: false,
+      privilege: 'user',
+      feature_level: null,
+      external_flag_count: 0,
     },
   },
   devices: [],
@@ -86,6 +107,8 @@ const input: ExtensionUpdate = {
   timezone: 'Asia/Manila',
   is_enabled: true,
   ...defaultExtensionUserConfiguration(),
+  ...hydrateExtensionAdvancedCalling(defaultExtensionAdvancedCallingConfiguration(), []),
+  metaflows: { binding_digit: '*', digit_timeout: 2000, listen_on: 'both', actions: [] },
   hotdesk: defaultExtensionHotdeskInput(),
   voicemail: {
     enabled: false,
@@ -113,6 +136,10 @@ describe('extension store', () => {
         provisionable_types: ['sip_device'],
         sip_credential_types: ['sip_device'],
       },
+      caller_id_numbers: [],
+      media: [],
+      restrictions: [],
+      metaflow_resources: { media: [], callflows: [], devices: [], extensions: [] },
     }
     vi.mocked(extensionApi.options).mockResolvedValue(options)
     const store = useExtensionStore()

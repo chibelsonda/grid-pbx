@@ -20,6 +20,7 @@ const props = defineProps<{
   fieldErrors: Record<string, string[]>
   provisioningCatalog: DeviceProvisioningCatalog
   schemaCompatibility: DeviceSchemaCompatibility
+  showAssignment?: boolean
 }>()
 const form = defineModel<DeviceBasicForm>('form', { required: true })
 const configuration = defineModel<DeviceConfiguration>('configuration', { required: true })
@@ -374,7 +375,7 @@ function setEnabled(value: boolean): void {
       </article>
     </div>
 
-    <article class="card-surface h-fit overflow-hidden">
+    <article v-if="showAssignment !== false" class="card-surface h-fit overflow-hidden">
       <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
         <LinkIcon class="size-5 text-violet-500" />
         <h2 class="text-sm font-semibold text-slate-700">Assignment</h2>

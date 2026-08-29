@@ -437,32 +437,35 @@ fields remain typed and validated at the User boundary.
 | `language`, `presence_id` | Editable with account fallback | Implemented |
 | `call_waiting.enabled`, `do_not_disturb.enabled` | Editable | Implemented |
 | `contact_list.exclude` | Editable | Implemented |
-| `caller_id.internal` | Managed from the extension name and number | Implemented |
-| `caller_id.external`, `caller_id.emergency`, `caller_id.asserted` | Conditional on number/E911 capability | Pending |
+| `caller_id.internal` | Editable as bounded text, initially derived from the managed extension identity | Implemented for managed edits |
+| `caller_id.external`, `caller_id.emergency` | Public account-number selections; emergency selection requires projected E911 capability | Implemented for managed edits with unresolved-current-value preservation |
+| `caller_id.asserted` | Switch-managed and never exposed as editable identity; unknown metadata is preserved server-side | Implemented boundary |
 | `caller_id_options.outbound_privacy` | Editable | Implemented |
 | `directories.<directory_id>` | Managed through public Directory and Callflow relationships | Foundation; detailed Directory audit next |
-| `call_forward` | Editable with the same bounded leaf contract as Device | Pending |
-| `call_recording` | Editable with the direction/network matrix | Pending |
-| `call_restriction` | Editable from account number classifications | Pending |
-| `dial_plan`, `formatters` | Conditional/admin guided editors; no unrestricted JSON | Pending |
-| `flags[]` | Conditional/admin allowlisted values | Pending |
+| `call_forward` | Editable through the current eight-field bounded leaf contract; destination accepts internal extensions and dialable public numbers | Implemented for managed edits |
+| `call_recording` | Editable with the complete account/endpoint, direction, and network matrix; storage URLs stay server-owned | Implemented for managed edits |
+| `call_restriction` | Editable from live Switch number classifications, including preserved projected legacy keys | Implemented for managed edits |
+| `dial_plan`, `formatters` | Guided bounded editors with safe-regex checks; no unrestricted JSON | Implemented for managed edits with retained-rule unknown metadata preservation |
+| `flags[]` | Values owned by external applications | Read-only count exposed; values preserved server-side and never accepted from Vue |
 | `hotdesk.enabled`, `hotdesk.id`, `hotdesk.keep_logged_in_elsewhere` | Editable in the Extension slide-over through a typed user hotdesk profile | Implemented and live create/edit/clear verified |
 | `hotdesk.pin`, `hotdesk.require_pin` | PIN is write-only and redacted; an unchanged configured PIN is preserved through a private read-before-write | Implemented and live preserve/clear verified |
-| `media`, `music_on_hold.media_id`, `ringtones` | Capability-gated; media references use public UUIDs | Pending |
-| `metaflows` | Conditional guided recursive editor | Pending |
+| `media` | Ordered current-schema audio/video codecs plus bounded bypass, encryption, T.38, early-media, and progress-timeout controls | Implemented for managed edits; unknown nested properties are preserved server-side |
+| `music_on_hold.media_id` | Account-scoped public Media UUID with explicit unresolved-current-value preservation | Implemented for managed edits |
+| `ringtones.internal`, `ringtones.external` | Bounded Alert-Info header values | Implemented for managed edits |
+| `metaflows` | Shared guided recursive editor with bounded activation controls and public resource references | Implemented for managed User edits; unsupported/unresolved roots lock and preserve |
 | `password` | Write-only; required on login creation or normalized username change, omitted when unchanged, and never returned or persisted readably | Implemented and live create/unchanged/clear verified |
 | `require_password_update` | Editable only while a login username exists | Implemented and live set/clear verified |
-| `priv_level` | Administrator-only role mapping; never accepted from ordinary account forms | Pending policy mapping |
-| `feature_level` | Capability/service-plan controlled | Pending |
-| `profile` | Editable only through a bounded profile schema | Pending |
-| `pronounced_name.media_id` | Managed through authorized Media selection/recording | Pending |
-| `verified` | Read-only operational status | Pending |
+| `priv_level` | Administrator-only role mapping; never accepted from ordinary account forms | Read-only status implemented; policy mutation intentionally excluded |
+| `feature_level` | Capability/service-plan controlled | Read-only status implemented; mutation intentionally excluded |
+| `profile` | Bounded addresses, assistant, birthday, nicknames, note, role, sort string, and title | Implemented for managed edits |
+| `pronounced_name.media_id` | Account-scoped public Media UUID with unresolved-current-value preservation | Implemented for managed edits |
+| `verified` | Read-only operational status | Implemented |
 | `vm_to_email_enabled`, `voicemail` | Managed through the Voicemail domain | Foundation; detailed Voicemail matrix complete below |
 
 Current checkpoint: create and edit forms use one domain-owned Zod contract,
 Laravel revalidates the boundary, and the implemented configuration is written
-through `UserAdvancedData`, the entity-organized `UserHotdeskData`, and
-`UserCredentialsData`. Crossbar hashes and deletes the submitted plaintext
+through `UserAdvancedData`, entity-organized caller-ID, forwarding, recording,
+restriction, hotdesk, metaflow, and credential DTOs. Crossbar hashes and deletes the submitted plaintext
 password; GridPBX therefore never attempts to read or preserve it. An unchanged
 username is updated without resending the password, while username removal
 requires explicit UI/API confirmation. The complete redacted response remains
@@ -471,14 +474,42 @@ as `configuration`. Hotdesk IDs remain
 account-scoped Switch values, while primary keys and upstream resource IDs are
 not exposed.
 
+Managed edits resolve external and emergency caller-ID selections from public
+MySQL UUIDs to account-scoped Switch numbers. Laravel independently enforces
+E911 capability, while unresolved projected numbers can only be retained by an
+explicit preserve choice. Nested future schema keys and asserted identity are
+merged from the existing redacted projection; redaction markers are recursively
+removed before the upstream request. Recording storage URLs are likewise
+preserved only on the server and are never returned as form fields.
+
+Advanced User media settings use the current referenced `endpoint.media`
+schema rather than the smaller legacy form alone. The UI sends ordered codec
+lists and bounded scalar controls; music-on-hold accepts only a projected
+account Media UUID, which Laravel resolves to the Switch identifier. An
+unresolved projected music reference is represented only as a preserve state,
+so its upstream ID never reaches Vue. Ringtone and media clears replace the
+bounded nested object while safe unknown keys are retained from the server-side
+snapshot.
+
+The advanced routing/profile section now uses the current `dialplans`,
+`formatters`, and `profile` references. Regexes pass the shared bounded safety
+policy in both Zod and Laravel, retained rules keep unknown server-owned
+options, and profile arrays have explicit size/type limits. Pronounced-name
+Media follows the same public-UUID and unresolved-preservation boundary as
+music on hold. `verified`, `priv_level`, `feature_level`, and external flags
+are displayed only as safe status metadata. Their values are preserved during
+ordinary edits but cannot be submitted by the browser.
+
 The Wave 2 form audit found presentation and contract work that is not visible
 in the field table alone. Shared invalid styling and inline-only field error
 placement are implemented for User/Extension. Timezone, language, and presence
 now use account-backed choices that preserve existing projected values. The
-Devices domain publishes the endpoint types and capabilities safe for the
-aggregate's intentionally small starter Device; full provisioner catalog and
-advanced configuration remain in the Device editor. The remaining work and
-intentional aggregate boundaries are recorded in
+aggregate reuses the Device domain's complete Basic/Advanced editor in a wide
+relationship dialog. All eight endpoint types, the provisioner catalog,
+conditional capabilities, Zod validation, payload mapping, Laravel validation,
+and Switch mutation translation remain owned by Devices rather than being
+duplicated in Extensions. The remaining work and intentional aggregate
+boundaries are recorded in
 [`SWITCH_FORM_AUDIT.md`](SWITCH_FORM_AUDIT.md#userextension-and-voicemail-audit-checkpoint-2026-08-29).
 
 ## 8. Voicemail field-level matrix
@@ -841,7 +872,13 @@ without console, page, or server errors.
 | `caller_id.external` | Name plus account-owned Phone Number public UUID resolved server-side; unresolved current values are preserve-or-clear | Implemented |
 | `caller_id.emergency` | Name plus account-owned E911-enabled Phone Number public UUID resolved server-side | Implemented |
 | `caller_id.asserted` | Trusted-network identity and realm | Intentionally administrator/capability-gated |
-| `call_recording`, `call_restriction`, `dial_plan`, `formatters`, `metaflows`, `preflow` | Advanced guided editors with capability, reference, and lossless-preservation checks | Planned advanced settings |
+| `call_restriction.<classification>.action` | Dynamic connected-Switch classifications with typed `inherit`/`deny` choices; stored unknown classifications remain editable | Implemented |
+| `call_recording.account`, `call_recording.endpoint` | Guided direction/network matrices with bounded schema fields; existing storage URLs remain hidden and are preserved server-side | Implemented |
+| `dial_plan.system[]`, regex-keyed dial-plan rules | Bounded guided rows with safe regex validation; unknown server-owned rule options are preserved without being exposed | Implemented |
+| `formatters.<field>[]` | Ordered guided rules with direction, regex, prefix/suffix/value, strip, and INVITE-format controls; unknown server-owned options are preserved without being exposed | Implemented |
+| `preflow.always` | Projected Callflow public UUID selector with explicit unresolved-reference preservation | Implemented |
+| `metaflows.binding_digit`, `metaflows.digit_timeout`, `metaflows.listen_on` | Bounded account-level DTMF activation controls | Implemented |
+| `metaflows.numbers`, `metaflows.patterns` | Shared guided recursive editor with public Media, Callflow, Device, and Extension UUID references | Implemented for Account, Device, and managed User edits; unsupported/unresolved roots are locked and preserved |
 | complete Account `data` / `flags[]` | Redacted snapshot retained in MySQL `switch_json`; external metadata is never ordinary operator input | Implemented projection boundary |
 | `notifications.first_occurrence` and delivery state | System-owned notification history | Intentionally read-only |
 | `notifications.low_balance`, `topup` | Billing/provider workflow requiring authorization, currency semantics, confirmation, and audit | Provider/policy-gated |
@@ -856,6 +893,13 @@ synchronization metadata, and audit history. Raw JSON, internal primary keys,
 and the Switch account identifier never cross the public API. Enable/disable
 is a separate exact-name-confirmed operation; higher-risk configuration
 remains gated.
+
+Externally routable numbers entered by future purchasing, porting, CNAM, or
+E911 forms must use a shared libphonenumber-grade parser in Vue and an
+independent server-side validator, normalize accepted values to E.164, and
+require an explicit default region when the user omits a country code. Internal
+extensions and projected Phone Number UUID selections are separate concepts and
+must not be rejected by public-number validation.
 
 ## 21. Next matrices
 

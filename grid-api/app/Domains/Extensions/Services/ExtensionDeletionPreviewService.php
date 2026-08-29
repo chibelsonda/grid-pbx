@@ -24,6 +24,12 @@ class ExtensionDeletionPreviewService
             ...$extension->voicemailBoxes->pluck('id')->all(),
             ...$extension->callflows->pluck('id')->all(),
         ]));
+        $switchTargetIds = array_values(array_filter([
+            $extension->switch_resource_id,
+            ...$extension->devices->pluck('switch_resource_id')->all(),
+            ...$extension->voicemailBoxes->pluck('switch_resource_id')->all(),
+            ...$extension->callflows->pluck('switch_resource_id')->all(),
+        ], static fn (mixed $id): bool => is_string($id) && $id !== ''));
         $references = [];
         $unresolvedRoutes = [];
 
@@ -33,7 +39,13 @@ class ExtensionDeletionPreviewService
                     'id' => $callflow->id,
                     'name' => $callflow->name ?? ($callflow->numbers[0] ?? 'Unnamed route'),
                 ];
-            } elseif ($this->containsUnresolvedReference($callflow->flow_structure)) {
+            } elseif ($this->containsUnresolvedReference($callflow->flow_structure)
+                && $this->containsRawSwitchTarget(
+                    is_array($callflow->switch_json['flow'] ?? null)
+                        ? $callflow->switch_json['flow']
+                        : null,
+                    $switchTargetIds,
+                )) {
                 $unresolvedRoutes[] = [
                     'id' => $callflow->id,
                     'name' => $callflow->name ?? ($callflow->numbers[0] ?? 'Unnamed route'),
@@ -190,6 +202,31 @@ class ExtensionDeletionPreviewService
 
         foreach (is_array($node['children'] ?? null) ? $node['children'] : [] as $child) {
             if (is_array($child) && $this->containsUnresolvedReference($child)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * An unresolved node is relevant only when its raw Switch payload still names a resource owned
+     * by this Extension. Unrelated unresolved routes must not block every deletion in the account.
+     *
+     * @param  list<string>  $targetIds
+     */
+    private function containsRawSwitchTarget(mixed $value, array $targetIds): bool
+    {
+        if (is_string($value)) {
+            return in_array($value, $targetIds, true);
+        }
+
+        if (! is_array($value)) {
+            return false;
+        }
+
+        foreach ($value as $child) {
+            if ($this->containsRawSwitchTarget($child, $targetIds)) {
                 return true;
             }
         }

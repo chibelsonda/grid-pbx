@@ -1,12 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { BuildingOffice2Icon } from '@heroicons/vue/24/outline'
+import { BuildingOffice2Icon, ShieldExclamationIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useAccountSettingsForm } from '../composables/useAccountSettingsForm'
-import type { AccountDetail, AccountSettingsInput } from '../types/account'
+import AccountCallRecordingSettings from './AccountCallRecordingSettings.vue'
+import AccountRoutingSettings from './AccountRoutingSettings.vue'
+import AccountPreflowMetaflowSettings from './AccountPreflowMetaflowSettings.vue'
+import type {
+  AccountCallflowOption,
+  AccountDetail,
+  AccountRestrictionOption,
+  AccountSettingsInput,
+} from '../types/account'
+import type { MetaflowResources } from '@/shared/switch/metaflows/types'
 import type { ListboxOptionValue, ListboxValue } from '@/shared/components/FormListbox.vue'
 
 const props = defineProps<{
@@ -14,9 +23,16 @@ const props = defineProps<{
   saving: boolean
   error: string | null
   fieldErrors: Record<string, string[]>
+  restrictionOptions: AccountRestrictionOption[]
+  callflowOptions: AccountCallflowOption[]
+  metaflowResources: MetaflowResources
+  optionsError: string | null
 }>()
 const emit = defineEmits<{ close: []; save: [input: AccountSettingsInput] }>()
-const { form, validate, validationErrors } = useAccountSettingsForm(props.account)
+const { form, validate, validationErrors } = useAccountSettingsForm(
+  props.account,
+  props.restrictionOptions,
+)
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const timezoneOptions = computed(() => {
   const supported =
@@ -61,6 +77,28 @@ const emergencyCallerIdOptions = computed<ListboxOptionValue[]>(() => [
       description: option.display_name,
     })),
 ])
+const restrictionRows = computed(() => {
+  const rows = new Map(props.restrictionOptions.map((option) => [option.key, option] as const))
+
+  for (const key of Object.keys(form.call_restriction)) {
+    if (!rows.has(key)) {
+      rows.set(key, {
+        key,
+        label: key
+          .split('_')
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' '),
+        emergency: false,
+      })
+    }
+  }
+
+  return [...rows.values()]
+})
+const restrictionActions = [
+  { value: 'inherit', label: 'Inherit endpoint policy' },
+  { value: 'deny', label: 'Deny' },
+]
 
 function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
@@ -75,6 +113,12 @@ function selectCallerId(scope: 'external' | 'emergency', value: ListboxValue): v
   form.caller_id[scope].phone_number_id = typeof value === 'string' ? value : null
   form.caller_id[scope].preserve_number = false
 }
+
+function selectRestriction(key: string, value: ListboxValue): void {
+  if (value === 'inherit' || value === 'deny') {
+    form.call_restriction[key] = { action: value }
+  }
+}
 </script>
 
 <template>
@@ -82,7 +126,7 @@ function selectCallerId(scope: 'external' | 'emergency', value: ListboxValue): v
     title="Edit account settings"
     eyebrow="GridPBX / Accounts"
     description="Only schema-audited settings are written to Switch. Realm and operational controls remain protected."
-    width="medium"
+    width="wide"
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
@@ -303,6 +347,73 @@ function selectCallerId(scope: 'external' | 'emergency', value: ListboxValue): v
           </section>
         </div>
       </article>
+
+      <article class="card-surface overflow-hidden">
+        <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
+          <ShieldExclamationIcon class="size-5 text-brand-500" />
+          <div>
+            <h2 class="text-sm font-semibold text-slate-700">Account call restrictions</h2>
+            <p class="mt-1 text-[10px] text-slate-500">
+              Classifications are discovered from the connected Switch deployment.
+            </p>
+          </div>
+        </header>
+        <p
+          v-if="optionsError"
+          class="border-b border-amber-200 bg-amber-50 px-5 py-3 text-[10px] leading-4 text-amber-800"
+        >
+          {{ optionsError }} Existing projected restrictions remain editable.
+        </p>
+        <div v-if="restrictionRows.length" class="divide-y divide-slate-200">
+          <div
+            v-for="restriction in restrictionRows"
+            :key="restriction.key"
+            class="grid items-center gap-3 px-5 py-3 sm:grid-cols-[1fr_260px]"
+          >
+            <div>
+              <p class="text-xs font-semibold text-slate-700">{{ restriction.label }}</p>
+              <p class="mt-0.5 text-[10px] text-slate-500">
+                {{ restriction.emergency ? 'Emergency classification' : restriction.key }}
+              </p>
+            </div>
+            <div>
+              <FormListbox
+                :model-value="form.call_restriction[restriction.key]?.action ?? 'inherit'"
+                :aria-label="`${restriction.label} restriction`"
+                :options="restrictionActions"
+                :invalid="Boolean(fieldError(`call_restriction.${restriction.key}.action`))"
+                @update:model-value="selectRestriction(restriction.key, $event)"
+              />
+              <span
+                v-if="fieldError(`call_restriction.${restriction.key}.action`)"
+                class="mt-1 block text-[10px] text-danger"
+                >{{ fieldError(`call_restriction.${restriction.key}.action`) }}</span
+              >
+            </div>
+          </div>
+        </div>
+        <p v-else class="p-5 text-xs text-slate-500">
+          No number classifications are available from Switch.
+        </p>
+      </article>
+
+      <AccountCallRecordingSettings v-model="form.call_recording" :field-errors="errors" />
+
+      <AccountRoutingSettings
+        v-model:dial-plan="form.dial_plan"
+        v-model:formatters="form.formatters"
+        :field-errors="errors"
+      />
+
+      <AccountPreflowMetaflowSettings
+        v-model:preflow="form.preflow"
+        v-model:metaflows="form.metaflows"
+        :current-preflow="account.configuration.preflow"
+        :current-metaflows="account.configuration.metaflows"
+        :callflow-options="callflowOptions"
+        :metaflow-resources="metaflowResources"
+        :field-errors="errors"
+      />
 
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
         <button

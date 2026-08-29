@@ -107,6 +107,10 @@ generic form or exposing every schema field for every workflow.
 10. Focused component/contract tests cover invalid styling and conditional
     visibility. Isolated headless Playwright covers clipping, keyboard behavior,
     and console/network errors without taking control of the desktop pointer.
+11. Every entity audit covers both the legacy Basic and Advanced workflows.
+    Each visible or schema-backed field must be classified as implemented,
+    conditionally available, read-only, safely preserved, obsolete, or
+    intentionally excluded; a passing Basic CRUD path never completes the audit.
 
 ## Device pilot
 
@@ -319,9 +323,9 @@ full editor.
 | User options | Language and presence ID expose `aria-invalid` but not the invalid border; switches have no shared invalid container treatment | Use the same control helper for inputs and switch containers |
 | Credentials and hotdesk | Typed, write-only secret handling and live preserve/clear behavior are implemented; several controls duplicate hard-coded invalid classes | Preserve the security contract and replace duplicated styling with the shared helper |
 | Language, timezone, and presence | Current fields are free text; Monster used account-derived selections for the values it knew | Prefer capability/account-backed listboxes or comboboxes while preserving an existing unprojected value during edit |
-| Initial Device during create | The aggregate exposes a small starter Device payload with plain make/model and SIP fields; it does not share Device catalog validation, type capabilities, icons, or conditional fields | Keep this as an explicitly minimal starter endpoint or extract reusable Device sections; do not duplicate the full Device editor inside User creation. Validate every exposed starter field with the Device domain services and direct users to the full Device editor for advanced configuration |
+| Initial Device during create | Kazoo treats Device creation as a related User workflow, while the former starter payload exposed only a duplicated subset of Device fields | Reuse the Device domain's complete capability-driven Basic/Advanced editor in a wide modal or wizard step. Device form state, Zod validation, options, and payload mapping remain single-source; Extension owns only inclusion and new-owner orchestration. |
 | Managed Voicemail during create/edit | The aggregate exposes only enablement, notification emails, transcription, and PIN setup | Keep the intentionally small mailbox bootstrap and route advanced mailbox configuration to the Voicemail editor |
-| Current User schema coverage | Calling options, contact-list exclusion, privacy, credentials, and hotdesk are typed; caller-ID variants, call forwarding/recording/restrictions, media, MOH, ringtones, flags, formatters, dial plan, metaflows, profile, pronounced name, feature/role policy, and verified status remain unimplemented or policy-gated | Add bounded, capability-driven sections in batches; do not expose raw nested JSON or copy every Monster feature tile without checking the connected schema |
+| Current User schema coverage | Calling options, contact-list exclusion, privacy, credentials, hotdesk, recursive metaflows, caller-ID variants, forwarding, recording, restrictions, endpoint media, MOH, ringtones, safe dial plans/formatters, bounded profile data, and pronounced-name Media are typed; external flags and policy/status fields are preserved and read-only | Continue relationship and operation audits without exposing raw nested JSON or copying every Monster feature tile without checking the connected schema |
 | Relationships | Managed Device, Voicemail Box, and Callflow creation is orchestrated and projected through public API records | Add lifecycle tests for compensation and partial failure as form scope expands; related domain editors remain separate |
 
 The connected schema requires `first_name` and `last_name` and currently
@@ -347,9 +351,9 @@ observed clear behavior determine the actual payload.
 ### Wave 2 implementation batches
 
 1. Extract the shared invalid-control treatment and remove duplicate client
-   validation alerts in User/Extension and Voicemail. Add focused component
-   tests before applying the helper to later domains.
-2. Align User/Extension option controls and the minimal nested Device/Voicemail
+validation alerts in User/Extension and Voicemail. Add focused component
+tests before applying the helper to later domains.
+2. Align User/Extension option controls and the nested Device/Voicemail
    bootstrap with account capabilities and owning-domain validation services.
 3. Fix Voicemail conditional PIN and ASR behavior, notification precedence,
    timezone/assignment choices, preserve external flags, then add bounded
@@ -363,21 +367,57 @@ Current progress: batch 1 is complete for User/Extension and Voicemail. Their
 text inputs, textareas, listboxes, and applicable switch containers now use the
 shared invalid treatment; nested errors resolve to the owning control; local
 Zod failures remain inline; and API validation responses with field errors no
-longer create a duplicate global alert. Focused unit tests, TypeScript, the
-production build pass. The isolated headless Extension/Voicemail walkthrough
-remains pending because Chromium cannot launch inside the current sandbox and
-the escalated launch was not approved. Later entity forms have not yet been
-declared compliant by this result.
+longer create a duplicate global alert. Focused unit tests, TypeScript, and the
+production build pass. The isolated headless Extension walkthrough also passes,
+including the shared Device drawer subview, all eight Device types, Advanced
+Caller ID and Restrictions visibility, a single-dialog accessibility boundary,
+and the existing credential/hotdesk validation. Later entity forms have not yet
+been declared compliant by this result.
 
-Batch 2 is complete for User/Extension option sourcing and the starter Device
-boundary. Timezone, language, and presence now use API-backed Headless UI
-choices, represent inheritance as `null`, and preserve a projected legacy
-value during edit. The Devices domain publishes the starter capability set.
-The aggregate wizard permits only SIP-capable endpoint types that it can fully
-create, conditionally permits MAC identity for provisionable desk/fax/ATA
-types, and directs catalog/model/line-key/advanced work to the full Device
-editor. Cellphone, landline, and SIP URI remain available in the full Device
-workflow, where their required destination fields exist.
+Batch 2 is complete for User/Extension option sourcing and the related Device
+boundary. Timezone, language, and presence use API-backed Headless UI choices,
+represent inheritance as `null`, and preserve projected values during edit.
+The Extension create workflow switches the existing Headless UI slide-over to
+a wide Device subview containing the same reusable Basic/Advanced fields used
+by the standalone Device workflow. It preserves the unfinished Extension draft
+without stacking a second modal. All eight Device types, capability-based
+visibility, provisioning catalog, Zod schema, payload mapper, Laravel Device
+validation, and Switch mutation translation are shared; Extension owns only
+inclusion, new-owner assignment, dependency ordering, and compensation.
+
+The next managed-User parity batch is complete. The edit slide-over now uses
+public phone-number UUIDs for external and emergency caller ID, applies an
+independent Laravel E911 check, exposes all current `call_forward` leaf fields,
+discovers call-restriction classifiers from Switch, and edits the complete
+recording target/direction/network matrix. Asserted identity, recording URLs,
+and unknown nested properties remain server-owned and are preserved without
+returning private Switch identifiers or raw JSON to Vue. Creation intentionally
+keeps the smaller aggregate bootstrap so account inheritance is not replaced by
+unseen default values.
+
+The following advanced-User batch now covers the current `endpoint.media`
+schema, `music_on_hold.media_id`, and ringtone headers. Audio and video codec
+order is explicit, media transport/encryption/fax/timeout values are bounded,
+and music choices use account-scoped public Media UUIDs. Existing unprojected
+music can only be retained through an explicit preserve state. Laravel resolves
+the public UUID immediately before the Switch write, and the User DTOs merge
+unknown safe nested fields without exposing raw `switch_json`. The legacy Basic
+and Advanced workflows remain audit evidence, while the connected schema
+determines the accepted field set. Focused SDK/API/Vue tests and an isolated
+headless walkthrough verify the advanced section, viewport-bounded media
+selection, and inline invalid borders.
+
+The final bounded advanced-User field batch adds guided dial-plan and request
+formatter editors, the current profile object, pronounced-name Media, and a
+safe policy summary. Recursive or otherwise unsafe regular expressions are
+rejected in Vue and Laravel. Public Media UUIDs are resolved only inside the
+account boundary, and unresolved spoken-name Media can be explicitly retained
+without disclosing its Switch identifier. Verified state, privilege, feature
+level, and external application flags remain read-only; their values and other
+safe unmodeled top-level keys are preserved server-side on every managed edit.
+An isolated authenticated walkthrough verifies disclosure visibility, inline
+regex invalid styling, viewport-bounded Media choices, and clean cleanup. It
+does not replace the remaining live Switch create/edit/clear mutation capture.
 
 The same batch replaces Voicemail's native timezone/datalist and assignment
 select with API-backed Headless UI listboxes. Account inheritance is `null`,
@@ -676,9 +716,26 @@ The form is a right-side Headless UI/Tailwind panel with a domain composable,
 Zod, `novalidate`, shared red invalid controls, and inline field messages.
 Refresh and update are audited. Enable/disable is a separate administrator
 command requiring the exact account name; disabled accounts remain visible so
-the operation is reversible. Realm, asserted identity, advanced routing,
-billing/top-up, zones, and notifications remain explicitly gated. Focused SDK,
-Laravel, Vue, TypeScript, and isolated authenticated Playwright checks pass.
+the operation is reversible.
+
+Account restrictions now come from the connected Switch number-classifier
+endpoint and include stored unknown classifications without hard-coding a
+deployment's numbering plan. Account and endpoint call-recording defaults use
+the complete direction/network matrix with bounded format, duration, trigger,
+sample-rate, and time-limit controls. Existing recording storage URLs remain
+hidden from the API and are preserved server-side during settings updates.
+Dial plans and request formatters are now typed virtual fields backed by
+`switch_json`, with bounded guided rows, portable safe-regex validation, and
+lossless preservation of unknown server-owned rule options. Account preflow
+uses a projected Callflow public UUID, including explicit preservation of an
+unresolved current reference. Metaflow binding digit, timeout, and call-leg
+defaults and supported recursive number/pattern action trees are editable
+through the shared Device/Account editor. Media, Callflow, Device, and Extension
+references use account-scoped public UUIDs; unsupported or unresolved roots are
+locked and preserved verbatim. Realm, asserted identity, User metaflow wiring,
+billing/top-up, zones, and notifications remain explicitly gated.
+Focused SDK, Laravel, Vue, TypeScript, and isolated authenticated Playwright
+checks pass.
 
 ## Callflow guided-form audit
 

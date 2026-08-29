@@ -6,6 +6,9 @@ use App\Domains\Organizations\Models\SwitchAccount;
 
 interface SwitchAccountGateway
 {
+    /** @return list<array{key: string, label: string, emergency: bool}> */
+    public function restrictionClassifiers(SwitchAccount $account): array;
+
     /** @return array<string, mixed> */
     public function find(SwitchAccount $account): array;
 

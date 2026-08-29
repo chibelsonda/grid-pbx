@@ -23,6 +23,7 @@ class DeviceMutationService
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly AuditService $audit,
         private readonly LineKeyProjectionService $lineKeyProjection,
+        private readonly DeviceMutationDataFactory $mutationData,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -33,7 +34,7 @@ class DeviceMutationService
         ?string $ipAddress = null,
     ): SwitchDevice {
         try {
-            $snapshot = $this->gateway->create($account, $this->mutationData($account, $data));
+            $snapshot = $this->gateway->create($account, $this->mutationData->make($account, $data));
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchDevice {
                 $device = $this->project($account, $snapshot);
@@ -68,7 +69,7 @@ class DeviceMutationService
             $snapshot = $this->gateway->update(
                 $account,
                 $device->switch_resource_id,
-                $this->mutationData($account, $data),
+                $this->mutationData->make($account, $data),
             );
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchDevice {
@@ -131,84 +132,6 @@ class DeviceMutationService
 
             throw $exception;
         }
-    }
-
-    /**
-     * @param  array<string, mixed>  $data
-     * @return array<string, mixed>
-     */
-    private function mutationData(SwitchAccount $account, array $data): array
-    {
-        $extension = isset($data['assigned_extension_id'])
-            ? $account->extensions()->where('id', $data['assigned_extension_id'])->firstOrFail()
-            : null;
-
-        $mutation = [
-            'name' => $data['name'],
-            'device_type' => $data['device_type'],
-            'is_enabled' => $data['is_enabled'],
-            'owner_switch_resource_id' => $extension?->switch_resource_id,
-            'make' => Arr::get($data, 'provision.endpoint_brand', $data['make'] ?? null),
-            'family' => Arr::get($data, 'provision.endpoint_family'),
-            'model' => Arr::get($data, 'provision.endpoint_model', $data['model'] ?? null),
-            'mac_address' => $data['mac_address'] ?? null,
-            'sip_username' => Arr::get($data, 'sip.username', $data['sip_username'] ?? null),
-            'sip_password' => Arr::get($data, 'sip.password', $data['sip_password'] ?? null),
-        ];
-
-        if (array_key_exists('music_on_hold', $data)) {
-            $mediaId = Arr::get($data, 'music_on_hold.media_id');
-            $mutation['music_on_hold'] = [
-                'media_id' => is_string($mediaId)
-                    ? $account->media()->where('id', $mediaId)->value('switch_resource_id')
-                    : null,
-            ];
-        }
-
-        foreach ([
-            'call_forward',
-            'sip',
-            'media',
-            'caller_id',
-            'caller_id_options',
-            'call_waiting',
-            'do_not_disturb',
-            'contact_list',
-            'exclude_from_queues',
-            'language',
-            'timezone',
-            'presence_id',
-            'mwi_unsolicited_updates',
-            'register_overwrite_notify',
-            'suppress_unregister_notifications',
-            'ringtones',
-            'call_restriction',
-            'call_recording',
-            'outbound_flags',
-            'dial_plan',
-            'metaflows',
-            'flags',
-            'formatters',
-        ] as $field) {
-            if (array_key_exists($field, $data)) {
-                $mutation[$field] = $data[$field];
-            }
-        }
-
-        if (isset($data['provision']) && is_array($data['provision'])) {
-            $provisioning = Arr::only($data['provision'], [
-                'id',
-                'check_sync_event',
-                'check_sync_reload',
-                'check_sync_reboot',
-            ]);
-
-            if ($provisioning !== []) {
-                $mutation['provision'] = $provisioning;
-            }
-        }
-
-        return $mutation;
     }
 
     /** @param array<string, mixed> $snapshot */

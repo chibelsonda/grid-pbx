@@ -18,12 +18,18 @@ final readonly class AccountSettingsWriteData
         public ?string $internalRingtone,
         public ?string $externalRingtone,
         public AccountCallerIdWriteData $callerId,
+        public ?AccountCallRestrictionsData $callRestrictions = null,
+        public ?AccountCallRecordingData $callRecording = null,
+        public ?AccountDialPlanData $dialPlan = null,
+        public ?AccountFormattersData $formatters = null,
+        public ?AccountPreflowData $preflow = null,
+        public ?AccountMetaflowsData $metaflows = null,
     ) {}
 
     /** @return array<string, mixed> */
     public function toSwitchData(): array
     {
-        return [
+        $data = [
             'name' => $this->name,
             'org' => $this->organizationName ?? '',
             'timezone' => $this->timezone ?? '',
@@ -40,5 +46,31 @@ final readonly class AccountSettingsWriteData
                 'external' => $this->externalRingtone ?? '',
             ],
         ];
+
+        if ($this->callRestrictions !== null) {
+            $data['call_restriction'] = $this->callRestrictions->toSwitchData();
+        }
+
+        if ($this->callRecording !== null) {
+            $data['call_recording'] = $this->callRecording->toSwitchData();
+        }
+
+        if ($this->dialPlan !== null) {
+            $data['dial_plan'] = $this->dialPlan->toSwitchData();
+        }
+
+        if ($this->formatters !== null) {
+            $data['formatters'] = $this->formatters->toSwitchData();
+        }
+
+        if ($this->preflow !== null) {
+            $data['preflow'] = $this->preflow->toSwitchData();
+        }
+
+        if ($this->metaflows !== null) {
+            $data['metaflows'] = $this->metaflows->toSwitchData();
+        }
+
+        return $data;
     }
 }

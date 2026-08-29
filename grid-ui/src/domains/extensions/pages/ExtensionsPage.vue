@@ -10,6 +10,7 @@ import {
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useDeviceStore } from '@/domains/devices/stores/deviceStore'
 import { useExtensionStore } from '../stores/extensionStore'
 import ExtensionCreatePanel from '../components/ExtensionCreatePanel.vue'
 import ExtensionRecoveryPanel from '../components/ExtensionRecoveryPanel.vue'
@@ -17,6 +18,7 @@ import type { ExtensionCreate, ExtensionRecoveryOperation } from '../types/exten
 
 const router = useRouter()
 const accounts = useAccountStore()
+const devices = useDeviceStore()
 const extensions = useExtensionStore()
 const creating = ref(false)
 const recoveryOpen = ref(false)
@@ -33,6 +35,7 @@ watch(
     if (accountId) {
       void extensions.load(accountId, 1)
       void extensions.loadOptions(accountId)
+      void devices.loadOptions(accountId)
     }
   },
   { immediate: true },
@@ -272,6 +275,15 @@ function recoverOperation(
     :error="extensions.mutationError"
     :field-errors="extensions.fieldErrors"
     :options="extensions.formOptions"
+    :device-options="{
+      extensions: devices.extensionOptions,
+      media: devices.mediaOptions,
+      metaflow_resources: devices.metaflowResources,
+      caller_id_numbers: devices.callerIdNumberOptions,
+      provisioning_catalog: devices.provisioningCatalog,
+      device_schema: devices.schemaCompatibility,
+      restrictions: devices.restrictionOptions,
+    }"
     @close="creating = false"
     @save="createExtension"
   />

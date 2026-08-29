@@ -6,7 +6,18 @@ namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountCallerIdWriteData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountCallRecordingData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountCallRestrictionsData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountDialPlanData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountDialPlanRuleData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountEnabledWriteData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountFormatterRuleData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountFormattersData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountMetaflowsData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountPreflowData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountRecordingParametersData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountRecordingRulesData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountRecordingSourceData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountSettingsWriteData;
 use GridPbx\Switch\Domains\Accounts\Dto\MusicOnHoldWriteData;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
@@ -21,6 +32,12 @@ use PHPUnit\Framework\TestCase;
 
 final class AccountResourceClientSettingsTest extends TestCase
 {
+    public function test_account_routing_defaults_have_schema_correct_clear_payloads(): void
+    {
+        self::assertSame(['always' => ''], (new AccountPreflowData)->toSwitchData());
+        self::assertInstanceOf(\stdClass::class, (new AccountMetaflowsData)->toSwitchData());
+    }
+
     public function test_it_reads_and_updates_account_music_on_hold(): void
     {
         $history = [];
@@ -97,6 +114,32 @@ final class AccountResourceClientSettingsTest extends TestCase
                 ],
                 'caller_id_options' => ['outbound_privacy' => 'number', 'show_rate' => true],
                 'ringtones' => ['internal' => 'ring-1', 'external' => 'ring-2'],
+                'call_restriction' => ['international' => ['action' => 'deny']],
+                'call_recording' => [
+                    'account' => [
+                        'any' => [
+                            'offnet' => ['enabled' => true, 'format' => 'wav'],
+                        ],
+                    ],
+                ],
+                'dial_plan' => [
+                    'system' => ['north_america'],
+                    '^([2-9][0-9]{6})$' => ['description' => 'Local', 'prefix' => '+1555'],
+                ],
+                'formatters' => [
+                    'request' => [[
+                        'direction' => 'both',
+                        'regex' => '^sip:(.*)$',
+                        'prefix' => 'tel:',
+                    ]],
+                ],
+                'preflow' => ['always' => 'callflow-1'],
+                'metaflows' => [
+                    'binding_digit' => '#',
+                    'digit_timeout' => 2500,
+                    'listen_on' => 'self',
+                    'numbers' => ['3' => ['module' => 'hangup', 'data' => [], 'children' => []]],
+                ],
             ]]),
         ]));
         $stack->push(Middleware::history($history));
@@ -128,6 +171,51 @@ final class AccountResourceClientSettingsTest extends TestCase
                 'ring-1',
                 'ring-2',
                 new AccountCallerIdWriteData('Support', '1000', 'Grid Support', '+15550001000', 'Grid Emergency', '+15550001911'),
+                new AccountCallRestrictionsData(['international' => 'deny']),
+                new AccountCallRecordingData(
+                    account: new AccountRecordingRulesData(
+                        any: new AccountRecordingSourceData(
+                            offnet: new AccountRecordingParametersData(
+                                enabled: true,
+                                format: 'wav',
+                                minimumSeconds: 5,
+                                recordOnAnswer: true,
+                                recordOnBridge: false,
+                                sampleRate: 16000,
+                                timeLimit: 3600,
+                                preservedUrl: 'https://storage.example.test/recordings',
+                            ),
+                        ),
+                    ),
+                ),
+                new AccountDialPlanData(
+                    system: ['north_america'],
+                    rules: [new AccountDialPlanRuleData(
+                        pattern: '^([2-9][0-9]{6})$',
+                        description: 'Local',
+                        prefix: '+1555',
+                        preservedOptions: ['future_option' => true],
+                    )],
+                ),
+                new AccountFormattersData([
+                    new AccountFormatterRuleData(
+                        field: 'request',
+                        direction: 'both',
+                        regex: '^sip:(.*)$',
+                        prefix: 'tel:',
+                        preservedOptions: ['future_option' => 'keep'],
+                    ),
+                ]),
+                new AccountPreflowData('callflow-1'),
+                new AccountMetaflowsData(
+                    bindingDigit: '#',
+                    digitTimeout: 2500,
+                    listenOn: 'self',
+                    preservedOptions: [
+                        'numbers' => ['3' => ['module' => 'hangup', 'data' => [], 'children' => []]],
+                        'future_option' => true,
+                    ],
+                ),
             ),
         );
 
@@ -154,6 +242,47 @@ final class AccountResourceClientSettingsTest extends TestCase
                 ],
                 'caller_id_options' => ['outbound_privacy' => 'number', 'show_rate' => true],
                 'ringtones' => ['internal' => 'ring-1', 'external' => 'ring-2'],
+                'call_restriction' => ['international' => ['action' => 'deny']],
+                'call_recording' => [
+                    'account' => [
+                        'any' => [
+                            'offnet' => [
+                                'enabled' => true,
+                                'format' => 'wav',
+                                'record_min_sec' => 5,
+                                'record_on_answer' => true,
+                                'record_on_bridge' => false,
+                                'record_sample_rate' => 16000,
+                                'time_limit' => 3600,
+                                'url' => 'https://storage.example.test/recordings',
+                            ],
+                        ],
+                    ],
+                ],
+                'dial_plan' => [
+                    'system' => ['north_america'],
+                    '^([2-9][0-9]{6})$' => [
+                        'future_option' => true,
+                        'description' => 'Local',
+                        'prefix' => '+1555',
+                    ],
+                ],
+                'formatters' => [
+                    'request' => [[
+                        'future_option' => 'keep',
+                        'direction' => 'both',
+                        'prefix' => 'tel:',
+                        'regex' => '^sip:(.*)$',
+                    ]],
+                ],
+                'preflow' => ['always' => 'callflow-1'],
+                'metaflows' => [
+                    'numbers' => ['3' => ['module' => 'hangup', 'data' => [], 'children' => []]],
+                    'future_option' => true,
+                    'binding_digit' => '#',
+                    'digit_timeout' => 2500,
+                    'listen_on' => 'self',
+                ],
             ],
         ], json_decode((string) $history[0]['request']->getBody(), true));
     }

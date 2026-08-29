@@ -12,7 +12,7 @@ import type {
   DeviceSipHeader,
 } from '../types/device'
 import DeviceFormatterSettings from './DeviceFormatterSettings.vue'
-import DeviceMetaflowSettings from './DeviceMetaflowSettings.vue'
+import MetaflowSettings from '@/shared/switch/metaflows/components/MetaflowSettings.vue'
 
 const props = defineProps<{
   fieldErrors: Record<string, string[]>
@@ -395,7 +395,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
             Existing metaflow actions: {{ configuration.metaflows.number_flow_count }} number
             flow(s) and {{ configuration.metaflows.pattern_flow_count }} pattern flow(s).
           </div>
-          <DeviceMetaflowSettings
+          <MetaflowSettings
             v-model="configuration.metaflows.actions"
             :field-errors="fieldErrors"
             :locked-action-count="configuration.metaflows.locked_action_count"

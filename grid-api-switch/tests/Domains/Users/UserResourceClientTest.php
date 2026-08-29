@@ -4,8 +4,27 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
+use GridPbx\Switch\Domains\Users\Dto\CallerId\UserCallerIdData;
+use GridPbx\Switch\Domains\Users\Dto\CallerId\UserCallerIdScopeData;
+use GridPbx\Switch\Domains\Users\Dto\CallForwarding\UserCallForwardData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserCallRecordingData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserRecordingParametersData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserRecordingRulesData;
+use GridPbx\Switch\Domains\Users\Dto\CallRecording\UserRecordingSourceData;
+use GridPbx\Switch\Domains\Users\Dto\CallRestrictions\UserCallRestrictionsData;
 use GridPbx\Switch\Domains\Users\Dto\Credentials\UserCredentialsData;
 use GridPbx\Switch\Domains\Users\Dto\Hotdesk\UserHotdeskData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserMediaData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserMusicOnHoldData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserPronouncedNameData;
+use GridPbx\Switch\Domains\Users\Dto\Media\UserRingtonesData;
+use GridPbx\Switch\Domains\Users\Dto\Metaflows\UserMetaflowsData;
+use GridPbx\Switch\Domains\Users\Dto\Profile\UserProfileAddressData;
+use GridPbx\Switch\Domains\Users\Dto\Profile\UserProfileData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserDialPlanData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserDialPlanRuleData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserFormatterRuleData;
+use GridPbx\Switch\Domains\Users\Dto\Routing\UserFormattersData;
 use GridPbx\Switch\Domains\Users\Dto\UserAdvancedData;
 use GridPbx\Switch\Domains\Users\Dto\UserWriteData;
 use GridPbx\Switch\Domains\Users\UserResourceClient;
@@ -24,6 +43,122 @@ final class UserResourceClientTest extends TestCase
 {
     /** @var array<int, array<string, mixed>> */
     private array $history = [];
+
+    public function test_it_maps_schema_backed_user_calling_settings_and_preserved_metadata(): void
+    {
+        $parameters = new UserRecordingParametersData(
+            enabled: true,
+            format: 'wav',
+            minimumSeconds: 2,
+            recordOnAnswer: true,
+            recordOnBridge: false,
+            sampleRate: 16000,
+            timeLimit: 300,
+            preservedOptions: ['url' => 'https://recordings.example.test/user'],
+        );
+        $source = new UserRecordingSourceData($parameters, $parameters, $parameters);
+        $rules = new UserRecordingRulesData($source, $source, $source);
+        $data = (new UserAdvancedData(
+            callerId: new UserCallerIdData(
+                internal: new UserCallerIdScopeData('Alice', '1001'),
+                external: new UserCallerIdScopeData('Support', '+15550001001'),
+                emergency: new UserCallerIdScopeData('Alice', '+15550001911'),
+                preservedOptions: ['asserted' => ['realm' => 'pbx.example.test']],
+            ),
+            callForward: new UserCallForwardData(
+                enabled: true,
+                number: '+15550001002',
+                requireKeypress: false,
+                preservedOptions: ['future_option' => true],
+            ),
+            callRestrictions: new UserCallRestrictionsData(
+                actions: ['international' => 'deny'],
+                preservedOptions: ['international' => ['future_option' => true]],
+            ),
+            callRecording: new UserCallRecordingData($rules, $rules),
+            media: new UserMediaData(
+                audioCodecs: ['OPUS', 'PCMU'],
+                videoCodecs: ['H264'],
+                bypassMedia: 'auto',
+                enforceEncryption: true,
+                encryptionMethods: ['srtp'],
+                faxOption: false,
+                ignoreEarlyMedia: true,
+                progressTimeout: 30,
+                preservedOptions: [
+                    'audio' => ['future_audio_option' => true],
+                    'future_media_option' => 'preserved',
+                ],
+            ),
+            musicOnHold: new UserMusicOnHoldData(
+                mediaId: 'switch-media-1',
+                preservedOptions: ['future_moh_option' => true],
+            ),
+            ringtones: new UserRingtonesData(
+                internal: 'Internal-ring',
+                external: 'External-ring',
+                preservedOptions: ['future_ringtone_option' => true],
+            ),
+            dialPlan: new UserDialPlanData(
+                system: ['north_america'],
+                rules: [new UserDialPlanRuleData(
+                    pattern: '^9(.*)$',
+                    prefix: '+1',
+                    preservedOptions: ['future_rule_option' => true],
+                )],
+            ),
+            formatters: new UserFormattersData([
+                new UserFormatterRuleData(
+                    field: 'request',
+                    direction: 'outbound',
+                    regex: '^(.*)$',
+                    preservedOptions: ['future_formatter_option' => true],
+                ),
+            ]),
+            profile: new UserProfileData(
+                addresses: [new UserProfileAddressData('100 Main Street', ['work'])],
+                nicknames: ['Ops'],
+                title: 'Support Engineer',
+                preservedOptions: ['future_profile_option' => true],
+            ),
+            pronouncedName: new UserPronouncedNameData(
+                mediaId: 'switch-media-name',
+                preservedOptions: ['future_name_option' => true],
+            ),
+            preservedOptions: [
+                'verified' => true,
+                'flags' => ['externally-managed'],
+            ],
+        ))->toSwitchData();
+
+        self::assertSame('pbx.example.test', $data['caller_id']['asserted']['realm']);
+        self::assertSame('+15550001002', $data['call_forward']['number']);
+        self::assertFalse($data['call_forward']['require_keypress']);
+        self::assertTrue($data['call_forward']['future_option']);
+        self::assertSame('deny', $data['call_restriction']['international']['action']);
+        self::assertTrue($data['call_restriction']['international']['future_option']);
+        self::assertSame(
+            'https://recordings.example.test/user',
+            $data['call_recording']['endpoint']['outbound']['offnet']['url'],
+        );
+        self::assertSame(['OPUS', 'PCMU'], $data['media']['audio']['codecs']);
+        self::assertTrue($data['media']['audio']['future_audio_option']);
+        self::assertSame('preserved', $data['media']['future_media_option']);
+        self::assertSame('switch-media-1', $data['music_on_hold']['media_id']);
+        self::assertTrue($data['music_on_hold']['future_moh_option']);
+        self::assertSame('Internal-ring', $data['ringtones']['internal']);
+        self::assertTrue($data['ringtones']['future_ringtone_option']);
+        self::assertSame('+1', $data['dial_plan']['^9(.*)$']['prefix']);
+        self::assertTrue($data['dial_plan']['^9(.*)$']['future_rule_option']);
+        self::assertSame('outbound', $data['formatters']['request'][0]['direction']);
+        self::assertTrue($data['formatters']['request'][0]['future_formatter_option']);
+        self::assertSame('Support Engineer', $data['profile']['title']);
+        self::assertTrue($data['profile']['future_profile_option']);
+        self::assertSame('switch-media-name', $data['pronounced_name']['media_id']);
+        self::assertTrue($data['pronounced_name']['future_name_option']);
+        self::assertTrue($data['verified']);
+        self::assertSame(['externally-managed'], $data['flags']);
+    }
 
     public function test_it_creates_a_user_with_a_bounded_extension_payload(): void
     {
@@ -51,6 +186,17 @@ final class UserResourceClientTest extends TestCase
                 doNotDisturb: true,
                 excludeFromContactList: true,
                 outboundPrivacy: 'name',
+                metaflows: new UserMetaflowsData(
+                    bindingDigit: '#',
+                    digitTimeout: 2500,
+                    listenOn: 'self',
+                    preservedOptions: [
+                        'numbers' => [
+                            '4' => ['module' => 'hangup', 'data' => [], 'children' => []],
+                        ],
+                        'future_option' => true,
+                    ],
+                ),
             ),
             hotdesk: new UserHotdeskData(
                 enabled: true,
@@ -88,6 +234,15 @@ final class UserResourceClientTest extends TestCase
                 'do_not_disturb' => ['enabled' => true],
                 'contact_list' => ['exclude' => true],
                 'caller_id_options' => ['outbound_privacy' => 'name'],
+                'metaflows' => [
+                    'numbers' => [
+                        '4' => ['module' => 'hangup', 'data' => [], 'children' => []],
+                    ],
+                    'future_option' => true,
+                    'binding_digit' => '#',
+                    'digit_timeout' => 2500,
+                    'listen_on' => 'self',
+                ],
                 'require_password_update' => true,
                 'username' => 'alice.operator',
                 'password' => 'correct horse battery staple',

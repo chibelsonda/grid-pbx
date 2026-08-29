@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
-import { RadioGroup, RadioGroupOption } from '@headlessui/vue'
 import {
   ArrowPathRoundedSquareIcon,
   DevicePhoneMobileIcon,
+  PencilSquareIcon,
   MicrophoneIcon,
   UserIcon,
 } from '@heroicons/vue/24/outline'
+import DeviceDraftForm from '@/domains/devices/components/DeviceDraftForm.vue'
+import { defaultDeviceOptions, deviceTypes } from '@/domains/devices/deviceForm'
+import type { DeviceInput, DeviceOptions } from '@/domains/devices/types/device'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
@@ -29,16 +32,22 @@ import ExtensionCredentialsProfile from './ExtensionCredentialsProfile.vue'
 import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
 
-const props = defineProps<{
-  saving: boolean
-  error: string | null
-  fieldErrors: Record<string, string[]>
-  options: ExtensionFormOptions
-}>()
+const props = withDefaults(
+  defineProps<{
+    saving: boolean
+    error: string | null
+    fieldErrors: Record<string, string[]>
+    options: ExtensionFormOptions
+    deviceOptions?: DeviceOptions
+  }>(),
+  { deviceOptions: defaultDeviceOptions },
+)
 const emit = defineEmits<{ close: []; save: [input: ExtensionCreate] }>()
 const userConfiguration = reactive(defaultExtensionUserConfiguration())
 const credentials = reactive(defaultExtensionCredentialsInput())
 const hotdesk = reactive(defaultExtensionHotdeskInput())
+const panelView = ref<'extension' | 'device'>('extension')
+const configuredDevice = ref<DeviceInput | null>(null)
 const clientErrors = ref<FormErrors>({})
 const displayErrors = computed(() => ({ ...props.fieldErrors, ...clientErrors.value }))
 const form = reactive({
@@ -54,20 +63,8 @@ const form = reactive({
   requirePin: false,
   pin: '',
   deviceEnabled: false,
-  deviceName: '',
-  deviceType: 'sip_device',
-  macAddress: '',
-  sipUsername: '',
-  sipPassword: '',
 })
-const {
-  timezoneOptions,
-  languageOptions,
-  presenceOptions,
-  starterDeviceTypes,
-  provisionableTypes,
-  sipCredentialTypes,
-} = useExtensionFormOptions(
+const { timezoneOptions, languageOptions, presenceOptions } = useExtensionFormOptions(
   () => props.options,
   () => ({
     timezone: form.timezone,
@@ -76,17 +73,35 @@ const {
   }),
   () => form.extension,
 )
-const starterDeviceIsProvisionable = computed(() => provisionableTypes.value.has(form.deviceType))
-const starterDeviceSupportsSip = computed(() => sipCredentialTypes.value.has(form.deviceType))
+const configuredDeviceType = computed(() =>
+  deviceTypes.find((type) => type.value === configuredDevice.value?.device_type),
+)
+const panelTitle = computed(() =>
+  panelView.value === 'device' ? 'Configure device' : 'Create extension',
+)
+const panelEyebrow = computed(() =>
+  panelView.value === 'device'
+    ? 'GridPBX / People & Extensions / Create / Initial device'
+    : 'GridPBX / People & Extensions / Create',
+)
+const panelDescription = computed(() =>
+  panelView.value === 'device'
+    ? 'Configure the optional endpoint without leaving the Extension workflow.'
+    : 'Provision a managed Switch user, optional mailbox and device, and a safe extension callflow.',
+)
+const deviceFieldErrors = computed<FormErrors>(() =>
+  Object.fromEntries(
+    Object.entries(displayErrors.value)
+      .filter(([field]) => field.startsWith('device.input.'))
+      .map(([field, messages]) => [field.slice('device.input.'.length), messages]),
+  ),
+)
 
 watch(
-  () => form.deviceType,
-  () => {
-    if (!starterDeviceIsProvisionable.value) form.macAddress = ''
-    if (!starterDeviceSupportsSip.value) {
-      form.sipUsername = ''
-      form.sipPassword = ''
-    }
+  () => form.deviceEnabled,
+  (enabled) => {
+    if (enabled && configuredDevice.value === null) panelView.value = 'device'
+    if (!enabled) configuredDevice.value = null
   },
 )
 
@@ -116,6 +131,11 @@ function updateUserConfiguration(value: ExtensionUserConfiguration): void {
 
 function updateHotdesk(value: ExtensionHotdeskInput): void {
   Object.assign(hotdesk, value)
+}
+
+function configureDevice(input: DeviceInput): void {
+  configuredDevice.value = input
+  panelView.value = 'extension'
 }
 
 function submit(): void {
@@ -150,11 +170,7 @@ function submit(): void {
     },
     device: {
       enabled: form.deviceEnabled,
-      name: form.deviceEnabled ? nullable(form.deviceName) : null,
-      device_type: form.deviceEnabled ? nullable(form.deviceType) : null,
-      mac_address: starterDeviceIsProvisionable.value ? nullable(form.macAddress) : null,
-      sip_username: starterDeviceSupportsSip.value ? nullable(form.sipUsername) : null,
-      sip_password: starterDeviceSupportsSip.value ? nullable(form.sipPassword) : null,
+      input: form.deviceEnabled ? configuredDevice.value : null,
     },
   }
   const validation = validateForm(extensionCreateSchema, input)
@@ -172,13 +188,13 @@ function submit(): void {
 
 <template>
   <CrudSlideOver
-    title="Create extension"
-    eyebrow="GridPBX / People & Extensions / Create"
-    description="Provision a managed Switch user, optional mailbox and device, and a safe extension callflow."
-    width="medium"
+    :title="panelTitle"
+    :eyebrow="panelEyebrow"
+    :description="panelDescription"
+    :width="panelView === 'device' ? 'wide' : 'medium'"
     @close="emit('close')"
   >
-    <form class="grid gap-5" novalidate @submit.prevent="submit">
+    <form v-show="panelView === 'extension'" class="grid gap-5" novalidate @submit.prevent="submit">
       <div
         v-if="error"
         class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
@@ -359,108 +375,43 @@ function submit(): void {
           </div>
           <ToggleSwitch v-model="form.deviceEnabled" label="Create" />
         </header>
-        <div v-if="form.deviceEnabled" class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Device name</span>
-            <input
-              v-model="form.deviceName"
-              class="field-control"
-              :class="validationControlClass(fieldError('device.name'))"
-              :aria-invalid="Boolean(fieldError('device.name'))"
-            />
-            <span v-if="fieldError('device.name')" class="text-[10px] text-danger">{{
-              fieldError('device.name')
-            }}</span>
-          </label>
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Type</span>
-            <RadioGroup
-              v-model="form.deviceType"
-              class="grid gap-2 sm:grid-cols-2"
-              :class="validationControlClass(fieldError('device.device_type'))"
-              aria-label="Initial device type"
+        <div v-if="form.deviceEnabled" class="p-5">
+          <button
+            type="button"
+            class="flex w-full items-center gap-3 rounded-lg border p-4 text-left transition"
+            :class="
+              fieldError('device.input')
+                ? 'border-red-400 bg-red-50/40 ring-2 ring-red-100'
+                : 'border-slate-200 bg-slate-50 hover:border-brand-300 hover:bg-brand-50/40'
+            "
+            :aria-invalid="Boolean(fieldError('device.input'))"
+            @click="panelView = 'device'"
+          >
+            <span
+              class="grid size-10 shrink-0 place-items-center rounded-md bg-white text-brand-600 shadow-sm"
             >
-              <RadioGroupOption
-                v-for="deviceType in starterDeviceTypes"
-                :key="deviceType.value"
-                v-slot="{ checked }"
-                :value="deviceType.value"
-                as="template"
-              >
-                <button
-                  type="button"
-                  :aria-label="deviceType.label"
-                  class="flex min-w-0 items-center gap-3 rounded-md border p-3 text-left transition"
-                  :class="
-                    checked
-                      ? 'border-brand-500 bg-brand-50'
-                      : 'border-slate-300 bg-white hover:border-slate-400'
-                  "
-                >
-                  <span
-                    class="grid size-8 shrink-0 place-items-center rounded-md bg-slate-100 text-slate-600"
-                  >
-                    <component :is="deviceType.icon" class="size-4" />
-                  </span>
-                  <span class="min-w-0">
-                    <span class="block text-xs font-semibold text-slate-700">{{
-                      deviceType.label
-                    }}</span>
-                    <span class="block truncate text-[10px] text-slate-500">{{
-                      deviceType.description
-                    }}</span>
-                  </span>
-                </button>
-              </RadioGroupOption>
-            </RadioGroup>
-            <span v-if="fieldError('device.device_type')" class="text-[10px] text-danger">{{
-              fieldError('device.device_type')
-            }}</span>
-          </label>
-          <label v-if="starterDeviceIsProvisionable" class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">MAC address</span>
-            <input
-              v-model="form.macAddress"
-              placeholder="00:11:22:33:44:55"
-              class="field-control font-mono"
-              :class="validationControlClass(fieldError('device.mac_address'))"
-              :aria-invalid="Boolean(fieldError('device.mac_address'))"
-            />
-            <span v-if="fieldError('device.mac_address')" class="text-[10px] text-danger">{{
-              fieldError('device.mac_address')
-            }}</span>
-          </label>
-          <p class="text-[10px] leading-4 text-slate-500 sm:col-span-2">
-            Brand, family, model, line keys, and advanced endpoint settings are configured from the
-            full Device editor after creation.
+              <component :is="configuredDeviceType?.icon ?? DevicePhoneMobileIcon" class="size-5" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block text-xs font-semibold text-slate-700">
+                {{ configuredDevice?.name ?? 'Configure the initial device' }}
+              </span>
+              <span class="mt-1 block text-[11px] leading-4 text-slate-500">
+                {{
+                  configuredDeviceType
+                    ? `${configuredDeviceType.label} · Basic and Advanced settings configured`
+                    : 'Open the shared Device editor to choose a type and configure its fields.'
+                }}
+              </span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600">
+              <PencilSquareIcon class="size-4" />
+              {{ configuredDevice ? 'Edit' : 'Configure' }}
+            </span>
+          </button>
+          <p v-if="fieldError('device.input')" class="mt-2 text-[11px] text-danger">
+            {{ fieldError('device.input') }}
           </p>
-          <label v-if="starterDeviceSupportsSip" class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">SIP username</span>
-            <input
-              v-model="form.sipUsername"
-              autocomplete="off"
-              class="field-control"
-              :class="validationControlClass(fieldError('device.sip_username'))"
-              :aria-invalid="Boolean(fieldError('device.sip_username'))"
-            />
-            <span v-if="fieldError('device.sip_username')" class="text-[10px] text-danger">{{
-              fieldError('device.sip_username')
-            }}</span>
-          </label>
-          <label v-if="starterDeviceSupportsSip" class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">SIP password</span>
-            <input
-              v-model="form.sipPassword"
-              type="password"
-              autocomplete="new-password"
-              class="field-control"
-              :class="validationControlClass(fieldError('device.sip_password'))"
-              :aria-invalid="Boolean(fieldError('device.sip_password'))"
-            />
-            <span v-if="fieldError('device.sip_password')" class="text-[10px] text-danger">{{
-              fieldError('device.sip_password')
-            }}</span>
-          </label>
         </div>
       </article>
 
@@ -492,5 +443,14 @@ function submit(): void {
         </button>
       </div>
     </form>
+
+    <div v-show="panelView === 'device'" data-testid="device-subview">
+      <DeviceDraftForm
+        :options="deviceOptions"
+        :external-field-errors="deviceFieldErrors"
+        @cancel="panelView = 'extension'"
+        @configured="configureDevice"
+      />
+    </div>
   </CrudSlideOver>
 </template>
