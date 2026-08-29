@@ -47,8 +47,9 @@ export const useMediaStore = defineStore('media', {
       this.fieldErrors = {}
     },
     captureMutationError(error: unknown, fallback: string): void {
-      this.mutationError = errorMessage(error, fallback)
       this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+      this.mutationError =
+        Object.keys(this.fieldErrors).length > 0 ? null : errorMessage(error, fallback)
     },
     async load(accountId: string, page = 1): Promise<void> {
       this.loading = true
@@ -193,11 +194,16 @@ export const useMediaStore = defineStore('media', {
       this.error = null
       try {
         let run = await mediaApi.startSync(accountId)
-        for (let attempt = 0; attempt < 40 && ['queued', 'running'].includes(run.status); attempt += 1) {
+        for (
+          let attempt = 0;
+          attempt < 40 && ['queued', 'running'].includes(run.status);
+          attempt += 1
+        ) {
           await new Promise((resolve) => window.setTimeout(resolve, 500))
           run = await mediaApi.syncStatus(accountId, run.id)
         }
-        if (run.status !== 'succeeded') throw new Error(run.error_message ?? 'Media sync did not finish.')
+        if (run.status !== 'succeeded')
+          throw new Error(run.error_message ?? 'Media sync did not finish.')
         await this.load(accountId, 1)
       } catch (error) {
         this.error = axios.isAxiosError(error)

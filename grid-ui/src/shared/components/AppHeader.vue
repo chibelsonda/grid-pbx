@@ -23,7 +23,11 @@ const initials = computed(() =>
 )
 const accountOptions = computed<ListboxOptionValue[]>(() =>
   accounts.accounts.length
-    ? accounts.accounts.map((account) => ({ value: account.id, label: account.name }))
+    ? accounts.accounts.map((account) => ({
+        value: account.id,
+        label: account.name,
+        description: account.enabled ? null : 'Disabled',
+      }))
     : [{ value: null, label: 'No mapped account', disabled: true }],
 )
 

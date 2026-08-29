@@ -39,6 +39,48 @@ class BlacklistControllerTest extends TestCase
         $this->actingAs($user)->deleteJson("/api/v1/accounts/{$account->id}/blacklists/{$blacklist->id}")->assertUnprocessable()->assertJsonValidationErrors('blacklist');
     }
 
+    public function test_update_preserves_external_switch_flags_without_accepting_them_from_the_operator(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $blacklist = SwitchBlacklist::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-blacklist-1',
+            'flags' => ['external-policy'],
+            'switch_json' => ['flags' => ['external-policy']],
+        ]);
+        $gateway = $this->mock(SwitchBlacklistGateway::class);
+        $gateway->shouldReceive('activeIds')->once()->andReturn([]);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-blacklist-1'
+                && $data['switch_flags'] === ['external-policy'],
+        )->andReturn([...$this->snapshot(), 'flags' => ['external-policy']]);
+
+        $response = $this->actingAs($user)->putJson(
+            "/api/v1/accounts/{$account->id}/blacklists/{$blacklist->id}",
+            [...$this->payload(), 'is_active' => false],
+        );
+
+        $response->assertOk()->assertJsonMissingPath('data.flags');
+        $this->assertDatabaseHas('switch_blacklists', [
+            'blacklist_id' => $blacklist->getKey(),
+            'flags' => json_encode(['external-policy']),
+        ]);
+    }
+
+    public function test_operator_cannot_submit_switch_owned_flags(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchBlacklistGateway::class)->shouldIgnoreMissing();
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/blacklists", [
+                ...$this->payload(),
+                'flags' => ['operator-controlled'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('flags');
+    }
+
     public function test_read_only_user_cannot_create_a_blacklist(): void
     {
         [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
@@ -46,12 +88,23 @@ class BlacklistControllerTest extends TestCase
         $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/blacklists", $this->payload())->assertForbidden();
     }
 
-    private function payload(): array { return ['name' => 'Known spam', 'numbers' => ['+15550001000'], 'should_block_anonymous' => true, 'is_active' => true]; }
-    private function snapshot(): array { return ['id' => 'switch-blacklist-1', 'name' => 'Known spam', 'numbers' => ['+15550001000' => ['source' => 'manual']], 'should_block_anonymous' => true]; }
+    private function payload(): array
+    {
+        return ['name' => 'Known spam', 'numbers' => ['+15550001000'], 'should_block_anonymous' => true, 'is_active' => true];
+    }
+
+    private function snapshot(): array
+    {
+        return ['id' => 'switch-blacklist-1', 'name' => 'Known spam', 'numbers' => ['+15550001000' => ['source' => 'manual']], 'should_block_anonymous' => true];
+    }
+
     /** @return array{User, SwitchAccount} */
     private function accessibleAccount(OrganizationRole $role = OrganizationRole::AccountOperator): array
     {
-        $user = User::factory()->create(); $organization = Organization::factory()->create(); $organization->users()->attach($user, ['role' => $role->value]);
+        $user = User::factory()->create();
+        $organization = Organization::factory()->create();
+        $organization->users()->attach($user, ['role' => $role->value]);
+
         return [$user, SwitchAccount::factory()->for($organization)->create()];
     }
 }

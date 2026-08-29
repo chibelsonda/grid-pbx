@@ -9,8 +9,8 @@ use stdClass;
 final readonly class DeviceCustomSipHeadersData
 {
     /**
-     * @param array<string, string> $inbound
-     * @param array<string, string> $outbound
+     * @param  array<string, string>  $inbound
+     * @param  array<string, string>  $outbound
      */
     public function __construct(
         public array $inbound = [],
@@ -21,8 +21,8 @@ final readonly class DeviceCustomSipHeadersData
     public function toSwitchData(): array
     {
         return [
-            'in' => $this->inbound === [] ? new stdClass() : $this->inbound,
-            'out' => $this->outbound === [] ? new stdClass() : $this->outbound,
+            'in' => $this->inbound === [] ? new stdClass : $this->inbound,
+            'out' => $this->outbound === [] ? new stdClass : $this->outbound,
         ];
     }
 }

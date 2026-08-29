@@ -10,26 +10,44 @@ use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 final readonly class FaxBoxSnapshot extends EntitySnapshot
 {
     public string $name;
+
     public ?string $ownerId;
+
     public ?string $callerId;
+
     public ?string $callerName;
+
     public ?string $faxHeader;
+
     public ?string $faxIdentity;
+
     public ?string $timezone;
+
     public int $retries;
+
     public bool $t38Enabled;
+
     public ?string $smtpEmailAddress;
+
     public ?string $customSmtpEmailAddress;
-    /** @var list<string> */ public array $smtpPermissionList;
-    /** @var list<string> */ public array $inboundNotificationEmails;
-    /** @var list<string> */ public array $outboundNotificationEmails;
+
+    /** @var list<string> */
+    public array $smtpPermissionList;
+
+    /** @var list<string> */
+    public array $inboundNotificationEmails;
+
+    /** @var list<string> */
+    public array $outboundNotificationEmails;
 
     /** @param array<string, mixed> $data */
     public function __construct(array $data)
     {
         parent::__construct($data);
         $name = $data['name'] ?? null;
-        if (! is_string($name) || trim($name) === '') throw new InvalidSwitchPayloadException('Switch fax box response is missing its name.');
+        if (! is_string($name) || trim($name) === '') {
+            throw new InvalidSwitchPayloadException('Switch fax box response is missing its name.');
+        }
         $media = is_array($data['media'] ?? null) ? $data['media'] : [];
         $notifications = is_array($data['notifications'] ?? null) ? $data['notifications'] : [];
         $this->name = $name;
@@ -56,6 +74,7 @@ final readonly class FaxBoxSnapshot extends EntitySnapshot
         $group = is_array($notifications[$direction] ?? null) ? $notifications[$direction] : [];
         $email = is_array($group['email'] ?? null) ? $group['email'] : [];
         $sendTo = $email['send_to'] ?? null;
+
         return is_string($sendTo) && $sendTo !== '' ? [$sendTo] : $this->stringList($sendTo);
     }
 }

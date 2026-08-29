@@ -48,10 +48,21 @@ class SwitchAccount extends Model
         'organization_id',
         'switch_account_id',
         'name',
+        'org_name',
         'realm',
         'timezone',
+        'language',
         'music_on_hold_media_id',
         'is_enabled',
+        'call_waiting_enabled',
+        'do_not_disturb_enabled',
+        'outbound_privacy',
+        'ringtone_internal',
+        'ringtone_external',
+        'last_synced_at',
+        'sync_status',
+        'projection_version',
+        'switch_json',
     ];
 
     /** @return BelongsTo<Organization, $this> */
@@ -225,7 +236,14 @@ class SwitchAccount extends Model
     /** @return array<string, string> */
     protected function casts(): array
     {
-        return ['is_enabled' => 'boolean'];
+        return [
+            'is_enabled' => 'boolean',
+            'call_waiting_enabled' => 'boolean',
+            'do_not_disturb_enabled' => 'boolean',
+            'last_synced_at' => 'datetime',
+            'projection_version' => 'integer',
+            'switch_json' => 'array',
+        ];
     }
 
     protected static function newFactory(): SwitchAccountFactory

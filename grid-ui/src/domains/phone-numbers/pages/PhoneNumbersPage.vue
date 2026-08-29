@@ -22,7 +22,7 @@ const assignedOnPage = computed(
   () => phoneNumbers.records.filter((record) => record.assigned_callflow !== null).length,
 )
 const e911OnPage = computed(
-  () => phoneNumbers.records.filter((record) => record.e911_status === 'PROVISIONED').length,
+  () => phoneNumbers.records.filter((record) => record.e911.status === 'PROVISIONED').length,
 )
 const panelOpen = computed(
   () =>

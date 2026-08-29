@@ -8,6 +8,21 @@ use InvalidArgumentException;
 
 final readonly class CallflowCreateData
 {
+    private const MENU_BRANCH_KEYS = [
+        'timeout',
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        '*',
+    ];
+
     private const SUPPORTED_DESTINATION_MODULES = [
         'user',
         'device',
@@ -23,7 +38,10 @@ final readonly class CallflowCreateData
         'temporal_route',
     ];
 
-    /** @param list<string> $phoneNumbers */
+    /**
+     * @param  list<string>  $phoneNumbers
+     * @param  list<CallflowBranchWriteData>  $branchRoutes
+     */
     public function __construct(
         public string $name,
         public string $destinationModule,
@@ -31,6 +49,7 @@ final readonly class CallflowCreateData
         public array $phoneNumbers,
         public ?string $fallbackModule = null,
         public ?string $fallbackResourceId = null,
+        public array $branchRoutes = [],
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch callflow name is required.');
@@ -60,6 +79,28 @@ final readonly class CallflowCreateData
         if ($this->fallbackResourceId !== null && trim($this->fallbackResourceId) === '') {
             throw new InvalidArgumentException('Switch callflow fallback identifier is required.');
         }
+
+        $keys = [];
+
+        foreach ($this->branchRoutes as $branch) {
+            if (! $branch instanceof CallflowBranchWriteData || $branch->clearsBranch()) {
+                throw new InvalidArgumentException('Switch callflow creation requires complete branch routes.');
+            }
+
+            if (in_array($branch->key, $keys, true)) {
+                throw new InvalidArgumentException('Switch callflow branch keys must be unique.');
+            }
+
+            if (! in_array($branch->module, self::SUPPORTED_DESTINATION_MODULES, true)) {
+                throw new InvalidArgumentException('Unsupported Switch callflow branch module.');
+            }
+
+            if (! $this->supportsBranchKey($branch->key)) {
+                throw new InvalidArgumentException('Switch callflow branch key is not valid for the root module.');
+            }
+
+            $keys[] = $branch->key;
+        }
     }
 
     /** @return array<string, mixed> */
@@ -71,6 +112,14 @@ final readonly class CallflowCreateData
             $children['_'] = [
                 'module' => $this->fallbackModule,
                 'data' => $this->destinationData($this->fallbackModule, $this->fallbackResourceId),
+                'children' => (object) [],
+            ];
+        }
+
+        foreach ($this->branchRoutes as $branch) {
+            $children[$branch->key] = [
+                'module' => $branch->module,
+                'data' => $this->destinationData($branch->module, $branch->resourceId),
                 'children' => (object) [],
             ];
         }
@@ -90,5 +139,14 @@ final readonly class CallflowCreateData
     private function destinationData(string $module, string $resourceId): array
     {
         return $module === 'temporal_route' ? ['rule_set' => $resourceId] : ['id' => $resourceId];
+    }
+
+    private function supportsBranchKey(string $key): bool
+    {
+        return match ($this->destinationModule) {
+            'menu' => in_array($key, self::MENU_BRANCH_KEYS, true),
+            'temporal_route' => $key === 'rule_set',
+            default => false,
+        };
     }
 }

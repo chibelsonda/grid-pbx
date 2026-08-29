@@ -32,6 +32,12 @@ export type CallDetailRecord = {
   hangup_cause: string | null
   disposition: string | null
   recording_available: boolean
+  recordings: Array<{
+    id: string
+    name: string | null
+    duration_seconds: number
+    has_audio: boolean
+  }>
   extension: CallExtension | null
   last_synced_at: string
 }

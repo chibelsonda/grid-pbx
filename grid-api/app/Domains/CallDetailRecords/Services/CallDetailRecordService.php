@@ -6,6 +6,7 @@ use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CallDetailRecordService
 {
@@ -15,7 +16,22 @@ class CallDetailRecordService
     public function paginate(SwitchAccount $account, array $filters, int $perPage): LengthAwarePaginator
     {
         return $account->callDetailRecords()
-            ->with('extension:extension_id,id,display_name,extension')
+            ->with([
+                'extension:extension_id,id,display_name,extension',
+                'recordings' => function (HasMany $query) use ($account): void {
+                    $query
+                        ->select([
+                            'recording_id',
+                            'switch_account_id',
+                            'switch_call_detail_record_id',
+                            'id',
+                            'name',
+                            'duration_seconds',
+                            'has_audio',
+                        ])
+                        ->where('switch_account_id', $account->getKey());
+                },
+            ])
             ->when($filters['search'] ?? null, function ($query, string $search): void {
                 $query->where(function ($query) use ($search): void {
                     $query
@@ -71,7 +87,22 @@ class CallDetailRecordService
     {
         return $account->callDetailRecords()
             ->where('id', $recordId)
-            ->with('extension:extension_id,id,display_name,extension')
+            ->with([
+                'extension:extension_id,id,display_name,extension',
+                'recordings' => function (HasMany $query) use ($account): void {
+                    $query
+                        ->select([
+                            'recording_id',
+                            'switch_account_id',
+                            'switch_call_detail_record_id',
+                            'id',
+                            'name',
+                            'duration_seconds',
+                            'has_audio',
+                        ])
+                        ->where('switch_account_id', $account->getKey());
+                },
+            ])
             ->firstOrFail();
     }
 }

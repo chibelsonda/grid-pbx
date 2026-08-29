@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { PrinterIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox, { type ListboxValue } from '@/shared/components/FormListbox.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
+import { useFaxBoxForm } from '../composables/useFaxBoxForm'
+import { useFaxBoxFormOptions } from '../composables/useFaxBoxFormOptions'
 import type { FaxBox, FaxBoxInput, FaxBoxOptions } from '../types/fax'
 const props = defineProps<{
   record: FaxBox | null
@@ -14,41 +19,43 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; save: [input: FaxBoxInput]; remove: [] }>()
 const confirmDelete = ref(false)
-const lists = reactive({
-  permissions: props.record?.smtp_permission_list.join('\n') ?? '',
-  inbound: props.record?.inbound_notification_emails.join(', ') ?? '',
-  outbound: props.record?.outbound_notification_emails.join(', ') ?? '',
-})
-const form = reactive<FaxBoxInput>({
-  name: props.record?.name ?? '',
-  owner_id: props.record?.owner?.id ?? null,
-  caller_id: props.record?.caller_id ?? null,
-  caller_name: props.record?.caller_name ?? null,
-  fax_header: props.record?.fax_header ?? null,
-  fax_identity: props.record?.fax_identity ?? null,
-  fax_timezone: props.record?.fax_timezone ?? 'UTC',
-  retries: props.record?.retries ?? 1,
-  t38_enabled: props.record?.t38_enabled ?? false,
-  custom_smtp_email_address: props.record?.custom_smtp_email_address ?? null,
-  smtp_permission_list: [],
-  inbound_notification_emails: [],
-  outbound_notification_emails: [],
-})
-const split = (value: string): string[] => [
-  ...new Set(
-    value
-      .split(/[\n,]+/)
-      .map((item) => item.trim())
-      .filter(Boolean),
-  ),
-]
+const { form, validate, validationErrors } = useFaxBoxForm(props.record)
+const { ownerOptions, callerIdOptions, timezoneOptions } = useFaxBoxFormOptions(
+  () => props.options,
+  () => form.owner_id,
+  () => form.caller_id,
+  () => form.fax_timezone,
+)
+const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+
+function fieldError(field: string): string | null {
+  const direct = errors.value[field]?.[0]
+  if (direct) return direct
+
+  return (
+    Object.entries(errors.value).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
+}
+
+function setOwner(value: ListboxValue): void {
+  if (value === null || typeof value === 'string') form.owner_id = value
+}
+
+function setCallerId(value: ListboxValue): void {
+  if (value === null || typeof value === 'string') form.caller_id = value
+}
+
+function setTimezone(value: ListboxValue): void {
+  if (value === null || typeof value === 'string') form.fax_timezone = value
+}
+
 function save(): void {
-  emit('save', {
-    ...form,
-    smtp_permission_list: split(lists.permissions),
-    inbound_notification_emails: split(lists.inbound),
-    outbound_notification_emails: split(lists.outbound),
-  })
+  if (!props.canManage) return
+  const result = validate()
+
+  if (result.success) emit('save', result.data)
 }
 </script>
 <template>
@@ -59,7 +66,7 @@ function save(): void {
     width="medium"
     @close="emit('close')"
   >
-    <form class="grid gap-5" @submit.prevent="canManage && save()">
+    <form class="grid gap-5" novalidate @submit.prevent="save">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -79,65 +86,102 @@ function save(): void {
               ><span class="text-xs font-semibold text-slate-600">Name</span
               ><input
                 v-model="form.name"
-                required
+                aria-label="Fax-box name"
                 maxlength="128"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-                :aria-invalid="Boolean(fieldErrors.name)"
-              /><span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
-                fieldErrors.name[0]
+                class="field-control"
+                :class="validationControlClass(fieldError('name'))"
+                :aria-invalid="Boolean(fieldError('name'))"
+              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
+                fieldError('name')
               }}</span></label
             ><label class="grid gap-2 sm:col-span-2"
               ><span class="text-xs font-semibold text-slate-600">Owner</span
-              ><FormSelect
-                v-model="form.owner_id"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-                ><option :value="null">No owner</option>
-                <option v-for="owner in options.owners" :key="owner.id" :value="owner.id">
-                  {{ owner.label }}{{ owner.detail ? ` · ${owner.detail}` : '' }}
-                </option></FormSelect
-              ></label
+              ><FormListbox
+                :model-value="form.owner_id"
+                :options="ownerOptions"
+                aria-label="Fax-box owner"
+                :invalid="Boolean(fieldError('owner_id'))"
+                @update:model-value="setOwner"
+              /><span v-if="fieldError('owner_id')" class="text-[10px] text-danger">{{
+                fieldError('owner_id')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Caller ID number</span
-              ><input
-                v-model="form.caller_id"
-                maxlength="64"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+              ><FormListbox
+                :model-value="form.caller_id"
+                :options="callerIdOptions"
+                aria-label="Caller ID number"
+                :invalid="Boolean(fieldError('caller_id'))"
+                @update:model-value="setCallerId"
+              /><span v-if="fieldError('caller_id')" class="text-[10px] text-danger">{{
+                fieldError('caller_id')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Caller ID name</span
               ><input
                 v-model="form.caller_name"
+                aria-label="Caller ID name"
                 maxlength="128"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+                class="field-control"
+                :class="validationControlClass(fieldError('caller_name'))"
+                :aria-invalid="Boolean(fieldError('caller_name'))"
+              /><span v-if="fieldError('caller_name')" class="text-[10px] text-danger">{{
+                fieldError('caller_name')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Fax header</span
               ><input
                 v-model="form.fax_header"
+                aria-label="Fax header"
                 maxlength="128"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+                class="field-control"
+                :class="validationControlClass(fieldError('fax_header'))"
+                :aria-invalid="Boolean(fieldError('fax_header'))"
+              /><span v-if="fieldError('fax_header')" class="text-[10px] text-danger">{{
+                fieldError('fax_header')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Fax identity number</span
               ><input
                 v-model="form.fax_identity"
+                aria-label="Fax identity number"
                 maxlength="64"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+                class="field-control"
+                :class="validationControlClass(fieldError('fax_identity'))"
+                :aria-invalid="Boolean(fieldError('fax_identity'))"
+              /><span v-if="fieldError('fax_identity')" class="text-[10px] text-danger">{{
+                fieldError('fax_identity')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Timezone</span
-              ><input
-                v-model="form.fax_timezone"
-                maxlength="64"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+              ><FormListbox
+                :model-value="form.fax_timezone"
+                :options="timezoneOptions"
+                aria-label="Fax timezone"
+                :invalid="Boolean(fieldError('fax_timezone'))"
+                @update:model-value="setTimezone"
+              /><span v-if="fieldError('fax_timezone')" class="text-[10px] text-danger">{{
+                fieldError('fax_timezone')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Retries</span
               ><input
                 v-model.number="form.retries"
+                aria-label="Fax retries"
                 type="number"
                 min="0"
                 max="4"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+                class="field-control"
+                :class="validationControlClass(fieldError('retries'))"
+                :aria-invalid="Boolean(fieldError('retries'))"
+              /><span v-if="fieldError('retries')" class="text-[10px] text-danger">{{
+                fieldError('retries')
+              }}</span></label
             ><ToggleSwitch
               v-model="form.t38_enabled"
               label="Enable T.38 when supported"
               class="sm:col-span-2"
+              :invalid="Boolean(fieldError('t38_enabled'))"
             />
           </div>
         </article>
@@ -159,28 +203,57 @@ function save(): void {
               ><span class="text-xs font-semibold text-slate-600">Custom SMTP address</span
               ><input
                 v-model="form.custom_smtp_email_address"
+                aria-label="Custom SMTP address"
                 type="email"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+                class="field-control"
+                :class="validationControlClass(fieldError('custom_smtp_email_address'))"
+                :aria-invalid="Boolean(fieldError('custom_smtp_email_address'))"
+              /><span
+                v-if="fieldError('custom_smtp_email_address')"
+                class="text-[10px] text-danger"
+                >{{ fieldError('custom_smtp_email_address') }}</span
+              ></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Allowed sender patterns</span
               ><textarea
-                v-model="lists.permissions"
+                v-model="form.smtpPermissionsText"
+                aria-label="Allowed sender patterns"
                 rows="3"
-                class="rounded-md border border-slate-200 p-3 text-xs"
+                class="field-control min-h-24 py-2"
+                :class="validationControlClass(fieldError('smtp_permission_list'))"
+                :aria-invalid="Boolean(fieldError('smtp_permission_list'))"
                 placeholder="One regular expression per line"
-              /></label
+              /><span v-if="fieldError('smtp_permission_list')" class="text-[10px] text-danger">{{
+                fieldError('smtp_permission_list')
+              }}</span></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Inbound notification emails</span
               ><input
-                v-model="lists.inbound"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-                placeholder="ops@example.com, owner@example.com" /></label
+                v-model="form.inboundEmailsText"
+                aria-label="Inbound notification emails"
+                class="field-control"
+                :class="validationControlClass(fieldError('inbound_notification_emails'))"
+                :aria-invalid="Boolean(fieldError('inbound_notification_emails'))"
+                placeholder="ops@example.com, owner@example.com"
+              /><span
+                v-if="fieldError('inbound_notification_emails')"
+                class="text-[10px] text-danger"
+                >{{ fieldError('inbound_notification_emails') }}</span
+              ></label
             ><label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Outbound notification emails</span
               ><input
-                v-model="lists.outbound"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                v-model="form.outboundEmailsText"
+                aria-label="Outbound notification emails"
+                class="field-control"
+                :class="validationControlClass(fieldError('outbound_notification_emails'))"
+                :aria-invalid="Boolean(fieldError('outbound_notification_emails'))"
+              /><span
+                v-if="fieldError('outbound_notification_emails')"
+                class="text-[10px] text-danger"
+                >{{ fieldError('outbound_notification_emails') }}</span
+              ></label
+            >
           </div>
         </article>
       </fieldset>
@@ -203,7 +276,7 @@ function save(): void {
         ><button
           v-if="canManage"
           type="submit"
-          :disabled="saving || !form.name.trim()"
+          :disabled="saving"
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"
         >
           {{ saving ? 'Saving…' : 'Save fax box' }}

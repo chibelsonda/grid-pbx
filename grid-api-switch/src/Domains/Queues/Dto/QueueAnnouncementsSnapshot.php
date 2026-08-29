@@ -7,9 +7,7 @@ namespace GridPbx\Switch\Domains\Queues\Dto;
 final readonly class QueueAnnouncementsSnapshot
 {
     /** @param array<string, mixed> $data */
-    public function __construct(public array $data)
-    {
-    }
+    public function __construct(public array $data) {}
 
     public function interval(): int
     {
@@ -34,4 +32,3 @@ final readonly class QueueAnnouncementsSnapshot
         return is_string($value) && $value !== '' ? $value : null;
     }
 }
-

@@ -13,6 +13,9 @@ interface SwitchCallflowGateway
         string $destinationModule,
         string $destinationResourceId,
         array $phoneNumbers,
+        ?string $fallbackModule = null,
+        ?string $fallbackResourceId = null,
+        array $branchRoutes = [],
     ): array;
 
     /** @return array<string, mixed> */
@@ -24,6 +27,10 @@ interface SwitchCallflowGateway
         ?string $name,
         array $assignedPhoneNumbers,
         array $knownPhoneNumbers,
+        bool $replaceFallback = false,
+        ?string $fallbackModule = null,
+        ?string $fallbackResourceId = null,
+        array $branchOperations = [],
     ): array;
 
     public function delete(SwitchAccount $account, string $resourceId): void;

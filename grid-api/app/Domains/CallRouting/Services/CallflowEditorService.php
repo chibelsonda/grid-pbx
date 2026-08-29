@@ -4,20 +4,67 @@ namespace App\Domains\CallRouting\Services;
 
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Organizations\Models\SwitchAccount;
+use Illuminate\Validation\ValidationException;
 
 class CallflowEditorService
 {
+    /** @var list<string> */
+    private const MENU_BRANCH_KEYS = [
+        'timeout',
+        '0',
+        '1',
+        '2',
+        '3',
+        '4',
+        '5',
+        '6',
+        '7',
+        '8',
+        '9',
+        '*',
+    ];
+
+    /** @var list<string> */
+    private const GUIDED_ROOT_MODULES = [
+        'user',
+        'device',
+        'voicemail',
+        'callflow',
+        'play',
+        'directory',
+        'group',
+        'acdc_member',
+        'acdc_queue',
+        'menu',
+        'conference',
+        'faxbox',
+        'temporal_route',
+    ];
+
     /** @return array<string, mixed> */
     public function editor(SwitchAccount $account, ?SwitchCallflow $callflow = null): array
     {
+        $temporalRuleSets = $account->temporalRuleSets()
+            ->with(['rules.rule'])
+            ->withCount('rules')
+            ->orderBy('name')
+            ->get();
+
         return [
             'mode' => $callflow === null ? 'create' : 'update',
-            'editable' => $callflow === null || (! $callflow->is_feature_code && $callflow->flow_structure !== null),
-            'blocked_reason' => match (true) {
-                $callflow?->is_feature_code === true => 'Feature-code routes are read-only in the guided editor.',
-                $callflow !== null && $callflow->flow_structure === null => 'This route has no root flow node to edit.',
-                default => null,
-            },
+            'editable' => $callflow === null || $this->blockedReason($callflow) === null,
+            'blocked_reason' => $callflow === null ? null : $this->blockedReason($callflow),
+            'fallback' => $this->fallbackEditor($callflow),
+            'menu_branches' => $this->menuBranches($callflow),
+            'temporal_match' => $this->temporalMatch($callflow),
+            'temporal_rule_sets' => $temporalRuleSets->mapWithKeys(fn ($set): array => [
+                $set->id => $set->rules->map(fn ($membership): array => [
+                    'id' => $membership->rule?->id,
+                    'label' => $membership->rule?->name ?? 'Unresolved schedule rule',
+                    'position' => $membership->position,
+                    'resolved' => $membership->rule !== null,
+                ])->values()->all(),
+            ])->all(),
             'destination_types' => [
                 ['value' => 'extension', 'label' => 'Extension'],
                 ['value' => 'device', 'label' => 'Device'],
@@ -88,7 +135,7 @@ class CallflowEditorService
                 'fax_box' => $account->faxBoxes()->orderBy('name')->get()->map(fn ($item): array => [
                     'id' => $item->id, 'label' => $item->name, 'detail' => $item->smtp_email_address,
                 ])->values()->all(),
-                'temporal_rule_set' => $account->temporalRuleSets()->withCount('rules')->orderBy('name')->get()->map(fn ($item): array => [
+                'temporal_rule_set' => $temporalRuleSets->map(fn ($item): array => [
                     'id' => $item->id,
                     'label' => $item->name,
                     'detail' => $item->rules_count.' schedule rules',
@@ -110,6 +157,267 @@ class CallflowEditorService
                         'name' => $item->assignedCallflow->name,
                     ],
                 ])->values()->all(),
+        ];
+    }
+
+    public function assertEditable(SwitchCallflow $callflow): void
+    {
+        $reason = $this->blockedReason($callflow);
+
+        if ($reason !== null) {
+            throw ValidationException::withMessages(['callflow' => [$reason]]);
+        }
+    }
+
+    public function assertFallbackEditable(SwitchCallflow $callflow): void
+    {
+        $fallback = $this->fallbackEditor($callflow);
+
+        if (! $fallback['editable']) {
+            throw ValidationException::withMessages([
+                'fallback_destination_id' => [$fallback['blocked_reason']],
+            ]);
+        }
+    }
+
+    /** @param list<string> $keys */
+    public function assertMenuBranchesEditable(SwitchCallflow $callflow, array $keys): void
+    {
+        $editor = $this->menuBranches($callflow);
+
+        if (! $editor['editable']) {
+            throw ValidationException::withMessages([
+                'menu_branches' => [$editor['blocked_reason']],
+            ]);
+        }
+
+        $branches = collect($editor['branches'])->keyBy('key');
+
+        foreach ($keys as $key) {
+            $branch = $branches->get($key);
+
+            if (! is_array($branch) || ! $branch['editable']) {
+                throw ValidationException::withMessages([
+                    'menu_branches' => [sprintf(
+                        'Menu key %s contains an unsafe branch and is preserved unchanged.',
+                        $key,
+                    )],
+                ]);
+            }
+        }
+    }
+
+    public function assertTemporalMatchEditable(SwitchCallflow $callflow): void
+    {
+        $editor = $this->temporalMatch($callflow);
+
+        if (! $editor['editable']) {
+            throw ValidationException::withMessages([
+                'temporal_match_destination_id' => [$editor['blocked_reason']],
+            ]);
+        }
+    }
+
+    private function blockedReason(SwitchCallflow $callflow): ?string
+    {
+        if ($callflow->is_feature_code) {
+            return 'Feature-code routes are read-only in the guided editor.';
+        }
+
+        if ($callflow->flow_structure === null) {
+            return 'This route has no root flow node to edit.';
+        }
+
+        $module = $callflow->flow_structure['module'] ?? null;
+
+        if (! is_string($module) || ! in_array($module, self::GUIDED_ROOT_MODULES, true)) {
+            return 'This route uses a root module that is not yet supported by the guided editor. Its Switch configuration is preserved unchanged.';
+        }
+
+        if (($callflow->flow_structure['reference_status'] ?? null) !== 'resolved') {
+            return 'This route target is not available in the current projection. Synchronize the related resource before editing it.';
+        }
+
+        return null;
+    }
+
+    /** @return array{editable: bool, blocked_reason: ?string, target: ?array{type: string, id: string, label: string}} */
+    private function fallbackEditor(?SwitchCallflow $callflow): array
+    {
+        if ($callflow === null) {
+            return ['editable' => true, 'blocked_reason' => null, 'target' => null];
+        }
+
+        $fallback = $callflow->flow_structure['children']['_'] ?? null;
+
+        if (! is_array($fallback)) {
+            return ['editable' => true, 'blocked_reason' => null, 'target' => null];
+        }
+
+        if (is_array($fallback['children'] ?? null) && $fallback['children'] !== []) {
+            return [
+                'editable' => false,
+                'blocked_reason' => 'The existing fallback contains nested branches and is read-only until recursive editing is enabled.',
+                'target' => null,
+            ];
+        }
+
+        $module = $fallback['module'] ?? null;
+        $target = $fallback['target'] ?? null;
+
+        if (! is_string($module)
+            || ! in_array($module, self::GUIDED_ROOT_MODULES, true)
+            || ($fallback['reference_status'] ?? null) !== 'resolved'
+            || ! is_array($target)
+            || ! is_string($target['type'] ?? null)
+            || ! is_string($target['id'] ?? null)
+            || ! is_string($target['label'] ?? null)) {
+            return [
+                'editable' => false,
+                'blocked_reason' => 'The existing fallback uses an unsupported or unresolved target and is preserved unchanged.',
+                'target' => null,
+            ];
+        }
+
+        return [
+            'editable' => true,
+            'blocked_reason' => null,
+            'target' => [
+                'type' => $target['type'],
+                'id' => $target['id'],
+                'label' => $target['label'],
+            ],
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function menuBranches(?SwitchCallflow $callflow): array
+    {
+        $children = $callflow === null
+            ? []
+            : (is_array($callflow->flow_structure['children'] ?? null)
+                ? $callflow->flow_structure['children']
+                : []);
+        $hasMenuKeys = collect(self::MENU_BRANCH_KEYS)->contains(
+            fn (string $key): bool => array_key_exists($key, $children),
+        );
+        $editable = $callflow === null
+            || ($callflow->flow_structure['module'] ?? null) === 'menu'
+            || ! $hasMenuKeys;
+        $blockedReason = $editable
+            ? null
+            : 'This non-menu route already contains menu-shaped branches. They are preserved until the root is edited through the visual tree editor.';
+        $labels = ['timeout' => 'Timeout', '*' => 'Star'];
+        $branches = [];
+
+        foreach (self::MENU_BRANCH_KEYS as $key) {
+            $branch = $children[$key] ?? null;
+            $state = $editable
+                ? $this->leafBranchEditor($branch)
+                : ['editable' => false, 'blocked_reason' => $blockedReason, 'target' => null];
+            $branches[] = [
+                'key' => $key,
+                'label' => $labels[$key] ?? $key,
+                ...$state,
+            ];
+        }
+
+        return [
+            'editable' => $editable,
+            'blocked_reason' => $blockedReason,
+            'branches' => $branches,
+            'legacy_hash_present' => array_key_exists('#', $children),
+            'unknown_branch_keys' => array_values(array_filter(
+                array_keys($children),
+                fn (mixed $key): bool => is_string($key)
+                    && $key !== '_'
+                    && $key !== '#'
+                    && ! in_array($key, self::MENU_BRANCH_KEYS, true),
+            )),
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    public function temporalMatch(?SwitchCallflow $callflow): array
+    {
+        if ($callflow === null) {
+            return [
+                'editable' => true,
+                'blocked_reason' => null,
+                'target' => null,
+                'preserved_branch_count' => 0,
+            ];
+        }
+
+        $children = is_array($callflow->flow_structure['children'] ?? null)
+            ? $callflow->flow_structure['children']
+            : [];
+        $branch = $children['rule_set'] ?? null;
+        $isTemporalRoot = ($callflow->flow_structure['module'] ?? null) === 'temporal_route';
+        $editable = $isTemporalRoot || $branch === null;
+        $blockedReason = $editable
+            ? null
+            : 'This non-temporal route already contains a rule-set branch. It is preserved until the root is edited through the visual tree editor.';
+        $state = $editable
+            ? $this->leafBranchEditor($branch)
+            : ['editable' => false, 'blocked_reason' => $blockedReason, 'target' => null];
+
+        return [
+            ...$state,
+            'preserved_branch_count' => collect(array_keys($children))
+                ->filter(fn (mixed $key): bool => (string) $key !== '_' && (string) $key !== 'rule_set')
+                ->count(),
+        ];
+    }
+
+    /** @return array{editable: bool, blocked_reason: ?string, target: ?array{type: string, id: string, label: string}} */
+    private function leafBranchEditor(mixed $branch): array
+    {
+        if ($branch === null) {
+            return ['editable' => true, 'blocked_reason' => null, 'target' => null];
+        }
+
+        if (! is_array($branch)) {
+            return [
+                'editable' => false,
+                'blocked_reason' => 'This branch is malformed and is preserved unchanged.',
+                'target' => null,
+            ];
+        }
+
+        if (is_array($branch['children'] ?? null) && $branch['children'] !== []) {
+            return [
+                'editable' => false,
+                'blocked_reason' => 'This branch contains nested actions and is preserved unchanged.',
+                'target' => null,
+            ];
+        }
+
+        $module = $branch['module'] ?? null;
+        $target = $branch['target'] ?? null;
+
+        if (! is_string($module)
+            || ! in_array($module, self::GUIDED_ROOT_MODULES, true)
+            || ($branch['reference_status'] ?? null) !== 'resolved'
+            || ! is_array($target)
+            || ! is_string($target['type'] ?? null)
+            || ! is_string($target['id'] ?? null)
+            || ! is_string($target['label'] ?? null)) {
+            return [
+                'editable' => false,
+                'blocked_reason' => 'This branch uses an unsupported or unresolved target and is preserved unchanged.',
+                'target' => null,
+            ];
+        }
+
+        return [
+            'editable' => true,
+            'blocked_reason' => null,
+            'target' => [
+                'type' => $target['type'],
+                'id' => $target['id'],
+                'label' => $target['label'],
+            ],
         ];
     }
 }

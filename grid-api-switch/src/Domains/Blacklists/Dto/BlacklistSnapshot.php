@@ -10,9 +10,14 @@ use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 final readonly class BlacklistSnapshot extends EntitySnapshot
 {
     public string $name;
+
     public bool $shouldBlockAnonymous;
-    /** @var array<string, array<string, mixed>> */ public array $numbers;
-    /** @var list<string> */ public array $flags;
+
+    /** @var array<string, array<string, mixed>> */
+    public array $numbers;
+
+    /** @var list<string> */
+    public array $flags;
 
     /** @param array<string, mixed> $data */
     public function __construct(array $data)

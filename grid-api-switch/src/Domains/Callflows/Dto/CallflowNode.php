@@ -32,11 +32,11 @@ final readonly class CallflowNode
         $children = [];
 
         foreach ($rawChildren as $branch => $child) {
-            if (! is_string($branch) || ! is_array($child)) {
+            if ((! is_string($branch) && ! is_int($branch)) || ! is_array($child)) {
                 throw new InvalidSwitchPayloadException('Switch callflow child branches must contain callflow nodes.');
             }
 
-            $children[$branch] = self::fromArray($child);
+            $children[(string) $branch] = self::fromArray($child);
         }
 
         return new self($module, $children);
@@ -74,12 +74,12 @@ final readonly class CallflowNode
         ));
     }
 
-    /** @return array{module: string, children: array<string, mixed>} */
+    /** @return array{module: string, children: object} */
     public function toArray(): array
     {
         return [
             'module' => $this->module,
-            'children' => array_map(
+            'children' => (object) array_map(
                 static fn (self $child): array => $child->toArray(),
                 $this->children,
             ),

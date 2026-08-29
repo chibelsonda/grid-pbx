@@ -9,8 +9,8 @@ use InvalidArgumentException;
 final readonly class GroupWriteData
 {
     /**
-     * @param list<GroupEndpointWriteData> $endpoints
-     * @param list<string> $flags
+     * @param  list<GroupEndpointWriteData>  $endpoints
+     * @param  list<string>  $flags
      */
     public function __construct(
         public string $name,

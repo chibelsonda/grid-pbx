@@ -9,8 +9,11 @@ use InvalidArgumentException;
 final readonly class FaxBoxWriteData
 {
     /** @param list<string> $smtpPermissionList
-     * @param list<string> $inboundNotificationEmails
-     * @param list<string> $outboundNotificationEmails
+     * @param  list<string>  $inboundNotificationEmails
+     * @param  list<string>  $outboundNotificationEmails
+     * @param  array<string, mixed>  $inboundNotificationExtras
+     * @param  array<string, mixed>  $outboundNotificationExtras
+     * @param  list<string>  $flags
      */
     public function __construct(
         public string $name,
@@ -26,11 +29,20 @@ final readonly class FaxBoxWriteData
         public array $smtpPermissionList = [],
         public array $inboundNotificationEmails = [],
         public array $outboundNotificationEmails = [],
+        private array $inboundNotificationExtras = [],
+        private array $outboundNotificationExtras = [],
+        private array $flags = [],
     ) {
-        if (trim($this->name) === '') throw new InvalidArgumentException('Switch fax box name is required.');
-        if ($this->retries < 0 || $this->retries > 4) throw new InvalidArgumentException('Switch fax retry count must be between zero and four.');
+        if (trim($this->name) === '') {
+            throw new InvalidArgumentException('Switch fax box name is required.');
+        }
+        if ($this->retries < 0 || $this->retries > 4) {
+            throw new InvalidArgumentException('Switch fax retry count must be between zero and four.');
+        }
         foreach ([...$this->inboundNotificationEmails, ...$this->outboundNotificationEmails] as $email) {
-            if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) throw new InvalidArgumentException('Switch fax notification recipients must be valid email addresses.');
+            if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+                throw new InvalidArgumentException('Switch fax notification recipients must be valid email addresses.');
+            }
         }
     }
 
@@ -45,9 +57,33 @@ final readonly class FaxBoxWriteData
             'custom_smtp_email_address' => $this->customSmtpEmailAddress,
             'smtp_permission_list' => array_values(array_unique($this->smtpPermissionList)),
             'notifications' => [
-                'inbound' => ['email' => ['send_to' => array_values(array_unique($this->inboundNotificationEmails))]],
-                'outbound' => ['email' => ['send_to' => array_values(array_unique($this->outboundNotificationEmails))]],
+                'inbound' => $this->notificationGroup($this->inboundNotificationExtras, $this->inboundNotificationEmails),
+                'outbound' => $this->notificationGroup($this->outboundNotificationExtras, $this->outboundNotificationEmails),
             ],
+            'flags' => array_values(array_filter(
+                $this->flags,
+                static fn (mixed $flag): bool => is_string($flag) && $flag !== '',
+            )),
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
+    }
+
+    /**
+     * @param  array<string, mixed>  $extras
+     * @param  list<string>  $emails
+     * @return array<string, mixed>
+     */
+    private function notificationGroup(array $extras, array $emails): array
+    {
+        $group = [];
+
+        foreach (['callback', 'sms'] as $key) {
+            if (is_array($extras[$key] ?? null)) {
+                $group[$key] = $extras[$key];
+            }
+        }
+
+        $group['email'] = ['send_to' => array_values(array_unique($emails))];
+
+        return $group;
     }
 }

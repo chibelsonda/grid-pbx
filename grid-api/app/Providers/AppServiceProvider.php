@@ -26,12 +26,14 @@ use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Media\Policies\MediaPolicy;
 use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\Menus\Policies\MenuPolicy;
+use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Organizations\Policies\AccountPolicy;
 use App\Domains\Queues\Models\SwitchQueue;
+use App\Domains\Queues\Policies\QueuePolicy;
 use App\Domains\Recordings\Models\SwitchRecording;
 use App\Domains\Recordings\Policies\RecordingPolicy;
 use App\Domains\Services\Models\SwitchServiceSummary;
 use App\Domains\Services\Policies\ServicePolicy;
-use App\Domains\Queues\Policies\QueuePolicy;
 use App\Domains\TemporalRouting\Models\SwitchTemporalRule;
 use App\Domains\TemporalRouting\Models\SwitchTemporalRuleSet;
 use App\Domains\TemporalRouting\Policies\TemporalRulePolicy;
@@ -61,6 +63,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Model::preventLazyLoading(! $this->app->isProduction());
         Gate::policy(SwitchCallflow::class, CallflowPolicy::class);
+        Gate::policy(SwitchAccount::class, AccountPolicy::class);
         Gate::policy(SwitchConference::class, ConferencePolicy::class);
         Gate::policy(SwitchBlacklist::class, BlacklistPolicy::class);
         Gate::policy(SwitchCallDetailRecord::class, CallDetailRecordPolicy::class);

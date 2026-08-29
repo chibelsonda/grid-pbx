@@ -96,21 +96,21 @@ completion.
 
 | Entity | Canonical schema or endpoint source | Related objects and additional boundaries | Current implementation | Detailed matrix | Delivery order |
 | --- | --- | --- | --- | --- | --- |
-| Account | `accounts.json` | hierarchy, limits, service plans, capabilities | Foundation | Pending | 6 |
-| Blacklist | `blacklists.json` | account activation and number entries | Foundation | Pending | 4 |
-| CallDetailRecord | `cdrs.json` plus MODB CDR endpoints | interactions, recordings, retention | Foundation | Pending | 5 |
-| Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Pending | 3 |
+| Account | `accounts.json` | hierarchy, limits, service plans, capabilities | Foundation | Safe projection matrix complete below; typed settings mutations pending | 6 |
+| Blacklist | `blacklists.json` | account activation and number entries | Foundation | Complete below | 4 |
+| CallDetailRecord | `cdrs.json` plus MODB CDR endpoints | interactions, recordings, retention | Foundation | Safe read/filter/relationship matrix complete below; retention remains policy-gated | 5 |
+| Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Selectable safe recursive diagram, node inspector, 73-module schema reference palette, root, entry-point, wildcard fallback, Menu keys, and Rule Set match/no-match routing complete; direct-rule and deeper recursive mutation editors pending | 3 |
 | Conference | `conferences.json` and conference action endpoints | users, role numbers, callflows, live participants | Foundation | Form matrix complete below; actions pending | 3 |
 | Device | `devices.json` and referenced endpoint schemas | users, registrations, line keys, provisioner, numbers | Foundation | Complete below | 1 |
 | Directory | `directories.json` | users and destination callflows | Foundation | Complete below | 2 |
-| Fax | `faxbox.json`, `faxes.json`, and document endpoints | users, numbers, callflows, media | Foundation | Pending | 4 |
-| Group | `groups.json` | users, devices, ring groups, callflows | Foundation | Pending | 3 |
+| Fax | `faxbox.json`, `faxes.json`, and document endpoints | users, numbers, callflows, media | Foundation | Fax Box form matrix complete below; message mutations remain gated | 4 |
+| Group | `groups.json` | users, devices, ring groups, callflows | Foundation | Complete below | 3 |
 | LineKey | `devices.combo_key.json` embedded in `devices.provision` | device, provisioner brand/family/model | Foundation | Complete below | 2 |
-| Media | `media.json` plus upload/content endpoints | menus, music on hold, prompts | Foundation | Pending | 5 |
-| Menu | `menus.json` | media prompts and callflow DTMF branches | Foundation | Pending | 3 |
-| PhoneNumber | `phone_numbers.json` plus number-manager feature/action endpoints | callflows, CNAM, E911, porting, carriers, SMS/MMS | Foundation | Pending | 4 |
+| Media | `media.json` plus upload/content endpoints | menus, music on hold, prompts | Foundation | Upload/audio/MOH matrix complete below; generated sources gated | 5 |
+| Menu | `menus.json` | media prompts and callflow DTMF branches | Foundation | CRUD form audited; root-level DTMF/timeout routing delivered | 3 |
+| PhoneNumber | `phone_numbers.json` plus number-manager feature/action endpoints | callflows, CNAM, E911, porting, carriers, SMS/MMS | Foundation | Safe read/detail matrix complete below; mutations policy-gated | 4 |
 | Queue | `queues.json`, agent endpoints, and ACDc runtime | users, devices, callflows, agent state/statistics | Foundation | Pending | 3 |
-| Recording | MODB recording documents and content endpoints; no single Crossbar CRUD schema | CDRs, storage policy, retention | Foundation | Pending | 5 |
+| Recording | MODB recording documents and content endpoints; no single Crossbar CRUD schema | CDRs, storage policy, retention | Foundation | Safe metadata/playback matrix complete below; deletion and retention remain policy-gated | 5 |
 | Services | services, limits, service-plan, ledger, and quote endpoints | accounts, reseller hierarchy, billing provider | Foundation/read-only | Pending | 6 |
 | SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Pending | 6 |
 | TemporalRule | `temporal_rules.json` plus enable/disable/reset actions | callflows, rule sets, account timezone | Foundation | Complete below | 3 |
@@ -706,15 +706,166 @@ new JSON-derived MySQL columns were added; the complete redacted response
 override preservation, force/reset commands, ordered Rule Set creation, and
 cleanup against the connected Switch.
 
-## 15. Next matrices
+## 15. Blacklist field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name` | Required trimmed name, maximum 128 characters, with matching Zod and Laravel validation | Implemented |
+| `numbers.<caller-id>` | Multiline UI normalized to unique keys; GridPBX applies an intentional E.164 policy and the Switch DTO emits an object even when empty | Implemented and package-tested |
+| `should_block_anonymous` | Explicit boolean control | Implemented |
+| `flags[]` | External-application metadata prohibited from operator input and preserved from redacted `switch_json` across updates and compensation | Implemented and feature-tested |
+| account `blacklists[]` activation | `is_active` is a virtual form field coordinating the separate account-setting update; it is not added to the Blacklist Switch document | Implemented |
+| deletion | Active lists must first be deactivated; Laravel rechecks the rule before deleting | Implemented |
+
+The Blacklist form uses a right-side slide-over, domain composable, Zod,
+shared red invalid controls, and inline-only field errors. Focused component,
+store, Laravel, Switch package, and isolated authenticated Playwright checks
+pass without creating a live Blacklist.
+
+## 16. Fax Box field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name` | Required trimmed name, maximum 128 characters | Implemented |
+| `owner_id` | Public Extension UUID resolved server-side; null leaves the box unassigned | Implemented |
+| `caller_id` | Headless UI choice sourced from projected account phone numbers; an existing unprojected value is retained safely | Implemented |
+| `caller_name`, `fax_header`, `fax_identity` | Nullable bounded identity controls | Implemented |
+| `fax_timezone` | Supported timezone choice; null inherits the account default | Implemented |
+| `retries` | Integer 0–4 using the current schema default of 1 | Implemented |
+| `media.fax_option` | Explicit T.38 boolean | Implemented |
+| `custom_smtp_email_address` | Optional validated SMTP email address; generated `smtp_email_address` remains read-only | Implemented |
+| `smtp_permission_list[]` | Unique bounded pattern strings; Switch remains authoritative for provider-specific regex acceptance | Implemented |
+| `notifications.inbound.email.send_to`, `notifications.outbound.email.send_to` | Unique bounded email lists | Implemented |
+| `notifications.*.callback` | Preserved from redacted `switch_json`; hidden until an outbound URL and SSRF policy is approved | Intentionally policy-gated |
+| `notifications.*.sms` | Preserved from redacted `switch_json`; hidden until provider capability and messaging policy are confirmed | Intentionally capability-gated |
+| `flags[]` | External-application metadata prohibited from operator input and preserved during full writes | Implemented preservation boundary |
+| `attempts` | System-owned retry state reset by Switch on writes; never operator-editable | Intentionally read-only |
+| deletion and document access | Callflow dependencies block Fax Box deletion; fax documents stream through an authorized audited API | Implemented |
+
+The Fax Box slide-over uses a domain composable, Zod, Headless UI choices,
+shared invalid controls, and inline-only errors. No new MySQL fields were added
+for hidden JSON values. Focused component, Laravel, Switch package, and isolated
+authenticated Playwright checks pass without creating a live Fax Box.
+
+## 17. Phone Number field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| number identity, `state`, `used_by`, carrier, active `features[]` | Normalized searchable MySQL projection using a server-owned numeric primary key and public UUID; Switch number remains a display value | Implemented |
+| `_read_only.features.available` | Preferred current runtime feature capability source; never writable | Implemented |
+| `_read_only.features_available` / root `features_available` | Version-aware compatibility fallback for older Switch responses | Implemented and package-tested |
+| `cnam.display_name`, `cnam.inbound_lookup` | Typed allowlisted detail projection | Implemented read-only |
+| `e911.status`, caller name, address, and notification emails | Typed allowlisted virtual values from redacted `switch_json`; provider location IDs and coordinates are not exposed | Implemented read-only |
+| `porting.requested_port_date`, `porting.service_provider` | Minimal operational summary; billing identifiers, comments, and customer/billing details remain hidden | Implemented read-only |
+| callflow assignment | Resolved through the Callflow domain with public UUIDs; not duplicated as a Phone Number CRUD control | Implemented |
+| CNAM and E911 mutation | Requires both runtime feature availability and an approved server-side billing/compliance confirmation policy | Intentionally policy-gated |
+| purchase, reserve, activate, port, release | Separate carrier commands, never generic CRUD; require provider capabilities, quote/billing behavior, authorization, confirmation, and audit | Intentionally capability-gated |
+| SMS/MMS and carrier-specific features | Must be discovered from the connected provider rather than inferred from the base schema | Intentionally capability-gated |
+
+The Phone Number detail slide-over now shows the safe schema-backed state and
+an explicit operational capability matrix. “Available” from Switch does not
+mean “writable” in GridPBX: schema presence and carrier support are distinct
+from authorization, billing, and compliance policy. Focused Switch package,
+Laravel, Vue, TypeScript, and isolated authenticated Playwright checks pass
+without executing any carrier mutation.
+
+## 18. Media field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name` | Required trimmed name, 1–128 characters, with matching Zod and Laravel validation | Implemented |
+| `description` | Optional 1–128 character schema value; blank removes the field | Implemented |
+| `language` | Optional bounded product input with `en-us` create default | Implemented |
+| `streamable` | Explicit boolean control | Implemented |
+| `media_source` | Operator upload workflow always creates `upload`; existing `recording` and `tts` values are preserved and cannot be injected through metadata CRUD | Implemented boundary |
+| raw audio | Required MP3/WAV/OGG create upload and confirmed replacement, maximum 5 MB; streamed through the authorized API and never duplicated in MySQL | Implemented |
+| `content_type`, `content_length` | Refreshed from Switch after upload; content type is retained during metadata updates and length remains Switch-owned | Implemented |
+| `prompt_id`, `source_id`, `source_type`, `tts` | Hidden schema-owned values preserved through typed DTOs during metadata updates; not accepted from operator payloads | Implemented preservation boundary |
+| generated TTS and callflow recording | Separate provider/runtime operations rather than generic metadata CRUD | Intentionally capability-gated |
+| account music on hold | Public Media UUID resolved server-side; Headless UI selection may set or clear the account reference | Implemented |
+| deletion | Dependency summary covers music on hold, voicemail greetings, and Callflows before deletion | Implemented |
+
+The Media forms use domain composables, Zod, shared red invalid controls,
+inline-only API errors, and `novalidate`. The account-default selector uses the
+viewport-bounded Headless UI listbox. Focused Switch package, Laravel, Vue,
+TypeScript, and isolated authenticated Playwright checks pass without creating
+or replacing live audio.
+
+## 19. Call activity field-level matrices
+
+### 19.1 CallDetailRecord
+
+| Field or operation | Treatment | Current status |
+| --- | --- | --- |
+| public `id` | GridPBX UUID only; internal `call_detail_record_id` and Switch resource IDs never cross the API | Implemented |
+| `call_id`, `interaction_id`, direction, parties, URIs, start time, duration, billing duration, hangup cause, disposition | Allowlisted searchable/read-only projection | Implemented |
+| `answered` | Derived from positive billable seconds | Implemented |
+| date range | Inclusive UTC calendar dates with a seven-day default import window and 31-day maximum | Implemented |
+| search, direction, outcome, hangup cause, duration range | Indexed account-scoped filters with matching Zod/Laravel bounds and reversed-range errors | Implemented |
+| extension relationship | Account-scoped projection exposed through public Extension UUID | Implemented |
+| related recordings | Eager-loaded safe summaries using public Recording UUIDs; no internal keys or media URLs | Implemented |
+| raw CDR payload | Explicit allowlist only; costs, rates, authorization IDs, SIP headers, DTMF, SDP, recording URLs, and media lists are excluded | Implemented boundary |
+| mutation or deletion | CDRs are historical Switch-owned records, not GridPBX CRUD objects | Intentionally read-only |
+| production scheduling, partitioning, archival, retention | Requires approved account volume and privacy policy | Policy-gated |
+
+### 19.2 Recording
+
+| Field or operation | Treatment | Current status |
+| --- | --- | --- |
+| public `id` and normalized metadata | GridPBX UUID plus allowlisted call, party, timing, format, size, and source summaries | Implemented |
+| date, direction, audio availability, duration, and search filters | Account-scoped bounded filters with matching Zod/Laravel validation and inline red invalid controls | Implemented |
+| CDR and Extension relationships | Public UUID links in both directions; internal database keys remain server-side | Implemented |
+| `switch_json` | Complete redacted Recording `data` snapshot retained in MySQL but never returned raw | Implemented boundary |
+| binary audio | Kept in Switch/provider storage and streamed through an authenticated account-scoped endpoint with byte ranges, private/no-store caching, MIME controls, and audit logs | Implemented |
+| playback/download | Right-side detail workflow; only projected records with available audio may request content | Implemented |
+| delete, automatic retention, and provider cleanup | Disabled until legal retention and external-storage cleanup contracts are approved | Policy-gated |
+
+Both pages use domain composables, Headless UI-backed selects, `novalidate`,
+Zod validation, and shared red invalid-control styling. Isolated authenticated
+Playwright verifies reversed ranges and reciprocal public-UUID navigation
+without console, page, or server errors.
+
+## 20. Account field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| public `id` | GridPBX UUID only; internal `account_id` and Switch account ID never cross the API | Implemented |
+| `name`, `realm`, `timezone`, `enabled` | Name/timezone are typed administrator settings; realm and enabled state remain read-only | Partially implemented |
+| organization relationship | Public organization UUID and display name, scoped through authenticated membership | Implemented |
+| projected resource counts | Tenant-scoped Extension, Device, Phone Number, Callflow, Voicemail, Queue, Media, and Recording counts | Implemented |
+| `org`, `language` | Typed nullable identity/default settings with explicit clear semantics | Implemented |
+| `music_on_hold.media_id` | Managed by the existing account Media workflow using a public Media UUID | Implemented in Media domain |
+| `blacklists[]` | Managed by the Blacklist domain and account activation workflow | Implemented in Blacklist domain |
+| `call_waiting.enabled`, `do_not_disturb.enabled`, `caller_id_options.outbound_privacy`, `caller_id_options.show_rate`, `ringtones.internal`, `ringtones.external` | Typed calling defaults; no raw nested JSON editor | Implemented |
+| `caller_id.internal` | Bounded internal caller-ID name and number | Implemented |
+| `caller_id.external` | Name plus account-owned Phone Number public UUID resolved server-side; unresolved current values are preserve-or-clear | Implemented |
+| `caller_id.emergency` | Name plus account-owned E911-enabled Phone Number public UUID resolved server-side | Implemented |
+| `caller_id.asserted` | Trusted-network identity and realm | Intentionally administrator/capability-gated |
+| `call_recording`, `call_restriction`, `dial_plan`, `formatters`, `metaflows`, `preflow` | Advanced guided editors with capability, reference, and lossless-preservation checks | Planned advanced settings |
+| complete Account `data` / `flags[]` | Redacted snapshot retained in MySQL `switch_json`; external metadata is never ordinary operator input | Implemented projection boundary |
+| `notifications.first_occurrence` and delivery state | System-owned notification history | Intentionally read-only |
+| `notifications.low_balance`, `topup` | Billing/provider workflow requiring authorization, currency semantics, confirmation, and audit | Provider/policy-gated |
+| `voicemail.notify.callback` | Outbound callback workflow requiring URL allowlisting and SSRF policy | Policy-gated |
+| `zones` | Infrastructure/reseller routing configuration | Administrator/capability-gated |
+| account enable/disable | Dedicated administrator command requiring exact-name confirmation, Switch-first mutation, projection refresh, and audit | Implemented |
+
+The Accounts page uses a main-page projection workspace and an
+administrator-only right-side settings panel. Update and refresh use a typed
+Switch boundary, then refresh normalized MySQL fields, redacted `switch_json`,
+synchronization metadata, and audit history. Raw JSON, internal primary keys,
+and the Switch account identifier never cross the public API. Enable/disable
+is a separate exact-name-confirmed operation; higher-risk configuration
+remains gated.
+
+## 21. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 
 1. User, Voicemail, Directory, and LineKey;
 2. Callflow and every enabled callflow module, Menu, Group, Queue, Conference,
    TemporalRule, and TemporalRuleSet;
-3. PhoneNumber, Blacklist, Fax, carrier actions, CNAM, E911, and SMS/MMS;
-4. Media, Recording, and CallDetailRecord;
+3. carrier actions, CNAM/E911 mutations, Fax message operations, and SMS/MMS;
+4. Recording and CallDetailRecord (complete above);
 5. Account, Services, SystemStatus, provisioning administration, trunks,
    carriers/resources, billing/reseller management, and webhooks.
 

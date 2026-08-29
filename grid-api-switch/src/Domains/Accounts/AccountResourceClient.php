@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Domains\Accounts;
 
 use Generator;
-use GridPbx\Switch\Domains\Accounts\Dto\AccountSnapshot;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountBlacklistsWriteData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountEnabledWriteData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountSettingsWriteData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountSnapshot;
 use GridPbx\Switch\Domains\Accounts\Dto\MusicOnHoldWriteData;
 use GridPbx\Switch\Shared\Dto\EntitySnapshot;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
@@ -133,6 +135,26 @@ final readonly class AccountResourceClient
         $accountId = $this->requiredIdentifier($accountId, 'account');
         $payload = $this->client->request('PATCH', sprintf('accounts/%s', rawurlencode($accountId)), [
             'json' => ['data' => $blacklists->toSwitchData()],
+        ]);
+
+        return $this->accountSnapshot($payload, $accountId);
+    }
+
+    public function updateSettings(string $accountId, AccountSettingsWriteData $settings): AccountSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request('PATCH', sprintf('accounts/%s', rawurlencode($accountId)), [
+            'json' => ['data' => $settings->toSwitchData()],
+        ]);
+
+        return $this->accountSnapshot($payload, $accountId);
+    }
+
+    public function updateEnabled(string $accountId, AccountEnabledWriteData $enabled): AccountSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request('PATCH', sprintf('accounts/%s', rawurlencode($accountId)), [
+            'json' => ['data' => $enabled->toSwitchData()],
         ]);
 
         return $this->accountSnapshot($payload, $accountId);

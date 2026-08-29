@@ -12,9 +12,7 @@ use InvalidArgumentException;
 
 final readonly class LineKeyResourceClient
 {
-    public function __construct(private SwitchClient $client)
-    {
-    }
+    public function __construct(private SwitchClient $client) {}
 
     public function get(string $accountId, string $deviceId): DeviceProvisioningSnapshot
     {
@@ -103,6 +101,7 @@ final readonly class LineKeyResourceClient
 
             if ($value === []) {
                 unset($data[$key]);
+
                 continue;
             }
 

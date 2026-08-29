@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\Menus\Dto\MenuWriteData;
 use GridPbx\Switch\Domains\Menus\MenuResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -24,7 +24,7 @@ final class MenuResourceClientTest extends TestCase
     public function test_menu_client_maps_and_writes_supported_settings(): void
     {
         $switch = $this->switchWithResponses([
-            $this->response(['data' => [[ 'id' => 'menu-1', 'name' => 'Main menu' ]]]),
+            $this->response(['data' => [['id' => 'menu-1', 'name' => 'Main menu']]]),
             $this->response(['data' => [
                 'id' => 'menu-1', 'name' => 'Main menu', 'timeout' => 8000,
                 'interdigit_timeout' => 1500, 'max_extension_length' => 5, 'retries' => 2,
@@ -90,8 +90,13 @@ final class MenuResourceClientTest extends TestCase
         $stack = HandlerStack::create(new MockHandler($responses));
         $stack->push(Middleware::history($this->history));
 
-        return new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider {
-            public function token(): string { return 'test-token'; }
+        return new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider
+        {
+            public function token(): string
+            {
+                return 'test-token';
+            }
+
             public function invalidate(): void {}
         });
     }

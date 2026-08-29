@@ -10,20 +10,35 @@ use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 final readonly class MenuSnapshot extends EntitySnapshot
 {
     public string $name;
+
     public int $timeout;
+
     public int $interdigitTimeout;
+
     public int $maxExtensionLength;
+
     public int $retries;
+
     public bool $hunt;
+
     public bool $allowRecordFromOffnet;
+
     public bool $suppressMedia;
+
     public ?string $recordPin;
+
     public ?string $huntAllow;
+
     public ?string $huntDeny;
+
     public ?string $greetingMediaId;
+
     public string|bool|null $invalidMedia;
+
     public string|bool|null $transferMedia;
+
     public string|bool|null $exitMedia;
+
     /** @var list<string> */
     public array $flags;
 

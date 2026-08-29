@@ -34,6 +34,8 @@ use App\Domains\Media\Contracts\SwitchMediaGateway;
 use App\Domains\Media\Gateways\CrossbarSwitchMediaGateway;
 use App\Domains\Menus\Contracts\SwitchMenuGateway;
 use App\Domains\Menus\Gateways\CrossbarSwitchMenuGateway;
+use App\Domains\Organizations\Contracts\SwitchAccountGateway;
+use App\Domains\Organizations\Gateways\CrossbarSwitchAccountGateway;
 use App\Domains\PhoneNumbers\Contracts\SwitchPhoneNumberGateway;
 use App\Domains\PhoneNumbers\Gateways\CrossbarSwitchPhoneNumberGateway;
 use App\Domains\Queues\Contracts\SwitchAgentGateway;
@@ -95,6 +97,7 @@ class SwitchServiceProvider extends ServiceProvider
     {
         $this->app->scoped(DeviceMetaflowPolicy::class);
         $this->app->bind(SwitchCallflowGateway::class, CrossbarSwitchCallflowGateway::class);
+        $this->app->bind(SwitchAccountGateway::class, CrossbarSwitchAccountGateway::class);
         $this->app->bind(SwitchConferenceGateway::class, CrossbarSwitchConferenceGateway::class);
         $this->app->bind(SwitchBlacklistGateway::class, CrossbarSwitchBlacklistGateway::class);
         $this->app->bind(SwitchCallDetailRecordGateway::class, CrossbarSwitchCallDetailRecordGateway::class);

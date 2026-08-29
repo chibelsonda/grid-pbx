@@ -10,35 +10,62 @@ use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 final readonly class ConferenceSnapshot extends EntitySnapshot
 {
     public string $name;
+
     public ?string $ownerId;
+
     /** @var list<string> */
     public array $conferenceNumbers;
+
     /** @var list<string> */
     public array $memberNumbers;
+
     /** @var list<string> */
     public array $moderatorNumbers;
+
     public bool $memberPinConfigured;
+
     public bool $moderatorPinConfigured;
+
     public bool $memberJoinMuted;
+
     public bool $memberJoinDeaf;
+
     public bool $memberPlayEntryPrompt;
+
     public bool $moderatorJoinMuted;
+
     public bool $moderatorJoinDeaf;
+
     public ?int $maxParticipants;
+
     public ?string $language;
+
     public ?string $profileName;
+
     public ?string $callerControls;
+
     public ?string $moderatorControls;
+
     public bool $playName;
+
     public bool $playWelcome;
+
     public bool $requireModerator;
+
     public bool $waitForModerator;
+
     public ?string $maxMembersMediaId;
+
     public bool|string|null $playEntryTone;
+
     public bool|string|null $playExitTone;
+
     public int $activeMembers;
+
     public int $activeModerators;
+
     public int $durationSeconds;
+
     public bool $isLocked;
 
     /** @param array<string, mixed> $data */

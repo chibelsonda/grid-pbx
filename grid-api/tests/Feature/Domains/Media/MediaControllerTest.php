@@ -137,9 +137,30 @@ class MediaControllerTest extends TestCase
         $media = SwitchMedia::factory()->for($account)->create([
             'switch_resource_id' => 'switch-media-1',
             'name' => 'Old name',
+            'switch_json' => [
+                'id' => 'switch-media-1',
+                'name' => 'Old name',
+                'media_source' => 'tts',
+                'content_type' => 'audio/mpeg',
+                'prompt_id' => 'system_prompt',
+                'source_id' => '0123456789abcdef0123456789abcdef',
+                'source_type' => 'callflow',
+                'tts' => ['text' => 'Welcome.', 'voice' => 'female/en-US'],
+            ],
+            'media_source' => 'tts',
         ]);
         $gateway = $this->mock(SwitchMediaGateway::class);
-        $gateway->shouldReceive('update')->once()->andReturn([
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-media-1'
+                && $data['media_source'] === 'tts'
+                && $data['content_type'] === 'audio/mpeg'
+                && $data['prompt_id'] === 'system_prompt'
+                && $data['source_id'] === '0123456789abcdef0123456789abcdef'
+                && $data['source_type'] === 'callflow'
+                && $data['tts_text'] === 'Welcome.'
+                && $data['tts_voice'] === 'female/en-US',
+        )->andReturn([
             'id' => 'switch-media-1',
             'name' => 'Main hold music',
             'description' => 'New loop',
@@ -257,6 +278,15 @@ class MediaControllerTest extends TestCase
             ],
             ['Accept' => 'application/json'],
         )->assertUnprocessable()->assertJsonValidationErrors('audio');
+
+        $this->actingAs($manager)
+            ->postJson("/api/v1/accounts/{$managedAccount->id}/media", [
+                'name' => 'Unsafe metadata',
+                'media_source' => 'tts',
+                'tts' => ['text' => 'Injected', 'voice' => 'female/en-US'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['media_source', 'tts']);
     }
 
     /** @return array{User, SwitchAccount} */

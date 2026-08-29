@@ -7,6 +7,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Accounts\Dto\MusicOnHoldWriteData;
+use GridPbx\Switch\Domains\Media\Dto\MediaTtsWriteData;
 use GridPbx\Switch\Domains\Media\Dto\MediaWriteData;
 use GridPbx\Switch\Domains\Media\MediaResourceClient;
 use GridPbx\Switch\Shared\Http\BinaryResponse;
@@ -85,12 +86,22 @@ class CrossbarSwitchMediaGateway implements SwitchMediaGateway
     /** @param array<string, mixed> $data */
     private function writeData(array $data): MediaWriteData
     {
+        $ttsText = isset($data['tts_text']) ? (string) $data['tts_text'] : null;
+        $ttsVoice = isset($data['tts_voice']) ? (string) $data['tts_voice'] : null;
+
         return new MediaWriteData(
             name: (string) $data['name'],
             description: isset($data['description']) ? (string) $data['description'] : null,
             mediaSource: isset($data['media_source']) ? (string) $data['media_source'] : 'upload',
             streamable: (bool) ($data['streamable'] ?? true),
             language: isset($data['language']) ? (string) $data['language'] : null,
+            contentType: isset($data['content_type']) ? (string) $data['content_type'] : null,
+            promptId: isset($data['prompt_id']) ? (string) $data['prompt_id'] : null,
+            sourceId: isset($data['source_id']) ? (string) $data['source_id'] : null,
+            sourceType: isset($data['source_type']) ? (string) $data['source_type'] : null,
+            tts: $ttsText !== null && $ttsVoice !== null
+                ? new MediaTtsWriteData($ttsText, $ttsVoice)
+                : null,
         );
     }
 }

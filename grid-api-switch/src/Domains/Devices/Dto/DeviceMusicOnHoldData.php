@@ -13,6 +13,6 @@ final readonly class DeviceMusicOnHoldData
     /** @return array{media_id: string}|stdClass */
     public function toSwitchData(): array|stdClass
     {
-        return $this->mediaId === null ? new stdClass() : ['media_id' => $this->mediaId];
+        return $this->mediaId === null ? new stdClass : ['media_id' => $this->mediaId];
     }
 }

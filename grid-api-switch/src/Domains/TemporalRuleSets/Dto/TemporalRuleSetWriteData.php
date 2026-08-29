@@ -9,7 +9,7 @@ use InvalidArgumentException;
 final readonly class TemporalRuleSetWriteData
 {
     /** @param list<string> $temporalRuleIds
-     * @param list<string> $flags
+     * @param  list<string>  $flags
      */
     public function __construct(public string $name, public array $temporalRuleIds, public array $flags = [])
     {

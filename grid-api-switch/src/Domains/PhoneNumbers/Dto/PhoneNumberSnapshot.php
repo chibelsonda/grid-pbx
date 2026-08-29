@@ -21,6 +21,9 @@ final readonly class PhoneNumberSnapshot extends EntitySnapshot
     /** @var list<string> */
     public array $features;
 
+    /** @var list<string> */
+    public array $availableFeatures;
+
     public ?string $cnamDisplayName;
 
     public bool $cnamInboundLookup;
@@ -45,12 +48,30 @@ final readonly class PhoneNumberSnapshot extends EntitySnapshot
             ?? $this->nestedString('_read_only', 'assigned_to');
         $this->carrierName = $this->nullableString($data['carrier_name'] ?? null);
         $this->features = $this->stringList($data['features'] ?? ($data['_read_only']['features'] ?? null));
+        $this->availableFeatures = $this->availableFeatures($data);
         $this->cnamDisplayName = $this->nestedString('cnam', 'display_name');
         $this->cnamInboundLookup = (bool) ($data['cnam']['inbound_lookup'] ?? false);
         $this->e911Status = $this->nestedString('e911', 'status');
         $this->sourceCreatedTimestamp = $this->integer($data['_read_only']['created'] ?? null);
         $this->sourceUpdatedTimestamp = $this->integer(
             $data['_read_only']['modified'] ?? ($data['_read_only']['updated'] ?? null),
+        );
+    }
+
+    /** @param array<string, mixed> $data
+     * @return list<string>
+     */
+    private function availableFeatures(array $data): array
+    {
+        $readOnly = is_array($data['_read_only'] ?? null) ? $data['_read_only'] : [];
+        $features = $readOnly['features'] ?? null;
+
+        if (is_array($features) && array_key_exists('available', $features)) {
+            return $this->stringList($features['available']);
+        }
+
+        return $this->stringList(
+            $readOnly['features_available'] ?? ($data['features_available'] ?? null),
         );
     }
 

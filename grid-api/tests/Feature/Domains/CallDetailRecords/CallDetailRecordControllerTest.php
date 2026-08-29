@@ -9,6 +9,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Recordings\Models\SwitchRecording;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
@@ -44,6 +45,16 @@ class CallDetailRecordControllerTest extends TestCase
             'billing_seconds' => 0,
             'hangup_cause' => 'NO_ANSWER',
         ]);
+        $recording = SwitchRecording::factory()->for($account)->create([
+            'switch_call_detail_record_id' => $matching->getKey(),
+            'name' => 'Support call recording',
+            'duration_seconds' => 90,
+            'has_audio' => true,
+        ]);
+        SwitchRecording::factory()->create([
+            'switch_call_detail_record_id' => $matching->getKey(),
+            'name' => 'Foreign recording',
+        ]);
 
         $response = $this->actingAs($user)->getJson(
             "/api/v1/accounts/{$account->id}/call-detail-records"
@@ -59,6 +70,10 @@ class CallDetailRecordControllerTest extends TestCase
             ->assertJsonPath('data.0.caller.name', 'Alice Caller')
             ->assertJsonPath('data.0.extension.id', $extension->id)
             ->assertJsonPath('data.0.answered', true)
+            ->assertJsonPath('data.0.recording_available', true)
+            ->assertJsonCount(1, 'data.0.recordings')
+            ->assertJsonPath('data.0.recordings.0.id', $recording->id)
+            ->assertJsonPath('data.0.recordings.0.name', 'Support call recording')
             ->assertJsonPath('meta.import_window_days', 7)
             ->assertJsonMissingPath('data.0.call_detail_record_id')
             ->assertJsonMissingPath('data.0.switch_resource_id')
@@ -71,6 +86,9 @@ class CallDetailRecordControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.call_id', $matching->call_id)
             ->assertJsonPath('data.duration_seconds', 120)
+            ->assertJsonPath('data.recordings.0.id', $recording->id)
+            ->assertJsonMissingPath('data.recordings.0.recording_id')
+            ->assertJsonMissingPath('data.recordings.0.switch_resource_id')
             ->assertJsonMissingPath('data.switch_json');
     }
 

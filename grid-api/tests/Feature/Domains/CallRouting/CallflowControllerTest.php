@@ -15,7 +15,9 @@ use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
+use App\Domains\TemporalRouting\Models\SwitchTemporalRule;
 use App\Domains\TemporalRouting\Models\SwitchTemporalRuleSet;
+use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -42,6 +44,7 @@ class CallflowControllerTest extends TestCase
                 'module' => 'ring_group',
                 'children' => [
                     '_' => ['module' => 'voicemail', 'children' => []],
+                    'switch-rule-secret' => ['module' => 'custom_vendor', 'children' => []],
                 ],
             ],
             'switch_json' => [
@@ -76,11 +79,17 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.0.linked_extension.id', $extension->id)
             ->assertJsonPath('data.0.phone_numbers.0.id', $phoneNumber->id)
             ->assertJsonPath('data.0.flow.children._.module', 'voicemail')
+            ->assertJsonPath('data.0.flow.children._.branch.label', 'Default branch')
+            ->assertJsonPath('data.0.flow.children.preserved_1.module', 'custom_vendor')
+            ->assertJsonPath('data.0.flow.children.preserved_1.branch.label', 'Preserved branch 1')
             ->assertJsonPath('meta.sync.status', 'healthy')
             ->assertJsonMissingPath('data.0.callflow_id')
             ->assertJsonMissingPath('data.0.switch_resource_id')
             ->assertJsonMissingPath('data.0.switch_json')
             ->assertJsonMissingPath('data.0.flow.data');
+        $this->assertStringNotContainsString('switch-rule-secret', $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}")
+            ->getContent());
 
         $this->actingAs($user)
             ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}")
@@ -120,15 +129,34 @@ class CallflowControllerTest extends TestCase
             'display_name' => 'Reception',
             'extension' => '1001',
         ]);
+        $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-mailbox-reception',
+            'name' => 'Reception fallback',
+        ]);
         $callflow = SwitchCallflow::factory()->for($account)->create([
             'switch_resource_id' => 'switch-callflow-main',
             'name' => 'Main route',
             'numbers' => ['18005550100'],
             'flow_structure' => [
-                'module' => 'play',
-                'target' => null,
-                'reference_status' => 'unresolved',
-                'children' => [],
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $extension->id,
+                    'label' => 'Reception',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '_' => [
+                        'module' => 'voicemail',
+                        'target' => [
+                            'type' => 'voicemail',
+                            'id' => $voicemail->id,
+                            'label' => 'Reception fallback',
+                        ],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                ],
             ],
         ]);
         $currentlyAssigned = SwitchPhoneNumber::factory()->for($account)->create([
@@ -144,6 +172,8 @@ class CallflowControllerTest extends TestCase
             ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
             ->assertOk()
             ->assertJsonPath('data.editable', true)
+            ->assertJsonPath('data.fallback.editable', true)
+            ->assertJsonPath('data.fallback.target.id', $voicemail->id)
             ->assertJsonPath('data.destinations.extension.0.id', $extension->id)
             ->assertJsonPath('data.destinations.extension.0.label', 'Reception')
             ->assertJsonPath('data.phone_numbers.0.id', $currentlyAssigned->id)
@@ -163,6 +193,9 @@ class CallflowControllerTest extends TestCase
                 string $destinationModule,
                 string $destinationResourceId,
                 array $phoneNumbers,
+                ?string $fallbackModule = null,
+                ?string $fallbackResourceId = null,
+                array $menuBranches = [],
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -175,6 +208,10 @@ class CallflowControllerTest extends TestCase
                 ?string $name,
                 array $assignedPhoneNumbers,
                 array $knownPhoneNumbers,
+                bool $replaceFallback = false,
+                ?string $fallbackModule = null,
+                ?string $fallbackResourceId = null,
+                array $menuBranchOperations = [],
             ): array {
                 $this->received = compact(
                     'resourceId',
@@ -249,6 +286,241 @@ class CallflowControllerTest extends TestCase
         );
     }
 
+    public function test_it_locks_unsupported_and_unresolved_roots_in_the_guided_editor_and_api(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create();
+        $unsupported = SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'branch_variable',
+                'target' => null,
+                'reference_status' => 'not_applicable',
+                'children' => [],
+            ],
+        ]);
+        $unresolved = SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'device',
+                'target' => null,
+                'reference_status' => 'unresolved',
+                'children' => [],
+            ],
+        ]);
+        $lockedFallback = SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $extension->id,
+                    'label' => 'Extension',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '_' => [
+                        'module' => 'custom_vendor_module',
+                        'target' => null,
+                        'reference_status' => 'not_applicable',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+        $menu = SwitchMenu::factory()->for($account)->create();
+        $lockedMenuBranch = SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Main IVR'],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '2' => [
+                        'module' => 'user',
+                        'target' => [
+                            'type' => 'extension',
+                            'id' => $extension->id,
+                            'label' => 'Extension',
+                        ],
+                        'reference_status' => 'resolved',
+                        'children' => [
+                            '_' => [
+                                'module' => 'custom_vendor_module',
+                                'target' => null,
+                                'reference_status' => 'not_applicable',
+                                'children' => [],
+                            ],
+                        ],
+                    ],
+                    '#' => [
+                        'module' => 'custom_legacy_module',
+                        'target' => null,
+                        'reference_status' => 'not_applicable',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldNotReceive('updateDestination');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$unsupported->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.editable', false)
+            ->assertJsonPath(
+                'data.blocked_reason',
+                'This route uses a root module that is not yet supported by the guided editor. Its Switch configuration is preserved unchanged.',
+            );
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$unresolved->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.editable', false)
+            ->assertJsonPath(
+                'data.blocked_reason',
+                'This route target is not available in the current projection. Synchronize the related resource before editing it.',
+            );
+
+        foreach ([$unsupported, $unresolved] as $callflow) {
+            $this->actingAs($user)
+                ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
+                    'name' => 'Unsafe replacement',
+                    'destination_type' => 'extension',
+                    'destination_id' => $extension->id,
+                    'phone_number_ids' => [],
+                ])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors('callflow');
+        }
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$lockedFallback->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.editable', true)
+            ->assertJsonPath('data.fallback.editable', false)
+            ->assertJsonPath(
+                'data.fallback.blocked_reason',
+                'The existing fallback uses an unsupported or unresolved target and is preserved unchanged.',
+            );
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$lockedFallback->id}", [
+                'name' => 'Unsafe fallback replacement',
+                'destination_type' => 'extension',
+                'destination_id' => $extension->id,
+                'manage_fallback' => true,
+                'fallback_destination_type' => null,
+                'fallback_destination_id' => null,
+                'phone_number_ids' => [],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('fallback_destination_id');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$lockedMenuBranch->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.menu_branches.editable', true)
+            ->assertJsonPath('data.menu_branches.branches.3.key', '2')
+            ->assertJsonPath('data.menu_branches.branches.3.editable', false)
+            ->assertJsonPath('data.menu_branches.legacy_hash_present', true);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$lockedMenuBranch->id}", [
+                'name' => 'Unsafe Menu branch replacement',
+                'destination_type' => 'menu',
+                'destination_id' => $menu->id,
+                'manage_menu_branches' => true,
+                'menu_branches' => [[
+                    'key' => '2',
+                    'destination_type' => 'extension',
+                    'destination_id' => $extension->id,
+                ]],
+                'phone_number_ids' => [],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('menu_branches');
+    }
+
+    public function test_it_clears_an_editable_wildcard_fallback(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-clear-fallback',
+        ]);
+        $voicemail = SwitchVoicemailBox::factory()->for($account)->create();
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-clear-fallback',
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $extension->id,
+                    'label' => 'Extension',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '_' => [
+                        'module' => 'voicemail',
+                        'target' => [
+                            'type' => 'voicemail',
+                            'id' => $voicemail->id,
+                            'label' => 'Mailbox',
+                        ],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('updateDestination')
+            ->once()
+            ->withArgs(fn (
+                SwitchAccount $receivedAccount,
+                string $resourceId,
+                string $module,
+                string $resourceTarget,
+                ?string $name,
+                array $assignedNumbers,
+                array $knownNumbers,
+                bool $replaceFallback,
+                ?string $fallbackModule,
+                ?string $fallbackResourceId,
+            ): bool => $receivedAccount->is($account)
+                && $resourceId === 'switch-callflow-clear-fallback'
+                && $module === 'user'
+                && $resourceTarget === 'switch-user-clear-fallback'
+                && $name === 'Route without fallback'
+                && $assignedNumbers === []
+                && $knownNumbers === []
+                && $replaceFallback
+                && $fallbackModule === null
+                && $fallbackResourceId === null)
+            ->andReturn([
+                'id' => 'switch-callflow-clear-fallback',
+                'name' => 'Route without fallback',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'switch-user-clear-fallback'],
+                    'children' => [],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
+                'name' => 'Route without fallback',
+                'destination_type' => 'extension',
+                'destination_id' => $extension->id,
+                'manage_fallback' => true,
+                'fallback_destination_type' => null,
+                'fallback_destination_id' => null,
+                'phone_number_ids' => [],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Route without fallback')
+            ->assertJsonPath('data.flow.children', []);
+    }
+
     public function test_read_only_users_cannot_update_call_routing(): void
     {
         $user = User::factory()->create();
@@ -258,7 +530,18 @@ class CallflowControllerTest extends TestCase
         ]);
         $account = SwitchAccount::factory()->for($organization)->create();
         $extension = SwitchExtension::factory()->for($account)->create();
-        $callflow = SwitchCallflow::factory()->for($account)->create();
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $extension->id,
+                    'label' => 'Extension',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
 
         $this->actingAs($user)
             ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
@@ -293,39 +576,291 @@ class CallflowControllerTest extends TestCase
     {
         [$user, $account] = $this->accessibleAccount();
         $menu = SwitchMenu::factory()->for($account)->create(['switch_resource_id' => 'switch-menu-main']);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-operator',
+            'display_name' => 'Operator',
+        ]);
         $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create(['number' => '+15550000901', 'assigned_callflow_id' => null]);
         $gateway = $this->mock(SwitchCallflowGateway::class);
-        $gateway->shouldReceive('create')->once()->withArgs(fn (SwitchAccount $received, string $name, string $module, string $resourceId, array $numbers): bool => $received->is($account) && $name === 'Main IVR' && $module === 'menu' && $resourceId === 'switch-menu-main' && $numbers === ['+15550000901'])
+        $gateway->shouldReceive('create')->once()->withArgs(fn (
+            SwitchAccount $received,
+            string $name,
+            string $module,
+            string $resourceId,
+            array $numbers,
+            ?string $fallbackModule,
+            ?string $fallbackResourceId,
+            array $menuBranches,
+        ): bool => $received->is($account)
+            && $name === 'Main IVR'
+            && $module === 'menu'
+            && $resourceId === 'switch-menu-main'
+            && $numbers === ['+15550000901']
+            && $fallbackModule === null
+            && $fallbackResourceId === null
+            && $menuBranches === [[
+                'key' => '0',
+                'module' => 'user',
+                'resource_id' => 'switch-user-operator',
+            ]])
             ->andReturn([
                 'id' => 'switch-callflow-menu', 'name' => 'Main IVR', 'numbers' => ['+15550000901'],
-                'flow' => ['module' => 'menu', 'data' => ['id' => 'switch-menu-main'], 'children' => []],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '0' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'switch-user-operator'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
             ]);
 
-        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", [
+        $response = $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", [
             'name' => 'Main IVR', 'destination_type' => 'menu', 'destination_id' => $menu->id,
+            'manage_menu_branches' => true,
+            'menu_branches' => [[
+                'key' => '0',
+                'destination_type' => 'extension',
+                'destination_id' => $extension->id,
+            ]],
             'phone_number_ids' => [$phoneNumber->id],
         ])->assertCreated()->assertJsonPath('data.root_module', 'menu')
-            ->assertJsonPath('data.flow.target.type', 'menu')->assertJsonPath('data.flow.target.id', $menu->id);
+            ->assertJsonPath('data.flow.target.type', 'menu')
+            ->assertJsonPath('data.flow.target.id', $menu->id)
+            ->assertJsonPath('data.flow.children.0.target.id', $extension->id);
+        $this->assertStringContainsString('"children":{"0":', $response->getContent());
     }
 
     public function test_it_creates_a_guided_temporal_rule_set_destination(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $set = SwitchTemporalRuleSet::factory()->for($account)->create(['switch_resource_id' => 'switch-set-office']);
+        $rule = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-rule-weekdays',
+            'name' => 'Weekdays',
+        ]);
+        $set->rules()->create([
+            'switch_temporal_rule_id' => $rule->getKey(),
+            'switch_rule_resource_id' => $rule->switch_resource_id,
+            'position' => 0,
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+        ]);
         $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create(['number' => '+15550000902', 'assigned_callflow_id' => null]);
         $gateway = $this->mock(SwitchCallflowGateway::class);
-        $gateway->shouldReceive('create')->once()->withArgs(fn (SwitchAccount $received, string $name, string $module, string $resourceId, array $numbers): bool => $received->is($account) && $name === 'Office schedule' && $module === 'temporal_route' && $resourceId === 'switch-set-office' && $numbers === ['+15550000902'])
-            ->andReturn(['id' => 'switch-callflow-temporal', 'name' => 'Office schedule', 'numbers' => ['+15550000902'], 'flow' => ['module' => 'temporal_route', 'data' => ['rule_set' => 'switch-set-office'], 'children' => []]]);
+        $gateway->shouldReceive('create')->once()->withArgs(fn (
+            SwitchAccount $received,
+            string $name,
+            string $module,
+            string $resourceId,
+            array $numbers,
+            ?string $fallbackModule,
+            ?string $fallbackResourceId,
+            array $branches,
+        ): bool => $received->is($account)
+            && $name === 'Office schedule'
+            && $module === 'temporal_route'
+            && $resourceId === 'switch-set-office'
+            && $numbers === ['+15550000902']
+            && $fallbackModule === null
+            && $fallbackResourceId === null
+            && $branches === [[
+                'key' => 'rule_set',
+                'module' => 'user',
+                'resource_id' => 'switch-user-reception',
+            ]])
+            ->andReturn([
+                'id' => 'switch-callflow-temporal',
+                'name' => 'Office schedule',
+                'numbers' => ['+15550000902'],
+                'flow' => [
+                    'module' => 'temporal_route',
+                    'data' => ['rule_set' => 'switch-set-office'],
+                    'children' => [
+                        'rule_set' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'switch-user-reception'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
 
-        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", ['name' => 'Office schedule', 'destination_type' => 'temporal_rule_set', 'destination_id' => $set->id, 'phone_number_ids' => [$phoneNumber->id]])
-            ->assertCreated()->assertJsonPath('data.root_module', 'temporal_route')->assertJsonPath('data.flow.target.type', 'temporal_rule_set')->assertJsonPath('data.flow.target.id', $set->id);
+        $editorResponse = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/editor")
+            ->assertOk()
+            ->assertJsonPath("data.temporal_rule_sets.{$set->id}.0.id", $rule->id)
+            ->assertJsonPath("data.temporal_rule_sets.{$set->id}.0.label", 'Weekdays')
+            ->assertJsonPath("data.temporal_rule_sets.{$set->id}.0.position", 0)
+            ->assertJsonPath('data.temporal_match.editable', true);
+        $this->assertStringNotContainsString('switch-rule-weekdays', $editorResponse->getContent());
+        $this->assertStringNotContainsString('switch-set-office', $editorResponse->getContent());
+
+        $emptySet = SwitchTemporalRuleSet::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-set-empty',
+        ]);
+        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", [
+            'name' => 'Empty schedule',
+            'destination_type' => 'temporal_rule_set',
+            'destination_id' => $emptySet->id,
+            'manage_temporal_match' => true,
+            'temporal_match_destination_type' => 'extension',
+            'temporal_match_destination_id' => $extension->id,
+            'phone_number_ids' => [$phoneNumber->id],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('destination_id')
+            ->assertJsonPath(
+                'errors.destination_id.0',
+                'Synchronize a schedule with at least one resolved rule before routing calls through it.',
+            );
+
+        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/callflows", [
+            'name' => 'Office schedule',
+            'destination_type' => 'temporal_rule_set',
+            'destination_id' => $set->id,
+            'manage_temporal_match' => true,
+            'temporal_match_destination_type' => 'extension',
+            'temporal_match_destination_id' => $extension->id,
+            'phone_number_ids' => [$phoneNumber->id],
+        ])->assertCreated()
+            ->assertJsonPath('data.root_module', 'temporal_route')
+            ->assertJsonPath('data.flow.target.type', 'temporal_rule_set')
+            ->assertJsonPath('data.flow.target.id', $set->id)
+            ->assertJsonPath('data.flow.children.rule_set.target.id', $extension->id)
+            ->assertJsonPath('data.flow.children.rule_set.branch.label', 'Schedule matches');
+    }
+
+    public function test_it_clears_the_rule_set_match_branch_and_preserves_legacy_temporal_children(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $set = SwitchTemporalRuleSet::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-set-office',
+        ]);
+        $rule = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-rule-weekdays',
+        ]);
+        $set->rules()->create([
+            'switch_temporal_rule_id' => $rule->getKey(),
+            'switch_rule_resource_id' => $rule->switch_resource_id,
+            'position' => 0,
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-hours',
+            'name' => 'Office schedule',
+            'flow_structure' => [
+                'module' => 'temporal_route',
+                'target' => ['type' => 'temporal_rule_set', 'id' => $set->id, 'label' => $set->name],
+                'reference_status' => 'resolved',
+                'children' => [
+                    'rule_set' => [
+                        'module' => 'user',
+                        'target' => ['type' => 'extension', 'id' => $extension->id, 'label' => 'Reception'],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                    'legacy-rule-resource' => [
+                        'module' => 'custom_vendor',
+                        'target' => null,
+                        'reference_status' => 'not_applicable',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('updateDestination')->once()->withArgs(fn (
+            SwitchAccount $received,
+            string $resourceId,
+            string $module,
+            string $targetResourceId,
+            ?string $name,
+            array $assignedNumbers,
+            array $knownNumbers,
+            bool $replaceFallback,
+            ?string $fallbackModule,
+            ?string $fallbackResourceId,
+            array $branches,
+        ): bool => $received->is($account)
+            && $resourceId === 'switch-callflow-hours'
+            && $module === 'temporal_route'
+            && $targetResourceId === 'switch-set-office'
+            && $name === 'Office schedule'
+            && $assignedNumbers === []
+            && $knownNumbers === []
+            && ! $replaceFallback
+            && $fallbackModule === null
+            && $fallbackResourceId === null
+            && $branches === [[
+                'key' => 'rule_set',
+                'module' => null,
+                'resource_id' => null,
+            ]])
+            ->andReturn([
+                'id' => 'switch-callflow-hours',
+                'name' => 'Office schedule',
+                'numbers' => [],
+                'flow' => [
+                    'module' => 'temporal_route',
+                    'data' => ['rule_set' => 'switch-set-office'],
+                    'children' => [
+                        'legacy-rule-resource' => [
+                            'module' => 'custom_vendor',
+                            'data' => ['preserve' => true],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.temporal_match.target.id', $extension->id)
+            ->assertJsonPath('data.temporal_match.preserved_branch_count', 1)
+            ->assertJsonMissingPath('data.temporal_match.branch_key');
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
+                'name' => 'Office schedule',
+                'destination_type' => 'temporal_rule_set',
+                'destination_id' => $set->id,
+                'manage_temporal_match' => true,
+                'temporal_match_destination_type' => null,
+                'temporal_match_destination_id' => null,
+                'phone_number_ids' => [],
+            ])
+            ->assertOk()
+            ->assertJsonMissingPath('data.flow.children.rule_set')
+            ->assertJsonPath('data.flow.children.preserved_1.module', 'custom_vendor')
+            ->assertJsonPath('data.flow.children.preserved_1.branch.kind', 'preserved');
     }
 
     public function test_it_rejects_a_phone_number_assigned_to_another_route(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $extension = SwitchExtension::factory()->for($account)->create();
-        $callflow = SwitchCallflow::factory()->for($account)->create();
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $extension->id,
+                    'label' => 'Extension',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
         $otherCallflow = SwitchCallflow::factory()->for($account)->create(['name' => 'Other route']);
         $conflictingNumber = SwitchPhoneNumber::factory()->for($account)->create([
             'number' => '+15550000300',
@@ -339,6 +874,9 @@ class CallflowControllerTest extends TestCase
                 string $destinationModule,
                 string $destinationResourceId,
                 array $phoneNumbers,
+                ?string $fallbackModule = null,
+                ?string $fallbackResourceId = null,
+                array $menuBranches = [],
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -351,6 +889,10 @@ class CallflowControllerTest extends TestCase
                 ?string $name,
                 array $assignedPhoneNumbers,
                 array $knownPhoneNumbers,
+                bool $replaceFallback = false,
+                ?string $fallbackModule = null,
+                ?string $fallbackResourceId = null,
+                array $menuBranchOperations = [],
             ): array {
                 throw new \LogicException('Conflicting assignments must be rejected before Switch is called.');
             }
@@ -387,6 +929,10 @@ class CallflowControllerTest extends TestCase
             'number' => '+15550000400',
             'assigned_callflow_id' => null,
         ]);
+        $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-mailbox-create',
+            'name' => 'Sales fallback',
+        ]);
         $gateway = new class implements SwitchCallflowGateway
         {
             /** @var array<string, mixed> */
@@ -398,8 +944,28 @@ class CallflowControllerTest extends TestCase
                 string $destinationModule,
                 string $destinationResourceId,
                 array $phoneNumbers,
+                ?string $fallbackModule = null,
+                ?string $fallbackResourceId = null,
+                array $menuBranches = [],
             ): array {
-                $this->received = compact('name', 'destinationModule', 'destinationResourceId', 'phoneNumbers');
+                $this->received = compact(
+                    'name',
+                    'destinationModule',
+                    'destinationResourceId',
+                    'phoneNumbers',
+                    'fallbackModule',
+                    'fallbackResourceId',
+                );
+
+                $children = $fallbackModule !== null && $fallbackResourceId !== null
+                    ? [
+                        '_' => [
+                            'module' => $fallbackModule,
+                            'data' => ['id' => $fallbackResourceId],
+                            'children' => [],
+                        ],
+                    ]
+                    : [];
 
                 return [
                     'id' => 'switch-callflow-created',
@@ -408,7 +974,7 @@ class CallflowControllerTest extends TestCase
                     'flow' => [
                         'module' => $destinationModule,
                         'data' => ['id' => $destinationResourceId],
-                        'children' => [],
+                        'children' => $children,
                     ],
                 ];
             }
@@ -421,6 +987,10 @@ class CallflowControllerTest extends TestCase
                 ?string $name,
                 array $assignedPhoneNumbers,
                 array $knownPhoneNumbers,
+                bool $replaceFallback = false,
+                ?string $fallbackModule = null,
+                ?string $fallbackResourceId = null,
+                array $menuBranchOperations = [],
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -436,6 +1006,7 @@ class CallflowControllerTest extends TestCase
             ->getJson("/api/v1/accounts/{$account->id}/callflows/editor")
             ->assertOk()
             ->assertJsonPath('data.mode', 'create')
+            ->assertJsonPath('data.fallback.editable', true)
             ->assertJsonPath('data.phone_numbers.0.id', $phoneNumber->id);
 
         $response = $this->actingAs($user)
@@ -443,11 +1014,15 @@ class CallflowControllerTest extends TestCase
                 'name' => 'Sales main line',
                 'destination_type' => 'extension',
                 'destination_id' => $extension->id,
+                'manage_fallback' => true,
+                'fallback_destination_type' => 'voicemail',
+                'fallback_destination_id' => $voicemail->id,
                 'phone_number_ids' => [$phoneNumber->id],
             ])
             ->assertCreated()
             ->assertJsonPath('data.name', 'Sales main line')
             ->assertJsonPath('data.flow.target.id', $extension->id)
+            ->assertJsonPath('data.flow.children._.target.id', $voicemail->id)
             ->assertJsonPath('data.phone_numbers.0.id', $phoneNumber->id);
 
         $createdId = $response->json('data.id');
@@ -458,6 +1033,8 @@ class CallflowControllerTest extends TestCase
         ]);
         $this->assertNotNull($phoneNumber->fresh()->assigned_callflow_id);
         $this->assertSame(['+15550000400'], $gateway->received['phoneNumbers']);
+        $this->assertSame('voicemail', $gateway->received['fallbackModule']);
+        $this->assertSame('switch-mailbox-create', $gateway->received['fallbackResourceId']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'callflow.created', 'outcome' => 'succeeded']);
     }
 
@@ -488,12 +1065,12 @@ class CallflowControllerTest extends TestCase
         {
             public ?string $deletedResourceId = null;
 
-            public function create(SwitchAccount $account, string $name, string $destinationModule, string $destinationResourceId, array $phoneNumbers): array
+            public function create(SwitchAccount $account, string $name, string $destinationModule, string $destinationResourceId, array $phoneNumbers, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranches = []): array
             {
                 throw new \LogicException('Not used by this test.');
             }
 
-            public function updateDestination(SwitchAccount $account, string $resourceId, string $destinationModule, string $destinationResourceId, ?string $name, array $assignedPhoneNumbers, array $knownPhoneNumbers): array
+            public function updateDestination(SwitchAccount $account, string $resourceId, string $destinationModule, string $destinationResourceId, ?string $name, array $assignedPhoneNumbers, array $knownPhoneNumbers, bool $replaceFallback = false, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranchOperations = []): array
             {
                 throw new \LogicException('Not used by this test.');
             }

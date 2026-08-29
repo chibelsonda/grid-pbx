@@ -4,11 +4,12 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowBranchWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\ManagedExtensionCallflowWriteData;
-use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -159,6 +160,266 @@ final class CallflowResourceClientTest extends TestCase
         self::assertArrayNotHasKey('pvt_account_id', $body['data']);
     }
 
+    /** @throws JsonException */
+    public function test_it_preserves_module_specific_data_when_only_the_root_target_changes(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => [
+                'module' => 'voicemail',
+                'data' => ['id' => 'mailbox-2', 'action' => 'compose'],
+                'children' => [],
+            ],
+        ]);
+
+        $client->update('account-1', 'callflow-1', new CallflowWriteData(
+            current: [
+                'id' => 'callflow-1',
+                'flow' => [
+                    'module' => 'voicemail',
+                    'data' => ['id' => 'mailbox-1', 'action' => 'compose'],
+                    'children' => [],
+                ],
+            ],
+            destinationModule: 'voicemail',
+            destinationResourceId: 'mailbox-2',
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(
+            ['id' => 'mailbox-2', 'action' => 'compose'],
+            $body['data']['flow']['data'],
+        );
+    }
+
+    /** @throws JsonException */
+    public function test_it_replaces_a_leaf_fallback_without_losing_same_module_settings(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-1'],
+                'children' => [
+                    '_' => [
+                        'module' => 'voicemail',
+                        'data' => ['id' => 'mailbox-2', 'action' => 'compose'],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $client->update('account-1', 'callflow-1', new CallflowWriteData(
+            current: [
+                'id' => 'callflow-1',
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'user-1'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'voicemail',
+                            'data' => ['id' => 'mailbox-1', 'action' => 'compose'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ],
+            destinationModule: 'user',
+            destinationResourceId: 'user-1',
+            replaceFallback: true,
+            fallbackModule: 'voicemail',
+            fallbackResourceId: 'mailbox-2',
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(
+            ['id' => 'mailbox-2', 'action' => 'compose'],
+            $body['data']['flow']['children']['_']['data'],
+        );
+    }
+
+    /** @throws JsonException */
+    public function test_it_explicitly_clears_only_the_wildcard_fallback(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->update('account-1', 'callflow-1', new CallflowWriteData(
+            current: [
+                'id' => 'callflow-1',
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'menu-1'],
+                    'children' => [
+                        '1' => ['module' => 'user', 'data' => ['id' => 'sales'], 'children' => []],
+                        '_' => ['module' => 'voicemail', 'data' => ['id' => 'mailbox-1'], 'children' => []],
+                    ],
+                ],
+            ],
+            destinationModule: 'menu',
+            destinationResourceId: 'menu-1',
+            replaceFallback: true,
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertArrayNotHasKey('_', $body['data']['flow']['children']);
+        self::assertSame('sales', $body['data']['flow']['children']['1']['data']['id']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_creates_a_menu_with_typed_key_branches(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-menu',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->create('account-1', new CallflowCreateData(
+            name: 'Main IVR',
+            destinationModule: 'menu',
+            destinationResourceId: 'menu-1',
+            phoneNumbers: ['+15550000100'],
+            branchRoutes: [
+                new CallflowBranchWriteData('0', 'user', 'sales-user'),
+                new CallflowBranchWriteData('timeout', 'voicemail', 'operator-mailbox'),
+            ],
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('sales-user', $body['data']['flow']['children']['0']['data']['id']);
+        self::assertSame('operator-mailbox', $body['data']['flow']['children']['timeout']['data']['id']);
+        self::assertStringContainsString(
+            '"children":{"0":',
+            (string) $this->history[0]['request']->getBody(),
+        );
+    }
+
+    /** @throws JsonException */
+    public function test_it_updates_only_explicit_menu_keys_and_preserves_legacy_and_unknown_branches(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-menu',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->update('account-1', 'callflow-menu', new CallflowWriteData(
+            current: [
+                'id' => 'callflow-menu',
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'menu-1'],
+                    'children' => [
+                        '1' => ['module' => 'user', 'data' => ['id' => 'old-user', 'timeout' => 20], 'children' => []],
+                        '2' => ['module' => 'voicemail', 'data' => ['id' => 'old-mailbox'], 'children' => []],
+                        '#' => ['module' => 'custom_legacy', 'data' => ['preserve' => true], 'children' => []],
+                        'vendor' => ['module' => 'custom_vendor', 'data' => ['preserve' => true], 'children' => []],
+                    ],
+                ],
+            ],
+            destinationModule: 'menu',
+            destinationResourceId: 'menu-1',
+            branchOperations: [
+                new CallflowBranchWriteData('1', 'user', 'new-user'),
+                new CallflowBranchWriteData('2', null, null),
+                new CallflowBranchWriteData('*', 'voicemail', 'operator-mailbox'),
+            ],
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $children = $body['data']['flow']['children'];
+
+        self::assertSame(['id' => 'new-user', 'timeout' => 20], $children['1']['data']);
+        self::assertArrayNotHasKey('2', $children);
+        self::assertSame('operator-mailbox', $children['*']['data']['id']);
+        self::assertTrue($children['#']['data']['preserve']);
+        self::assertTrue($children['vendor']['data']['preserve']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_creates_a_rule_set_route_with_match_and_fallback_branches(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-hours',
+            'flow' => ['module' => 'temporal_route', 'data' => ['rule_set' => 'set-1'], 'children' => []],
+        ]);
+
+        $client->create('account-1', new CallflowCreateData(
+            name: 'Office hours',
+            destinationModule: 'temporal_route',
+            destinationResourceId: 'set-1',
+            phoneNumbers: ['+15550000100'],
+            fallbackModule: 'voicemail',
+            fallbackResourceId: 'closed-mailbox',
+            branchRoutes: [
+                new CallflowBranchWriteData('rule_set', 'user', 'reception-user'),
+            ],
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('set-1', $body['data']['flow']['data']['rule_set']);
+        self::assertSame('reception-user', $body['data']['flow']['children']['rule_set']['data']['id']);
+        self::assertSame('closed-mailbox', $body['data']['flow']['children']['_']['data']['id']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_replaces_and_clears_only_the_rule_set_match_branch(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-hours',
+            'flow' => ['module' => 'temporal_route', 'data' => ['rule_set' => 'set-1'], 'children' => []],
+        ]);
+
+        $client->update('account-1', 'callflow-hours', new CallflowWriteData(
+            current: [
+                'id' => 'callflow-hours',
+                'flow' => [
+                    'module' => 'temporal_route',
+                    'data' => ['rule_set' => 'set-1', 'timezone' => 'America/New_York'],
+                    'children' => [
+                        'rule_set' => ['module' => 'user', 'data' => ['id' => 'old-user', 'timeout' => 20], 'children' => []],
+                        '_' => ['module' => 'voicemail', 'data' => ['id' => 'closed-mailbox'], 'children' => []],
+                        'legacy-rule' => ['module' => 'custom', 'data' => ['preserve' => true], 'children' => []],
+                    ],
+                ],
+            ],
+            destinationModule: 'temporal_route',
+            destinationResourceId: 'set-2',
+            branchOperations: [
+                new CallflowBranchWriteData('rule_set', 'user', 'new-user'),
+            ],
+        ));
+
+        $updated = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(['rule_set' => 'set-2', 'timezone' => 'America/New_York'], $updated['data']['flow']['data']);
+        self::assertSame(['id' => 'new-user', 'timeout' => 20], $updated['data']['flow']['children']['rule_set']['data']);
+        self::assertTrue($updated['data']['flow']['children']['legacy-rule']['data']['preserve']);
+
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-hours',
+            'flow' => ['module' => 'temporal_route', 'data' => ['rule_set' => 'set-2'], 'children' => []],
+        ]);
+        $client->update('account-1', 'callflow-hours', new CallflowWriteData(
+            current: $updated['data'],
+            destinationModule: 'temporal_route',
+            destinationResourceId: 'set-2',
+            branchOperations: [
+                new CallflowBranchWriteData('rule_set', null, null),
+            ],
+        ));
+
+        $cleared = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertArrayNotHasKey('rule_set', $cleared['data']['flow']['children']);
+        self::assertTrue($cleared['data']['flow']['children']['legacy-rule']['data']['preserve']);
+    }
+
     public function test_it_deletes_a_callflow(): void
     {
         $client = $this->clientWithResponse([]);
@@ -257,9 +518,7 @@ final class CallflowResourceClientTest extends TestCase
                     return 'test-token';
                 }
 
-                public function invalidate(): void
-                {
-                }
+                public function invalidate(): void {}
             },
         );
 

@@ -7,8 +7,8 @@ namespace GridPbx\Switch\Domains\Devices\Dto;
 final readonly class DeviceDialPlanData
 {
     /**
-     * @param list<string> $system
-     * @param list<array{pattern: string, description?: string|null, prefix?: string|null, suffix?: string|null}> $rules
+     * @param  list<string>  $system
+     * @param  list<array{pattern: string, description?: string|null, prefix?: string|null, suffix?: string|null}>  $rules
      */
     public function __construct(
         public array $system = [],

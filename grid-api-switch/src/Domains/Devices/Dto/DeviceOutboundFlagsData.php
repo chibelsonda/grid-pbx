@@ -7,8 +7,8 @@ namespace GridPbx\Switch\Domains\Devices\Dto;
 final readonly class DeviceOutboundFlagsData
 {
     /**
-     * @param list<string> $static
-     * @param list<string> $dynamic
+     * @param  list<string>  $static
+     * @param  list<string>  $dynamic
      */
     public function __construct(
         public array $static = [],

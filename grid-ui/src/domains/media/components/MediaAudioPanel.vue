@@ -1,30 +1,75 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed } from 'vue'
 import { ArrowUpTrayIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
+import { useMediaAudioForm } from '../composables/useMediaAudioForm'
 
-defineProps<{ name: string; saving: boolean; error: string | null; fieldErrors: Record<string, string[]> }>()
+const props = defineProps<{
+  name: string
+  saving: boolean
+  error: string | null
+  fieldErrors: Record<string, string[]>
+}>()
 const emit = defineEmits<{ close: []; save: [audio: File] }>()
-const audio = ref<File | null>(null)
+const { audio, validate, validationErrors } = useMediaAudioForm()
+const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const audioError = computed(() => errors.value.audio?.[0] ?? null)
 function choose(event: Event): void {
   audio.value = (event.target as HTMLInputElement).files?.[0] ?? null
+}
+function submit(): void {
+  const result = validate()
+  if (result.success) emit('save', result.data.audio)
 }
 </script>
 
 <template>
-  <CrudSlideOver title="Replace media audio" eyebrow="GridPBX / Media" :description="`Upload a new audio file for ${name}. Metadata remains unchanged.`" width="medium" @close="emit('close')">
-    <form class="grid gap-5" @submit.prevent="audio && emit('save', audio)">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">{{ error }}</div>
+  <CrudSlideOver
+    title="Replace media audio"
+    eyebrow="GridPBX / Media"
+    :description="`Upload a new audio file for ${name}. Metadata remains unchanged.`"
+    width="medium"
+    @close="emit('close')"
+  >
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
+      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
+        {{ error }}
+      </div>
       <article class="card-surface p-5">
-        <span class="grid size-11 place-items-center rounded-md bg-brand-50 text-brand-600"><ArrowUpTrayIcon class="size-5" /></span>
+        <span class="grid size-11 place-items-center rounded-md bg-brand-50 text-brand-600"
+          ><ArrowUpTrayIcon class="size-5"
+        /></span>
         <h2 class="mt-4 text-sm font-semibold text-slate-700">New audio file</h2>
-        <p class="mt-1 text-xs leading-5 text-slate-500">The Switch replaces the binary. MySQL stores only the refreshed content metadata.</p>
-        <input required type="file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" class="mt-5 w-full rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white" :aria-invalid="Boolean(fieldErrors.audio)" @change="choose" />
-        <span v-if="fieldErrors.audio" class="mt-2 block text-[10px] text-danger">{{ fieldErrors.audio[0] }}</span>
+        <p class="mt-1 text-xs leading-5 text-slate-500">
+          The Switch replaces the binary. MySQL stores only the refreshed content metadata.
+        </p>
+        <input
+          aria-label="Replacement audio file"
+          type="file"
+          accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+          class="mt-5 w-full rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+          :class="validationControlClass(audioError)"
+          :aria-invalid="Boolean(audioError)"
+          @change="choose"
+        />
+        <span v-if="audioError" class="mt-2 block text-[10px] text-danger">{{ audioError }}</span>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
-        <button type="button" class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600" @click="emit('close')">Cancel</button>
-        <button type="submit" :disabled="saving || !audio" class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50">{{ saving ? 'Replacing…' : 'Replace audio' }}</button>
+        <button
+          type="button"
+          class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
+          @click="emit('close')"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          :disabled="saving"
+          class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"
+        >
+          {{ saving ? 'Replacing…' : 'Replace audio' }}
+        </button>
       </div>
     </form>
   </CrudSlideOver>

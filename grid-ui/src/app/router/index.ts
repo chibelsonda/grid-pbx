@@ -146,11 +146,13 @@ const router = createRouter({
           name: 'call-history',
           component: () => import('@/domains/call-detail-records/pages/CallDetailRecordsPage.vue'),
         },
+        {
+          path: 'accounts',
+          name: 'accounts',
+          component: () => import('@/domains/accounts/pages/AccountsPage.vue'),
+        },
         ...(
-          [
-            ['accounts', 'Accounts', 'Manage accessible Switch accounts and context.'],
-            ['settings', 'Settings', 'Configure account and application preferences.'],
-          ] as const
+          [['settings', 'Settings', 'Configure account and application preferences.']] as const
         ).map(([path, title, description]) => ({
           path,
           component: () => import('@/shared/components/PlaceholderPage.vue'),

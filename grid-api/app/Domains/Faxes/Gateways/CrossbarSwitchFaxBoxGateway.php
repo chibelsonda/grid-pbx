@@ -45,6 +45,9 @@ class CrossbarSwitchFaxBoxGateway implements SwitchFaxBoxGateway
             t38Enabled: (bool) $data['t38_enabled'], customSmtpEmailAddress: $data['custom_smtp_email_address'] ?? null,
             smtpPermissionList: $data['smtp_permission_list'], inboundNotificationEmails: $data['inbound_notification_emails'],
             outboundNotificationEmails: $data['outbound_notification_emails'],
+            inboundNotificationExtras: $data['switch_inbound_notification_extras'] ?? [],
+            outboundNotificationExtras: $data['switch_outbound_notification_extras'] ?? [],
+            flags: $data['switch_flags'] ?? [],
         );
     }
 }

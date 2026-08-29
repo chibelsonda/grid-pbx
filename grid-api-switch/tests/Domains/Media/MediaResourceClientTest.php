@@ -4,9 +4,10 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Domains\Media\Dto\MediaTtsWriteData;
 use GridPbx\Switch\Domains\Media\Dto\MediaWriteData;
 use GridPbx\Switch\Domains\Media\MediaResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -110,6 +111,14 @@ final class MediaResourceClientTest extends TestCase
         $updated = $client->update('account-1', 'media-1', new MediaWriteData(
             name: 'Main hold music',
             language: 'en-gb',
+            contentType: 'audio/mpeg',
+            promptId: 'system_prompt',
+            sourceId: '0123456789abcdef0123456789abcdef',
+            sourceType: 'callflow',
+            tts: new MediaTtsWriteData(
+                text: 'Welcome to GridPBX.',
+                voice: 'female/en-US',
+            ),
         ));
         parse_str($this->history[2]['request']->getUri()->getQuery(), $secondPageQuery);
 
@@ -123,6 +132,17 @@ final class MediaResourceClientTest extends TestCase
         self::assertSame('POST', $this->history[4]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/media/media-1', $this->history[4]['request']->getUri()->getPath());
         self::assertSame('en-gb', json_decode((string) $this->history[4]['request']->getBody(), true)['data']['language']);
+        self::assertSame(
+            [
+                'text' => 'Welcome to GridPBX.',
+                'voice' => 'female/en-US',
+            ],
+            json_decode((string) $this->history[4]['request']->getBody(), true)['data']['tts'],
+        );
+        self::assertSame(
+            'system_prompt',
+            json_decode((string) $this->history[4]['request']->getBody(), true)['data']['prompt_id'],
+        );
     }
 
     /** @param list<Response> $responses */

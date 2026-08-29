@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
 use GridPbx\Switch\Domains\Devices\Dto\DeviceAdvancedData;
 use GridPbx\Switch\Domains\Devices\Dto\DeviceCallerIdData;
 use GridPbx\Switch\Domains\Devices\Dto\DeviceCallForwardData;
@@ -23,8 +23,8 @@ use GridPbx\Switch\Domains\Devices\Dto\DeviceRecordingParametersData;
 use GridPbx\Switch\Domains\Devices\Dto\DeviceRecordingSourceData;
 use GridPbx\Switch\Domains\Devices\Dto\DeviceSipData;
 use GridPbx\Switch\Domains\Devices\Dto\DeviceWriteData;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
-use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;

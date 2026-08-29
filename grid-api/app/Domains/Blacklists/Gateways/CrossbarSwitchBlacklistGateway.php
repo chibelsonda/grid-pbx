@@ -48,6 +48,11 @@ class CrossbarSwitchBlacklistGateway implements SwitchBlacklistGateway
 
     private function writeData(array $data): BlacklistWriteData
     {
-        return new BlacklistWriteData((string) $data['name'], array_values($data['numbers'] ?? []), (bool) ($data['should_block_anonymous'] ?? false));
+        return new BlacklistWriteData(
+            (string) $data['name'],
+            array_values($data['numbers'] ?? []),
+            (bool) ($data['should_block_anonymous'] ?? false),
+            array_values($data['switch_flags'] ?? []),
+        );
     }
 }

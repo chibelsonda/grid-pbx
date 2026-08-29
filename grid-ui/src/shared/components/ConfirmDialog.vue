@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed, ref, watch } from 'vue'
 import {
   Dialog,
   DialogDescription,
@@ -9,7 +10,7 @@ import {
 } from '@headlessui/vue'
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
@@ -18,11 +19,29 @@ withDefaults(
     busy?: boolean
     disabled?: boolean
     tone?: 'danger' | 'warning' | 'primary'
+    confirmationText?: string
   }>(),
-  { confirmLabel: 'Confirm', busy: false, disabled: false, tone: 'danger' },
+  {
+    confirmLabel: 'Confirm',
+    busy: false,
+    disabled: false,
+    tone: 'danger',
+    confirmationText: '',
+  },
 )
 
 const emit = defineEmits<{ close: []; confirm: [] }>()
+const typedConfirmation = ref('')
+const confirmationMatches = computed(
+  () => props.confirmationText === '' || typedConfirmation.value === props.confirmationText,
+)
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) typedConfirmation.value = ''
+  },
+)
 </script>
 
 <template>
@@ -73,6 +92,23 @@ const emit = defineEmits<{ close: []; confirm: [] }>()
                   </DialogDescription>
                 </div>
               </div>
+              <label v-if="confirmationText" class="mt-5 grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">
+                  Enter <strong>{{ confirmationText }}</strong> to confirm
+                </span>
+                <input
+                  v-model="typedConfirmation"
+                  aria-label="Confirmation text"
+                  autocomplete="off"
+                  class="field-control"
+                  :class="
+                    typedConfirmation && !confirmationMatches
+                      ? '!border-red-400 ring-2 ring-red-100'
+                      : ''
+                  "
+                  :aria-invalid="typedConfirmation && !confirmationMatches ? 'true' : undefined"
+                />
+              </label>
               <div class="mt-6 flex justify-end gap-3">
                 <button
                   type="button"
@@ -84,7 +120,7 @@ const emit = defineEmits<{ close: []; confirm: [] }>()
                 </button>
                 <button
                   type="button"
-                  :disabled="busy || disabled"
+                  :disabled="busy || disabled || !confirmationMatches"
                   class="h-9 rounded-md px-4 text-xs font-semibold text-white disabled:opacity-50"
                   :class="
                     tone === 'danger'

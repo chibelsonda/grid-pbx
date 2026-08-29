@@ -88,9 +88,17 @@ class MediaMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchMedia {
+        $switchJson = is_array($media->switch_json) ? $media->switch_json : [];
+        $tts = is_array($switchJson['tts'] ?? null) ? $switchJson['tts'] : [];
         $snapshot = $this->gateway->update($account, $media->switch_resource_id, [
             ...$data,
             'media_source' => $media->media_source ?? 'upload',
+            'content_type' => $this->stringValue($switchJson['content_type'] ?? null),
+            'prompt_id' => $this->stringValue($switchJson['prompt_id'] ?? null),
+            'source_id' => $this->stringValue($switchJson['source_id'] ?? null),
+            'source_type' => $this->stringValue($switchJson['source_type'] ?? null),
+            'tts_text' => $this->stringValue($tts['text'] ?? null),
+            'tts_voice' => $this->stringValue($tts['voice'] ?? null),
         ]);
 
         return DB::transaction(function () use ($account, $actor, $ipAddress, $snapshot): SwitchMedia {
@@ -208,5 +216,10 @@ class MediaMutationService
             $this->gateway->delete($account, $resourceId);
         } catch (Throwable) {
         }
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
     }
 }

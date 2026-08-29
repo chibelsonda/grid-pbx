@@ -19,6 +19,8 @@ class CallflowMutationService
     public function __construct(
         private readonly SwitchCallflowGateway $gateway,
         private readonly CallflowReferenceResolver $references,
+        private readonly CallflowEditorService $editor,
+        private readonly CallflowJsonNormalizer $jsonNormalizer,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly AuditService $audit,
     ) {}
@@ -31,6 +33,14 @@ class CallflowMutationService
         ?string $ipAddress = null,
     ): SwitchCallflow {
         [$module, $resourceId] = $this->destination($account, null, $data);
+        [$fallbackModule, $fallbackResourceId] = $this->optionalDestination(
+            $account,
+            null,
+            $data['fallback_destination_type'] ?? null,
+            $data['fallback_destination_id'] ?? null,
+        );
+        $menuBranchOperations = $this->menuBranchOperations($account, null, $module, $data);
+        $temporalBranchOperations = $this->temporalBranchOperations($account, null, $module, $data);
         [$assignedPhoneNumbers] = $this->phoneNumberSelection(
             $account,
             null,
@@ -44,6 +54,9 @@ class CallflowMutationService
                 $module,
                 $resourceId,
                 $assignedPhoneNumbers,
+                $fallbackModule,
+                $fallbackResourceId,
+                [...$menuBranchOperations, ...$temporalBranchOperations],
             ));
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
@@ -68,13 +81,22 @@ class CallflowMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchCallflow {
-        if ($callflow->is_feature_code) {
-            throw ValidationException::withMessages([
-                'callflow' => ['Feature-code routes are read-only in the guided editor.'],
-            ]);
+        $this->editor->assertEditable($callflow);
+        $replaceFallback = (bool) ($data['manage_fallback'] ?? false);
+
+        if ($replaceFallback) {
+            $this->editor->assertFallbackEditable($callflow);
         }
 
         [$module, $resourceId] = $this->destination($account, $callflow, $data);
+        [$fallbackModule, $fallbackResourceId] = $this->optionalDestination(
+            $account,
+            $callflow,
+            $data['fallback_destination_type'] ?? null,
+            $data['fallback_destination_id'] ?? null,
+        );
+        $menuBranchOperations = $this->menuBranchOperations($account, $callflow, $module, $data);
+        $temporalBranchOperations = $this->temporalBranchOperations($account, $callflow, $module, $data);
         [$assignedPhoneNumbers, $knownPhoneNumbers] = $this->phoneNumberSelection(
             $account,
             $callflow,
@@ -90,6 +112,10 @@ class CallflowMutationService
                 $data['name'],
                 $assignedPhoneNumbers,
                 $knownPhoneNumbers,
+                $replaceFallback,
+                $fallbackModule,
+                $fallbackResourceId,
+                [...$menuBranchOperations, ...$temporalBranchOperations],
             ));
 
             return DB::transaction(function () use ($account, $callflow, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
@@ -174,14 +200,16 @@ class CallflowMutationService
             'is_feature_code' => $snapshot->featureCodeName !== null || $snapshot->featureCodeNumber !== null,
             'feature_code_name' => $snapshot->featureCodeName,
             'feature_code_number' => $snapshot->featureCodeNumber,
-            'flow_structure' => $this->references->resolve(
+            'flow_structure' => ($flow = $this->references->resolve(
                 $account,
                 is_array($snapshot->data['flow'] ?? null) ? $snapshot->data['flow'] : null,
-            ),
+            )) === null ? null : $this->jsonNormalizer->flow($flow),
             'last_synced_at' => now(),
             'sync_status' => ProjectionStatus::Healthy,
             'projection_version' => $callflow->exists ? $callflow->projection_version + 1 : 1,
-            'switch_json' => $this->redactSensitiveData->handle($snapshot->toArray()),
+            'switch_json' => $this->jsonNormalizer->document(
+                $this->redactSensitiveData->handle($snapshot->toArray()),
+            ),
         ]);
         $callflow->deleted_at = null;
         $callflow->save();
@@ -213,24 +241,65 @@ class CallflowMutationService
      */
     private function destination(SwitchAccount $account, ?SwitchCallflow $callflow, array $data): array
     {
-        $type = $data['destination_type'];
+        return $this->resolveDestination(
+            $account,
+            $callflow,
+            $data['destination_type'],
+            $data['destination_id'],
+        );
+    }
+
+    /** @return array{?string, ?string} */
+    private function optionalDestination(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+        mixed $type,
+        mixed $id,
+    ): array {
+        if ($type === null && $id === null) {
+            return [null, null];
+        }
+
+        if (! is_string($type) || ! is_string($id)) {
+            throw ValidationException::withMessages([
+                'fallback_destination_id' => ['Select a complete fallback destination.'],
+            ]);
+        }
+
+        return $this->resolveDestination($account, $callflow, $type, $id);
+    }
+
+    /** @return array{string, string} */
+    private function resolveDestination(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+        string $type,
+        string $id,
+    ): array {
         $target = match ($type) {
-            'extension' => $account->extensions()->where('id', $data['destination_id'])->firstOrFail(),
-            'device' => $account->devices()->where('id', $data['destination_id'])->firstOrFail(),
-            'voicemail' => $account->voicemailBoxes()->where('id', $data['destination_id'])->firstOrFail(),
+            'extension' => $account->extensions()->where('id', $id)->firstOrFail(),
+            'device' => $account->devices()->where('id', $id)->firstOrFail(),
+            'voicemail' => $account->voicemailBoxes()->where('id', $id)->firstOrFail(),
             'callflow' => $account->callflows()
                 ->when($callflow !== null, fn ($query) => $query->whereKeyNot($callflow->getKey()))
-                ->where('id', $data['destination_id'])
+                ->where('id', $id)
                 ->firstOrFail(),
-            'media' => $account->media()->where('id', $data['destination_id'])->firstOrFail(),
-            'directory' => $account->directories()->where('id', $data['destination_id'])->firstOrFail(),
-            'group' => $account->groups()->where('id', $data['destination_id'])->firstOrFail(),
-            'queue' => $account->queues()->where('id', $data['destination_id'])->firstOrFail(),
-            'menu' => $account->menus()->where('id', $data['destination_id'])->firstOrFail(),
-            'conference' => $account->conferences()->where('id', $data['destination_id'])->firstOrFail(),
-            'fax_box' => $account->faxBoxes()->where('id', $data['destination_id'])->firstOrFail(),
-            'temporal_rule_set' => $account->temporalRuleSets()->where('id', $data['destination_id'])->firstOrFail(),
+            'media' => $account->media()->where('id', $id)->firstOrFail(),
+            'directory' => $account->directories()->where('id', $id)->firstOrFail(),
+            'group' => $account->groups()->where('id', $id)->firstOrFail(),
+            'queue' => $account->queues()->where('id', $id)->firstOrFail(),
+            'menu' => $account->menus()->where('id', $id)->firstOrFail(),
+            'conference' => $account->conferences()->where('id', $id)->firstOrFail(),
+            'fax_box' => $account->faxBoxes()->where('id', $id)->firstOrFail(),
+            'temporal_rule_set' => $account->temporalRuleSets()->where('id', $id)->firstOrFail(),
         };
+
+        if ($type === 'temporal_rule_set'
+            && ! $target->rules()->whereNotNull('switch_temporal_rule_id')->exists()) {
+            throw ValidationException::withMessages([
+                'destination_id' => ['Synchronize a schedule with at least one resolved rule before routing calls through it.'],
+            ]);
+        }
 
         return [
             match ($type) {
@@ -249,6 +318,123 @@ class CallflowMutationService
             },
             $target->switch_resource_id,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<array{key: string, module: ?string, resource_id: ?string}>
+     */
+    private function menuBranchOperations(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+        string $rootModule,
+        array $data,
+    ): array {
+        if (! (bool) ($data['manage_menu_branches'] ?? false)) {
+            return [];
+        }
+
+        if ($rootModule !== 'menu') {
+            throw ValidationException::withMessages([
+                'menu_branches' => ['Menu key routes require a Menu / IVR root destination.'],
+            ]);
+        }
+
+        $desired = collect(is_array($data['menu_branches'] ?? null) ? $data['menu_branches'] : [])
+            ->keyBy('key');
+
+        if ($callflow !== null) {
+            $this->editor->assertMenuBranchesEditable($callflow, $desired->keys()->all());
+        }
+
+        $current = collect($this->editor->menuBranches($callflow)['branches'])->keyBy('key');
+        $operations = [];
+
+        foreach ($current as $key => $branch) {
+            if (! is_array($branch) || ! $branch['editable']) {
+                continue;
+            }
+
+            $selection = $desired->get($key);
+
+            if (! is_array($selection)) {
+                if ($branch['target'] !== null) {
+                    $operations[] = ['key' => (string) $key, 'module' => null, 'resource_id' => null];
+                }
+
+                continue;
+            }
+
+            [$module, $resourceId] = $this->resolveDestination(
+                $account,
+                $callflow,
+                $selection['destination_type'],
+                $selection['destination_id'],
+            );
+            $operations[] = [
+                'key' => (string) $key,
+                'module' => $module,
+                'resource_id' => $resourceId,
+            ];
+        }
+
+        return $operations;
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @return list<array{key: string, module: ?string, resource_id: ?string}>
+     */
+    private function temporalBranchOperations(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+        string $rootModule,
+        array $data,
+    ): array {
+        if (! (bool) ($data['manage_temporal_match'] ?? false)) {
+            return [];
+        }
+
+        if ($rootModule !== 'temporal_route') {
+            throw ValidationException::withMessages([
+                'temporal_match_destination_id' => ['A schedule match route requires a Business Hours / Schedule root destination.'],
+            ]);
+        }
+
+        if ($callflow !== null) {
+            $this->editor->assertTemporalMatchEditable($callflow);
+        }
+
+        $type = $data['temporal_match_destination_type'] ?? null;
+        $id = $data['temporal_match_destination_id'] ?? null;
+
+        if ($type === null && $id === null) {
+            if ($callflow === null) {
+                throw ValidationException::withMessages([
+                    'temporal_match_destination_id' => ['Select a destination for calls that match the schedule.'],
+                ]);
+            }
+
+            return [[
+                'key' => 'rule_set',
+                'module' => null,
+                'resource_id' => null,
+            ]];
+        }
+
+        if (! is_string($type) || ! is_string($id)) {
+            throw ValidationException::withMessages([
+                'temporal_match_destination_id' => ['Select a complete schedule match destination.'],
+            ]);
+        }
+
+        [$module, $resourceId] = $this->resolveDestination($account, $callflow, $type, $id);
+
+        return [[
+            'key' => 'rule_set',
+            'module' => $module,
+            'resource_id' => $resourceId,
+        ]];
     }
 
     /**

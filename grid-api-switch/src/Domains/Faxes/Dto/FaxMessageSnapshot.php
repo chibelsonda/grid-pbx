@@ -9,24 +9,43 @@ use GridPbx\Switch\Shared\Dto\EntitySnapshot;
 final readonly class FaxMessageSnapshot extends EntitySnapshot
 {
     public string $folder;
+
     public ?string $status;
+
     public ?string $faxBoxId;
+
     public ?string $ownerId;
+
     public ?string $fromName;
+
     public ?string $fromNumber;
+
     public ?string $toName;
+
     public ?string $toNumber;
+
     public ?string $subject;
+
     public int $attempts;
+
     public int $retries;
+
     public ?bool $successful;
+
     public ?string $errorMessage;
+
     public int $pages;
+
     public int $faxSpeed;
+
     public int $elapsedSeconds;
+
     public ?int $createdGregorian;
+
     public bool $hasDocument;
+
     public ?string $documentContentType;
+
     public ?int $documentSize;
 
     /** @param array<string, mixed> $data */
@@ -64,8 +83,11 @@ final readonly class FaxMessageSnapshot extends EntitySnapshot
     /** @return array<string, mixed> */
     private function firstAttachment(mixed $attachments): array
     {
-        if (! is_array($attachments) || $attachments === []) return [];
+        if (! is_array($attachments) || $attachments === []) {
+            return [];
+        }
         $first = reset($attachments);
+
         return is_array($first) ? $first : [];
     }
 }

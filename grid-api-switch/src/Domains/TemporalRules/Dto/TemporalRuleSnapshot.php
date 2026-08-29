@@ -10,16 +10,28 @@ use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 final readonly class TemporalRuleSnapshot extends EntitySnapshot
 {
     public string $name;
+
     public string $cycle;
+
     public int $interval;
+
     public ?int $startDate;
+
     public ?int $timeWindowStart;
+
     public ?int $timeWindowStop;
+
     public ?bool $enabled;
+
     public ?int $month;
+
     public ?string $ordinal;
-    /** @var list<int> */ public array $days;
-    /** @var list<string> */ public array $weekdays;
+
+    /** @var list<int> */
+    public array $days;
+
+    /** @var list<string> */
+    public array $weekdays;
 
     /** @param array<string, mixed> $data */
     public function __construct(array $data)

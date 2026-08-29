@@ -10,7 +10,9 @@ use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 final readonly class TemporalRuleSetSnapshot extends EntitySnapshot
 {
     public string $name;
-    /** @var list<string> */ public array $temporalRuleIds;
+
+    /** @var list<string> */
+    public array $temporalRuleIds;
 
     /** @param array<string, mixed> $data */
     public function __construct(array $data)

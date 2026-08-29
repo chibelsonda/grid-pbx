@@ -3,6 +3,7 @@
 namespace App\Domains\CallRouting\Resources;
 
 use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\CallRouting\Services\CallflowPublicTreeService;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -27,7 +28,9 @@ class CallflowResource extends JsonResource
                 'name' => $this->feature_code_name,
                 'number' => $this->feature_code_number,
             ] : null,
-            'flow' => $this->flow_structure,
+            'flow' => $this->flow_structure === null
+                ? null
+                : app(CallflowPublicTreeService::class)->transform($this->flow_structure),
             'linked_extension' => $this->extension === null ? null : [
                 'id' => $this->extension->id,
                 'display_name' => $this->extension->display_name,

@@ -14,8 +14,11 @@ final readonly class MediaWriteData
         public string $mediaSource = 'upload',
         public bool $streamable = true,
         public ?string $language = null,
+        public ?string $contentType = null,
+        public ?string $promptId = null,
         public ?string $sourceId = null,
         public ?string $sourceType = null,
+        public ?MediaTtsWriteData $tts = null,
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch media name is required.');
@@ -31,8 +34,11 @@ final readonly class MediaWriteData
             'media_source' => $this->mediaSource,
             'streamable' => $this->streamable,
             'language' => $this->language,
+            'content_type' => $this->contentType,
+            'prompt_id' => $this->promptId,
             'source_id' => $this->sourceId,
             'source_type' => $this->sourceType,
+            'tts' => $this->tts?->toSwitchData(),
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

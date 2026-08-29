@@ -4,11 +4,11 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
-use GridPbx\Switch\Domains\Accounts\Dto\AccountBlacklistsWriteData;
-use GridPbx\Switch\Domains\Blacklists\Dto\BlacklistWriteData;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountBlacklistsWriteData;
 use GridPbx\Switch\Domains\Blacklists\BlacklistResourceClient;
+use GridPbx\Switch\Domains\Blacklists\Dto\BlacklistWriteData;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -28,12 +28,17 @@ final class BlacklistResourceClientTest extends TestCase
             $this->response(['data' => ['id' => 'account-1', 'name' => 'Support', 'blacklists' => ['blacklist-1']]]),
         ]));
         $stack->push(Middleware::history($history));
-        $switch = new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider {
-            public function token(): string { return 'test-token'; }
+        $switch = new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider
+        {
+            public function token(): string
+            {
+                return 'test-token';
+            }
+
             public function invalidate(): void {}
         });
 
-        $blacklist = (new BlacklistResourceClient($switch))->create('account-1', new BlacklistWriteData('Spam', ['+15550001000'], true));
+        $blacklist = (new BlacklistResourceClient($switch))->create('account-1', new BlacklistWriteData('Spam', ['+15550001000'], true, ['external-policy']));
         $account = (new AccountResourceClient($switch))->updateBlacklists('account-1', new AccountBlacklistsWriteData(['blacklist-1']));
         $createBody = json_decode((string) $history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
         $accountBody = json_decode((string) $history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
@@ -41,6 +46,7 @@ final class BlacklistResourceClientTest extends TestCase
         self::assertSame(['note' => 'Robocall'], $blacklist->numbers['+15550001000']);
         self::assertTrue($blacklist->shouldBlockAnonymous);
         self::assertSame([], $createBody['data']['numbers']['+15550001000']);
+        self::assertSame(['external-policy'], $createBody['data']['flags']);
         self::assertSame(['blacklist-1'], $account->blacklistIds);
         self::assertSame(['data' => ['blacklists' => ['blacklist-1']]], $accountBody);
     }

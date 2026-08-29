@@ -29,7 +29,7 @@ final readonly class VoicemailMessageBulkResult
     }
 
     /**
-     * @param array<mixed> $values
+     * @param  array<mixed>  $values
      * @return list<string>
      */
     private function stringList(array $values, string $name): array
@@ -48,7 +48,7 @@ final readonly class VoicemailMessageBulkResult
     }
 
     /**
-     * @param array<mixed> $failures
+     * @param  array<mixed>  $failures
      * @return array<string, string>
      */
     private function failureMap(array $failures): array

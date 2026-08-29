@@ -1,7 +1,7 @@
 # GridPBX Application Implementation Plan
 
 Status: Active
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 Implemented checkpoint:
 
@@ -15,7 +15,16 @@ Implemented checkpoint:
 - ArchitectUI-inspired Tailwind application shell, directories, and right-side
   CRUD/detail panels
 - Safe callflow trees with public-UUID target resolution and a guided
-  Switch-first root-destination editor that preserves unknown branches
+  Switch-first root-destination editor that preserves unknown branches and
+  same-module settings while locking unresolved or unsupported roots
+- Optional wildcard fallback editing with public-UUID target resolution;
+  nested, unsupported, and unresolved fallback subtrees remain read-only and
+  are preserved losslessly
+- Menu/IVR key routing for digits `0–9`, `*`, and `timeout`, using public UUID
+  targets and explicit per-key writes; legacy `#`, unknown keys, and unsafe
+  nested branches are preserved read-only
+- Zod-validated Callflow fields with Headless UI selectors, inline API errors,
+  and shared invalid-control styling
 - Conflict-safe phone-number entry-point assignment within the routing editor
 - Guided Switch-first callflow creation and dependency-aware deletion
 - Shared Axios response-envelope unwrapping for clean domain API clients
@@ -576,6 +585,13 @@ Acceptance criteria:
   foundation imports a configurable bounded window on demand, projects only
   approved normalized fields, and leaves production scheduling and retention
   deletion disabled until client policy is approved.
+- Account projection workspace: authenticated organization scoping, public
+  identity/status detail, tenant-safe resource counts, redacted full
+  `switch_json`, and administrator-only typed refresh/update for the audited
+  identity and calling-default subset. External/emergency caller IDs resolve
+  from public Phone Number UUIDs with E911 enforcement, while enable/disable is
+  a separate exact-name-confirmed audited command. Higher-risk operations stay
+  gated.
 - Add projections and incremental synchronization for each delivered resource
   domain.
 
@@ -598,8 +614,10 @@ Acceptance criteria:
 - Menu/IVR foundation: typed Menu CRUD, normalized prompt and behavior
   projection with full redacted `switch_json`, media relationship resolution,
   dependency-safe deletion, queued synchronization, guided call-routing
-  integration, and Vue management through a right-side panel. Advanced DTMF
-  branch editing remains part of the visual callflow slice.
+  integration, and Vue management through a right-side panel. Wildcard,
+  digit, Star, and timeout Callflow branch editing is delivered with legacy
+  `#` preservation; deeper recursive branch editing remains part of the visual
+  callflow slice.
 - Temporal routing foundation: typed Temporal Rule and Rule Set CRUD,
   normalized recurrence and ordered membership projections with redacted
   `switch_json`, Gregorian-date conversion, dependency-safe deletion, queued
@@ -620,6 +638,9 @@ Acceptance criteria:
   resolution, queued reconciliation, audited protected playback/download with
   byte ranges, and a Vue inventory plus right-side detail panel. Binary audio
   remains in Switch or its storage provider; deletion remains policy-gated.
+- Callflow editor layout: the drag-and-drop node graph and action palette live
+  on the main Callflow page. A right-side panel may edit the selected node's
+  typed properties, but it must not contain or constrain the graph canvas.
 - Conference foundation: typed CRUD, normalized general/member/moderator
   access-number rows, owner relationship, full redacted `switch_json`,
   write-only PIN replacement/removal, queued synchronization, last-observed
@@ -649,7 +670,14 @@ Acceptance criteria:
   explicit `SWITCH_LINE_KEY_MUTATIONS_ENABLED=true` capability flag. Generated
   vendor templates, SIP credentials, and provisioning infrastructure are never
   returned to the UI.
-- Advanced visual callflow editing.
+- Advanced visual callflow editing: a Tailwind node canvas with connectors,
+  categorized module palette, recursive linear and keyed branches,
+  module-specific right-side forms, public-reference resolution, schema-aware
+  validation, and lossless read-only preservation for unsupported nodes. The
+  selectable recursive read-only canvas, safe public branch-label contract,
+  selected-node inspector, and searchable 73-module schema reference palette
+  are delivered; arbitrary node mutation and module-specific forms remain
+  next.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after
   carrier and compliance approval.

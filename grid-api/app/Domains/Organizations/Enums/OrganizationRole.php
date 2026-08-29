@@ -39,4 +39,9 @@ enum OrganizationRole: string
     {
         return in_array($this, [self::PlatformAdministrator, self::ResellerAdministrator, self::AccountAdministrator], true);
     }
+
+    public function canManageAccountSettings(): bool
+    {
+        return in_array($this, [self::PlatformAdministrator, self::ResellerAdministrator, self::AccountAdministrator], true);
+    }
 }

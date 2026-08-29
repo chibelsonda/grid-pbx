@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
+use GridPbx\Switch\Domains\PhoneNumbers\PhoneNumberResourceClient;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
-use GridPbx\Switch\Domains\PhoneNumbers\PhoneNumberResourceClient;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -37,10 +37,15 @@ final class PhoneNumberResourceClientTest extends TestCase
                 'used_by' => 'callflow',
                 'features' => ['local', 'inbound_cnam'],
                 'cnam' => ['display_name' => 'GridPBX', 'inbound_lookup' => true],
-                '_read_only' => ['created' => 63627848989, 'modified' => 63627849999],
+                '_read_only' => [
+                    'created' => 63627848989,
+                    'modified' => 63627849999,
+                    'features' => ['available' => ['cnam', 'e911', 'port']],
+                ],
             ]]),
             $this->response(['data' => [
                 'id' => '+14155550101',
+                'features_available' => ['cnam'],
                 '_read_only' => ['state' => 'reserved', 'features' => ['local']],
             ]]),
             $this->response(['data' => ['numbers' => []]]),
@@ -53,9 +58,11 @@ final class PhoneNumberResourceClientTest extends TestCase
         self::assertSame('in_service', $numbers[0]->state);
         self::assertSame('callflow', $numbers[0]->usedBy);
         self::assertSame(['local', 'inbound_cnam'], $numbers[0]->features);
+        self::assertSame(['cnam', 'e911', 'port'], $numbers[0]->availableFeatures);
         self::assertSame('GridPBX', $numbers[0]->cnamDisplayName);
         self::assertTrue($numbers[0]->cnamInboundLookup);
         self::assertSame('reserved', $numbers[1]->state);
+        self::assertSame(['cnam'], $numbers[1]->availableFeatures);
         self::assertSame('/v2/accounts/account-1/phone_numbers/%2B14155550100', $this->history[1]['request']->getUri()->getPath());
         parse_str($this->history[3]['request']->getUri()->getQuery(), $query);
         self::assertSame('+14155550102', $query['start_key']);

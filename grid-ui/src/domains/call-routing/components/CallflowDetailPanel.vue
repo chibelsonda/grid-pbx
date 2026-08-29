@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   ArrowPathRoundedSquareIcon,
   HashtagIcon,
@@ -9,8 +9,10 @@ import {
 } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
-import CallflowTreeNode from './CallflowTreeNode.vue'
-import type { Callflow } from '../types/callRouting'
+import { findCallflowAction } from '../catalog/callflowActionCatalog'
+import CallflowActionPalette from './CallflowActionPalette.vue'
+import CallflowDiagram from './CallflowDiagram.vue'
+import type { Callflow, CallflowNode, CallflowNodeSelection } from '../types/callRouting'
 
 const props = defineProps<{
   record: Callflow | null
@@ -22,6 +24,8 @@ const props = defineProps<{
 }>()
 defineEmits<{ close: []; edit: []; delete: [] }>()
 const confirmingDelete = ref(false)
+const selectedNode = ref<CallflowNode | null>(null)
+const selectedPath = ref<string[]>([])
 const title = computed(
   () =>
     props.record?.name ??
@@ -36,6 +40,54 @@ const deletionBlocker = computed(() => {
 
   return null
 })
+const selectedAction = computed(() =>
+  selectedNode.value ? findCallflowAction(selectedNode.value.module) : null,
+)
+const selectionBreadcrumb = computed(() => {
+  const labels = ['Root']
+  let node = props.record?.flow ?? null
+
+  for (const segment of selectedPath.value) {
+    node = node?.children[segment] ?? null
+    if (!node) break
+    labels.push(node.branch?.label ?? humanize(segment))
+  }
+
+  return labels
+})
+const selectedStatusLabel = computed(() => {
+  if (!selectedAction.value) return 'Preserved / read only'
+
+  return {
+    guided: 'Guided now',
+    planned: 'Visual editor planned',
+    restricted: 'Capability required',
+  }[selectedAction.value.status]
+})
+const selectedStatusClass = computed(() => {
+  switch (selectedAction.value?.status) {
+    case 'guided':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+    case 'planned':
+      return 'border-blue-200 bg-blue-50 text-blue-700'
+    default:
+      return 'border-amber-200 bg-amber-50 text-amber-700'
+  }
+})
+
+watch(
+  () => props.record?.flow,
+  (flow) => {
+    selectedNode.value = flow ?? null
+    selectedPath.value = []
+  },
+  { immediate: true },
+)
+
+function selectNode(selection: CallflowNodeSelection): void {
+  selectedNode.value = selection.node
+  selectedPath.value = [...selection.path]
+}
 
 function humanize(value: string | null): string {
   return value
@@ -142,11 +194,60 @@ function humanize(value: string | null): string {
 
       <article class="card-surface p-5">
         <h2 class="mb-4 text-sm font-semibold text-slate-700">Route structure</h2>
-        <CallflowTreeNode v-if="record.flow" :node="record.flow" />
+        <CallflowDiagram
+          v-if="record.flow"
+          :node="record.flow"
+          :selected-path="selectedPath"
+          @select="selectNode"
+        />
         <p v-else class="text-xs text-slate-400">
           Switch did not return a structural flow for this route.
         </p>
+        <section
+          v-if="selectedNode"
+          aria-labelledby="selected-callflow-node-heading"
+          class="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4"
+        >
+          <div class="flex flex-wrap items-start gap-3">
+            <div class="min-w-0">
+              <h3 id="selected-callflow-node-heading" class="text-xs font-semibold text-slate-700">
+                Selected node
+              </h3>
+              <p class="mt-1 break-words text-[10px] text-slate-500">
+                {{ selectionBreadcrumb.join(' / ') }}
+              </p>
+            </div>
+            <span
+              class="ml-auto rounded-full border px-2.5 py-1 text-[9px] font-semibold"
+              :class="selectedStatusClass"
+            >
+              {{ selectedStatusLabel }}
+            </span>
+          </div>
+          <dl class="mt-4 grid gap-3 text-[10px] sm:grid-cols-2">
+            <div>
+              <dt class="font-bold tracking-wide text-slate-500 uppercase">Module</dt>
+              <dd class="mt-1 font-mono font-semibold text-slate-700">{{ selectedNode.module }}</dd>
+            </div>
+            <div>
+              <dt class="font-bold tracking-wide text-slate-500 uppercase">Destination</dt>
+              <dd class="mt-1 font-semibold text-slate-700">
+                {{ selectedNode.target?.label ?? 'Inline Switch action' }}
+              </dd>
+            </div>
+            <div>
+              <dt class="font-bold tracking-wide text-slate-500 uppercase">Reference</dt>
+              <dd class="mt-1 text-slate-700">{{ humanize(selectedNode.reference_status) }}</dd>
+            </div>
+            <div>
+              <dt class="font-bold tracking-wide text-slate-500 uppercase">Child paths</dt>
+              <dd class="mt-1 text-slate-700">{{ Object.keys(selectedNode.children).length }}</dd>
+            </div>
+          </dl>
+        </section>
       </article>
+
+      <CallflowActionPalette />
 
       <aside
         class="flex gap-3 rounded-md border border-amber-100 bg-amber-50 p-4 text-xs leading-5 text-amber-800"
@@ -181,5 +282,13 @@ function humanize(value: string | null): string {
       <p v-if="mutationError" class="text-xs font-semibold text-danger">{{ mutationError }}</p>
     </div>
   </CrudSlideOver>
-  <ConfirmDialog :open="confirmingDelete" title="Delete this route?" description="GridPBX will check projected dependencies again before deleting it from Switch." confirm-label="Delete route" :busy="deleting" @close="confirmingDelete = false" @confirm="$emit('delete')" />
+  <ConfirmDialog
+    :open="confirmingDelete"
+    title="Delete this route?"
+    description="GridPBX will check projected dependencies again before deleting it from Switch."
+    confirm-label="Delete route"
+    :busy="deleting"
+    @close="confirmingDelete = false"
+    @confirm="$emit('delete')"
+  />
 </template>

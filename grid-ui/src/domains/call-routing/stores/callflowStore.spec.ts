@@ -125,6 +125,21 @@ describe('callflow store', () => {
       mode: 'update',
       editable: true,
       blocked_reason: null,
+      fallback: { editable: true, blocked_reason: null, target: null },
+      menu_branches: {
+        editable: true,
+        blocked_reason: null,
+        branches: [],
+        legacy_hash_present: false,
+        unknown_branch_keys: [],
+      },
+      temporal_match: {
+        editable: true,
+        blocked_reason: null,
+        target: null,
+        preserved_branch_count: 0,
+      },
+      temporal_rule_sets: {},
       destination_types: [{ value: 'extension', label: 'Extension' }],
       destinations: {
         extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
@@ -188,6 +203,21 @@ describe('callflow store', () => {
       mode: 'create',
       editable: true,
       blocked_reason: null,
+      fallback: { editable: true, blocked_reason: null, target: null },
+      menu_branches: {
+        editable: true,
+        blocked_reason: null,
+        branches: [],
+        legacy_hash_present: false,
+        unknown_branch_keys: [],
+      },
+      temporal_match: {
+        editable: true,
+        blocked_reason: null,
+        target: null,
+        preserved_branch_count: 0,
+      },
+      temporal_rule_sets: {},
       destination_types: [{ value: 'extension', label: 'Extension' }],
       destinations: {
         extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
@@ -234,5 +264,28 @@ describe('callflow store', () => {
     expect(callflowApi.delete).toHaveBeenCalledWith('account-1', callflow.id)
     expect(deleted).toBe(true)
     expect(store.records).toEqual([])
+  })
+
+  it('keeps API validation errors inline without a duplicate editor alert', async () => {
+    vi.mocked(callflowApi.create).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          message: 'The given data was invalid.',
+          errors: { name: ['Enter a route name.'] },
+        },
+      },
+    })
+    const store = useCallflowStore()
+
+    await store.create('account-1', {
+      name: '',
+      destination_type: 'extension',
+      destination_id: 'extension-public-id',
+      phone_number_ids: [],
+    })
+
+    expect(store.fieldErrors.name).toEqual(['Enter a route name.'])
+    expect(store.editorError).toBeNull()
   })
 })

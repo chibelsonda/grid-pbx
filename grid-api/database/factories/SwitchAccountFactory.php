@@ -26,6 +26,8 @@ class SwitchAccountFactory extends Factory
             'name' => fake()->company().' PBX',
             'realm' => fake()->unique()->domainName(),
             'is_enabled' => true,
+            'sync_status' => 'stale',
+            'projection_version' => 0,
         ];
     }
 }

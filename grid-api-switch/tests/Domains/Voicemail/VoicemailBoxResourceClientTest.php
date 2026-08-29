@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxAdvancedData;
-use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailMessageFolder;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailMessageFolder;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailNotificationCallbackData;
-use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;

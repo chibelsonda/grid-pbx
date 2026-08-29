@@ -31,6 +31,31 @@ class PhoneNumberControllerTest extends TestCase
             'used_by' => 'callflow',
             'features' => ['local', 'inbound_cnam'],
             'cnam_display_name' => 'GridPBX',
+            'switch_json' => [
+                'id' => '+14155550100',
+                'state' => 'in_service',
+                'features' => ['local', 'inbound_cnam'],
+                '_read_only' => ['features' => ['available' => ['cnam', 'e911', 'port']]],
+                'cnam' => ['display_name' => 'GridPBX', 'inbound_lookup' => true],
+                'e911' => [
+                    'status' => 'PROVISIONED',
+                    'caller_name' => 'GridPBX Reception',
+                    'street_address' => '100 Main Street',
+                    'extended_address' => 'Suite 200',
+                    'locality' => 'San Francisco',
+                    'region' => 'CA',
+                    'postal_code' => '94105',
+                    'notification_contact_emails' => ['ops@example.test', 'invalid'],
+                    'location_id' => 'private-provider-id',
+                    'latitude' => '37.789',
+                ],
+                'porting' => [
+                    'requested_port_date' => '2026-09-15',
+                    'service_provider' => 'Example Carrier',
+                    'billing_account_id' => 'private-billing-id',
+                    'comments' => ['private note'],
+                ],
+            ],
         ]);
         SwitchPhoneNumber::factory()->for($account)->create([
             'number' => '+14155550101',
@@ -52,7 +77,20 @@ class PhoneNumberControllerTest extends TestCase
         $this->actingAs($user)
             ->getJson("/api/v1/accounts/{$account->id}/phone-numbers/{$assigned->id}")
             ->assertOk()
-            ->assertJsonPath('data.cnam.display_name', 'GridPBX');
+            ->assertJsonPath('data.cnam.display_name', 'GridPBX')
+            ->assertJsonPath('data.e911.street_address', '100 Main Street')
+            ->assertJsonPath('data.e911.notification_contact_emails.0', 'ops@example.test')
+            ->assertJsonCount(1, 'data.e911.notification_contact_emails')
+            ->assertJsonPath('data.porting.active', true)
+            ->assertJsonPath('data.porting.service_provider', 'Example Carrier')
+            ->assertJsonPath('data.capabilities.available_features.0', 'cnam')
+            ->assertJsonPath('data.capabilities.cnam.available', true)
+            ->assertJsonPath('data.capabilities.cnam.writable', false)
+            ->assertJsonMissingPath('data.e911.location_id')
+            ->assertJsonMissingPath('data.e911.latitude')
+            ->assertJsonMissingPath('data.porting.billing_account_id')
+            ->assertJsonMissingPath('data.porting.comments')
+            ->assertJsonMissingPath('data.switch_json');
     }
 
     public function test_it_hides_numbers_outside_the_accessible_account(): void

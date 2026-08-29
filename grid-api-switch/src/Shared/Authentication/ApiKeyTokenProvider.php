@@ -17,8 +17,7 @@ final class ApiKeyTokenProvider implements TokenProvider
     public function __construct(
         private readonly ClientInterface $http,
         private readonly SwitchConfig $config,
-    ) {
-    }
+    ) {}
 
     public function token(): string
     {

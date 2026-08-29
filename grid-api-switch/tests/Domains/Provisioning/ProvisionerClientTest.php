@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use GridPbx\Switch\Domains\Provisioning\ProvisionerClient;
 use GridPbx\Switch\Domains\Provisioning\ProvisionerConfig;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;

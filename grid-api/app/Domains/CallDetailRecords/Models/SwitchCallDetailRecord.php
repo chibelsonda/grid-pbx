@@ -4,12 +4,14 @@ namespace App\Domains\CallDetailRecords\Models;
 
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Recordings\Models\SwitchRecording;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchCallDetailRecordFactory;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SwitchCallDetailRecord extends Model
 {
@@ -52,6 +54,16 @@ class SwitchCallDetailRecord extends Model
     public function extension(): BelongsTo
     {
         return $this->belongsTo(SwitchExtension::class, 'switch_extension_id', 'extension_id');
+    }
+
+    /** @return HasMany<SwitchRecording, $this> */
+    public function recordings(): HasMany
+    {
+        return $this->hasMany(
+            SwitchRecording::class,
+            'switch_call_detail_record_id',
+            'call_detail_record_id',
+        );
     }
 
     /** @return array<string, string> */

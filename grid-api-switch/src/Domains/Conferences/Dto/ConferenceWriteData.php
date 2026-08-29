@@ -9,9 +9,9 @@ use InvalidArgumentException;
 final readonly class ConferenceWriteData
 {
     /**
-     * @param list<string> $conferenceNumbers
-     * @param list<string> $memberNumbers
-     * @param list<string> $moderatorNumbers
+     * @param  list<string>  $conferenceNumbers
+     * @param  list<string>  $memberNumbers
+     * @param  list<string>  $moderatorNumbers
      */
     public function __construct(
         public string $name,

@@ -9,12 +9,14 @@ use InvalidArgumentException;
 final readonly class TemporalRuleWriteData
 {
     public const CYCLES = ['date', 'daily', 'weekly', 'monthly', 'yearly'];
+
     public const WEEKDAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
     public const ORDINALS = ['every', 'first', 'second', 'third', 'fourth', 'fifth', 'last'];
 
     /** @param list<int> $days
-     * @param list<string> $weekdays
-     * @param list<string> $flags
+     * @param  list<string>  $weekdays
+     * @param  list<string>  $flags
      */
     public function __construct(
         public string $name,

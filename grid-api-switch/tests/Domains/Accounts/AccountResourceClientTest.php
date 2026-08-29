@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Domains\Accounts\AccountResource;
+use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Users\Dto\UserSnapshot;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
-use GridPbx\Switch\Domains\Accounts\AccountResource;
-use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GuzzleHttp\Client;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;

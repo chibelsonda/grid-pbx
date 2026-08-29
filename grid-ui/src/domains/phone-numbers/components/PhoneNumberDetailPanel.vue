@@ -9,12 +9,42 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
-import type { PhoneNumber } from '../types/phoneNumber'
+import type { PhoneNumber, PhoneNumberOperationCapability } from '../types/phoneNumber'
 
 const props = defineProps<{ record: PhoneNumber | null; loading: boolean; error: string | null }>()
 defineEmits<{ close: [] }>()
 
 const title = computed(() => props.record?.number ?? 'Phone number details')
+
+const e911Address = computed(() => {
+  const e911 = props.record?.e911
+  if (!e911) return null
+
+  return [
+    [e911.street_address, e911.extended_address].filter(Boolean).join(', '),
+    [e911.locality, e911.region, e911.postal_code].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .join('\n')
+})
+
+const operationalCapabilities = computed<
+  Array<{ key: string; label: string; capability: PhoneNumberOperationCapability }>
+>(() => {
+  if (!props.record) return []
+
+  return [
+    { key: 'cnam', label: 'Caller name (CNAM)', capability: props.record.capabilities.cnam },
+    { key: 'e911', label: 'Emergency address (E911)', capability: props.record.capabilities.e911 },
+    { key: 'porting', label: 'Number porting', capability: props.record.capabilities.porting },
+    {
+      key: 'purchasing',
+      label: 'Number purchasing',
+      capability: props.record.capabilities.purchasing,
+    },
+    { key: 'release', label: 'Number release', capability: props.record.capabilities.release },
+  ]
+})
 
 function humanize(value: string | null): string {
   return value
@@ -127,18 +157,91 @@ function humanize(value: string | null): string {
             E911 status
           </p>
           <p class="mt-1 text-sm font-semibold text-slate-700">
-            {{ humanize(record.e911_status) }}
+            {{ humanize(record.e911.status) }}
+          </p>
+          <p
+            v-if="e911Address"
+            class="mt-2 whitespace-pre-line text-[11px] leading-5 text-slate-500"
+          >
+            {{ e911Address }}
+          </p>
+          <p v-if="record.e911.caller_name" class="mt-2 text-[11px] text-slate-500">
+            Emergency caller name: {{ record.e911.caller_name }}
+          </p>
+          <p
+            v-if="record.e911.notification_contact_emails.length"
+            class="mt-2 break-words text-[11px] text-slate-500"
+          >
+            Notifications: {{ record.e911.notification_contact_emails.join(', ') }}
           </p>
         </article>
       </div>
+
+      <article v-if="record.porting.active" class="card-surface p-5">
+        <h2 class="text-sm font-semibold text-slate-700">Porting status</h2>
+        <dl class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <dt class="text-[10px] font-bold tracking-wide text-slate-500 uppercase">Provider</dt>
+            <dd class="mt-1 text-sm font-semibold text-slate-700">
+              {{ record.porting.service_provider ?? 'Not reported' }}
+            </dd>
+          </div>
+          <div>
+            <dt class="text-[10px] font-bold tracking-wide text-slate-500 uppercase">
+              Requested date
+            </dt>
+            <dd class="mt-1 text-sm font-semibold text-slate-700">
+              {{ record.porting.requested_port_date ?? 'Not reported' }}
+            </dd>
+          </div>
+        </dl>
+      </article>
+
+      <article class="card-surface p-5">
+        <h2 class="text-sm font-semibold text-slate-700">Operational capabilities</h2>
+        <div class="mt-4 grid gap-3">
+          <div
+            v-for="item in operationalCapabilities"
+            :key="item.key"
+            class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-xs font-semibold text-slate-700">{{ item.label }}</p>
+              <span
+                class="rounded-full px-2.5 py-1 text-[10px] font-bold"
+                :class="
+                  item.capability.writable
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : item.capability.available
+                      ? 'bg-amber-100 text-amber-700'
+                      : 'bg-slate-200 text-slate-600'
+                "
+              >
+                {{
+                  item.capability.writable
+                    ? 'Available'
+                    : item.capability.available
+                      ? 'Policy gated'
+                      : 'Unavailable'
+                }}
+              </span>
+            </div>
+            <p class="mt-1 text-[11px] leading-5 text-slate-500">
+              {{ item.capability.reason }}
+            </p>
+          </div>
+        </div>
+      </article>
 
       <aside
         class="flex gap-3 rounded-md border border-amber-100 bg-amber-50 p-4 text-xs leading-5 text-amber-800"
       >
         <ShieldCheckIcon class="mt-0.5 size-5 shrink-0" />
         <p>
-          Carrier acquisition, release, caller-name, and E911 changes are intentionally unavailable
-          until the deployment capabilities, billing behavior, and compliance workflow are approved.
+          Carrier acquisition, release, caller-name, and E911 changes remain unavailable until the
+          server reports both runtime support and an approved billing/compliance confirmation
+          policy. GridPBX does not infer mutation permission from a field merely appearing in the
+          schema.
         </p>
       </aside>
     </div>

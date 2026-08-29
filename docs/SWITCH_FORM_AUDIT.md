@@ -535,6 +535,190 @@ deleted. The cleanup pass also exposed and corrected orphaned membership rows
 after soft-deleting a Rule Set; new deletes remove those rows, and historical
 memberships whose parent set is already deleted no longer block Rule cleanup.
 
+### Blacklist follow-through (2026-08-29)
+
+Blacklist now uses the shared domain composable, Zod, inline-only error, and
+red invalid-control baseline. Name and blocked-number errors attach directly
+to their controls, the submit path uses `novalidate` so browser-native prompts
+cannot replace the application feedback, and actionable API field errors no
+longer also create a global mutation alert.
+
+The current schema defines a name, a number-keyed object, anonymous-caller
+behavior, and external `flags[]`. GridPBX intentionally accepts only canonical
+E.164 number keys even though the upstream object does not constrain its keys;
+this is a bounded product policy for predictable caller-ID matching, not a
+claim that the schema requires E.164. Account activation remains a separate
+account-setting mutation coordinated by Laravel. External flags are prohibited
+from operator input and are now preserved from the redacted `switch_json`
+during full Switch updates and rollback attempts.
+
+Focused Vue, TypeScript, Laravel, Switch package, and isolated authenticated
+headless checks pass. The visual run verified shared red invalid controls,
+inline-only errors, and clean browser/network state without creating a live
+Blacklist.
+
+### Fax Box follow-through (2026-08-29)
+
+Fax Box now follows the same form baseline. Its owner, caller-ID number, and
+timezone controls use viewport-bounded Headless UI listboxes populated from
+public Extensions, projected account phone numbers, and supported timezone
+identifiers. Existing caller IDs or timezones absent from the current options
+are retained as clearly labeled projected values. A null timezone inherits the
+account default instead of the create form forcing UTC.
+
+Every editable scalar and list has matching Zod/Laravel validation, shared red
+invalid styling, and inline-only field errors. The current schema's default of
+one retry is retained rather than copying Monster's older default of three.
+The caller-ID selector uses projected account numbers to prevent arbitrary
+outbound identity entry.
+
+Email notification recipients, SMTP permissions, custom SMTP address, fax
+identity/header, retry count, and T.38 are represented as typed virtual values
+from `switch_json`; no JSON-key-per-column expansion was added. Existing
+callback and SMS notification objects are preserved during full writes but
+remain hidden: callbacks require an outbound URL/SSRF policy and SMS requires
+confirmed provider capability. External `flags[]` are also preserved and
+prohibited from operator input. System-owned attempts and the generated SMTP
+address remain read-only.
+
+Focused Vue, TypeScript, Laravel, Switch package, and isolated authenticated
+headless checks pass. The visual run verified a non-clipping owner selector,
+multiple red invalid controls, inline-only errors, and clean browser/network
+state without creating a live Fax Box.
+
+### Phone Number follow-through (2026-08-29)
+
+Phone Numbers do not currently have an ordinary CRUD form, and that is
+intentional rather than an omitted application of the shared form controls.
+The current Switch schema describes CNAM, E911, and porting data, but runtime
+permission comes separately from `_read_only.features.available`; older
+deployments may instead return `_read_only.features_available` or a root
+`features_available`. GridPBX now recognizes all three versioned shapes.
+
+The detail slide-over exposes an allowlisted virtual view of CNAM, E911 address
+and notification state, and a minimal porting summary from redacted
+`switch_json`. Provider location IDs, coordinates, billing identifiers,
+comments, and the raw document stay server-side. Callflow assignment remains
+owned by the Callflow editor so two forms cannot race to rewrite the same
+relationship.
+
+The operational capability panel deliberately distinguishes Switch feature
+availability from GridPBX write permission. CNAM, E911, purchase, activation,
+port, release, and messaging commands remain disabled until their provider,
+billing, compliance, confirmation, authorization, and audit contracts are
+configured. They will use dedicated command panels rather than a generic JSON
+form. Focused package, API, Vue, TypeScript, and isolated authenticated
+headless checks pass without issuing a carrier mutation.
+
+### Media follow-through (2026-08-29)
+
+Upload-backed Media create/edit and audio replacement now use domain
+composables, Zod, `novalidate`, shared red invalid controls, and inline-only API
+errors. Submit remains available while fields are empty so validation can mark
+the exact name or file control instead of silently disabling the action or
+showing a browser-native prompt. Client and Laravel validation agree on MP3,
+WAV, and OGG files with a 5 MB maximum.
+
+The account music-on-hold choice now uses the shared viewport-bounded Headless
+UI listbox and public Media UUIDs. Binary data continues to live in Switch;
+GridPBX stores only allowlisted metadata and streams authorized audio through
+the API.
+
+Metadata updates use a typed read-merge-write boundary. Existing
+`content_type`, `prompt_id`, `source_id`, `source_type`, and TTS text/voice are
+retained from redacted `switch_json`, while operator requests are prohibited
+from supplying those hidden fields. New generated TTS and recording flows stay
+capability-gated because they require a configured generation/runtime provider,
+not just fields present in `media.json`. Focused Vue, Laravel, Switch package,
+TypeScript, and isolated authenticated headless checks pass without creating
+or replacing live media.
+
+### Call activity follow-through (2026-08-29)
+
+Call History and Recordings are read/display workflows rather than artificial
+CRUD forms. Their search, direction, outcome/audio availability, date, and
+duration controls now follow the same form baseline: Headless UI-backed
+choices, domain composables, `novalidate`, matching Zod/Laravel constraints,
+red invalid borders, and field-local messages. Number inputs are normalized at
+the Zod boundary because Vue emits numeric runtime values for `type="number"`
+even though URL query filters are serialized strings.
+
+The CDR detail panel resolves projected Recording summaries through public
+UUIDs. Recording detail links back to its projected CDR, also by public UUID.
+No numeric primary key, Switch resource ID, raw `switch_json`, media URL, or
+storage credential crosses either response. Audio stays behind the existing
+authenticated, account-scoped, audited range-stream endpoint. Deletion and
+retention automation remain disabled pending approved policy. Focused API,
+Vue, TypeScript, and isolated authenticated Playwright checks pass without
+creating, mutating, or deleting call activity.
+
+### Account projection follow-through (2026-08-29)
+
+The Accounts placeholder is replaced by a main-page workspace showing the
+selected account's public identity, organization, enabled state, realm,
+timezone, and tenant-scoped counts for the primary projected resources. The
+detail endpoint resolves only through authenticated organization membership
+and returns `404` for another organization's account. Numeric/ULID primary keys
+and the upstream Switch account ID remain server-side.
+
+The first write-safe Account settings slice is available to platform,
+reseller, and account administrators. It uses a typed Switch DTO for name,
+legal organization, timezone, language, call waiting, do-not-disturb, outbound
+privacy/rate display, internal/external/emergency caller identity, and
+internal/external ringtones. External numbers resolve from public UUIDs in the
+account's projected inventory; emergency choices are limited to E911-enabled
+numbers. Unresolved current numbers are preserved unless an administrator
+explicitly replaces or clears them. The complete returned Account
+`data` document is redacted into MySQL `switch_json`; the form reads normalized
+projection columns and never exposes raw JSON or upstream identifiers.
+
+The form is a right-side Headless UI/Tailwind panel with a domain composable,
+Zod, `novalidate`, shared red invalid controls, and inline field messages.
+Refresh and update are audited. Enable/disable is a separate administrator
+command requiring the exact account name; disabled accounts remain visible so
+the operation is reversible. Realm, asserted identity, advanced routing,
+billing/top-up, zones, and notifications remain explicitly gated. Focused SDK,
+Laravel, Vue, TypeScript, and isolated authenticated Playwright checks pass.
+
+## Callflow guided-form audit
+
+The current Callflow editor deliberately covers safe entry-point and root-target
+mutations; it is not presented as a complete visual implementation of every
+`callflows.*.json` module schema.
+
+| Area | Switch contract | GridPBX treatment | Status |
+| --- | --- | --- | --- |
+| Route identity | `callflows.name` | Required, trimmed, maximum 128 characters, inline Zod/API errors | Implemented |
+| Phone entry points | `callflows.numbers[]` | Projected inventory UUIDs only; create requires one, update may clear assignments; extension and non-inventory numbers remain preserved | Implemented |
+| Root destination | `callflows.action` plus selected module schema | Headless UI type/target selectors resolve public UUIDs server-side | Implemented for the allowlisted resource modules |
+| Existing module data | selected `callflows.<module>.json` data | Retained when only the target of the same module changes; old data is discarded when intentionally changing module type | Implemented and package-tested |
+| Children and unknown branches | recursive `children` object | Preserved losslessly by the Switch write DTO and displayed structurally | Implemented |
+| Unsupported or unresolved root | module catalog and current projection | Locked in the editor response and API mutation path; no silent fallback target is selected | Implemented |
+| Wildcard fallback branch | `children._` | Optional Headless UI selectors resolve public UUIDs server-side; create/replace/clear preserves sibling branches and same-module data | Implemented |
+| Unsafe fallback subtree | nested, unsupported, or unresolved `children._` | Locked in the editor response and API mutation path and preserved losslessly | Implemented |
+| Menu key branches | `children.timeout`, `children.0`–`children.9`, and `children.*` | Typed per-key operations with public UUID targets; add/replace/clear does not replace the full child map | Implemented |
+| Legacy and unsafe Menu branches | `children.#`, unknown keys, nested or unresolved key nodes | Displayed as preserved read-only state; `#` cannot be newly created | Implemented |
+| Numeric branch JSON shape | numeric child object properties | Normalized as JSON objects in Switch writes, MySQL JSON, and API resources so `{"0": ...}` never becomes a list | Implemented and tested |
+| Temporal Rule Set match | `data.rule_set`, `children.rule_set`, and `children._` | Shows ordered public Rule UUIDs for context; create/replace/clear resolves only public destination UUIDs and preserves additional temporal keys | Implemented and tested |
+| Visual route map | Recursive `flow.children` tree | Scroll-bounded connected nodes with semantic branch badges and keyboard-accessible selection; unknown child keys become numbered preserved labels in the public contract while internal keys remain lossless | Read-only foundation implemented and headless-tested |
+| Drag-and-drop editor placement | Full route graph and action palette | The interactive graph canvas lives on the main Callflow page, not inside a slide-over; a right-side panel may edit only the currently selected node | Required layout decision |
+| Selected-node inspector | Public safe tree contract | Shows public branch breadcrumbs, module, resolved label, reference state, child count, and honest editability status; never displays raw node data or upstream IDs | Implemented and headless-tested |
+| Module reference palette | Primary `callflows.*.json` action schemas | Searchable categorized catalog of all 73 primary local schemas, labeled as guided, planned, or capability-gated; no inactive item is presented as an edit action | Implemented and headless-tested |
+| Other keyed recursive branches | Direct temporal rules and module-specific branch schemas | Read-only structural view until each module editor has reference and round-trip coverage | Pending |
+
+The selectable node-and-connector diagram, safe inspector, and schema-backed
+module palette are now the visual foundation for the advanced editor. The
+main page will own the drag-and-drop canvas so it has sufficient room for
+branching routes; right-side panels are limited to selected-node properties.
+The remaining work adds recursive linear and keyed mutations plus
+module-specific node forms. Unsupported nodes remain locked and lossless.
+GridPBX uses its Tailwind visual language rather than copying Monster's
+styling.
+
+Focused Switch package, Laravel feature, Vue schema/store, and isolated
+authenticated headless Playwright checks cover these boundaries without
+creating a live route.
+
 ## Delivery order
 
 After Device, audit mutation-capable entities in dependency order:

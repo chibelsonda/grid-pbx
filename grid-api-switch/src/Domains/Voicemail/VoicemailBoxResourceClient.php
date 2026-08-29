@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Domains\Voicemail;
 
 use Generator;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxSnapshot;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailMessageBulkResult;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailMessageFolder;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailMessageSnapshot;
-use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxSnapshot;
-use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\Shared\Http\BinaryResponse;
 use GridPbx\Switch\SwitchClient;
@@ -251,7 +251,7 @@ final readonly class VoicemailBoxResourceClient
     }
 
     /**
-     * @param list<string> $identifiers
+     * @param  list<string>  $identifiers
      * @return list<string>
      */
     private function requiredIdentifiers(array $identifiers, string $name): array

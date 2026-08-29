@@ -1043,6 +1043,7 @@ test('filters projected call history and opens safe details in a right-side pane
     hangup_cause: 'NORMAL_CLEARING',
     disposition: 'SUCCESS',
     recording_available: true,
+    recordings: [],
     extension: {
       id: 'extension-public-id',
       display_name: 'Support Operator',

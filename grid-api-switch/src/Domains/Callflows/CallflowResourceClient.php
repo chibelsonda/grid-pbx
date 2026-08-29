@@ -14,9 +14,7 @@ use InvalidArgumentException;
 
 final readonly class CallflowResourceClient
 {
-    public function __construct(private SwitchClient $client)
-    {
-    }
+    public function __construct(private SwitchClient $client) {}
 
     public function create(string $accountId, CallflowCreateData $callflow): CallflowSnapshot
     {

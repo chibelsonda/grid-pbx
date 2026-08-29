@@ -18,11 +18,10 @@ final class SwitchClient
         private readonly ClientInterface $http,
         private readonly SwitchConfig $config,
         private readonly TokenProvider $tokens,
-    ) {
-    }
+    ) {}
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     public function request(string $method, string $path, array $options = []): array
@@ -37,7 +36,7 @@ final class SwitchClient
     }
 
     /**
-     * @param array<string, mixed> $options
+     * @param  array<string, mixed>  $options
      * @return array<string, mixed>
      */
     private function send(string $method, string $path, array $options, bool $retryAuthentication): array

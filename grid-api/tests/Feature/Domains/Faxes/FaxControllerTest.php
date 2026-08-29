@@ -12,6 +12,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use GridPbx\Switch\Shared\Http\BinaryResponse;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
@@ -38,6 +39,79 @@ class FaxControllerTest extends TestCase
         [$operator, $managed] = $this->accessibleAccount();
         $foreignOwner = SwitchExtension::factory()->create();
         $this->actingAs($operator)->postJson("/api/v1/accounts/{$managed->id}/fax-boxes", [...$this->boxPayload(), 'owner_id' => $foreignOwner->id])->assertUnprocessable()->assertJsonValidationErrors('owner_id');
+    }
+
+    public function test_options_expose_public_owner_choices_phone_numbers_and_supported_timezones(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $account->update(['timezone' => 'Asia/Manila']);
+        SwitchPhoneNumber::factory()->for($account)->create(['number' => '+12025550100']);
+
+        $response = $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/fax-boxes/options");
+
+        $response->assertOk()
+            ->assertJsonPath('data.account_defaults.timezone', 'Asia/Manila')
+            ->assertJsonPath('data.caller_id_numbers.0', '+12025550100');
+        $this->assertContains('Asia/Manila', $response->json('data.timezones'));
+    }
+
+    public function test_update_preserves_hidden_notification_channels_and_external_flags(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $callback = ['url' => 'https://hooks.example.test/fax', 'method' => 'post', 'type' => 'json'];
+        $sms = ['send_to' => ['+12025550199']];
+        $box = SwitchFaxBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-box-1',
+            'switch_json' => [
+                'flags' => ['external-policy'],
+                'notifications' => [
+                    'inbound' => ['callback' => $callback, 'sms' => $sms],
+                    'outbound' => ['callback' => $callback],
+                ],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchFaxBoxGateway::class);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-box-1'
+                && $data['switch_flags'] === ['external-policy']
+                && $data['switch_inbound_notification_extras'] === ['callback' => $callback, 'sms' => $sms]
+                && $data['switch_outbound_notification_extras'] === ['callback' => $callback],
+        )->andReturn($this->boxSnapshot([
+            'flags' => ['external-policy'],
+            'notifications' => [
+                'inbound' => ['callback' => $callback, 'sms' => $sms, 'email' => ['send_to' => ['ops@example.test']]],
+                'outbound' => ['callback' => $callback, 'email' => ['send_to' => ['ops@example.test']]],
+            ],
+        ]));
+
+        $response = $this->actingAs($user)->putJson(
+            "/api/v1/accounts/{$account->id}/fax-boxes/{$box->id}",
+            $this->boxPayload(),
+        );
+
+        $response->assertOk()
+            ->assertJsonMissingPath('data.flags')
+            ->assertJsonMissingPath('data.notifications');
+        $box->refresh();
+        $this->assertSame(['external-policy'], $box->switch_json['flags']);
+        $this->assertSame($callback, $box->switch_json['notifications']['inbound']['callback']);
+        $this->assertSame($sms, $box->switch_json['notifications']['inbound']['sms']);
+    }
+
+    public function test_operator_cannot_submit_hidden_switch_owned_fax_fields(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchFaxBoxGateway::class)->shouldIgnoreMissing();
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/fax-boxes", [
+                ...$this->boxPayload(),
+                'flags' => ['operator-controlled'],
+                'notifications' => ['inbound' => []],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['flags', 'notifications']);
     }
 
     public function test_fax_box_delete_is_blocked_by_callflow_reference(): void

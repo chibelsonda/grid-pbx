@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDownLeftIcon,
   ArrowPathIcon,
@@ -11,11 +12,16 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
 import CallDetailRecordPanel from '../components/CallDetailRecordPanel.vue'
+import { useCallDetailRecordFilters } from '../composables/useCallDetailRecordFilters'
 import { useCallDetailRecordStore } from '../stores/callDetailRecordStore'
 
 const accounts = useAccountStore()
 const calls = useCallDetailRecordStore()
+const route = useRoute()
+const router = useRouter()
+const { validate, validationErrors } = useCallDetailRecordFilters(() => calls.filters)
 const panelOpen = computed(
   () => calls.detailLoading || calls.detail !== null || calls.detailError !== null,
 )
@@ -32,16 +38,24 @@ const freshnessLabel = computed(() => {
 })
 
 watch(
-  () => accounts.selectedId,
-  (accountId) => {
-    calls.reset()
-    if (accountId) void calls.load(accountId, 1)
+  [() => accounts.selectedId, () => route.query.cdr],
+  ([accountId, recordId], previous) => {
+    const accountChanged = accountId !== previous?.[0]
+
+    if (accountChanged) {
+      calls.reset()
+      if (accountId) void calls.load(accountId, 1)
+    }
+
+    if (accountId && typeof recordId === 'string' && recordId !== calls.detail?.id) {
+      void calls.loadDetail(accountId, recordId)
+    }
   },
   { immediate: true },
 )
 
 function applyFilters(): void {
-  if (accounts.selectedId) void calls.load(accounts.selectedId, 1)
+  if (validate() && accounts.selectedId) void calls.load(accounts.selectedId, 1)
 }
 
 function clearFilters(): void {
@@ -54,7 +68,18 @@ function synchronize(): void {
 }
 
 function openDetail(id: string): void {
-  if (accounts.selectedId) void calls.loadDetail(accounts.selectedId, id)
+  void router.replace({ query: { ...route.query, cdr: id } })
+}
+
+function closeDetail(): void {
+  calls.closeDetail()
+  const query = { ...route.query }
+  delete query.cdr
+  void router.replace({ query })
+}
+
+function fieldError(field: string): string | null {
+  return validationErrors.value[field]?.[0] ?? null
 }
 
 function formatDuration(seconds: number): string {
@@ -143,24 +168,31 @@ function humanize(value: string | null): string {
       </article>
     </div>
 
-    <form class="mb-4 grid gap-3" @submit.prevent="applyFilters">
+    <form class="mb-4 grid gap-3" novalidate @submit.prevent="applyFilters">
       <div class="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_170px_170px_auto]">
-        <label class="relative">
-          <span class="sr-only">Search call history</span>
-          <MagnifyingGlassIcon
-            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-          />
-          <input
-            v-model="calls.filters.search"
-            type="search"
-            placeholder="Search caller, callee, call, or interaction…"
-            class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
-          />
-        </label>
+        <div>
+          <label class="relative block">
+            <span class="sr-only">Search call history</span>
+            <MagnifyingGlassIcon
+              class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
+            />
+            <input
+              v-model="calls.filters.search"
+              type="search"
+              placeholder="Search caller, callee, call, or interaction…"
+              :aria-invalid="Boolean(fieldError('search'))"
+              class="h-10 w-full rounded-md border border-slate-300 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
+              :class="validationControlClass(fieldError('search'))"
+            />
+          </label>
+          <p v-if="fieldError('search')" class="mt-1 text-[10px] text-danger">
+            {{ fieldError('search') }}
+          </p>
+        </div>
         <FormSelect
           v-model="calls.filters.direction"
           aria-label="Call direction"
-          class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none focus:border-brand-500"
+          :aria-invalid="Boolean(fieldError('direction'))"
         >
           <option value="">All directions</option>
           <option value="inbound">Inbound</option>
@@ -169,7 +201,7 @@ function humanize(value: string | null): string {
         <FormSelect
           v-model="calls.filters.outcome"
           aria-label="Call outcome"
-          class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none focus:border-brand-500"
+          :aria-invalid="Boolean(fieldError('outcome'))"
         >
           <option value="">All outcomes</option>
           <option value="answered">Answered</option>
@@ -188,16 +220,26 @@ function humanize(value: string | null): string {
             <input
               v-model="calls.filters.started_from"
               type="date"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs font-normal text-slate-600"
+              :aria-invalid="Boolean(fieldError('started_from'))"
+              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
+              :class="validationControlClass(fieldError('started_from'))"
             />
+            <span v-if="fieldError('started_from')" class="normal-case text-danger">{{
+              fieldError('started_from')
+            }}</span>
           </label>
           <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
             End date
             <input
               v-model="calls.filters.started_to"
               type="date"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs font-normal text-slate-600"
+              :aria-invalid="Boolean(fieldError('started_to'))"
+              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
+              :class="validationControlClass(fieldError('started_to'))"
             />
+            <span v-if="fieldError('started_to')" class="normal-case text-danger">{{
+              fieldError('started_to')
+            }}</span>
           </label>
           <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
             Minimum seconds
@@ -206,8 +248,13 @@ function humanize(value: string | null): string {
               type="number"
               min="0"
               max="86400"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs font-normal text-slate-600"
+              :aria-invalid="Boolean(fieldError('duration_min'))"
+              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
+              :class="validationControlClass(fieldError('duration_min'))"
             />
+            <span v-if="fieldError('duration_min')" class="normal-case text-danger">{{
+              fieldError('duration_min')
+            }}</span>
           </label>
           <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
             Maximum seconds
@@ -216,8 +263,13 @@ function humanize(value: string | null): string {
               type="number"
               min="0"
               max="86400"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs font-normal text-slate-600"
+              :aria-invalid="Boolean(fieldError('duration_max'))"
+              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
+              :class="validationControlClass(fieldError('duration_max'))"
             />
+            <span v-if="fieldError('duration_max')" class="normal-case text-danger">{{
+              fieldError('duration_max')
+            }}</span>
           </label>
           <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
             Hangup cause
@@ -225,8 +277,13 @@ function humanize(value: string | null): string {
               v-model="calls.filters.hangup_cause"
               type="text"
               placeholder="NORMAL_CLEARING"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs font-normal text-slate-600"
+              :aria-invalid="Boolean(fieldError('hangup_cause'))"
+              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
+              :class="validationControlClass(fieldError('hangup_cause'))"
             />
+            <span v-if="fieldError('hangup_cause')" class="normal-case text-danger">{{
+              fieldError('hangup_cause')
+            }}</span>
           </label>
         </div>
         <div class="mt-4 flex justify-end">
@@ -379,6 +436,6 @@ function humanize(value: string | null): string {
     :record="calls.detail"
     :loading="calls.detailLoading"
     :error="calls.detailError"
-    @close="calls.closeDetail"
+    @close="closeDetail"
   />
 </template>

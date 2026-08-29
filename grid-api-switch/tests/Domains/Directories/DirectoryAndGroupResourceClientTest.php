@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Domains\Directories\DirectoryResourceClient;
 use GridPbx\Switch\Domains\Directories\Dto\DirectoryWriteData;
 use GridPbx\Switch\Domains\Groups\Dto\GroupEndpointWriteData;
 use GridPbx\Switch\Domains\Groups\Dto\GroupWriteData;
-use GridPbx\Switch\Domains\Users\Dto\UserDirectoryMappingsWriteData;
-use GridPbx\Switch\Domains\Directories\DirectoryResourceClient;
 use GridPbx\Switch\Domains\Groups\GroupResourceClient;
+use GridPbx\Switch\Domains\Users\Dto\UserDirectoryMappingsWriteData;
 use GridPbx\Switch\Domains\Users\UserResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -29,7 +29,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
     public function test_directory_client_fetches_resolved_members_and_sends_settings_only(): void
     {
         $switch = $this->switchWithResponses([
-            $this->response(['data' => [["id" => 'directory-1']]]),
+            $this->response(['data' => [['id' => 'directory-1']]]),
             $this->response(['data' => [
                 'id' => 'directory-1',
                 'name' => 'People',

@@ -30,6 +30,7 @@ const record: CallDetailRecord = {
   hangup_cause: 'NORMAL_CLEARING',
   disposition: 'SUCCESS',
   recording_available: false,
+  recordings: [],
   extension: { id: 'extension-public-id', display_name: 'Support Operator', extension: '1001' },
   last_synced_at: '2026-08-28T05:00:00Z',
 }

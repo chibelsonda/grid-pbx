@@ -7,6 +7,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use GridPbx\Switch\Domains\Accounts\AccountResource;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowBranchWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
@@ -25,6 +26,9 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         string $destinationModule,
         string $destinationResourceId,
         array $phoneNumbers,
+        ?string $fallbackModule = null,
+        ?string $fallbackResourceId = null,
+        array $branchRoutes = [],
     ): array {
         return $this->callflows->create(
             $account->switch_account_id,
@@ -33,6 +37,9 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 destinationModule: $destinationModule,
                 destinationResourceId: $destinationResourceId,
                 phoneNumbers: $phoneNumbers,
+                fallbackModule: $fallbackModule,
+                fallbackResourceId: $fallbackResourceId,
+                branchRoutes: $this->branchData($branchRoutes),
             ),
         )->toArray();
     }
@@ -45,6 +52,10 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         ?string $name,
         array $assignedPhoneNumbers,
         array $knownPhoneNumbers,
+        bool $replaceFallback = false,
+        ?string $fallbackModule = null,
+        ?string $fallbackResourceId = null,
+        array $branchOperations = [],
     ): array {
         $current = $this->resources->find(
             $account->switch_account_id,
@@ -66,6 +77,10 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 name: $name,
                 assignedPhoneNumbers: $assignedPhoneNumbers,
                 knownPhoneNumbers: $knownPhoneNumbers,
+                replaceFallback: $replaceFallback,
+                fallbackModule: $fallbackModule,
+                fallbackResourceId: $fallbackResourceId,
+                branchOperations: $this->branchData($branchOperations),
             ),
         )->toArray();
     }
@@ -73,5 +88,21 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
     public function delete(SwitchAccount $account, string $resourceId): void
     {
         $this->callflows->delete($account->switch_account_id, $resourceId);
+    }
+
+    /**
+     * @param  list<array{key: string, module: ?string, resource_id: ?string}>  $branches
+     * @return list<CallflowBranchWriteData>
+     */
+    private function branchData(array $branches): array
+    {
+        return array_map(
+            fn (array $branch): CallflowBranchWriteData => new CallflowBranchWriteData(
+                key: $branch['key'],
+                module: $branch['module'],
+                resourceId: $branch['resource_id'],
+            ),
+            $branches,
+        );
     }
 }

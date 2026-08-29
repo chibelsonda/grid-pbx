@@ -7,7 +7,6 @@ namespace GridPbx\Switch\Domains\Provisioning;
 use GridPbx\Switch\Domains\Provisioning\Dto\ProvisioningBrandSnapshot;
 use GridPbx\Switch\Domains\Provisioning\Dto\ProvisioningFamilySnapshot;
 use GridPbx\Switch\Domains\Provisioning\Dto\ProvisioningModelSnapshot;
-use GridPbx\Switch\Domains\Provisioning\ProvisionerClient;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 
 final readonly class ProvisioningCatalogResourceClient

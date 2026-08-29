@@ -4,6 +4,7 @@ namespace App\Domains\Extensions\Services;
 
 use App\Domains\Auditing\Services\AuditService;
 use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\CallRouting\Services\CallflowJsonNormalizer;
 use App\Domains\CallRouting\Services\CallflowReferenceResolver;
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
@@ -33,6 +34,7 @@ class ExtensionProvisioningService
         private readonly SwitchExtensionProvisioningGateway $gateway,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly CallflowReferenceResolver $callflowReferences,
+        private readonly CallflowJsonNormalizer $callflowJson,
         private readonly AuditService $audit,
         private readonly LineKeyProjectionService $lineKeyProjection,
     ) {}
@@ -572,16 +574,18 @@ class ExtensionProvisioningService
             'is_feature_code' => false,
             'feature_code_name' => null,
             'feature_code_number' => null,
-            'flow_structure' => $this->callflowReferences->resolve(
+            'flow_structure' => ($flow = $this->callflowReferences->resolve(
                 $account,
                 is_array($snapshot->data['flow'] ?? null) ? $snapshot->data['flow'] : null,
-            ),
+            )) === null ? null : $this->callflowJson->flow($flow),
             'last_synced_at' => now(),
             'sync_status' => ProjectionStatus::Healthy,
             'projection_version' => $callflow->exists ? $callflow->projection_version + 1 : 1,
             'is_managed' => true,
             'managed_by_workflow' => self::WORKFLOW,
-            'switch_json' => $this->redactSensitiveData->handle($snapshot->toArray()),
+            'switch_json' => $this->callflowJson->document(
+                $this->redactSensitiveData->handle($snapshot->toArray()),
+            ),
         ]);
         $callflow->deleted_at = null;
         $callflow->save();

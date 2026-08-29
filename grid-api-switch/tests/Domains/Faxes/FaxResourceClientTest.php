@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\Faxes\Dto\FaxBoxWriteData;
 use GridPbx\Switch\Domains\Faxes\FaxBoxResourceClient;
 use GridPbx\Switch\Domains\Faxes\FaxMessageResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -19,7 +19,8 @@ use PHPUnit\Framework\TestCase;
 
 final class FaxResourceClientTest extends TestCase
 {
-    /** @var array<int, array<string, mixed>> */ private array $history = [];
+    /** @var array<int, array<string, mixed>> */
+    private array $history = [];
 
     public function test_fax_box_client_maps_configuration_and_notifications(): void
     {
@@ -30,12 +31,25 @@ final class FaxResourceClientTest extends TestCase
         ]);
         $client = new FaxBoxResourceClient($switch);
         $boxes = iterator_to_array($client->allDetails('account-1'), false);
-        $created = $client->create('account-1', new FaxBoxWriteData(name: 'Billing fax', outboundNotificationEmails: ['billing@example.test']));
+        $created = $client->create('account-1', new FaxBoxWriteData(
+            name: 'Billing fax',
+            outboundNotificationEmails: ['billing@example.test'],
+            inboundNotificationExtras: [
+                'callback' => ['url' => 'https://hooks.example.test/fax', 'method' => 'post', 'type' => 'json'],
+                'sms' => ['send_to' => ['+12025550199']],
+            ],
+            flags: ['external-policy'],
+        ));
         $body = json_decode((string) $this->history[2]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
-        self::assertSame('user-1', $boxes[0]->ownerId); self::assertTrue($boxes[0]->t38Enabled);
-        self::assertSame(['ops@example.test'], $boxes[0]->inboundNotificationEmails); self::assertSame('box-2', $created->id);
+        self::assertSame('user-1', $boxes[0]->ownerId);
+        self::assertTrue($boxes[0]->t38Enabled);
+        self::assertSame(['ops@example.test'], $boxes[0]->inboundNotificationEmails);
+        self::assertSame('box-2', $created->id);
         self::assertSame(['billing@example.test'], $body['data']['notifications']['outbound']['email']['send_to']);
+        self::assertSame('https://hooks.example.test/fax', $body['data']['notifications']['inbound']['callback']['url']);
+        self::assertSame(['+12025550199'], $body['data']['notifications']['inbound']['sms']['send_to']);
+        self::assertSame(['external-policy'], $body['data']['flags']);
     }
 
     public function test_fax_message_client_paginates_bounded_metadata(): void
@@ -46,11 +60,14 @@ final class FaxResourceClientTest extends TestCase
         ]);
         $client = new FaxMessageResourceClient($switch, 1);
         $messages = iterator_to_array($client->all('account-1', 'inbox', 1787875200, 1787961600), false);
-        parse_str($this->history[0]['request']->getUri()->getQuery(), $query); parse_str($this->history[1]['request']->getUri()->getQuery(), $nextQuery);
+        parse_str($this->history[0]['request']->getUri()->getQuery(), $query);
+        parse_str($this->history[1]['request']->getUri()->getQuery(), $nextQuery);
 
         self::assertSame(['202608-fax-1', '202608-fax-2'], array_map(fn ($fax) => $fax->id, $messages));
-        self::assertSame(2, $messages[0]->pages); self::assertTrue($messages[0]->hasDocument);
-        self::assertSame(1787875200 + 62167219200, (int) $query['created_from']); self::assertSame('next', $nextQuery['start_key']);
+        self::assertSame(2, $messages[0]->pages);
+        self::assertTrue($messages[0]->hasDocument);
+        self::assertSame(1787875200 + 62167219200, (int) $query['created_from']);
+        self::assertSame('next', $nextQuery['start_key']);
     }
 
     public function test_fax_document_uses_protected_binary_request(): void
@@ -59,15 +76,33 @@ final class FaxResourceClientTest extends TestCase
         $document = $client->document('account-1', 'inbox', '202608-fax-1', 'bytes=0-3');
         parse_str($this->history[0]['request']->getUri()->getQuery(), $query);
 
-        self::assertSame(206, $document->statusCode); self::assertStringContainsString('application/pdf', $this->history[0]['request']->getHeaderLine('Accept'));
-        self::assertSame('bytes=0-3', $this->history[0]['request']->getHeaderLine('Range')); self::assertSame('inline', $query['disposition']);
+        self::assertSame(206, $document->statusCode);
+        self::assertStringContainsString('application/pdf', $this->history[0]['request']->getHeaderLine('Accept'));
+        self::assertSame('bytes=0-3', $this->history[0]['request']->getHeaderLine('Range'));
+        self::assertSame('inline', $query['disposition']);
     }
 
     /** @param list<Response> $responses */
     private function switch(array $responses): SwitchClient
     {
-        $this->history = []; $stack = HandlerStack::create(new MockHandler($responses)); $stack->push(Middleware::history($this->history));
-        return new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider { public function token(): string { return 'test-token'; } public function invalidate(): void {} });
+        $this->history = [];
+        $stack = HandlerStack::create(new MockHandler($responses));
+        $stack->push(Middleware::history($this->history));
+
+        return new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider
+        {
+            public function token(): string
+            {
+                return 'test-token';
+            }
+
+            public function invalidate(): void {}
+        });
     }
-    /** @param array<string, mixed> $payload */ private function response(array $payload): Response { return new Response(200, [], json_encode($payload + ['status' => 'success'], JSON_THROW_ON_ERROR)); }
+
+    /** @param array<string, mixed> $payload */
+    private function response(array $payload): Response
+    {
+        return new Response(200, [], json_encode($payload + ['status' => 'success'], JSON_THROW_ON_ERROR));
+    }
 }

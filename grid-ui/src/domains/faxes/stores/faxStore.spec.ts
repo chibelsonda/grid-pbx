@@ -5,8 +5,118 @@ import type { Fax, FaxBox, FaxBoxInput, FaxBoxOptions, FaxSyncRun } from '../typ
 import type { PaginatedResponse } from '@/shared/api/http'
 import { useFaxStore } from './faxStore'
 
-vi.mock('../api/faxApi', () => ({ faxApi: { boxes: vi.fn<() => Promise<PaginatedResponse<FaxBox>>>(), box: vi.fn<() => Promise<FaxBox>>(), options: vi.fn<() => Promise<FaxBoxOptions>>(), createBox: vi.fn<() => Promise<FaxBox>>(), updateBox: vi.fn<() => Promise<FaxBox>>(), removeBox: vi.fn<() => Promise<void>>(), messages: vi.fn<() => Promise<PaginatedResponse<Fax>>>(), message: vi.fn<() => Promise<Fax>>(), document: vi.fn<() => Promise<Blob>>(), startSync: vi.fn<() => Promise<FaxSyncRun>>(), syncStatus: vi.fn<() => Promise<FaxSyncRun>>() } }))
-const box: FaxBox = { id: 'box-1', name: 'Main fax', owner: null, caller_id: null, caller_name: null, fax_header: null, fax_identity: null, fax_timezone: 'UTC', retries: 1, t38_enabled: false, smtp_email_address: 'auto@fax.test', custom_smtp_email_address: null, smtp_permission_list: [], inbound_notification_emails: [], outbound_notification_emails: [], fax_count: 1, sync_status: 'healthy', last_synced_at: null }
-const fax: Fax = { id: 'fax-1', folder: 'inbox', status: 'completed', fax_box: { id: 'box-1', name: 'Main fax' }, owner: null, from: { name: null, number: '+12025550101' }, to: { name: null, number: '+12025550100' }, subject: null, attempts: 0, retries: 1, successful: true, error_message: null, pages: 2, fax_speed: 14400, elapsed_seconds: 10, created_at: null, has_document: true, document_content_type: 'application/pdf', document_size: 100, sync_status: 'healthy', last_synced_at: null }
-const page = <T>(data: T[]): PaginatedResponse<T> => ({ data, links: { first: null, last: null, prev: null, next: null }, meta: { current_page: 1, from: 1, last_page: 1, per_page: 25, to: data.length, total: data.length } })
-describe('fax store', () => { beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() }); it('loads fax boxes and messages together', async () => { vi.mocked(faxApi.boxes).mockResolvedValue(page([box])); vi.mocked(faxApi.messages).mockResolvedValue(page([fax])); const store = useFaxStore(); await store.load('account-1'); expect(store.boxes).toEqual([box]); expect(store.messages).toEqual([fax]) }); it('creates a box from public owner input', async () => { const input: FaxBoxInput = { name: 'Main fax', owner_id: null, caller_id: null, caller_name: null, fax_header: null, fax_identity: null, fax_timezone: 'UTC', retries: 1, t38_enabled: false, custom_smtp_email_address: null, smtp_permission_list: [], inbound_notification_emails: [], outbound_notification_emails: [] }; vi.mocked(faxApi.options).mockResolvedValue({ owners: [] }); vi.mocked(faxApi.createBox).mockResolvedValue(box); vi.mocked(faxApi.boxes).mockResolvedValue(page([box])); vi.mocked(faxApi.messages).mockResolvedValue(page([])); const store = useFaxStore(); await store.prepareBox('account-1'); expect(await store.saveBox('account-1', input)).toBe(true); expect(faxApi.createBox).toHaveBeenCalledWith('account-1', input) }) })
+vi.mock('../api/faxApi', () => ({
+  faxApi: {
+    boxes: vi.fn<() => Promise<PaginatedResponse<FaxBox>>>(),
+    box: vi.fn<() => Promise<FaxBox>>(),
+    options: vi.fn<() => Promise<FaxBoxOptions>>(),
+    createBox: vi.fn<() => Promise<FaxBox>>(),
+    updateBox: vi.fn<() => Promise<FaxBox>>(),
+    removeBox: vi.fn<() => Promise<void>>(),
+    messages: vi.fn<() => Promise<PaginatedResponse<Fax>>>(),
+    message: vi.fn<() => Promise<Fax>>(),
+    document: vi.fn<() => Promise<Blob>>(),
+    startSync: vi.fn<() => Promise<FaxSyncRun>>(),
+    syncStatus: vi.fn<() => Promise<FaxSyncRun>>(),
+  },
+}))
+const box: FaxBox = {
+  id: 'box-1',
+  name: 'Main fax',
+  owner: null,
+  caller_id: null,
+  caller_name: null,
+  fax_header: null,
+  fax_identity: null,
+  fax_timezone: 'UTC',
+  retries: 1,
+  t38_enabled: false,
+  smtp_email_address: 'auto@fax.test',
+  custom_smtp_email_address: null,
+  smtp_permission_list: [],
+  inbound_notification_emails: [],
+  outbound_notification_emails: [],
+  fax_count: 1,
+  sync_status: 'healthy',
+  last_synced_at: null,
+}
+const fax: Fax = {
+  id: 'fax-1',
+  folder: 'inbox',
+  status: 'completed',
+  fax_box: { id: 'box-1', name: 'Main fax' },
+  owner: null,
+  from: { name: null, number: '+12025550101' },
+  to: { name: null, number: '+12025550100' },
+  subject: null,
+  attempts: 0,
+  retries: 1,
+  successful: true,
+  error_message: null,
+  pages: 2,
+  fax_speed: 14400,
+  elapsed_seconds: 10,
+  created_at: null,
+  has_document: true,
+  document_content_type: 'application/pdf',
+  document_size: 100,
+  sync_status: 'healthy',
+  last_synced_at: null,
+}
+const options: FaxBoxOptions = {
+  owners: [],
+  caller_id_numbers: [],
+  timezones: ['UTC'],
+  account_defaults: { timezone: 'UTC' },
+}
+const page = <T>(data: T[]): PaginatedResponse<T> => ({
+  data,
+  links: { first: null, last: null, prev: null, next: null },
+  meta: {
+    current_page: 1,
+    from: 1,
+    last_page: 1,
+    per_page: 25,
+    to: data.length,
+    total: data.length,
+  },
+})
+describe('fax store', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+  it('loads fax boxes and messages together', async () => {
+    vi.mocked(faxApi.boxes).mockResolvedValue(page([box]))
+    vi.mocked(faxApi.messages).mockResolvedValue(page([fax]))
+    const store = useFaxStore()
+    await store.load('account-1')
+    expect(store.boxes).toEqual([box])
+    expect(store.messages).toEqual([fax])
+  })
+  it('creates a box from public owner input', async () => {
+    const input: FaxBoxInput = {
+      name: 'Main fax',
+      owner_id: null,
+      caller_id: null,
+      caller_name: null,
+      fax_header: null,
+      fax_identity: null,
+      fax_timezone: 'UTC',
+      retries: 1,
+      t38_enabled: false,
+      custom_smtp_email_address: null,
+      smtp_permission_list: [],
+      inbound_notification_emails: [],
+      outbound_notification_emails: [],
+    }
+    vi.mocked(faxApi.options).mockResolvedValue(options)
+    vi.mocked(faxApi.createBox).mockResolvedValue(box)
+    vi.mocked(faxApi.boxes).mockResolvedValue(page([box]))
+    vi.mocked(faxApi.messages).mockResolvedValue(page([]))
+    const store = useFaxStore()
+    await store.prepareBox('account-1')
+    expect(await store.saveBox('account-1', input)).toBe(true)
+    expect(faxApi.createBox).toHaveBeenCalledWith('account-1', input)
+  })
+})

@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Domains\Agents\AgentResourceClient;
 use GridPbx\Switch\Domains\Agents\Dto\AgentQueueMembershipWriteData;
 use GridPbx\Switch\Domains\Agents\Dto\AgentStatusWriteData;
-use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Domains\Queues\Dto\QueueAnnouncementsWriteData;
-use GridPbx\Switch\Domains\Agents\AgentResourceClient;
+use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;

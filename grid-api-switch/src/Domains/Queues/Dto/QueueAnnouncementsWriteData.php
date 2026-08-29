@@ -56,4 +56,3 @@ final readonly class QueueAnnouncementsWriteData
         ], static fn (?string $value): bool => $value !== null && $value !== '');
     }
 }
-

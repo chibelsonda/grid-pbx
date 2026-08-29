@@ -4,13 +4,13 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\Users\Dto\Credentials\UserCredentialsData;
 use GridPbx\Switch\Domains\Users\Dto\Hotdesk\UserHotdeskData;
 use GridPbx\Switch\Domains\Users\Dto\UserAdvancedData;
 use GridPbx\Switch\Domains\Users\Dto\UserWriteData;
-use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\Domains\Users\UserResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -148,7 +148,7 @@ final class UserResourceClientTest extends TestCase
             firstName: 'Alice',
             lastName: 'Support',
             extension: '1001',
-            credentials: new UserCredentialsData(),
+            credentials: new UserCredentialsData,
         ));
         $body = json_decode(
             (string) $this->history[0]['request']->getBody(),
@@ -300,9 +300,7 @@ final class UserResourceClientTest extends TestCase
                 return 'test-token';
             }
 
-            public function invalidate(): void
-            {
-            }
+            public function invalidate(): void {}
         };
     }
 }

@@ -56,4 +56,9 @@ class OrganizationAccessService
     {
         return $this->roleFor($user, $account)?->canViewServices() ?? false;
     }
+
+    public function canManageAccountSettings(User $user, SwitchAccount $account): bool
+    {
+        return $this->roleFor($user, $account)?->canManageAccountSettings() ?? false;
+    }
 }

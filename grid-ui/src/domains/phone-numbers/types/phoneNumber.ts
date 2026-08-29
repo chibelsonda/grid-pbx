@@ -21,10 +21,38 @@ export type PhoneNumber = {
     display_name: string | null
     inbound_lookup: boolean
   }
-  e911_status: string | null
+  e911: {
+    status: string | null
+    caller_name: string | null
+    street_address: string | null
+    extended_address: string | null
+    locality: string | null
+    region: string | null
+    postal_code: string | null
+    notification_contact_emails: string[]
+  }
+  porting: {
+    active: boolean
+    requested_port_date: string | null
+    service_provider: string | null
+  }
+  capabilities: {
+    available_features: string[]
+    cnam: PhoneNumberOperationCapability
+    e911: PhoneNumberOperationCapability
+    porting: PhoneNumberOperationCapability
+    purchasing: PhoneNumberOperationCapability
+    release: PhoneNumberOperationCapability
+  }
   assigned_callflow: AssignedCallflow | null
   sync_status: 'healthy' | 'syncing' | 'stale' | 'error'
   last_synced_at: string | null
+}
+
+export type PhoneNumberOperationCapability = {
+  available: boolean
+  writable: boolean
+  reason: string
 }
 
 export type PhoneNumberFilters = {

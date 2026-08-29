@@ -4,10 +4,10 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
+use PHPUnit\Framework\TestCase;
 use RecursiveDirectoryIterator;
 use RecursiveIteratorIterator;
 use SplFileInfo;
-use PHPUnit\Framework\TestCase;
 
 final class ArchitectureTest extends TestCase
 {

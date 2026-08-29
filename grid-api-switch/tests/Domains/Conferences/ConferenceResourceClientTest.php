@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
-use GridPbx\Switch\Domains\Conferences\Dto\ConferenceWriteData;
 use GridPbx\Switch\Domains\Conferences\ConferenceResourceClient;
+use GridPbx\Switch\Domains\Conferences\Dto\ConferenceWriteData;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -99,8 +99,13 @@ final class ConferenceResourceClientTest extends TestCase
         $stack = HandlerStack::create(new MockHandler($responses));
         $stack->push(Middleware::history($this->history));
 
-        return new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider {
-            public function token(): string { return 'test-token'; }
+        return new SwitchClient(new Client(['handler' => $stack]), new SwitchConfig('http://switch.test/v2', 'unused'), new class implements TokenProvider
+        {
+            public function token(): string
+            {
+                return 'test-token';
+            }
+
             public function invalidate(): void {}
         });
     }

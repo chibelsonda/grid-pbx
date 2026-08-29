@@ -6,6 +6,4 @@ namespace GridPbx\Switch\Shared\Exceptions;
 
 use RuntimeException;
 
-class SwitchException extends RuntimeException
-{
-}
+class SwitchException extends RuntimeException {}

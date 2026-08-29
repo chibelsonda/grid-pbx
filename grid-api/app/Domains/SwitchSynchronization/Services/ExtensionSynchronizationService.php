@@ -3,6 +3,7 @@
 namespace App\Domains\SwitchSynchronization\Services;
 
 use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\CallRouting\Services\CallflowJsonNormalizer;
 use App\Domains\CallRouting\Services\CallflowReferenceResolver;
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
 use App\Domains\Devices\Models\SwitchDevice;
@@ -33,6 +34,7 @@ class ExtensionSynchronizationService
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly VoicemailGreetingProjectionService $voicemailGreetingProjection,
         private readonly CallflowReferenceResolver $callflowReferences,
+        private readonly CallflowJsonNormalizer $callflowJson,
         private readonly LineKeyProjectionService $lineKeyProjection,
     ) {}
 
@@ -452,8 +454,12 @@ class ExtensionSynchronizationService
                 'is_feature_code' => $callflow->featureCodeName !== null || $callflow->featureCodeNumber !== null,
                 'feature_code_name' => $callflow->featureCodeName,
                 'feature_code_number' => $callflow->featureCodeNumber,
-                'flow_structure' => $callflow->flow?->toArray(),
-                'switch_json' => $this->redactSensitiveData->handle($callflow->toArray()),
+                'flow_structure' => $callflow->flow === null
+                    ? null
+                    : $this->callflowJson->flow($callflow->flow->toArray()),
+                'switch_json' => $this->callflowJson->document(
+                    $this->redactSensitiveData->handle($callflow->toArray()),
+                ),
             ];
         }
 

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
-use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\LineKeys\Dto\LineKeyWriteData;
 use GridPbx\Switch\Domains\LineKeys\LineKeyResourceClient;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -113,8 +113,13 @@ final class LineKeyResourceClientTest extends TestCase
         $switch = new SwitchClient(
             new Client(['handler' => $stack]),
             new SwitchConfig('http://switch.test/v2', 'unused'),
-            new class implements TokenProvider {
-                public function token(): string { return 'test-token'; }
+            new class implements TokenProvider
+            {
+                public function token(): string
+                {
+                    return 'test-token';
+                }
+
                 public function invalidate(): void {}
             },
         );

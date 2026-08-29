@@ -9,29 +9,54 @@ use GridPbx\Switch\Shared\Dto\EntitySnapshot;
 final readonly class RecordingSnapshot extends EntitySnapshot
 {
     public ?string $callId;
+
     public ?string $cdrId;
+
     public ?string $interactionId;
+
     public ?string $ownerId;
+
     public ?string $direction;
+
     public ?string $callerIdName;
+
     public ?string $callerIdNumber;
+
     public ?string $calleeIdName;
+
     public ?string $calleeIdNumber;
+
     public ?string $from;
+
     public ?string $to;
+
     public ?string $request;
+
     public ?int $start;
+
     public int $durationSeconds;
+
     public int $durationMilliseconds;
+
     public ?string $name;
+
     public ?string $description;
+
     public ?string $contentType;
+
     public ?int $contentLength;
+
     public ?string $mediaSource;
+
     public ?string $mediaType;
+
     public ?string $sourceType;
+
     public ?string $origin;
-    /** @var list<string> */ public array $contentTypes;
+
+    /** @var list<string> */
+    public array $contentTypes;
+
     public bool $hasAudio;
 
     /** @param array<string, mixed> $data */

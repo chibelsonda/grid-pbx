@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Tests;
 
+use GridPbx\Switch\Domains\CallDetailRecords\CallDetailRecordResourceClient;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
-use GridPbx\Switch\Domains\CallDetailRecords\CallDetailRecordResourceClient;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;

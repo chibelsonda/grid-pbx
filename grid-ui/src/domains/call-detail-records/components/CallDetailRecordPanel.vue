@@ -175,13 +175,50 @@ function humanize(value: string | null): string {
       </article>
 
       <aside
-        v-if="record.recording_available"
+        v-if="record.recordings.length"
+        class="rounded-md border border-brand-100 bg-brand-50/60 p-5"
+      >
+        <div class="flex items-center gap-2">
+          <MicrophoneIcon class="size-5 text-brand-600" />
+          <h2 class="text-sm font-semibold text-slate-700">Related recordings</h2>
+        </div>
+        <div class="mt-4 grid gap-2">
+          <RouterLink
+            v-for="recording in record.recordings"
+            :key="recording.id"
+            :to="{ name: 'recordings', query: { recording: recording.id } }"
+            class="flex items-center justify-between gap-3 rounded-md border border-brand-100 bg-white px-4 py-3 text-xs hover:border-brand-300 hover:bg-brand-50"
+          >
+            <span>
+              <span class="block font-semibold text-slate-700">{{
+                recording.name ?? 'Call recording'
+              }}</span>
+              <span class="mt-1 block text-[10px] text-slate-500">{{
+                formatDuration(recording.duration_seconds)
+              }}</span>
+            </span>
+            <span
+              class="rounded-full px-2.5 py-1 text-[10px] font-bold"
+              :class="
+                recording.has_audio
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : 'bg-slate-100 text-slate-600'
+              "
+            >
+              {{ recording.has_audio ? 'Playback available' : 'Metadata only' }}
+            </span>
+          </RouterLink>
+        </div>
+      </aside>
+
+      <aside
+        v-else-if="record.recording_available"
         class="flex gap-3 rounded-md border border-amber-100 bg-amber-50 p-4 text-xs leading-5 text-amber-800"
       >
         <MicrophoneIcon class="mt-0.5 size-5 shrink-0" />
         <p>
-          Switch reports recording metadata for this call. Playback and download remain disabled
-          until recording authorization, retention, and audit requirements are approved.
+          The CDR reports recording metadata, but no projected Recording is currently linked. Run
+          Recording synchronization to resolve protected playback and download.
         </p>
       </aside>
     </div>

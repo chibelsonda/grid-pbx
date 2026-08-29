@@ -359,6 +359,7 @@ function routeTitle(route: {
     :loading="callflows.editorLoading"
     :saving="callflows.saving"
     :error="callflows.editorError"
+    :field-errors="callflows.fieldErrors"
     :can-manage="canManage"
     @close="callflows.closeEditor"
     @save="saveRoute"

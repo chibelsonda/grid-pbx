@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Users;
 
-use GridPbx\Switch\Domains\Users\Dto\UserSnapshot;
 use GridPbx\Switch\Domains\Users\Dto\UserDirectoryMappingsWriteData;
+use GridPbx\Switch\Domains\Users\Dto\UserSnapshot;
 use GridPbx\Switch\Domains\Users\Dto\UserWriteData;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
@@ -13,9 +13,7 @@ use InvalidArgumentException;
 
 final readonly class UserResourceClient
 {
-    public function __construct(private SwitchClient $client)
-    {
-    }
+    public function __construct(private SwitchClient $client) {}
 
     public function create(string $accountId, UserWriteData $user): UserSnapshot
     {

@@ -2,11 +2,27 @@
 import { ref } from 'vue'
 import { SpeakerWaveIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
 import type { Media } from '../types/media'
 
 const props = defineProps<{ records: Media[]; saving: boolean; error: string | null }>()
 const emit = defineEmits<{ close: []; save: [mediaId: string | null] }>()
 const selected = ref(props.records.find((record) => record.is_music_on_hold)?.id ?? '')
+const options: ListboxOptionValue[] = [
+  { value: null, label: 'No account default' },
+  ...props.records.map((record) => ({
+    value: record.id,
+    label: record.name,
+    description: record.language,
+  })),
+]
+
+function select(value: ListboxValue): void {
+  selected.value = typeof value === 'string' ? value : ''
+}
 </script>
 
 <template>
@@ -17,7 +33,7 @@ const selected = ref(props.records.find((record) => record.is_music_on_hold)?.id
     width="medium"
     @close="emit('close')"
   >
-    <form class="grid gap-5" @submit.prevent="emit('save', selected || null)">
+    <form class="grid gap-5" novalidate @submit.prevent="emit('save', selected || null)">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -31,15 +47,12 @@ const selected = ref(props.records.find((record) => record.is_music_on_hold)?.id
         </p>
         <label class="mt-5 grid gap-2">
           <span class="text-xs font-semibold text-slate-600">Hold media</span>
-          <FormSelect
-            v-model="selected"
-            class="h-11 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500"
-          >
-            <option value="">No account default</option>
-            <option v-for="record in records" :key="record.id" :value="record.id">
-              {{ record.name }}{{ record.language ? ` · ${record.language}` : '' }}
-            </option>
-          </FormSelect>
+          <FormListbox
+            :model-value="selected || null"
+            :options="options"
+            aria-label="Hold media"
+            @update:model-value="select"
+          />
         </label>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">

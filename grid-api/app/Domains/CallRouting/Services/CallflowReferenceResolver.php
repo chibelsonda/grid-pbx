@@ -52,8 +52,8 @@ class CallflowReferenceResolver
         $children = [];
 
         foreach (is_array($node['children'] ?? null) ? $node['children'] : [] as $branch => $child) {
-            if (is_string($branch) && is_array($child)) {
-                $children[$branch] = $this->resolveNode($child, $targets);
+            if ((is_string($branch) || is_int($branch)) && is_array($child)) {
+                $children[(string) $branch] = $this->resolveNode($child, $targets);
             }
         }
 

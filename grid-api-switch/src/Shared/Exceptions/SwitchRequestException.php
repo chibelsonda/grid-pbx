@@ -9,7 +9,7 @@ use Throwable;
 final class SwitchRequestException extends SwitchException
 {
     /**
-     * @param array<string, mixed> $payload
+     * @param  array<string, mixed>  $payload
      */
     public function __construct(
         string $message,

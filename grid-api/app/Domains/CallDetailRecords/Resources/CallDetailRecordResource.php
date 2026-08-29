@@ -12,6 +12,8 @@ class CallDetailRecordResource extends JsonResource
     /** @return array<string, mixed> */
     public function toArray(Request $request): array
     {
+        $recordings = $this->relationLoaded('recordings') ? $this->recordings : collect();
+
         return [
             'id' => $this->id,
             'call_id' => $this->call_id,
@@ -34,7 +36,13 @@ class CallDetailRecordResource extends JsonResource
             'answered' => $this->billing_seconds > 0,
             'hangup_cause' => $this->hangup_cause,
             'disposition' => $this->disposition,
-            'recording_available' => $this->recording_available,
+            'recording_available' => $this->recording_available || $recordings->contains('has_audio', true),
+            'recordings' => $recordings->map(static fn ($recording): array => [
+                'id' => $recording->id,
+                'name' => $recording->name,
+                'duration_seconds' => $recording->duration_seconds,
+                'has_audio' => $recording->has_audio,
+            ])->values()->all(),
             'extension' => $this->extension === null ? null : [
                 'id' => $this->extension->id,
                 'display_name' => $this->extension->display_name,

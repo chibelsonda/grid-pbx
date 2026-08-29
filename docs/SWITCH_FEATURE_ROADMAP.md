@@ -1,7 +1,7 @@
 # Switch Feature Implementation Roadmap
 
 Status: Active delivery roadmap
-Last updated: 2026-08-28
+Last updated: 2026-08-29
 
 ## 1. Purpose
 
@@ -80,21 +80,21 @@ to `Complete` only through the delivery checklist in section 11.
 
 | Requested area | GridPBX treatment | Persistence and delivery rule | Status |
 | --- | --- | --- | --- |
-| Account | Account mapping, hierarchy, settings, and capability discovery | Project safe account metadata and the redacted detail `data` object | Foundation |
-| Blacklist | Blacklist CRUD, number entries, and account-level inbound activation | Normalized searchable entries, active state, and the complete redacted `data` snapshot delivered | Foundation |
-| CallDetailRecord | Call history, filters, and interaction detail | Project only approved fields and allowlisted `switch_json`; retention and partitioning must be agreed before production scheduling | Foundation |
+| Account | Account mapping, hierarchy, settings, and capability discovery | Safe detail/counts, redacted `switch_json`, typed identity/calling settings, public-UUID caller-ID choices with E911 enforcement, and confirmed audited enable/disable delivered; hierarchy and advanced settings remain | Foundation |
+| Blacklist | Blacklist CRUD, number entries, and account-level inbound activation | Normalized searchable entries, active state, redacted `data`, schema-aligned form validation, and external-flag preservation delivered | Foundation |
+| CallDetailRecord | Call history, filters, interaction detail, and Recording links | Project only approved fields and allowlisted `switch_json`; validated filters and reciprocal public-UUID Recording links delivered; retention and partitioning must be agreed before production scheduling | Foundation |
 | Callflow | Routing inventory, dependency resolution, guided editing, and safe unknown-branch preservation | Project routing summaries and a redacted detail snapshot | Foundation |
 | Conference | Conference configuration, role access numbers, participant behavior, last-observed runtime status, and guided routing | Normalize role-number relationships, retain the full redacted `data` snapshot, and store only PIN-configured flags | Foundation |
 | Device | Device CRUD, user assignment, registrations, and provisioning metadata | Project safe device and registration state; never persist or return SIP secrets | Foundation |
 | Directory | Directory CRUD and user membership | Project directory metadata and relationships | Foundation |
-| Fax | Fax-box configuration, inbound/outbound message inventory, authorized document access, and guided routing | Normalize safe searchable metadata, retain redacted `data` snapshots in `switch_json`, and stream documents on demand | Foundation |
+| Fax | Fax-box configuration, inbound/outbound message inventory, authorized document access, and guided routing | Schema-aligned validated form, safe owner/number/timezone choices, hidden notification/flag preservation, normalized metadata, redacted `data`, and protected document streaming delivered | Foundation |
 | Group | Group and ring-group configuration, membership, endpoints, and strategy | Project group/member relationships and safe configuration | Foundation |
 | LineKey | Device line-key configuration and provisioning preview | Device-owned normalized projection plus redacted device `switch_json`; safe preview is always available and upstream apply is capability-gated | Foundation |
-| Media | Media metadata, prompts, music-on-hold, upload, and authorized streaming | Project metadata and redacted detail only; do not duplicate binary content in MySQL by default | Foundation |
-| Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | CRUD, prompt/media relationships, sync, dependency-safe delete, and guided routing delivered; branch editing remains part of the visual callflow editor | Foundation |
-| PhoneNumber | Number inventory, features, assignment, and approved carrier workflows | Project normalized inventory plus redacted detail snapshots | Foundation |
+| Media | Media metadata, prompts, music-on-hold, upload, and authorized streaming | Schema-aligned upload metadata form, protected audio replacement/streaming, Headless UI music-on-hold choice, hidden prompt/source/TTS preservation, and redacted detail delivered; generated TTS/recording remains capability-gated | Foundation |
+| Menu | IVR menu CRUD, prompt, timeout, retry, and key destinations | CRUD, prompt/media relationships, sync, dependency-safe delete, guided routing, and safe root-level DTMF/timeout branches delivered; deeper branch trees remain part of the visual editor | Foundation |
+| PhoneNumber | Number inventory, features, assignment, and approved carrier workflows | Version-aware feature availability, allowlisted CNAM/E911/porting detail, explicit operation capability gates, and redacted snapshots delivered; carrier mutations remain policy-gated | Foundation |
 | Queue | Queue CRUD, agents, membership, state, and statistics | Capability-driven projection; configuration requires the target ACD/queue application | Foundation |
-| Recording | Recording search, metadata, and authorized playback/download | Bounded metadata-only projection, redacted source snapshot, relationship resolution, audited range streaming, and right-side detail UI delivered; deletion remains disabled pending retention policy | Foundation |
+| Recording | Recording search, metadata, and authorized playback/download | Bounded metadata-only projection, validated advanced filters, redacted source snapshot, reciprocal CDR relationship resolution, audited range streaming, and right-side detail UI delivered; deletion remains disabled pending retention policy | Foundation |
 | Services | Account service-plan, limits, quantities, standing, billing-cycle, and billing-impact summaries exposed by Switch | Administrator-only normalized read projection with redacted `switch_json`; all billing mutations remain disabled | Foundation |
 | SystemStatus | Connectivity, capability, and relevant telephony health summaries | Live checks or short-lived cache; do not persist full infrastructure payloads as durable projections | Foundation |
 | TemporalRule | Business-hours, holiday, time-of-day CRUD, effective status, and operational override | Validated normalized schedules, redacted source snapshots, CRUD, sync, dependency-safe deletion, timezone-aware status, and audited force-active/force-inactive/reset commands delivered | Foundation |
@@ -124,7 +124,7 @@ satisfied.
 | Confirmed capability | Owning domains | Delivery gate | Status |
 | --- | --- | --- | --- |
 | Number purchasing, porting, releasing, CNAM, and E911 changes | Phone numbers, carriers, auditing | Carrier APIs and charges, porting workflow, emergency-service compliance, privileged confirmation, and reconciliation | Planned |
-| Advanced visual callflow editing | Call routing and referenced PBX domains | Version-safe writes, public-ID reference resolution, schema validation, dependency checks, and lossless preservation of unknown branches | Planned |
+| Advanced visual callflow editing | Call routing and referenced PBX domains | Full main-page drag-and-drop graph and action palette, selected-node-only right panel, version-safe writes, public-ID reference resolution, schema validation, dependency checks, and lossless preservation of unknown branches | Planned |
 | Queues and agents | Queues, users, devices, and call routing | Foundation delivered for configuration, roster, live status commands, and guided routing; statistics remain conditional | Foundation |
 | SMS/MMS | Messaging, phone numbers, users, and auditing | Enabled carrier capability, consent, retention, attachment storage, delivery events, and abuse controls | Conditional |
 | Recordings | Recordings, call history, storage, and auditing | Retention policy, legal authorization, access audit, encryption, and streaming/storage decision | Planned |
@@ -359,12 +359,33 @@ structural tree containing modules, branches, resolution state, and public
 GridPBX target UUIDs. Laravel owns the account-authorized list/detail/editor
 API and never returns raw node data, upstream identifiers, or `switch_json`.
 Vue provides search, route-type and module filters plus a recursive tree and a
-guided right-side editor. The first safe mutation can rename a non-feature-code
+guided right-side editor. The guided form uses Zod, Headless UI selectors,
+inline field errors, shared invalid-control styling, and account-scoped public
+UUID choices. Unsupported root modules and supported modules whose target is
+not resolved in the current projection are locked in both the editor response
+and mutation service, preventing a stale or unknown root from being silently
+replaced. The first safe mutation can rename a non-feature-code
 route and replace its root destination with an account-scoped extension,
 device, voicemail box, callflow, or projected media item. Laravel fetches the
 latest Switch detail before writing, resolves the public UUID server-side,
-preserves every child and unknown branch, refreshes the projection, and audits
-the result. The same guided form assigns or removes projected phone-number
+preserves every child and unknown branch, retains module-specific data when the
+module itself is unchanged, refreshes the projection, and audits the result.
+The editor can also create, replace, or clear the root wildcard (`_`) fallback
+through account-scoped public UUIDs. Same-module fallback data and all sibling
+branches are preserved; nested, unsupported, or unresolved fallback subtrees
+are locked in both the editor and mutation service.
+For Menu roots, explicit branch operations cover `timeout`, digits `0–9`, and
+`*`. Numeric keys are normalized as JSON object properties across Switch
+writes, MySQL snapshots, and API responses. Existing legacy `#`, unknown
+vendor keys, and unsafe nested or unresolved key branches remain read-only and
+losslessly preserved.
+For `temporal_route` Rule Set roots, the editor follows Kazoo's documented
+runtime contract: ordered member rules are shown using public GridPBX UUIDs,
+any matching member follows the literal `children.rule_set` branch, and no
+match follows `children._`. The match destination can be created, replaced, or
+cleared without exposing Rule, Rule Set, or destination Switch identifiers.
+Additional legacy temporal branches remain counted and preserved read-only.
+The same guided form assigns or removes projected phone-number
 entry points using public UUIDs. It preserves extension numbers and patterns,
 blocks numbers owned by another route, updates Switch first, and reconciles the
 phone-number projections in the same database transaction. The existing PBX
@@ -374,23 +395,37 @@ projected media dependencies. A guided create panel builds a new single-root
 phone-number route in Switch before projecting it. Deletion is available only
 for ordinary routes with no extension, phone-number, feature-code, resolved
 callflow, or unresolved callflow dependencies; the API rechecks these guards
-before deleting from Switch. Multi-node creation, branch editing, number
-acquisition/release, and the advanced visual canvas remain planned and
-module-gated.
+before deleting from Switch. Focused package, Laravel, Vue, and isolated
+authenticated headless Playwright checks cover the guarded root editor,
+wildcard fallback, Menu-key controls, and Rule Set match routing,
+module-data preservation, numeric-key JSON shape, inline validation, and
+viewport-bounded selectors. The detail panel now renders the full projected
+recursive structure as a scroll-bounded node-and-connector map with semantic
+branch badges. Keyboard-accessible node selection drives a safe inspector
+showing the public branch path, module, resolved destination label, reference
+state, child count, and editing status. Unknown child-map keys are replaced in
+the public response by numbered preserved-branch labels so upstream Switch
+resource IDs cannot leak; the original keys remain internal for lossless
+writes. A searchable, categorized reference palette covers all 73 primary
+module schemas in the checked-in Switch source and distinguishes guided,
+planned, and capability-gated actions without presenting unsupported mutations
+as available. General multi-node creation, number acquisition/release, and
+editable canvas interactions remain planned and module-gated.
 
 ## 6. P2 operational features
 
 | Domain | User-facing capabilities | Switch boundary | Projection notes | Status |
 | --- | --- | --- | --- | --- |
-| Advanced callflows | Visual tree editor, validation, version-safe updates, dependency view | Callflows and referenced resources | Searchable summary plus safe source snapshot | Planned |
-| IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, and guided routing delivered; advanced DTMF branch editing remains planned | Foundation |
-| Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Rule and ordered Rule Set CRUD, projection/sync, safe deletion, and guided routing delivered; effective-state controls remain planned | Foundation |
-| Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Metadata only; binary streamed/stored externally | Foundation |
+| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Selectable read-only recursive canvas, safe node inspector, complete schema-backed reference palette, and guided root/fallback/Menu/Rule Set writes delivered; drag/drop, arbitrary node mutation, and module forms remain planned | Foundation |
+| IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, guided routing, and safe root-level DTMF/timeout branches delivered; deeper recursive editing remains planned | Foundation |
+| Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Rule and ordered Rule Set CRUD, projection/sync, safe deletion, effective status and controls, plus schema-correct `rule_set`/`_` guided routing delivered | Foundation |
+| Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Validated upload/audio panels, protected range streaming, dependency-safe deletion, non-clipping account-default choice, hidden schema-field preservation, and metadata-only MySQL projection delivered | Foundation |
 | Directories | CRUD and user membership | Directories and users | Directory membership projection | Foundation |
 | Groups and ring groups | CRUD, membership, endpoints, ring strategy | Groups, users, devices, callflows | Group/member relationships | Foundation |
 | Conferences | CRUD, role numbers, write-only PIN replacement/removal, participant behavior, and runtime summary | Conferences and callflows | Normalized role-number projection, owner relationship, redacted source snapshot, dependency-safe deletion, guided routing, and right-side panel delivered; live participant commands remain planned | Foundation |
 | Fax boxes | CRUD, owner assignment, inbound/outbound message metadata, protected document access, and guided callflow destinations | Fax boxes, faxes, users, and callflows | Normalized fax-box/message projections, redacted `switch_json`, bounded import window, dependency-safe deletion, right-side panels, and audited document streaming delivered; sending, forwarding, resubmission, and message deletion remain policy-gated | Foundation |
 | Blacklists | CRUD, number entries, anonymous-caller policy, and account activation | Blacklists and account settings | Normalized entries, redacted source snapshot, safe activation/deactivation, sync, and right-side UI panel delivered | Foundation |
+| Phone numbers | Inventory, routing assignment, CNAM, E911, porting, purchasing, and release | Phone numbers, number manager, callflows, and carrier providers | Safe inventory/detail projection and runtime feature-availability matrix delivered; billable and regulated mutations remain disabled until provider, billing, compliance, and confirmation policies are configured | Foundation |
 | Feature codes | View and manage supported star-code callflows for DND, hotdesk, voicemail, and related actions | Callflows | Code, action, enabled state, and dependency summary | Planned |
 | Account voice settings | Caller ID, timezone, language, music on hold, and supported account defaults | Accounts, media, configs | Safe effective-setting summary | Planned |
 | Call history | Search, direction/date/duration/outcome/cause filters, interaction detail | CDRs | Bounded, indexed CDR projection | Foundation |

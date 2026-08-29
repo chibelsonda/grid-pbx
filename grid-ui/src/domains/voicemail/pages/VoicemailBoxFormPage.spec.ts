@@ -28,6 +28,7 @@ describe('VoicemailBoxFormPage', () => {
         name: 'GridPBX',
         realm: 'gridpbx.test',
         timezone: 'Asia/Manila',
+        enabled: true,
         organization: { id: 'organization-1', name: 'GridPBX' },
         organization_role: 'admin',
         permissions: {
@@ -38,6 +39,7 @@ describe('VoicemailBoxFormPage', () => {
           can_manage_media: true,
           can_sync_call_detail_records: true,
           can_view_services: true,
+          can_manage_account_settings: true,
         },
       },
     ]

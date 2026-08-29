@@ -31,6 +31,7 @@ export const useCallflowStore = defineStore('call-routing', {
     error: null as string | null,
     detailError: null as string | null,
     editorError: null as string | null,
+    fieldErrors: {} as Record<string, string[]>,
     mutationError: null as string | null,
   }),
   actions: {
@@ -46,6 +47,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.error = null
       this.detailError = null
       this.editorError = null
+      this.fieldErrors = {}
       this.mutationError = null
     },
     async load(accountId: string, page = 1): Promise<void> {
@@ -90,6 +92,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.editorOpen = true
       this.editor = null
       this.editorError = null
+      this.fieldErrors = {}
       this.editorLoading = true
 
       try {
@@ -107,6 +110,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.editorOpen = true
       this.editor = null
       this.editorError = null
+      this.fieldErrors = {}
       this.editorLoading = true
 
       try {
@@ -123,6 +127,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.editorOpen = false
       this.editor = null
       this.editorError = null
+      this.fieldErrors = {}
     },
     async update(
       accountId: string,
@@ -131,6 +136,7 @@ export const useCallflowStore = defineStore('call-routing', {
     ): Promise<Callflow | null> {
       this.saving = true
       this.editorError = null
+      this.fieldErrors = {}
 
       try {
         const updated = await callflowApi.update(accountId, callflowId, input)
@@ -141,9 +147,13 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.editorError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to update the call route.')
-          : 'Unable to update the call route.'
+        this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+        this.editorError =
+          Object.keys(this.fieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to update the call route.')
+              : 'Unable to update the call route.'
 
         return null
       } finally {
@@ -153,6 +163,7 @@ export const useCallflowStore = defineStore('call-routing', {
     async create(accountId: string, input: CallflowUpdate): Promise<Callflow | null> {
       this.saving = true
       this.editorError = null
+      this.fieldErrors = {}
 
       try {
         const created = await callflowApi.create(accountId, input)
@@ -163,9 +174,13 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return created
       } catch (error) {
-        this.editorError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to create the call route.')
-          : 'Unable to create the call route.'
+        this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+        this.editorError =
+          Object.keys(this.fieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to create the call route.')
+              : 'Unable to create the call route.'
 
         return null
       } finally {
