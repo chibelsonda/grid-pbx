@@ -9,7 +9,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Throwable;

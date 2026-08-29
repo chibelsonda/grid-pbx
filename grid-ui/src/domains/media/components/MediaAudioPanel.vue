@@ -19,7 +19,7 @@ function choose(event: Event): void {
         <span class="grid size-11 place-items-center rounded-md bg-brand-50 text-brand-600"><ArrowUpTrayIcon class="size-5" /></span>
         <h2 class="mt-4 text-sm font-semibold text-slate-700">New audio file</h2>
         <p class="mt-1 text-xs leading-5 text-slate-500">The Switch replaces the binary. MySQL stores only the refreshed content metadata.</p>
-        <input required type="file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" class="mt-5 w-full rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white" @change="choose" />
+        <input required type="file" accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg" class="mt-5 w-full rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white" :aria-invalid="Boolean(fieldErrors.audio)" @change="choose" />
         <span v-if="fieldErrors.audio" class="mt-2 block text-[10px] text-danger">{{ fieldErrors.audio[0] }}</span>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">

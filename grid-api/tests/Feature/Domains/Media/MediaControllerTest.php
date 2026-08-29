@@ -11,7 +11,7 @@ use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailGreeting;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Illuminate\Http\UploadedFile;

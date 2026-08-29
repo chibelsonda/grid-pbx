@@ -1,18 +1,39 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { ChevronDownIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
 import { validationControlClass } from '@/shared/forms/validationStyles'
-import type { DeviceConfiguration, DeviceSipHeader } from '../types/device'
+import type {
+  DeviceConfiguration,
+  DeviceMetaflowResources,
+  DeviceSchemaCompatibility,
+  DeviceSipHeader,
+} from '../types/device'
+import DeviceFormatterSettings from './DeviceFormatterSettings.vue'
+import DeviceMetaflowSettings from './DeviceMetaflowSettings.vue'
 
 const props = defineProps<{
   fieldErrors: Record<string, string[]>
   mediaOptions: Array<{ id: string; name: string | null }>
+  metaflowResources: DeviceMetaflowResources
+  extensionOptions: Array<{ id: string; display_name: string; extension: string | null }>
   supportsSip: boolean
+  supportsProvisioning: boolean
+  schemaCompatibility: DeviceSchemaCompatibility
 }>()
 const configuration = defineModel<DeviceConfiguration>({ required: true })
 const headerDirections = ['in', 'out'] as const
+const provisioningEventFields = computed(() =>
+  (
+    [
+      { key: 'check_sync_event', label: 'Check-sync event' },
+      { key: 'check_sync_reload', label: 'Reload event' },
+      { key: 'check_sync_reboot', label: 'Reboot event' },
+    ] as const
+  ).filter((field) => props.schemaCompatibility.provision[field.key]),
+)
 
 const staticFlags = useDelimitedStringList(
   () => configuration.value.outbound_flags.static,
@@ -25,6 +46,10 @@ const dynamicFlags = useDelimitedStringList(
 const systemDialPlans = useDelimitedStringList(
   () => configuration.value.dial_plan.system,
   (values) => (configuration.value.dial_plan.system = values),
+)
+const generalFlags = useDelimitedStringList(
+  () => configuration.value.flags,
+  (values) => (configuration.value.flags = values),
 )
 
 function error(field: string): string | null {
@@ -96,6 +121,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               rows="2"
               class="field-control min-h-20 py-2"
               :class="invalidClass('outbound_flags.static')"
+              :aria-invalid="Boolean(error('outbound_flags.static'))"
               placeholder="fax, trusted"
             />
             <span class="text-[10px] text-slate-400">Separate flags with commas or new lines.</span>
@@ -107,10 +133,76 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               rows="2"
               class="field-control min-h-20 py-2"
               :class="invalidClass('outbound_flags.dynamic')"
+              :aria-invalid="Boolean(error('outbound_flags.dynamic'))"
               placeholder="Optional runtime flags"
             />
             <span class="text-[10px] text-slate-400">Resolved by the Switch at call time.</span>
           </label>
+        </DisclosurePanel>
+      </div>
+    </Disclosure>
+
+    <Disclosure v-slot="{ open }">
+      <div class="rounded-md border border-slate-200">
+        <DisclosureButton
+          class="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-semibold text-slate-700"
+        >
+          General flags and formatters
+          <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
+        </DisclosureButton>
+        <DisclosurePanel class="grid gap-5 border-t border-slate-100 p-4">
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Application flags</span>
+            <textarea
+              v-model="generalFlags"
+              rows="2"
+              class="field-control min-h-20 py-2"
+              :class="invalidClass('flags')"
+              :aria-invalid="Boolean(error('flags'))"
+              placeholder="crm_managed, priority_endpoint"
+            />
+            <span class="text-[10px] text-slate-400">
+              Flags consumed by external applications; separate with commas or new lines.
+            </span>
+          </label>
+          <DeviceFormatterSettings v-model="configuration.formatters" :field-errors="fieldErrors" />
+        </DisclosurePanel>
+      </div>
+    </Disclosure>
+
+    <Disclosure
+      v-if="
+        supportsProvisioning &&
+        (schemaCompatibility.provision.check_sync_event ||
+          schemaCompatibility.provision.check_sync_reload ||
+          schemaCompatibility.provision.check_sync_reboot)
+      "
+      v-slot="{ open }"
+    >
+      <div class="rounded-md border border-slate-200">
+        <DisclosureButton
+          class="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-semibold text-slate-700"
+        >
+          Provisioning events
+          <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
+        </DisclosureButton>
+        <DisclosurePanel class="grid gap-4 border-t border-slate-100 p-4 sm:grid-cols-3">
+          <label v-for="field in provisioningEventFields" :key="field.key" class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">{{ field.label }}</span>
+            <input
+              v-model="configuration.provision[field.key]"
+              maxlength="255"
+              class="field-control font-mono"
+              :class="invalidClass(`provision.${field.key}`)"
+              :aria-invalid="Boolean(error(`provision.${field.key}`))"
+              placeholder="Switch default"
+            />
+          </label>
+          <p class="text-[10px] leading-4 text-slate-400 sm:col-span-3">
+            These optional event names configure how this provisioned endpoint reacts to Switch
+            check-sync requests. Reload and reboot commands remain explicit actions on the detail
+            page.
+          </p>
         </DisclosurePanel>
       </div>
     </Disclosure>
@@ -154,6 +246,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
                 maxlength="128"
                 class="field-control font-mono"
                 :class="invalidClass(`sip.custom_sip_headers.${direction}.${index}.name`)"
+                :aria-invalid="Boolean(error(`sip.custom_sip_headers.${direction}.${index}.name`))"
                 placeholder="X-Header"
                 :aria-label="`${direction} SIP header name`"
               />
@@ -162,6 +255,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
                 maxlength="1024"
                 class="field-control"
                 :class="invalidClass(`sip.custom_sip_headers.${direction}.${index}.value`)"
+                :aria-invalid="Boolean(error(`sip.custom_sip_headers.${direction}.${index}.value`))"
                 placeholder="Value"
                 :aria-label="`${direction} SIP header value`"
               />
@@ -197,6 +291,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               v-model="systemDialPlans"
               class="field-control"
               :class="invalidClass('dial_plan.system')"
+              :aria-invalid="Boolean(error('dial_plan.system'))"
               placeholder="System plan names, comma separated"
             />
           </label>
@@ -222,6 +317,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
                 maxlength="512"
                 class="field-control font-mono"
                 :class="invalidClass(`dial_plan.rules.${index}.pattern`)"
+                :aria-invalid="Boolean(error(`dial_plan.rules.${index}.pattern`))"
                 placeholder="^([2-9][0-9]{6})$"
               />
             </label>
@@ -280,6 +376,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               max="60000"
               class="field-control"
               :class="invalidClass('metaflows.digit_timeout')"
+              :aria-invalid="Boolean(error('metaflows.digit_timeout'))"
             />
           </label>
           <label class="grid gap-2">
@@ -296,13 +393,21 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
           </label>
           <div class="rounded-md bg-slate-50 p-3 text-[11px] text-slate-500 sm:col-span-3">
             Existing metaflow actions: {{ configuration.metaflows.number_flow_count }} number
-            flow(s) and {{ configuration.metaflows.pattern_flow_count }} pattern flow(s). Action
-            editing belongs in the visual callflow editor and is not exposed as raw JSON here.
+            flow(s) and {{ configuration.metaflows.pattern_flow_count }} pattern flow(s).
           </div>
+          <DeviceMetaflowSettings
+            v-model="configuration.metaflows.actions"
+            :field-errors="fieldErrors"
+            :locked-action-count="configuration.metaflows.locked_action_count"
+            :media-options="mediaOptions"
+            :callflow-options="metaflowResources.callflows"
+            :device-options="metaflowResources.devices"
+            :extension-options="extensionOptions"
+          />
           <div class="rounded-md bg-slate-50 p-3 text-[11px] text-slate-500 sm:col-span-3">
             Hotdesk users active on this device: {{ configuration.hotdesk.active_user_count }}.
-            Membership is managed from People & Extensions so user resource identifiers are never
-            exposed by this form.
+            Manage active sign-ins from the saved Device detail page; Switch user identifiers are
+            resolved server-side and never exposed here.
           </div>
         </DisclosurePanel>
       </div>

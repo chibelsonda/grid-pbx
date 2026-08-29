@@ -4,8 +4,8 @@ namespace App\Domains\LineKeys\Gateways;
 
 use App\Domains\LineKeys\Contracts\SwitchLineKeyGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
-use GridPbx\Switch\Dto\LineKeys\LineKeyWriteData;
-use GridPbx\Switch\Resources\LineKeyResourceClient;
+use GridPbx\Switch\Domains\LineKeys\Dto\LineKeyWriteData;
+use GridPbx\Switch\Domains\LineKeys\LineKeyResourceClient;
 
 class CrossbarSwitchLineKeyGateway implements SwitchLineKeyGateway
 {

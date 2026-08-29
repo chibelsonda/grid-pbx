@@ -40,6 +40,23 @@ class ExtensionDetailResource extends JsonResource
                 'caller_id_options' => [
                     'outbound_privacy' => $this->safeOutboundPrivacy(),
                 ],
+                'credentials' => [
+                    'password_configured' => is_string($this->username) && $this->username !== '',
+                    'require_password_update' => $this->safeBoolean(
+                        ['require_password_update'],
+                        false,
+                    ),
+                ],
+                'hotdesk' => [
+                    'enabled' => $this->safeBoolean(['hotdesk', 'enabled'], false),
+                    'id' => $this->safeNestedString(['hotdesk', 'id']),
+                    'keep_logged_in_elsewhere' => $this->safeBoolean(
+                        ['hotdesk', 'keep_logged_in_elsewhere'],
+                        false,
+                    ),
+                    'require_pin' => $this->safeBoolean(['hotdesk', 'require_pin'], false),
+                    'pin_configured' => $this->safeNestedString(['hotdesk', 'pin']) !== null,
+                ],
             ],
             'devices' => $this->devices->map(fn ($device): array => [
                 'id' => $device->id,
@@ -82,6 +99,22 @@ class ExtensionDetailResource extends JsonResource
     private function safeString(string $key): ?string
     {
         $value = $this->switch_json[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @param list<string> $path */
+    private function safeNestedString(array $path): ?string
+    {
+        $value = $this->switch_json;
+
+        foreach ($path as $segment) {
+            if (! is_array($value) || ! array_key_exists($segment, $value)) {
+                return null;
+            }
+
+            $value = $value[$segment];
+        }
 
         return is_string($value) && $value !== '' ? $value : null;
     }

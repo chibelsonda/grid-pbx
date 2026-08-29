@@ -4,8 +4,8 @@ namespace App\Domains\Queues\Gateways;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Contracts\SwitchAgentGateway;
-use GridPbx\Switch\Dto\Agents\AgentStatusWriteData;
-use GridPbx\Switch\Resources\AgentResourceClient;
+use GridPbx\Switch\Domains\Agents\AgentResourceClient;
+use GridPbx\Switch\Domains\Agents\Dto\AgentStatusWriteData;
 
 class CrossbarSwitchAgentGateway implements SwitchAgentGateway
 {

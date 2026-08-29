@@ -4,7 +4,7 @@ namespace App\Domains\Media\Contracts;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use Psr\Http\Message\StreamInterface;
 
 interface SwitchMediaGateway

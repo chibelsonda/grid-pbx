@@ -4,10 +4,10 @@ namespace App\Domains\Voicemail\Gateways;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailGreetingGateway;
-use GridPbx\Switch\Dto\Media\MediaWriteData;
-use GridPbx\Switch\Http\BinaryResponse;
-use GridPbx\Switch\Resources\MediaResourceClient;
-use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
+use GridPbx\Switch\Domains\Media\Dto\MediaWriteData;
+use GridPbx\Switch\Domains\Media\MediaResourceClient;
+use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use Psr\Http\Message\StreamInterface;
 
 class CrossbarSwitchVoicemailGreetingGateway implements SwitchVoicemailGreetingGateway

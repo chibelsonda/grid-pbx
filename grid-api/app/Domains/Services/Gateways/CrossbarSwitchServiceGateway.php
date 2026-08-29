@@ -4,7 +4,7 @@ namespace App\Domains\Services\Gateways;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Services\Contracts\SwitchServiceGateway;
-use GridPbx\Switch\Resources\ServiceResourceClient;
+use GridPbx\Switch\Domains\Services\ServiceResourceClient;
 
 class CrossbarSwitchServiceGateway implements SwitchServiceGateway
 {

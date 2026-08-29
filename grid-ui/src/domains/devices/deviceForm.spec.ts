@@ -2,12 +2,20 @@ import { describe, expect, it } from 'vitest'
 import {
   defaultDeviceConfiguration,
   deviceAdvancedTabForError,
+  deviceFieldCapabilities,
   deviceFormTabs,
+  deviceOptionCapabilities,
   deviceTypes,
   hydrateDeviceConfiguration,
   hydrateDeviceRestrictions,
   isBasicDeviceErrorField,
+  supportsFaxOption,
+  supportsIgnoreCompletedElsewhere,
+  supportsMusicOnHold,
+  supportsOutboundFlags,
   supportsProvisioning,
+  supportsDeviceOption,
+  supportsDeviceFieldGroup,
   supportsVideo,
   usesForwarding,
   usesSip,
@@ -36,6 +44,15 @@ describe('device form schema', () => {
     expect(supportsVideo('softphone')).toBe(true)
     expect(supportsVideo('fax')).toBe(false)
     expect(supportsProvisioning('ata')).toBe(true)
+    expect(supportsFaxOption('sip_device')).toBe(true)
+    expect(supportsFaxOption('softphone')).toBe(true)
+    expect(supportsFaxOption('smartphone')).toBe(false)
+    expect(supportsIgnoreCompletedElsewhere('sip_device')).toBe(true)
+    expect(supportsIgnoreCompletedElsewhere('fax')).toBe(false)
+    expect(supportsOutboundFlags('smartphone')).toBe(true)
+    expect(supportsOutboundFlags('fax')).toBe(false)
+    expect(supportsMusicOnHold('softphone')).toBe(true)
+    expect(supportsMusicOnHold('ata')).toBe(false)
   })
 
   it('uses a per-device tab matrix based on the Kazoo workflow and Switch capabilities', () => {
@@ -49,13 +66,59 @@ describe('device form schema', () => {
     )
   })
 
+  it('uses a field-level capability matrix for all eight device types', () => {
+    expect(Object.keys(deviceFieldCapabilities)).toEqual([
+      'sip_device',
+      'cellphone',
+      'smartphone',
+      'softphone',
+      'landline',
+      'fax',
+      'ata',
+      'sip_uri',
+    ])
+
+    for (const deviceType of deviceTypes.map((type) => type.value)) {
+      expect(supportsDeviceFieldGroup(deviceType, 'contact-list')).toBe(true)
+    }
+
+    expect(supportsDeviceFieldGroup('sip_uri', 'endpoint-behavior')).toBe(false)
+    expect(supportsDeviceFieldGroup('sip_uri', 'advanced-routing')).toBe(false)
+    expect(supportsDeviceFieldGroup('sip_device', 'advanced-routing')).toBe(true)
+  })
+
+  it('uses the audited Kazoo Options matrix for all eight device types', () => {
+    expect(Object.keys(deviceOptionCapabilities)).toEqual(deviceTypes.map((type) => type.value))
+    expect([...deviceOptionCapabilities.sip_device]).toEqual([
+      'ringtones',
+      'fax',
+      'contact-list',
+      'ignore-completed-elsewhere',
+    ])
+    expect([...deviceOptionCapabilities.cellphone]).toEqual(['forwarding', 'contact-list'])
+    expect([...deviceOptionCapabilities.smartphone]).toEqual(['forwarding', 'contact-list'])
+    expect([...deviceOptionCapabilities.softphone]).toEqual([
+      'fax',
+      'contact-list',
+      'ignore-completed-elsewhere',
+    ])
+    expect([...deviceOptionCapabilities.landline]).toEqual(['forwarding', 'contact-list'])
+    expect([...deviceOptionCapabilities.fax]).toEqual(['fax', 'contact-list'])
+    expect([...deviceOptionCapabilities.ata]).toEqual(['fax', 'contact-list'])
+    expect([...deviceOptionCapabilities.sip_uri]).toEqual(['contact-list'])
+    expect(supportsDeviceOption('sip_uri', 'fax')).toBe(false)
+  })
+
   it('routes validation errors to their visible form tabs', () => {
     expect(isBasicDeviceErrorField('name')).toBe(true)
     expect(isBasicDeviceErrorField('provision.endpoint_model')).toBe(true)
     expect(isBasicDeviceErrorField('sip.password')).toBe(false)
     expect(deviceAdvancedTabForError('sip.password')).toBe('sip')
+    expect(deviceAdvancedTabForError('sip.ignore_completed_elsewhere')).toBe('options')
     expect(deviceAdvancedTabForError('media.progress_timeout')).toBe('audio')
     expect(deviceAdvancedTabForError('media.video.codecs')).toBe('video')
+    expect(deviceAdvancedTabForError('outbound_flags.static', 'sip_device')).toBe('sip')
+    expect(deviceAdvancedTabForError('music_on_hold.media_id', 'softphone')).toBe('audio')
     expect(deviceAdvancedTabForError('call_recording.inbound.offnet.time_limit')).toBe('options')
     expect(deviceAdvancedTabForError('caller_id.external.number')).toBe('caller-id')
     expect(deviceAdvancedTabForError('call_restriction.international.action')).toBe('restrictions')

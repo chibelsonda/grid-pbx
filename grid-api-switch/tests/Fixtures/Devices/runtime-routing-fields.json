@@ -1,0 +1,3439 @@
+{
+    "captured_at": "2026-08-28T23:54:21+00:00",
+    "purpose": "Live create/edit/clear verification for JSON-backed Device routing, restrictions, codec order, ringtones, flags, formatters, and provisioning fields.",
+    "temporary_resources_removed": true,
+    "connected_schema": {
+        "id": "devices",
+        "call_forward_number_max_length": 15,
+        "invite_formats": [
+            "username",
+            "npan",
+            "1npan",
+            "e164",
+            "route",
+            "contact"
+        ],
+        "sip_fields": {
+            "custom_sip_interface": false,
+            "forward": false,
+            "proxy": false,
+            "static_invite": false,
+            "transport": false
+        },
+        "provision_template_id": false,
+        "provision_endpoint_model_array": false,
+        "legacy_provisioning_fields": {
+            "check_sync_event": true,
+            "check_sync_reload": true,
+            "check_sync_reboot": true
+        }
+    },
+    "device_types": {
+        "sip_device": {
+            "create_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_sip_device_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_device 20260828235421",
+                "device_type": "sip_device",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-created",
+                    "check_sync_reload": "gridpbx-reload-created",
+                    "check_sync_reboot": "gridpbx-reboot-created"
+                },
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "OPUS",
+                            "PCMU",
+                            "PCMA"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "VP8",
+                            "H264"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "ae428aedafc1a42c955268c410225f68"
+            },
+            "create_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_sip_device_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_device 20260828235421",
+                "device_type": "sip_device",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-created",
+                    "check_sync_reload": "gridpbx-reload-created",
+                    "check_sync_reboot": "gridpbx-reboot-created"
+                },
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "OPUS",
+                            "PCMU",
+                            "PCMA"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "VP8",
+                            "H264"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "ae428aedafc1a42c955268c410225f68"
+            },
+            "edit_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_sip_device_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_device Edited 20260828235421",
+                "device_type": "sip_device",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-edited",
+                    "check_sync_reload": "gridpbx-reload-edited",
+                    "check_sync_reboot": "gridpbx-reboot-edited"
+                },
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "PCMA",
+                            "OPUS"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "H264",
+                            "VP8"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "ae428aedafc1a42c955268c410225f68"
+            },
+            "edit_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_sip_device_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_device Edited 20260828235421",
+                "device_type": "sip_device",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-edited",
+                    "check_sync_reload": "gridpbx-reload-edited",
+                    "check_sync_reboot": "gridpbx-reboot-edited"
+                },
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "PCMA",
+                            "OPUS"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "H264",
+                            "VP8"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "ae428aedafc1a42c955268c410225f68"
+            },
+            "clear_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_sip_device_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_device Cleared 20260828235421",
+                "device_type": "sip_device",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "",
+                    "check_sync_reload": "",
+                    "check_sync_reboot": ""
+                },
+                "media": {
+                    "audio": {
+                        "codecs": []
+                    },
+                    "video": {
+                        "codecs": []
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "ae428aedafc1a42c955268c410225f68"
+            },
+            "clear_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_sip_device_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_device Cleared 20260828235421",
+                "device_type": "sip_device",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "",
+                    "check_sync_reload": "",
+                    "check_sync_reboot": ""
+                },
+                "media": {
+                    "audio": {
+                        "codecs": []
+                    },
+                    "video": {
+                        "codecs": []
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "ae428aedafc1a42c955268c410225f68"
+            }
+        },
+        "cellphone": {
+            "create_response": {
+                "name": "GridPBX Audit cellphone 20260828235421",
+                "device_type": "cellphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15551234567",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "id": "e67ccb219da76b25bad55c247f3ab2bd"
+            },
+            "create_read": {
+                "name": "GridPBX Audit cellphone 20260828235421",
+                "device_type": "cellphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15551234567",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "id": "e67ccb219da76b25bad55c247f3ab2bd"
+            },
+            "edit_response": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit cellphone Edited 20260828235421",
+                "device_type": "cellphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15557654321",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "e67ccb219da76b25bad55c247f3ab2bd"
+            },
+            "edit_read": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit cellphone Edited 20260828235421",
+                "device_type": "cellphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15557654321",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "e67ccb219da76b25bad55c247f3ab2bd"
+            },
+            "clear_response": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit cellphone Cleared 20260828235421",
+                "device_type": "cellphone",
+                "call_forward": {
+                    "enabled": false,
+                    "number": "",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "e67ccb219da76b25bad55c247f3ab2bd"
+            },
+            "clear_read": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit cellphone Cleared 20260828235421",
+                "device_type": "cellphone",
+                "call_forward": {
+                    "enabled": false,
+                    "number": "",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "e67ccb219da76b25bad55c247f3ab2bd"
+            }
+        },
+        "smartphone": {
+            "create_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_smartphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit smartphone 20260828235421",
+                "device_type": "smartphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15551234567",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "333f23aaca94593bc53f20a7bda1f209"
+            },
+            "create_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_smartphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit smartphone 20260828235421",
+                "device_type": "smartphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15551234567",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "333f23aaca94593bc53f20a7bda1f209"
+            },
+            "edit_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_smartphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit smartphone Edited 20260828235421",
+                "device_type": "smartphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15557654321",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "333f23aaca94593bc53f20a7bda1f209"
+            },
+            "edit_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_smartphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit smartphone Edited 20260828235421",
+                "device_type": "smartphone",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15557654321",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "333f23aaca94593bc53f20a7bda1f209"
+            },
+            "clear_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_smartphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit smartphone Cleared 20260828235421",
+                "device_type": "smartphone",
+                "call_forward": {
+                    "enabled": false,
+                    "number": "",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "333f23aaca94593bc53f20a7bda1f209"
+            },
+            "clear_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_smartphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit smartphone Cleared 20260828235421",
+                "device_type": "smartphone",
+                "call_forward": {
+                    "enabled": false,
+                    "number": "",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "333f23aaca94593bc53f20a7bda1f209"
+            }
+        },
+        "softphone": {
+            "create_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_softphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit softphone 20260828235421",
+                "device_type": "softphone",
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "OPUS",
+                            "PCMU",
+                            "PCMA"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "VP8",
+                            "H264"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "50cfcc8bb2b74b8961d4be88be655215"
+            },
+            "create_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_softphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit softphone 20260828235421",
+                "device_type": "softphone",
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "OPUS",
+                            "PCMU",
+                            "PCMA"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "VP8",
+                            "H264"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "50cfcc8bb2b74b8961d4be88be655215"
+            },
+            "edit_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_softphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit softphone Edited 20260828235421",
+                "device_type": "softphone",
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "PCMA",
+                            "OPUS"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "H264",
+                            "VP8"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "50cfcc8bb2b74b8961d4be88be655215"
+            },
+            "edit_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_softphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit softphone Edited 20260828235421",
+                "device_type": "softphone",
+                "media": {
+                    "audio": {
+                        "codecs": [
+                            "PCMA",
+                            "OPUS"
+                        ]
+                    },
+                    "video": {
+                        "codecs": [
+                            "H264",
+                            "VP8"
+                        ]
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "50cfcc8bb2b74b8961d4be88be655215"
+            },
+            "clear_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_softphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit softphone Cleared 20260828235421",
+                "device_type": "softphone",
+                "media": {
+                    "audio": {
+                        "codecs": []
+                    },
+                    "video": {
+                        "codecs": []
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "50cfcc8bb2b74b8961d4be88be655215"
+            },
+            "clear_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_softphone_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit softphone Cleared 20260828235421",
+                "device_type": "softphone",
+                "media": {
+                    "audio": {
+                        "codecs": []
+                    },
+                    "video": {
+                        "codecs": []
+                    },
+                    "encryption": {
+                        "enforce_security": false,
+                        "methods": []
+                    }
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "50cfcc8bb2b74b8961d4be88be655215"
+            }
+        },
+        "landline": {
+            "create_response": {
+                "name": "GridPBX Audit landline 20260828235421",
+                "device_type": "landline",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15551234567",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "id": "ae775d3dd52ce9a3adf7ac90fb038855"
+            },
+            "create_read": {
+                "name": "GridPBX Audit landline 20260828235421",
+                "device_type": "landline",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15551234567",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "id": "ae775d3dd52ce9a3adf7ac90fb038855"
+            },
+            "edit_response": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit landline Edited 20260828235421",
+                "device_type": "landline",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15557654321",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "ae775d3dd52ce9a3adf7ac90fb038855"
+            },
+            "edit_read": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit landline Edited 20260828235421",
+                "device_type": "landline",
+                "call_forward": {
+                    "enabled": true,
+                    "number": "+15557654321",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "ae775d3dd52ce9a3adf7ac90fb038855"
+            },
+            "clear_response": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit landline Cleared 20260828235421",
+                "device_type": "landline",
+                "call_forward": {
+                    "enabled": false,
+                    "number": "",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "ae775d3dd52ce9a3adf7ac90fb038855"
+            },
+            "clear_read": {
+                "sip": {
+                    "expire_seconds": 300,
+                    "invite_format": "contact",
+                    "method": "password"
+                },
+                "name": "GridPBX Audit landline Cleared 20260828235421",
+                "device_type": "landline",
+                "call_forward": {
+                    "enabled": false,
+                    "number": "",
+                    "direct_calls_only": false,
+                    "failover": false,
+                    "ignore_early_media": true,
+                    "keep_caller_id": true,
+                    "require_keypress": true,
+                    "substitute": true
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "ae775d3dd52ce9a3adf7ac90fb038855"
+            }
+        },
+        "fax": {
+            "create_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_fax_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit fax 20260828235421",
+                "device_type": "fax",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-created",
+                    "check_sync_reload": "gridpbx-reload-created",
+                    "check_sync_reboot": "gridpbx-reboot-created"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "e34fcfe2e20b239385e87d4e948800b0"
+            },
+            "create_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_fax_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit fax 20260828235421",
+                "device_type": "fax",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-created",
+                    "check_sync_reload": "gridpbx-reload-created",
+                    "check_sync_reboot": "gridpbx-reboot-created"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "e34fcfe2e20b239385e87d4e948800b0"
+            },
+            "edit_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_fax_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit fax Edited 20260828235421",
+                "device_type": "fax",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-edited",
+                    "check_sync_reload": "gridpbx-reload-edited",
+                    "check_sync_reboot": "gridpbx-reboot-edited"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "e34fcfe2e20b239385e87d4e948800b0"
+            },
+            "edit_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_fax_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit fax Edited 20260828235421",
+                "device_type": "fax",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-edited",
+                    "check_sync_reload": "gridpbx-reload-edited",
+                    "check_sync_reboot": "gridpbx-reboot-edited"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "e34fcfe2e20b239385e87d4e948800b0"
+            },
+            "clear_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_fax_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit fax Cleared 20260828235421",
+                "device_type": "fax",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "",
+                    "check_sync_reload": "",
+                    "check_sync_reboot": ""
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "e34fcfe2e20b239385e87d4e948800b0"
+            },
+            "clear_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_fax_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit fax Cleared 20260828235421",
+                "device_type": "fax",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "",
+                    "check_sync_reload": "",
+                    "check_sync_reboot": ""
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "e34fcfe2e20b239385e87d4e948800b0"
+            }
+        },
+        "ata": {
+            "create_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_ata_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit ata 20260828235421",
+                "device_type": "ata",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-created",
+                    "check_sync_reload": "gridpbx-reload-created",
+                    "check_sync_reboot": "gridpbx-reboot-created"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "044ea219c5113637bf6e978dcb23fb1e"
+            },
+            "create_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_ata_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit ata 20260828235421",
+                "device_type": "ata",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-created",
+                    "check_sync_reload": "gridpbx-reload-created",
+                    "check_sync_reboot": "gridpbx-reboot-created"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "deny"
+                    },
+                    "international": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-created",
+                    "external": "gridpbx-external-created"
+                },
+                "id": "044ea219c5113637bf6e978dcb23fb1e"
+            },
+            "edit_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_ata_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit ata Edited 20260828235421",
+                "device_type": "ata",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-edited",
+                    "check_sync_reload": "gridpbx-reload-edited",
+                    "check_sync_reboot": "gridpbx-reboot-edited"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "044ea219c5113637bf6e978dcb23fb1e"
+            },
+            "edit_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_ata_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit ata Edited 20260828235421",
+                "device_type": "ata",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "gridpbx-edited",
+                    "check_sync_reload": "gridpbx-reload-edited",
+                    "check_sync_reboot": "gridpbx-reboot-edited"
+                },
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "deny"
+                    }
+                },
+                "ringtones": {
+                    "internal": "gridpbx-internal-edited",
+                    "external": "gridpbx-external-edited"
+                },
+                "id": "044ea219c5113637bf6e978dcb23fb1e"
+            },
+            "clear_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_ata_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit ata Cleared 20260828235421",
+                "device_type": "ata",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "",
+                    "check_sync_reload": "",
+                    "check_sync_reboot": ""
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "044ea219c5113637bf6e978dcb23fb1e"
+            },
+            "clear_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_ata_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "contact",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit ata Cleared 20260828235421",
+                "device_type": "ata",
+                "provision": {
+                    "endpoint_brand": "yealink",
+                    "endpoint_family": "t5",
+                    "endpoint_model": "t54w",
+                    "check_sync_event": "",
+                    "check_sync_reload": "",
+                    "check_sync_reboot": ""
+                },
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": {
+                    "closed_groups": {
+                        "action": "inherit"
+                    },
+                    "international": {
+                        "action": "inherit"
+                    },
+                    "unknown": {
+                        "action": "inherit"
+                    }
+                },
+                "ringtones": {
+                    "internal": "",
+                    "external": ""
+                },
+                "id": "044ea219c5113637bf6e978dcb23fb1e"
+            }
+        },
+        "sip_uri": {
+            "create_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "route",
+                    "route": "sip:gridpbx-audit@example.invalid",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_uri 20260828235421",
+                "device_type": "sip_uri",
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "8a8ab5f7b13cd45bf7786e3311a7412a"
+            },
+            "create_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "route",
+                    "route": "sip:gridpbx-audit@example.invalid",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "created"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "created"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_uri 20260828235421",
+                "device_type": "sip_uri",
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-created",
+                    "dynamic-created"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^91([0-9]{7})$": {
+                        "description": "GridPBX audit create rule",
+                        "prefix": "+1555"
+                    }
+                },
+                "metaflows": {
+                    "binding_digit": "*",
+                    "digit_timeout": 2200,
+                    "listen_on": "both",
+                    "numbers": {
+                        "51": {
+                            "module": "transfer",
+                            "data": {
+                                "target": "1001",
+                                "transfer_type": "blind",
+                                "captures": [
+                                    "no_match"
+                                ]
+                            },
+                            "children": []
+                        }
+                    },
+                    "patterns": []
+                },
+                "flags": [
+                    "gridpbx-audit-created"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "outbound",
+                            "prefix": "+1",
+                            "regex": "^([0-9]+)$"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "8a8ab5f7b13cd45bf7786e3311a7412a"
+            },
+            "edit_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "route",
+                    "route": "sip:gridpbx-audit@example.invalid",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_uri Edited 20260828235421",
+                "device_type": "sip_uri",
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "8a8ab5f7b13cd45bf7786e3311a7412a"
+            },
+            "edit_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "route",
+                    "route": "sip:gridpbx-audit@example.invalid",
+                    "custom_sip_headers": {
+                        "in": {
+                            "X-GridPBX-Audit-In": "edited"
+                        },
+                        "out": {
+                            "X-GridPBX-Audit-Out": "edited"
+                        }
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_uri Edited 20260828235421",
+                "device_type": "sip_uri",
+                "music_on_hold": {
+                    "media_id": "b27691422f402e180840449b53cd5a62"
+                },
+                "outbound_flags": [
+                    "gridpbx-edited",
+                    "dynamic-edited"
+                ],
+                "dial_plan": {
+                    "system": [
+                        "north_america"
+                    ],
+                    "^81([0-9]{7})$": {
+                        "description": "GridPBX audit edit rule",
+                        "prefix": "+1444",
+                        "suffix": "#"
+                    }
+                },
+                "metaflows": {
+                    "numbers": [],
+                    "binding_digit": "#",
+                    "digit_timeout": 1800,
+                    "listen_on": "self",
+                    "patterns": {
+                        "^52([0-9]+)$": {
+                            "module": "hangup",
+                            "data": [],
+                            "children": []
+                        }
+                    }
+                },
+                "flags": [
+                    "gridpbx-audit-edited"
+                ],
+                "formatters": {
+                    "request": [
+                        {
+                            "direction": "inbound",
+                            "suffix": "#",
+                            "value": "audit-edited"
+                        }
+                    ]
+                },
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "8a8ab5f7b13cd45bf7786e3311a7412a"
+            },
+            "clear_response": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "route",
+                    "route": "sip:gridpbx-audit@example.invalid",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_uri Cleared 20260828235421",
+                "device_type": "sip_uri",
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "8a8ab5f7b13cd45bf7786e3311a7412a"
+            },
+            "clear_read": {
+                "sip": {
+                    "method": "password",
+                    "username": "audit_20260828235421",
+                    "password": "[REDACTED]",
+                    "invite_format": "route",
+                    "route": "sip:gridpbx-audit@example.invalid",
+                    "custom_sip_headers": {
+                        "in": [],
+                        "out": []
+                    },
+                    "expire_seconds": 300
+                },
+                "name": "GridPBX Audit sip_uri Cleared 20260828235421",
+                "device_type": "sip_uri",
+                "music_on_hold": [],
+                "outbound_flags": [],
+                "dial_plan": {
+                    "system": []
+                },
+                "metaflows": {
+                    "patterns": [],
+                    "numbers": [],
+                    "binding_digit": "*"
+                },
+                "flags": [],
+                "formatters": [],
+                "call_restriction": [],
+                "ringtones": [],
+                "id": "8a8ab5f7b13cd45bf7786e3311a7412a"
+            }
+        }
+    }
+}

@@ -9,9 +9,15 @@ import {
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import { deviceTypes } from '@/domains/devices/deviceForm'
-import { defaultExtensionUserConfiguration } from '../extensionForm'
+import {
+  defaultExtensionCredentialsInput,
+  defaultExtensionHotdeskInput,
+  defaultExtensionUserConfiguration,
+} from '../extensionForm'
 import { extensionCreateSchema } from '../schemas/extensionFormSchema'
 import type { ExtensionCreate } from '../types/extension'
+import ExtensionCredentialsProfile from './ExtensionCredentialsProfile.vue'
+import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
 
 const props = defineProps<{
@@ -21,6 +27,8 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; save: [input: ExtensionCreate] }>()
 const userConfiguration = reactive(defaultExtensionUserConfiguration())
+const credentials = reactive(defaultExtensionCredentialsInput())
+const hotdesk = reactive(defaultExtensionHotdeskInput())
 const clientErrors = ref<FormErrors>({})
 const validationError = ref<string | null>(null)
 const displayErrors = computed(() => ({ ...props.fieldErrors, ...clientErrors.value }))
@@ -28,7 +36,6 @@ const form = reactive({
   firstName: '',
   lastName: '',
   extension: '',
-  username: '',
   email: '',
   timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
   isEnabled: true,
@@ -57,11 +64,21 @@ function submit(): void {
     first_name: form.firstName.trim(),
     last_name: form.lastName.trim(),
     extension: form.extension.trim(),
-    username: nullable(form.username),
+    username: nullable(credentials.username ?? ''),
+    password: credentials.password || null,
+    password_confirmation: credentials.password_confirmation || null,
+    require_password_update: credentials.require_password_update,
+    clear_credentials: false,
     email: nullable(form.email),
     timezone: nullable(form.timezone),
     is_enabled: form.isEnabled,
     ...userConfiguration,
+    hotdesk: {
+      ...hotdesk,
+      id: hotdesk.id ? hotdesk.id.trim() : null,
+      pin: hotdesk.require_pin && hotdesk.pin ? hotdesk.pin.trim() : null,
+      clear_pin: false,
+    },
     voicemail: {
       enabled: form.voicemailEnabled,
       notification_emails: form.notificationEmails
@@ -163,17 +180,6 @@ function submit(): void {
             }}</span>
           </label>
           <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Username</span>
-            <input
-              v-model="form.username"
-              maxlength="256"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            />
-            <span v-if="displayErrors.username" class="text-[10px] text-danger">{{
-              displayErrors.username[0]
-            }}</span>
-          </label>
-          <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Email</span>
             <input
               v-model="form.email"
@@ -204,7 +210,11 @@ function submit(): void {
         </div>
       </article>
 
+      <ExtensionCredentialsProfile v-model="credentials" :field-errors="displayErrors" />
+
       <ExtensionUserOptions v-model="userConfiguration" :field-errors="displayErrors" />
+
+      <ExtensionHotdeskProfile v-model="hotdesk" :field-errors="displayErrors" />
 
       <article class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">

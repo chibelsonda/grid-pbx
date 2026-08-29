@@ -3,11 +3,16 @@
 namespace App\Domains\LineKeys\Services;
 
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Devices\Services\ProvisioningModelCapabilitiesService;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Database\Eloquent\Collection;
 
 class LineKeyService
 {
+    public function __construct(
+        private readonly ProvisioningModelCapabilitiesService $modelCapabilities,
+    ) {}
+
     /** @return Collection<int, SwitchDevice> */
     public function devices(SwitchAccount $account, ?string $search): Collection
     {
@@ -30,8 +35,9 @@ class LineKeyService
     public function preview(SwitchDevice $device): array
     {
         $device->load(['lineKeys' => fn ($query) => $query->orderBy('category')->orderBy('position')]);
-        $capable = $device->make !== null && $device->model !== null;
+        $capable = $device->make !== null && $device->model !== null && $device->mac_address !== null;
         $enabled = (bool) config('switch.line_key_mutations_enabled', false);
+        $modelCapabilities = $this->modelCapabilities->forDevice($device);
 
         return [
             'device' => $device,
@@ -40,9 +46,11 @@ class LineKeyService
                 'preview_available' => true,
                 'apply_available' => $capable && $enabled,
                 'reason' => ! $capable
-                    ? 'The device needs an endpoint brand and model before it can be provisioned.'
+                    ? 'The device needs an endpoint brand, model, and MAC address before it can be provisioned.'
                     : ($enabled ? null : 'Line-key mutations are disabled by server configuration.'),
+                'model' => $modelCapabilities,
             ],
+            'value_choices' => $this->valueChoices($device, $modelCapabilities['value_sources']),
             'payload_preview' => [
                 'provision' => [
                     'combo_keys' => $this->payloadKeys($device, 'combo'),
@@ -50,6 +58,50 @@ class LineKeyService
                 ],
             ],
         ];
+    }
+
+    /**
+     * @param  list<string>  $sources
+     * @return list<array{id: string, source: string, value: string, label: string, description: string|null}>
+     */
+    private function valueChoices(SwitchDevice $device, array $sources): array
+    {
+        $account = $device->switchAccount;
+        $choices = [];
+
+        if (in_array('extensions', $sources, true) || in_array('users', $sources, true)) {
+            foreach ($account->extensions()
+                ->whereNotNull('switch_resource_id')
+                ->orderBy('display_name')
+                ->limit(250)
+                ->get(['id', 'switch_resource_id', 'display_name', 'extension']) as $extension) {
+                $choices[] = [
+                    'id' => $extension->id,
+                    'source' => 'extensions',
+                    'value' => $extension->switch_resource_id,
+                    'label' => $extension->display_name,
+                    'description' => $extension->extension,
+                ];
+            }
+        }
+
+        if (in_array('devices', $sources, true)) {
+            foreach ($account->devices()
+                ->whereNotNull('switch_resource_id')
+                ->orderBy('name')
+                ->limit(250)
+                ->get(['id', 'switch_resource_id', 'name']) as $candidate) {
+                $choices[] = [
+                    'id' => $candidate->id,
+                    'source' => 'devices',
+                    'value' => $candidate->switch_resource_id,
+                    'label' => $candidate->name ?? 'Unnamed device',
+                    'description' => 'Device',
+                ];
+            }
+        }
+
+        return $choices;
     }
 
     /** @return array<string, mixed>|object */

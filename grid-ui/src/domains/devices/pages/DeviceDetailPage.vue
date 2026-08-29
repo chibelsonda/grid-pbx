@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeftIcon,
+  ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
   CpuChipIcon,
@@ -14,6 +15,9 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
+import DeviceHotdeskPanel from '../components/DeviceHotdeskPanel.vue'
+import { supportsProvisioning } from '../deviceForm'
 import { useDeviceStore } from '../stores/deviceStore'
 
 const route = useRoute()
@@ -22,6 +26,7 @@ const accounts = useAccountStore()
 const devices = useDeviceStore()
 const deviceId = computed(() => String(route.params.deviceId))
 const device = computed(() => devices.detail)
+const pendingAction = ref<'delete' | 'sync' | 'reprovision' | null>(null)
 const modelLabel = computed(() => {
   if (!device.value) return 'Unknown hardware'
 
@@ -31,7 +36,13 @@ const modelLabel = computed(() => {
 watch(
   [() => accounts.selectedId, deviceId],
   ([accountId, selectedDeviceId]) => {
-    if (accountId && selectedDeviceId) void devices.loadDetail(accountId, selectedDeviceId)
+    if (accountId && selectedDeviceId) {
+      void Promise.all([
+        devices.loadDetail(accountId, selectedDeviceId),
+        devices.loadOptions(accountId),
+        devices.loadHotdeskUsers(accountId, selectedDeviceId),
+      ])
+    }
   },
   { immediate: true },
 )
@@ -51,12 +62,63 @@ function humanize(value: string): string {
 
 async function removeDevice(): Promise<void> {
   if (!accounts.selectedId || !device.value) return
-  if (!window.confirm(`Delete ${device.value.name ?? 'this device'} from Switch?`)) return
 
   const removed = await devices.remove(accounts.selectedId, device.value.id)
 
   if (removed) await router.push({ name: 'devices' })
 }
+
+function signInHotdeskUser(extensionId: string): void {
+  if (accounts.selectedId && device.value) {
+    void devices.signInHotdeskUser(accounts.selectedId, device.value.id, extensionId)
+  }
+}
+
+function signOutHotdeskUser(extensionId: string): void {
+  if (accounts.selectedId && device.value) {
+    void devices.signOutHotdeskUser(accounts.selectedId, device.value.id, extensionId)
+  }
+}
+
+async function confirmAction(): Promise<void> {
+  if (!accounts.selectedId || !device.value || !pendingAction.value) return
+
+  if (pendingAction.value === 'delete') {
+    await removeDevice()
+  } else {
+    await devices.syncProvisioning(accounts.selectedId, device.value.id, pendingAction.value)
+  }
+
+  pendingAction.value = null
+}
+
+const confirmation = computed(() => {
+  if (pendingAction.value === 'delete') {
+    return {
+      title: 'Delete this device?',
+      description: `Delete ${device.value?.name ?? 'this device'} from Switch?`,
+      label: 'Delete device',
+      tone: 'danger' as const,
+    }
+  }
+
+  if (pendingAction.value === 'reprovision') {
+    return {
+      title: 'Reprovision this device?',
+      description:
+        'Switch will ask the endpoint to reboot and reload its provisioning configuration.',
+      label: 'Reprovision device',
+      tone: 'warning' as const,
+    }
+  }
+
+  return {
+    title: 'Synchronize this device?',
+    description: 'Switch will send a check-sync command without requesting an endpoint reboot.',
+    label: 'Synchronize device',
+    tone: 'primary' as const,
+  }
+})
 </script>
 
 <template>
@@ -83,7 +145,7 @@ async function removeDevice(): Promise<void> {
       </div>
       <div
         v-if="device && accounts.selected?.permissions.can_manage_devices"
-        class="ml-auto flex items-center gap-2"
+        class="ml-auto flex flex-wrap items-center justify-end gap-2"
       >
         <RouterLink
           :to="{ name: 'device-edit', params: { deviceId: device.id } }"
@@ -92,10 +154,28 @@ async function removeDevice(): Promise<void> {
           <PencilSquareIcon class="size-4" /> Edit
         </RouterLink>
         <button
+          v-if="device.device_type && supportsProvisioning(device.device_type)"
+          type="button"
+          :disabled="devices.mutationLoading"
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+          @click="pendingAction = 'sync'"
+        >
+          <ArrowPathIcon class="size-4" /> Sync
+        </button>
+        <button
+          v-if="device.device_type && supportsProvisioning(device.device_type)"
+          type="button"
+          :disabled="devices.mutationLoading"
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-amber-200 px-3 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 disabled:opacity-50"
+          @click="pendingAction = 'reprovision'"
+        >
+          <ArrowPathIcon class="size-4" /> Reprovision
+        </button>
+        <button
           type="button"
           :disabled="devices.mutationLoading"
           class="inline-flex h-9 items-center gap-2 rounded-md border border-red-100 px-3 text-[11px] font-semibold text-danger hover:bg-red-50 disabled:opacity-50"
-          @click="removeDevice"
+          @click="pendingAction = 'delete'"
         >
           <TrashIcon class="size-4" /> Delete
         </button>
@@ -115,6 +195,18 @@ async function removeDevice(): Promise<void> {
   </section>
 
   <div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+    <p
+      v-if="devices.operationMessage"
+      class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
+    >
+      {{ devices.operationMessage }}
+    </p>
+    <p
+      v-if="devices.mutationError"
+      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+    >
+      {{ devices.mutationError }}
+    </p>
     <div
       v-if="devices.detailLoading"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"
@@ -127,7 +219,7 @@ async function removeDevice(): Promise<void> {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <DevicePhoneMobileIcon class="mx-auto size-10 text-slate-300" />
+        <DevicePhoneMobileIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Device unavailable</h2>
         <p class="mt-2 text-xs text-slate-500">{{ devices.detailError }}</p>
         <RouterLink
@@ -291,6 +383,24 @@ async function removeDevice(): Promise<void> {
           </div>
         </article>
       </div>
+      <DeviceHotdeskPanel
+        :candidates="devices.extensionOptions"
+        :memberships="devices.hotdeskMemberships"
+        :loading="devices.hotdeskLoading"
+        :can-manage="accounts.selected?.permissions.can_manage_devices ?? false"
+        @sign-in="signInHotdeskUser"
+        @sign-out="signOutHotdeskUser"
+      />
     </template>
   </div>
+  <ConfirmDialog
+    :open="pendingAction !== null"
+    :title="confirmation.title"
+    :description="confirmation.description"
+    :confirm-label="confirmation.label"
+    :busy="devices.mutationLoading"
+    :tone="confirmation.tone"
+    @close="pendingAction = null"
+    @confirm="confirmAction"
+  />
 </template>

@@ -42,11 +42,7 @@ function submit(): void {
     width="medium"
     @close="emit('close')"
   >
-    <form
-      class="grid gap-5"
-      novalidate
-      @submit.prevent="submit"
-    >
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -70,6 +66,7 @@ function submit(): void {
               required
               maxlength="128"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500"
+              :aria-invalid="Boolean(fieldError('name'))"
             /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
               fieldError('name')
             }}</span></label
@@ -79,6 +76,7 @@ function submit(): void {
             ><FormSelect
               v-model="form.sort_by"
               class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
+              :aria-invalid="Boolean(fieldError('sort_by'))"
               ><option value="last_name">Last name</option>
               <option value="first_name">First name</option></FormSelect
             ><span v-if="fieldError('sort_by')" class="text-[10px] text-danger">{{
@@ -99,6 +97,7 @@ function submit(): void {
               max="20"
               required
               class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+              :aria-invalid="Boolean(fieldError('min_dtmf'))"
             /><span v-if="fieldError('min_dtmf')" class="text-[10px] text-danger">{{
               fieldError('min_dtmf')
             }}</span></label
@@ -113,6 +112,7 @@ function submit(): void {
               max="20"
               required
               class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+              :aria-invalid="Boolean(fieldError('max_dtmf'))"
             /><span v-if="fieldError('max_dtmf')" class="text-[10px] text-danger">{{
               fieldError('max_dtmf')
             }}</span></label
@@ -128,6 +128,7 @@ function submit(): void {
             rows="4"
             placeholder="One external-application flag per line"
             class="rounded-md border border-slate-200 p-3 font-mono text-xs leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+            :aria-invalid="Boolean(fieldError('flags') || fieldError('flags.0'))"
           />
           <span class="text-[10px] leading-4 text-slate-400">
             Optional metadata used by Switch integrations. Maximum 20 unique flags, 64 characters
@@ -156,6 +157,7 @@ function submit(): void {
               type="checkbox"
               :value="option.id"
               class="size-4 accent-brand-500"
+              :aria-invalid="Boolean(fieldError('member_ids'))"
             /><span
               ><span class="block text-xs font-semibold text-slate-700">{{ option.label }}</span
               ><span class="text-[10px] text-slate-400">{{ option.detail }}</span></span

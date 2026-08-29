@@ -50,7 +50,22 @@ describe('line key store', () => {
   it('loads a capability-aware preview before opening the editor', async () => {
     const preview: LineKeyPreview = {
       device,
-      capability: { preview_available: true, apply_available: false, reason: 'Disabled locally.' },
+      capability: {
+        preview_available: true,
+        apply_available: false,
+        reason: 'Disabled locally.',
+        model: {
+          matched: false,
+          max_keys: null,
+          max_expansion_modules: null,
+          keys_per_expansion_module: null,
+          total_keys: null,
+          supported_key_types: ['line', 'presence', 'personal_parking', 'speed_dial', 'parking'],
+          value_sources: [],
+          manufacturer_provider: null,
+        },
+      },
+      value_choices: [],
       payload_preview: { provision: { combo_keys: {}, feature_keys: {} } },
     }
     vi.mocked(lineKeyApi.preview).mockResolvedValue(preview)

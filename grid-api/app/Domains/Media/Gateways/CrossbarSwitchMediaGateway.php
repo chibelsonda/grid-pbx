@@ -5,11 +5,11 @@ namespace App\Domains\Media\Gateways;
 use App\Domains\Media\Contracts\SwitchMediaGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
-use GridPbx\Switch\Dto\Accounts\MusicOnHoldWriteData;
-use GridPbx\Switch\Dto\Media\MediaWriteData;
-use GridPbx\Switch\Http\BinaryResponse;
-use GridPbx\Switch\Resources\AccountResourceClient;
-use GridPbx\Switch\Resources\MediaResourceClient;
+use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Accounts\Dto\MusicOnHoldWriteData;
+use GridPbx\Switch\Domains\Media\Dto\MediaWriteData;
+use GridPbx\Switch\Domains\Media\MediaResourceClient;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use Psr\Http\Message\StreamInterface;
 
 class CrossbarSwitchMediaGateway implements SwitchMediaGateway

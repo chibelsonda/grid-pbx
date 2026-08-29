@@ -87,7 +87,7 @@ function humanize(value: string): string {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <DevicePhoneMobileIcon class="mx-auto size-10 text-slate-300" />
+        <DevicePhoneMobileIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
         <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
           Map an account and synchronize the extension projection before viewing devices.

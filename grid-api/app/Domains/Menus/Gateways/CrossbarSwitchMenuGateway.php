@@ -5,8 +5,8 @@ namespace App\Domains\Menus\Gateways;
 use App\Domains\Menus\Contracts\SwitchMenuGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
-use GridPbx\Switch\Dto\Menus\MenuWriteData;
-use GridPbx\Switch\Resources\MenuResourceClient;
+use GridPbx\Switch\Domains\Menus\Dto\MenuWriteData;
+use GridPbx\Switch\Domains\Menus\MenuResourceClient;
 
 class CrossbarSwitchMenuGateway implements SwitchMenuGateway
 {

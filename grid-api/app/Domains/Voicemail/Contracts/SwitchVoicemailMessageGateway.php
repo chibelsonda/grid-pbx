@@ -4,7 +4,7 @@ namespace App\Domains\Voicemail\Contracts;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Enums\VoicemailMessageFolder;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 
 interface SwitchVoicemailMessageGateway
 {

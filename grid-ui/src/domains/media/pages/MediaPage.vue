@@ -122,7 +122,7 @@ function formatSize(bytes: number | null): string {
           <thead class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"><tr><th class="px-5 py-3.5">Media</th><th class="px-5 py-3.5">Source</th><th class="px-5 py-3.5">Language</th><th class="px-5 py-3.5">Audio</th><th class="px-5 py-3.5">Usage</th><th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th></tr></thead>
           <tbody class="divide-y divide-slate-100 text-xs">
             <tr v-if="media.loading"><td colspan="6" class="px-5 py-14 text-center text-slate-400">Loading projected media…</td></tr>
-            <tr v-else-if="media.records.length === 0"><td colspan="6" class="px-5 py-14 text-center text-slate-400"><MusicalNoteIcon class="mx-auto mb-3 size-8 text-slate-300" />No media is projected for this account.</td></tr>
+            <tr v-else-if="media.records.length === 0"><td colspan="6" class="px-5 py-14 text-center text-slate-400"><MusicalNoteIcon class="mx-auto mb-3 size-8 text-slate-400" />No media is projected for this account.</td></tr>
             <tr v-for="record in media.records" v-else :key="record.id" class="cursor-pointer hover:bg-slate-50/60" @click="openDetail(record.id)">
               <td class="px-5 py-3.5"><p class="font-semibold text-slate-700">{{ record.name }}</p><p class="mt-1 max-w-xs truncate text-[10px] text-slate-400">{{ record.description ?? 'No description' }}</p></td>
               <td class="px-5 py-3.5"><span class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">{{ record.media_source ?? 'unknown' }}</span></td>

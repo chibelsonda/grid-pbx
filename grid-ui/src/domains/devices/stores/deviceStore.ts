@@ -1,13 +1,20 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { deviceApi } from '../api/deviceApi'
+import type { DeviceProvisioningCommand } from '../api/deviceApi'
 import type {
   Device,
+  DeviceCallerIdNumberOption,
+  DeviceHotdeskMemberships,
   DeviceInput,
+  DeviceMetaflowResources,
+  DeviceProvisioningCatalog,
   DeviceRestrictionOption,
+  DeviceSchemaCompatibility,
   ExtensionOption,
   SyncState,
 } from '../types/device'
+import { legacyDeviceSchemaCompatibility } from '../deviceForm'
 
 const defaultSync: SyncState = { status: 'stale', last_successful_at: null, error_message: null }
 
@@ -26,10 +33,23 @@ export const useDeviceStore = defineStore('devices', {
     detailError: null as string | null,
     mutationLoading: false,
     mutationError: null as string | null,
+    operationMessage: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
     extensionOptions: [] as ExtensionOption[],
     mediaOptions: [] as Array<{ id: string; name: string | null }>,
+    metaflowResources: { callflows: [], devices: [] } as DeviceMetaflowResources,
+    callerIdNumberOptions: [] as DeviceCallerIdNumberOption[],
+    provisioningCatalog: {
+      available: false,
+      reason: 'Provisioning catalog has not been loaded.',
+      brands: [],
+    } as DeviceProvisioningCatalog,
     restrictionOptions: [] as DeviceRestrictionOption[],
+    schemaCompatibility: structuredClone(
+      legacyDeviceSchemaCompatibility,
+    ) as DeviceSchemaCompatibility,
+    hotdeskMemberships: { users: [], unresolved_count: 0 } as DeviceHotdeskMemberships,
+    hotdeskLoading: false,
   }),
   actions: {
     reset(): void {
@@ -42,10 +62,21 @@ export const useDeviceStore = defineStore('devices', {
       this.error = null
       this.detailError = null
       this.mutationError = null
+      this.operationMessage = null
       this.fieldErrors = {}
       this.extensionOptions = []
       this.mediaOptions = []
+      this.metaflowResources = { callflows: [], devices: [] }
+      this.callerIdNumberOptions = []
+      this.provisioningCatalog = {
+        available: false,
+        reason: 'Provisioning catalog has not been loaded.',
+        brands: [],
+      }
       this.restrictionOptions = []
+      this.schemaCompatibility = structuredClone(legacyDeviceSchemaCompatibility)
+      this.hotdeskMemberships = { users: [], unresolved_count: 0 }
+      this.hotdeskLoading = false
     },
     async load(accountId: string, page?: number): Promise<void> {
       this.loading = true
@@ -69,6 +100,8 @@ export const useDeviceStore = defineStore('devices', {
     async loadDetail(accountId: string, deviceId: string): Promise<void> {
       this.detailLoading = true
       this.detailError = null
+      this.mutationError = null
+      this.operationMessage = null
       this.detail = null
 
       try {
@@ -86,11 +119,23 @@ export const useDeviceStore = defineStore('devices', {
         const options = await deviceApi.options(accountId)
         this.extensionOptions = options.extensions
         this.mediaOptions = options.media
+        this.metaflowResources = options.metaflow_resources ?? { callflows: [], devices: [] }
+        this.callerIdNumberOptions = options.caller_id_numbers
+        this.provisioningCatalog = options.provisioning_catalog
+        this.schemaCompatibility = options.device_schema
         this.restrictionOptions = options.restrictions
       } catch {
         this.extensionOptions = []
         this.mediaOptions = []
+        this.metaflowResources = { callflows: [], devices: [] }
+        this.callerIdNumberOptions = []
+        this.provisioningCatalog = {
+          available: false,
+          reason: 'Provisioning catalog could not be loaded.',
+          brands: [],
+        }
         this.restrictionOptions = []
+        this.schemaCompatibility = structuredClone(legacyDeviceSchemaCompatibility)
       }
     },
     async create(accountId: string, input: DeviceInput): Promise<Device | null> {
@@ -115,6 +160,73 @@ export const useDeviceStore = defineStore('devices', {
         return false
       } finally {
         this.mutationLoading = false
+      }
+    },
+    async syncProvisioning(
+      accountId: string,
+      deviceId: string,
+      command: DeviceProvisioningCommand,
+    ): Promise<boolean> {
+      this.mutationLoading = true
+      this.mutationError = null
+      this.operationMessage = null
+
+      try {
+        const result = await deviceApi.syncProvisioning(accountId, deviceId, command)
+        this.operationMessage = result.message
+
+        return true
+      } catch (error) {
+        this.captureMutationError(error, 'Unable to send the provisioning command.')
+
+        return false
+      } finally {
+        this.mutationLoading = false
+      }
+    },
+    async loadHotdeskUsers(accountId: string, deviceId: string): Promise<void> {
+      this.hotdeskLoading = true
+
+      try {
+        this.hotdeskMemberships = await deviceApi.hotdeskUsers(accountId, deviceId)
+      } catch (error) {
+        this.captureMutationError(error, 'Unable to load active hotdesk users.')
+      } finally {
+        this.hotdeskLoading = false
+      }
+    },
+    async signInHotdeskUser(
+      accountId: string,
+      deviceId: string,
+      extensionId: string,
+    ): Promise<boolean> {
+      return this.mutateHotdesk(() => deviceApi.signInHotdeskUser(accountId, deviceId, extensionId))
+    },
+    async signOutHotdeskUser(
+      accountId: string,
+      deviceId: string,
+      extensionId: string,
+    ): Promise<boolean> {
+      return this.mutateHotdesk(() =>
+        deviceApi.signOutHotdeskUser(accountId, deviceId, extensionId),
+      )
+    },
+    async mutateHotdesk(operation: () => Promise<DeviceHotdeskMemberships>): Promise<boolean> {
+      this.hotdeskLoading = true
+      this.mutationError = null
+      this.operationMessage = null
+
+      try {
+        this.hotdeskMemberships = await operation()
+        this.operationMessage = 'Hotdesk session updated.'
+
+        return true
+      } catch (error) {
+        this.captureMutationError(error, 'Unable to update the hotdesk session.')
+
+        return false
+      } finally {
+        this.hotdeskLoading = false
       }
     },
     async mutate(operation: () => Promise<Device>): Promise<Device | null> {

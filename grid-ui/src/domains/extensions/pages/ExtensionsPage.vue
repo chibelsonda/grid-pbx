@@ -114,7 +114,7 @@ function recoverOperation(
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <UserGroupIcon class="mx-auto size-10 text-slate-300" />
+        <UserGroupIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
         <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
           Set SWITCH_ACCOUNT_ID and seed the API database, then return here to run the first

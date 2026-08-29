@@ -13,6 +13,10 @@
   --color-canvas: #f1f4f6;
   --color-ink: #343a40;
   --color-muted: #6c757d;
+  --color-slate-100: #edf0f4;
+  --color-slate-200: #dce2ea;
+  --color-slate-300: #c8d1dc;
+  --color-slate-400: #5f6f85;
   --shadow-shell:
     0 0.46875rem 2.1875rem rgb(4 9 20 / 3%), 0 0.9375rem 1.40625rem rgb(4 9 20 / 3%),
     0 0.25rem 0.53125rem rgb(4 9 20 / 5%), 0 0.125rem 0.1875rem rgb(4 9 20 / 3%);
@@ -48,8 +52,15 @@
 
   button,
   input,
-  select {
+  select,
+  textarea {
     font: inherit;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-slate-400);
+    opacity: 1;
   }
 
   button,
@@ -64,15 +75,47 @@
 }
 
 @layer components {
+  :where(
+    input,
+    textarea,
+    select,
+    button[data-form-listbox-trigger],
+    button[role='switch']
+  )[aria-invalid='true'],
+  label:has(> .text-danger)
+    :where(input, textarea, select, button[data-form-listbox-trigger], button[role='switch']) {
+    border-color: var(--color-danger) !important;
+    box-shadow: 0 0 0 2px rgb(217 37 80 / 12%) !important;
+  }
+
+  :where(
+      input,
+      textarea,
+      select,
+      button[data-form-listbox-trigger],
+      button[role='switch']
+    )[aria-invalid='true']:focus,
+  label:has(> .text-danger)
+    :where(
+      input,
+      textarea,
+      select,
+      button[data-form-listbox-trigger],
+      button[role='switch']
+    ):focus {
+    border-color: var(--color-danger) !important;
+    box-shadow: 0 0 0 3px rgb(217 37 80 / 18%) !important;
+  }
+
   .card-surface {
-    border: 1px solid rgb(233 236 239 / 92%);
+    border: 1px solid var(--color-slate-200);
     border-radius: 0.375rem;
     background: white;
     box-shadow: var(--shadow-card);
   }
 
   .eyebrow {
-    color: #8b94a4;
+    color: var(--color-slate-500);
     font-size: 0.6875rem;
     font-weight: 700;
     letter-spacing: 0.08em;

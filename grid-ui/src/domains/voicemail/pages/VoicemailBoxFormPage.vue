@@ -133,7 +133,7 @@ async function save(): Promise<void> {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <KeyIcon class="mx-auto size-10 text-slate-300" />
+        <KeyIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
         <p class="mt-2 text-xs text-slate-500">
           Your organization role can view voicemail boxes but cannot change Switch configuration.
@@ -187,6 +187,7 @@ async function save(): Promise<void> {
                 maxlength="128"
                 placeholder="Reception voicemail"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                :aria-invalid="Boolean(fieldError('name'))"
               /><span v-if="fieldError('name')" class="text-[11px] text-danger">{{
                 fieldError('name')
               }}</span></label
@@ -201,6 +202,7 @@ async function save(): Promise<void> {
                 pattern="[0-9]+"
                 placeholder="1001"
                 class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                :aria-invalid="Boolean(fieldError('mailbox'))"
               /><span v-if="fieldError('mailbox')" class="text-[11px] text-danger">{{
                 fieldError('mailbox')
               }}</span></label
@@ -213,6 +215,7 @@ async function save(): Promise<void> {
                 list="common-timezones"
                 placeholder="Account default"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                :aria-invalid="Boolean(fieldError('timezone'))"
               /><datalist id="common-timezones">
                 <option value="Asia/Tokyo" />
                 <option value="Asia/Manila" />
@@ -244,6 +247,9 @@ async function save(): Promise<void> {
                 rows="6"
                 placeholder="support@example.com&#10;manager@example.com"
                 class="rounded-md border border-slate-200 p-3 text-xs leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                :aria-invalid="
+                  Boolean(fieldError('notification_emails') || fieldError('notification_emails.0'))
+                "
               /><span
                 v-if="fieldError('notification_emails') || fieldError('notification_emails.0')"
                 class="text-[11px] text-danger"
@@ -261,6 +267,7 @@ async function save(): Promise<void> {
               <span class="text-xs font-semibold text-slate-600">Voicemail audio format</span>
               <FormListbox
                 v-model="configuration.media_extension"
+                :invalid="Boolean(fieldError('media_extension'))"
                 :options="[
                   { value: 'mp3', label: 'MP3' },
                   { value: 'mp4', label: 'MP4' },
@@ -311,6 +318,7 @@ async function save(): Promise<void> {
               ><FormSelect
                 v-model="form.assigned_extension_id"
                 class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500"
+                :aria-invalid="Boolean(fieldError('assigned_extension_id'))"
               >
                 <option value="">Unassigned</option>
                 <option
@@ -398,6 +406,7 @@ async function save(): Promise<void> {
                   max="300000"
                   step="1000"
                   class="field-control pr-12"
+                  :aria-invalid="Boolean(fieldError('seek_duration_ms'))"
                 />
                 <span class="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-slate-400"
                   >ms</span
@@ -432,6 +441,7 @@ async function save(): Promise<void> {
                 maxlength="6"
                 autocomplete="new-password"
                 class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500"
+                :aria-invalid="Boolean(fieldError('pin'))"
               /><span class="text-[10px] leading-4 text-slate-400"
                 >{{
                   isEditing ? 'Leave blank to keep the existing PIN.' : 'Use 4–6 digits.'

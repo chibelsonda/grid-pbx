@@ -5,8 +5,8 @@ namespace App\Domains\Queues\Gateways;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Contracts\SwitchQueueGateway;
 use Generator;
-use GridPbx\Switch\Dto\Queues\QueueWriteData;
-use GridPbx\Switch\Resources\QueueResourceClient;
+use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
+use GridPbx\Switch\Domains\Queues\QueueResourceClient;
 
 class CrossbarSwitchQueueGateway implements SwitchQueueGateway
 {

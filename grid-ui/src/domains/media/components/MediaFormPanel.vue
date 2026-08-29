@@ -78,6 +78,7 @@ function submit(): void {
               required
               maxlength="128"
               class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              :aria-invalid="Boolean(fieldErrors.name)"
             />
             <span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
               fieldErrors.name[0]
@@ -108,6 +109,7 @@ function submit(): void {
               type="file"
               accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
               class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-500 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
+              :aria-invalid="Boolean(fieldErrors.audio)"
               @change="chooseAudio"
             />
             <span class="text-[10px] text-slate-400">MP3, WAV, or OGG; maximum 5 MB.</span>

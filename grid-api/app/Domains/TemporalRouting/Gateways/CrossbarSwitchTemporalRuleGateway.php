@@ -6,8 +6,8 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleGateway;
 use Carbon\CarbonImmutable;
 use Generator;
-use GridPbx\Switch\Dto\TemporalRules\TemporalRuleWriteData;
-use GridPbx\Switch\Resources\TemporalRuleResourceClient;
+use GridPbx\Switch\Domains\TemporalRules\Dto\TemporalRuleWriteData;
+use GridPbx\Switch\Domains\TemporalRules\TemporalRuleResourceClient;
 
 class CrossbarSwitchTemporalRuleGateway implements SwitchTemporalRuleGateway
 {

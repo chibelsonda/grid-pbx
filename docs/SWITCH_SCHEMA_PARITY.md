@@ -144,26 +144,63 @@ workflow:
 | Device type | Basic controls | Advanced controls |
 | --- | --- | --- |
 | `sip_device` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Audio, Video, Options, Restrictions; recording and notifications are grouped under Options |
-| `cellphone` | name, owner, enabled, forwarding number | forwarding behavior, contact-list visibility |
+| `cellphone` | name, owner, enabled, forwarding number | legacy forwarding behavior and contact-list visibility; current-schema extensions are grouped under Advanced forwarding |
 | `smartphone` | name, owner, enabled, forwarding number | Basic, Wi-Fi calling, Options, Restrictions |
 | `softphone` | name, owner, enabled | Basic, Caller ID, SIP, Audio, Video, Options, Restrictions; recording and notifications are grouped under Options |
-| `landline` | name, owner, enabled, forwarding number | forwarding behavior, contact-list visibility |
+| `landline` | name, owner, enabled, forwarding number | legacy forwarding behavior and contact-list visibility; current-schema extensions are grouped under Advanced forwarding |
 | `fax` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Options, Restrictions; T.38 and notifications are grouped under Options |
 | `ata` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Options, Restrictions; optional T.38 and notifications are grouped under Options |
-| `sip_uri` | name, owner, enabled, SIP URI/route | Basic and Options |
+| `sip_uri` | name, owner, enabled, SIP URI/route | Basic plus Options containing only contact-list visibility |
 
 Device-type selection controls visibility and defaults; it does not define a
 different database table.
+
+The form uses a device capability matrix rather than rendering every property
+accepted by the generic Device schema for every type. `contact_list.exclude` is
+available to all eight types. Registered endpoints (`sip_device`, `smartphone`,
+`softphone`, `fax`, and `ata`) additionally receive endpoint-behavior and
+advanced-routing controls. `cellphone` and `landline` receive their forwarding
+workflow. `sip_uri` deliberately sends only `sip.invite_format`, `sip.route`, and
+its contact-list option; SIP credentials, media, Caller ID, provisioning,
+restrictions, and endpoint routing controls do not belong to that workflow.
+
+### 5.1.1 Version-aware compatibility matrix
+
+GridPBX reads `GET /v2/schemas/devices` from the connected Switch and returns a
+safe capability summary from the Device options endpoint. Vue, Zod, Laravel
+validation, and the Switch DTO boundary all use that same summary. If schema
+discovery is unavailable, GridPBX uses the conservative legacy column below so
+it does not submit fields an older deployment may reject.
+
+| Area | Connected local schema (`6af38c7`, 2021-04-13) | Current upstream schema | GridPBX behavior |
+| --- | --- | --- | --- |
+| `call_forward.number` | maximum 15 characters | maximum 35 characters | Input and Laravel limit follow the connected schema |
+| `sip.invite_format` | no `strip_plus` | includes `strip_plus` | Options and validation are populated from the advertised enum |
+| `sip.custom_sip_interface` | absent | string | Control and payload key appear only when advertised |
+| `sip.forward` | absent | string | Control and payload key appear only when advertised |
+| `sip.proxy` | absent | string | Control and payload key appear only when advertised |
+| `sip.static_invite` | absent | string | Control and payload key appear only when advertised |
+| `sip.transport` | absent | string | Control and payload key appear only when advertised |
+| `provision.id` | absent | string | Template ID appears only when advertised |
+| `provision.endpoint_model` | string or integer | string or array | Form representation and server validation follow the advertised types |
+| `provision.check_sync_event` | present | absent | Retained only for compatible deployments |
+| `provision.check_sync_reload` | present | absent | Retained only for compatible deployments; operational reload remains separate |
+| `provision.check_sync_reboot` | present | absent | Retained only for compatible deployments; operational reboot remains separate |
+
+The official schema is the field contract; the legacy Kazoo/Monster form is
+used to preserve workflow semantics and discover conditional behavior. This is
+why controls can intentionally differ between Switch versions while the form
+layout remains familiar.
 
 ### 5.2 Core, relationship, and operational fields
 
 | Schema path | Type/default | GridPBX treatment | UI location | MySQL and security treatment | Current status |
 | --- | --- | --- | --- | --- | --- |
 | `name` | string, required | Editable | Basic | normalized `name`; retained in `switch_json` | Implemented |
-| `device_type` | string | Editable from supported type set | Device type selector | normalized; retained | Implemented for all eight types; full runtime matrix pending |
+| `device_type` | string | Editable from supported type set | Device type selector | normalized; retained | Implemented; live create/edit/clear matrix verified for all eight types |
 | `enabled` | boolean, default `true` | Editable | Basic | normalized `is_enabled`; retained | Implemented |
 | `owner_id` | Switch object ID | Editable through public extension/user UUID | Basic / Assignment | normalized relationship; upstream ID never exposed; unassignment removes the key from a preserved full-document update | Implemented and runtime-verified |
-| `mac_address` | string | Conditional for provisionable hardware | Basic / Provisioning | normalized; retained | Implemented without type/capability gating |
+| `mac_address` | string | Conditional for provisionable hardware | Basic / Provisioning | canonical uppercase colon notation; retained | Implemented; one active canonical MAC per account is enforced by validation and MySQL, and line-key apply requires brand, model, and MAC |
 | `language` | string | Editable with account-supported options | Advanced / Locale | application virtual field from `switch_json`; empty string is the runtime-verified clear value | Implemented and runtime-verified for create/edit/clear |
 | `timezone` | string | Editable with account default/inheritance | Advanced / Locale | application virtual field from `switch_json`; empty string is the runtime-verified clear value | Implemented and runtime-verified for create/edit/clear |
 | `presence_id` | string | Editable | Advanced / Presence | application virtual field from `switch_json`; empty string is the runtime-verified clear value | Implemented and runtime-verified for create/edit/clear |
@@ -171,20 +208,23 @@ different database table.
 | `call_waiting.enabled` | boolean | Editable | Advanced / Options | `switch_json` | Implemented |
 | `exclude_from_queues` | boolean, default `false` | Editable when queues are available | Advanced / Options | `switch_json`; optional normalized agent projection | Implemented |
 | `contact_list.exclude` | boolean, default `false` | Editable | Advanced / Options | `switch_json` | Implemented |
-| `music_on_hold.media_id` | Switch media ID | Editable using public media UUID | Advanced / Routing and endpoint behavior | relationship resolved server-side; upstream ID hidden | Implemented; live create/edit/clear pending |
+| `music_on_hold.media_id` | Switch media ID | Editable using public media UUID | Advanced / Routing and endpoint behavior | relationship resolved server-side; upstream ID hidden | Implemented and live create/edit/clear verified for registered endpoint types |
 | `mwi_unsolicited_updates` | boolean, default `true` | Editable | Advanced / Options / Notifications | `switch_json` | Implemented for applicable types |
 | `register_overwrite_notify` | boolean, default `false` | Editable | Advanced / Options / Notifications | `switch_json` | Implemented for applicable types |
-| `suppress_unregister_notifications` | boolean, default `false` | Editable using positive UI wording | Advanced / Options / Notifications | `switch_json` | Implemented for applicable types |
-| `hotdesk.users` | map keyed by Switch user ID | Managed | Advanced / Metaflows and hotdesk | only a safe active-user count is exposed; membership and upstream IDs remain in the dedicated People workflow | Read-only count implemented; membership workflow pending |
-| `flags[]` | string array | Conditional/admin | Advanced / Routing flags | `switch_json` | Missing |
-| `outbound_flags[]` | string array, or `static[]`/`dynamic[]` | Conditional/admin | Advanced / Routing flags | legacy flat arrays hydrate as `static`; writes use the object variant in `switch_json` | Implemented; live create/edit/clear pending |
+| `suppress_unregister_notifications` | boolean, default `false` | Editable using the positive Kazoo wording and inverse value mapping | Basic / Device identity | `switch_json` | Implemented for applicable types |
+| `hotdesk.users` | map keyed by Switch user ID | Managed through dedicated sign-in/sign-out operations | Device detail / Active hotdesk users | public extension UUIDs are resolved server-side; unprojected active users are counted but their upstream IDs remain hidden | Implemented with audited live-document patching and focused API/SDK coverage |
+| `flags[]` | string array | Conditional/admin | Advanced / General flags and formatters | application virtual field from `switch_json` | Implemented and live create/edit/clear verified for registered endpoint types |
+| `outbound_flags[]` | string array, or `static[]`/`dynamic[]` | Conditional/admin | Advanced / Routing flags | legacy and live flat arrays hydrate as `static`; typed UI grouping is flattened at the Switch boundary | Implemented and live create/edit/clear verified for registered endpoint types |
+
+Fax writes always retain the `fax` outbound flag used by the Kazoo workflow;
+other user-configured static flags remain ordered after it.
 
 ### 5.3 Call forwarding
 
 | Schema path | Type/default | Treatment | UI location | Current status |
 | --- | --- | --- | --- | --- |
 | `call_forward.enabled` | boolean, default `false` | Editable | Basic for external-number types; Advanced / Options | Implemented |
-| `call_forward.number` | string, max 15 | Editable | Basic for cellphone/landline/smartphone | Implemented |
+| `call_forward.number` | string, connected-schema max (15 legacy; 35 current) | Editable | Basic for cellphone/landline/smartphone | Implemented with version-aware UI and Laravel validation |
 | `call_forward.direct_calls_only` | boolean, default `false` | Editable | Advanced / Options | Implemented |
 | `call_forward.failover` | boolean, default `false` | Editable | Advanced / Options | Implemented |
 | `call_forward.ignore_early_media` | boolean, default `true` | Editable | Advanced / Options | Implemented |
@@ -195,21 +235,35 @@ different database table.
 All forwarding fields remain in redacted `switch_json`; the number may be
 normalized later only if account-wide routing search requires it.
 
+For `cellphone` and `landline`, the Basic Enabled control writes both
+`enabled` and `call_forward.enabled`, matching the Kazoo workflow and preventing
+divergent operational state. Options keeps Require keypress, Keep original
+caller ID, and contact-list visibility immediately visible. The four additional
+current-schema fields—direct calls only, failover, ignore early media, and
+substitute—remain available in a collapsed Headless UI disclosure. SIP, media,
+Caller ID, provisioning, restrictions, and registered-endpoint routing fields
+are rejected for these forwarding-only types.
+
 ### 5.4 SIP
 
 | Schema path | Type/default | Treatment | UI location | MySQL and security treatment | Current status |
 | --- | --- | --- | --- | --- | --- |
-| `sip.method` | `password` or `ip`; default `password` | Editable | Advanced / SIP | `switch_json` | Missing |
-| `sip.username` | string | Write-only on mutation; masked configured state on read | Basic or Advanced / SIP | never persisted or returned as raw credential unless policy later explicitly permits username display | Partial |
+| `sip.method` | `password` or `ip`; default `password` | Editable | Advanced / SIP | `switch_json` | Implemented |
+| `sip.username` | string | Write-only on mutation; masked configured state on read | Basic or Advanced / SIP | never persisted or returned as raw credential unless policy later explicitly permits username display | Implemented with configured-state projection |
 | `sip.password` | string | Write-only | Basic or Advanced / SIP | redact before logs, MySQL, exceptions, and responses | Implemented write-only |
-| `sip.realm` | string | Read-only by default; conditional override | Advanced / SIP | redacted safe value in `switch_json` | Missing |
-| `sip.expire_seconds` | integer, default `300` | Editable | Advanced / SIP | `switch_json` | Missing |
-| `sip.invite_format` | enum, default `contact` | Editable | Advanced / SIP | `switch_json` | Missing |
-| `sip.ip` | string | Conditional when method is `ip` | Advanced / SIP | safe projection only for authorized admins; otherwise masked | Missing |
-| `sip.number` | string | Conditional on invite format | Advanced / SIP | `switch_json` | Missing |
-| `sip.route` | string | Conditional on invite format `route`/SIP URI | Basic for `sip_uri`; Advanced otherwise | validate as SIP URI; redact embedded credentials | Missing |
-| `sip.static_route` | string | Conditional/admin | Advanced / SIP | validate and redact embedded credentials | Missing |
-| `sip.ignore_completed_elsewhere` | boolean | Editable | Advanced / Miscellaneous | `switch_json` | Missing |
+| `sip.realm` | string | Read-only by default; conditional override | Advanced / SIP | redacted safe value in `switch_json` | Implemented |
+| `sip.expire_seconds` | integer, default `300` | Editable | Advanced / SIP | `switch_json` | Implemented |
+| `sip.invite_format` | enum, default `contact` | Editable | Advanced / SIP | `switch_json` | Implemented |
+| `sip.ip` | string | Conditional when method is `ip` | Advanced / SIP | safe projection only for authorized admins; otherwise masked | Implemented conditionally |
+| `sip.number` | string | Conditional on invite format | Advanced / SIP | `switch_json` | Implemented conditionally |
+| `sip.route` | string | Conditional on invite format `route`/SIP URI | Basic for `sip_uri`; Advanced otherwise | validate as SIP URI; redact embedded credentials | Implemented conditionally |
+| `sip.static_route` | string | Conditional/admin | Advanced / SIP | validate and redact embedded credentials | Implemented |
+| `sip.custom_sip_interface` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
+| `sip.forward` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
+| `sip.proxy` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
+| `sip.static_invite` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
+| `sip.transport` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
+| `sip.ignore_completed_elsewhere` | boolean | Editable for SIP Device and Softphone | Advanced / SIP | `switch_json`; omitted for Smartphone, Fax, and ATA | Implemented and live create/edit/clear verified for applicable types |
 | `sip.custom_sip_headers.<name>` | string map | Conditional/admin | Advanced / SIP headers | legacy undirected maps hydrate as outbound; authentication headers are denied | Implemented compatibility read; live verification pending |
 | `sip.custom_sip_headers.in.<name>` | string map | Conditional/admin | Advanced / SIP headers | bounded name/value rows mapped to a Switch object; authentication headers denied | Implemented; live create/edit/clear pending |
 | `sip.custom_sip_headers.out.<name>` | string map | Conditional/admin | Advanced / SIP headers | same as above | Implemented; live create/edit/clear pending |
@@ -218,51 +272,53 @@ normalized later only if account-wide routing search requires it.
 
 | Schema path | Type | Treatment | UI location | Current status |
 | --- | --- | --- | --- | --- |
-| `caller_id.internal.name` | string | Editable | Advanced / Caller ID | Missing |
-| `caller_id.internal.number` | string | Editable from authorized numbers | Advanced / Caller ID | Missing |
-| `caller_id.external.name` | string | Editable subject to carrier/account rules | Advanced / Caller ID | Missing |
-| `caller_id.external.number` | string | Editable from authorized numbers | Advanced / Caller ID | Missing |
-| `caller_id.emergency.name` | string | Conditional on E911 capability | Advanced / Emergency caller ID | Missing |
-| `caller_id.emergency.number` | string | Conditional; select only E911-enabled numbers | Advanced / Emergency caller ID | Missing |
-| `caller_id.asserted.name` | string | Conditional/admin | Advanced / Asserted identity | Missing |
-| `caller_id.asserted.number` | string | Conditional/admin | Advanced / Asserted identity | Missing |
-| `caller_id.asserted.realm` | string | Conditional/admin | Advanced / Asserted identity | Missing |
-| `caller_id_options.outbound_privacy` | `full`, `name`, `number`, or `none` | Editable | Advanced / Caller ID | Missing |
+| `caller_id.internal.name` | string | Editable | Advanced / Caller ID | Implemented |
+| `caller_id.internal.number` | string | Editable | Advanced / Caller ID | Implemented |
+| `caller_id.external.name` | string | Editable subject to carrier/account rules | Advanced / Caller ID | Implemented |
+| `caller_id.external.number` | string | Select from account-owned projected numbers | Advanced / Caller ID | Implemented with UI options and server-side ownership enforcement |
+| `caller_id.emergency.name` | string | Conditional on E911 capability | Advanced / Emergency caller ID | Implemented |
+| `caller_id.emergency.number` | string | Select only E911-enabled account numbers | Advanced / Emergency caller ID | Implemented with UI filtering and server-side E911 enforcement |
+| `caller_id.asserted.name` | string | Conditional/admin | Advanced / Asserted identity | Implemented |
+| `caller_id.asserted.number` | string | Conditional/admin | Advanced / Asserted identity | Implemented |
+| `caller_id.asserted.realm` | string | Conditional/admin | Advanced / Asserted identity | Implemented |
+| `caller_id_options.outbound_privacy` | `full`, `name`, `number`, or `none` | Editable | Advanced / Caller ID | Implemented |
 
 Caller ID values are retained in `switch_json`. Number selection is resolved
-through GridPBX public phone-number UUIDs where a relationship exists.
+through account-scoped phone-number projections; no phone-number primary key or
+Switch resource ID is exposed. Existing unprojected values remain visible on an
+edit form so unrelated changes do not silently erase legacy configuration.
 
 ### 5.6 Media
 
 | Schema path | Type/default | Treatment | UI location | Current status |
 | --- | --- | --- | --- | --- |
-| `media.audio.codecs[]` | unique ordered codec enum | Editable | Advanced / Audio | Missing |
-| `media.video.codecs[]` | unique ordered codec enum | Editable | Advanced / Video | Missing |
-| `media.bypass_media` | boolean or legacy `auto` | Editable with compatibility handling | Advanced / Media | Missing |
-| `media.encryption.enforce_security` | boolean, default `false` | Editable | Advanced / Encryption | Missing |
-| `media.encryption.methods[]` | `zrtp`, `srtp` | Editable/capability-gated | Advanced / Encryption | Missing |
-| `media.fax_option` | boolean | Conditional for fax/ATA | Advanced / Media | Missing |
-| `media.ignore_early_media` | boolean | Editable | Advanced / Media | Missing |
-| `media.progress_timeout` | integer seconds | Editable | Advanced / Media | Missing |
+| `media.audio.codecs[]` | unique ordered codec enum | Editable | Advanced / Audio | Priority editor implemented; create/edit/clear order verified live |
+| `media.video.codecs[]` | unique ordered codec enum | Editable | Advanced / Video | Priority editor implemented; create/edit/clear order verified live |
+| `media.bypass_media` | boolean or legacy `auto` | Editable with compatibility handling | Advanced / Media | Implemented |
+| `media.encryption.enforce_security` | boolean, default `false` | Editable | Advanced / Encryption | Implemented |
+| `media.encryption.methods[]` | `zrtp`, `srtp` | Editable/capability-gated | Advanced / Encryption | Implemented |
+| `media.fax_option` | boolean | Conditional for SIP Device, Softphone, Fax, and ATA, matching the Kazoo workflows | Advanced / Options | Implemented and live create/edit/clear verified for applicable types |
+| `media.ignore_early_media` | boolean | Editable | Advanced / Media | Implemented |
+| `media.progress_timeout` | integer seconds | Editable | Advanced / Media | Implemented |
 
-Codec order is significant and must be preserved by DTOs, the API, and UI
-drag/reorder controls.
+Codec order is significant and is preserved by DTOs, the API, and explicit UI
+move controls.
 
 ### 5.7 Restrictions, dial plans, and formatters
 
 | Schema path | Type | Treatment | UI location | Current status |
 | --- | --- | --- | --- | --- |
-| `call_restriction.<classification>.action` | `inherit` or `deny` | Editable from live account number classifications; unknown stored keys remain editable | Advanced / Restrictions | Implemented; live create/edit matrix pending |
-| `dial_plan.system[]` | string array | Conditional/admin | Advanced / Dial plan | Implemented; live create/edit/clear pending |
-| `dial_plan.<regex>.description` | string | Conditional/admin | Advanced / Dial plan | Implemented as a bounded rule-row virtual field; live verification pending |
-| `dial_plan.<regex>.prefix` | string | Conditional/admin | Advanced / Dial plan | Implemented as a bounded rule-row virtual field; live verification pending |
-| `dial_plan.<regex>.suffix` | string | Conditional/admin | Advanced / Dial plan | Implemented as a bounded rule-row virtual field; live verification pending |
-| `formatters.<field>[]` | ordered formatter rules | Conditional/admin | Advanced / Formatters | Missing |
-| formatter `direction` | `inbound`, `outbound`, or `both` | Conditional/admin | formatter editor | Missing |
-| formatter `match_invite_format` | boolean | Conditional/admin | formatter editor | Missing |
-| formatter `prefix` / `suffix` / `value` | string | Conditional/admin | formatter editor | Missing |
-| formatter `regex` | regex string | Conditional/admin | formatter editor | Missing |
-| formatter `strip` | boolean | Conditional/admin | formatter editor | Missing |
+| `call_restriction.<classification>.action` | `inherit` or `deny` | Editable from live account number classifications; unknown stored keys remain editable | Advanced / Restrictions | Implemented; create/edit/reset-to-inherit verified live for all applicable types |
+| `dial_plan.system[]` | string array | Conditional/admin | Advanced / Dial plan | Implemented and live create/edit/clear verified for registered endpoint types |
+| `dial_plan.<regex>.description` | string | Conditional/admin | Advanced / Dial plan | Implemented as a bounded rule-row virtual field and live verified |
+| `dial_plan.<regex>.prefix` | string | Conditional/admin | Advanced / Dial plan | Implemented as a bounded rule-row virtual field and live verified |
+| `dial_plan.<regex>.suffix` | string | Conditional/admin | Advanced / Dial plan | Implemented as a bounded rule-row virtual field and live verified |
+| `formatters.<field>[]` | ordered formatter rules | Conditional/admin | Advanced / General flags and formatters | Implemented as typed rule rows and live create/edit/clear verified for registered endpoint types |
+| formatter `direction` | `inbound`, `outbound`, or `both` | Conditional/admin | formatter editor | Implemented and live verified |
+| formatter `match_invite_format` | boolean | Conditional/admin | formatter editor | Implemented |
+| formatter `prefix` / `suffix` / `value` | string | Conditional/admin | formatter editor | Implemented and live verified |
+| formatter `regex` | regex string | Conditional/admin | formatter editor | Implemented with bounded validation and live verified |
+| formatter `strip` | boolean | Conditional/admin | formatter editor | Implemented |
 
 Dynamic classification and formatter keys require allowlists, regex safety,
 field-count limits, and payload-size limits in Laravel validation.
@@ -293,14 +349,15 @@ direction/network hierarchy.
 
 | Schema path | Type | Treatment | UI location | Current status |
 | --- | --- | --- | --- | --- |
-| `provision.endpoint_brand` | string | Conditional | Basic / Hardware | Partial as free text |
-| `provision.endpoint_family` | string | Conditional | Basic / Hardware | Missing |
-| `provision.endpoint_model` | string or integer | Conditional | Basic / Hardware | Partial as free text |
-| `provision.check_sync_event` | string | Managed/admin | Operational controls | Missing |
-| `provision.check_sync_reload` | string | Managed/admin | Reload command configuration | Missing |
-| `provision.check_sync_reboot` | string | Managed/admin | Reboot command configuration | Missing |
-| `provision.combo_keys.<position>` | combo-key object or null | Conditional | Advanced / Line keys | Foundation editor implemented; parity review required |
-| `provision.feature_keys.<position>` | combo-key object or null | Conditional | Advanced / Feature keys | Foundation editor implemented; parity review required |
+| `provision.endpoint_brand` | string | Conditional | Basic / Hardware | Implemented for provisionable types as an application virtual field |
+| `provision.endpoint_family` | string | Conditional | Basic / Hardware | Implemented for provisionable types as an application virtual field |
+| `provision.id` | string | Connected-schema conditional template ID | Basic / Hardware | Implemented as an application virtual field; hidden on this legacy deployment |
+| `provision.endpoint_model` | connected-schema string, integer, or array | Conditional | Basic / Hardware | Implemented as a version-aware application virtual field |
+| `provision.check_sync_event` | string, legacy schema only | Managed/admin | Advanced / Provisioning events | Conditionally retained; live create/edit/clear verified for SIP Device, Fax, and ATA on the local legacy deployment |
+| `provision.check_sync_reload` | string, legacy schema only | Managed/admin | Advanced / Provisioning events; explicit reload action on detail | Conditionally retained; live configuration lifecycle and reload command verified |
+| `provision.check_sync_reboot` | string, legacy schema only | Managed/admin | Advanced / Provisioning events; confirmed reboot action on detail | Conditionally retained; live configuration lifecycle and reboot command verified |
+| `provision.combo_keys.<position>` | combo-key object or null | Conditional | Advanced / Line keys | Grouped main/expansion presentation plus model capacity and supported-type validation implemented |
+| `provision.feature_keys.<position>` | combo-key object or null | Conditional | Advanced / Feature keys | Account-scoped suggestions resolve only through fixed extension/user and device providers; arbitrary catalog source identifiers are ignored |
 | combo-key `type` | `line`, `presence`, `personal_parking`, `speed_dial`, or `parking` | Conditional | key editor | Foundation |
 | combo-key `value` | string, parking position 1–10, or `{label,value}` | Conditional | key editor | Foundation |
 
@@ -312,19 +369,23 @@ secrets, or generated endpoint documents.
 
 | Schema path | Type | Treatment | UI location | Current status |
 | --- | --- | --- | --- | --- |
-| `ringtones.internal` | string | Editable | Advanced / Ringtones | Implemented and runtime-verified for create/edit/clear |
-| `ringtones.external` | string | Editable | Advanced / Ringtones | Implemented and runtime-verified for create/edit/clear |
-| `metaflows.binding_digit` | DTMF enum, default `*` | Conditional/admin | Advanced / In-call features | Implemented; live create/edit/clear pending |
-| `metaflows.digit_timeout` | non-negative integer | Conditional/admin | Advanced / In-call features | Implemented with a 60000 ms UI/API safety cap; live verification pending |
-| `metaflows.listen_on` | `both`, `self`, or `peer` | Conditional/admin | Advanced / In-call features | Implemented; live create/edit/clear pending |
-| `metaflows.numbers.<digits>` | recursive metaflow | Conditional/admin | dedicated guided editor | Preserved during Device edits and exposed only as a count; guided editor pending |
-| `metaflows.patterns.<pattern>` | recursive metaflow | Conditional/admin | dedicated guided editor | Preserved during Device edits and exposed only as a count; guided editor pending |
-| metaflow `module` | string, required | Conditional/admin | guided node editor | Missing |
-| metaflow `data` | module-specific object | Conditional/admin | module-specific controls | Missing |
-| metaflow `children` | recursive object | Conditional/admin | guided node editor | Missing |
+| `ringtones.internal` | string | Editable | Advanced / Options / Ringtone headers | Dedicated control implemented and runtime-verified for create/edit/clear |
+| `ringtones.external` | string | Editable | Advanced / Options / Ringtone headers | Dedicated control implemented and runtime-verified for create/edit/clear |
+| `metaflows.binding_digit` | DTMF enum, default `*` | Conditional/admin | Advanced / In-call features | Implemented and live create/edit/clear verified; clear restores `*` |
+| `metaflows.digit_timeout` | non-negative integer | Conditional/admin | Advanced / In-call features | Implemented with a 60000 ms UI/API safety cap and live verified |
+| `metaflows.listen_on` | `both`, `self`, or `peer` | Conditional/admin | Advanced / In-call features | Implemented and live create/edit/clear verified |
+| `metaflows.numbers.<digits>` | recursive metaflow | Conditional/admin | dedicated guided editor | Supported action trees are editable; root replacement/clear live verified |
+| `metaflows.patterns.<pattern>` | recursive metaflow | Conditional/admin | dedicated guided editor | Supported action trees are editable; root replacement/clear live verified |
+| metaflow `module` | string, required | Conditional/admin | guided node editor | Allowlisted scalar modules plus `play`, `callflow`, and `move` implemented |
+| metaflow `data` | module-specific object | Conditional/admin | module-specific controls | Guided scalar controls and public resource selectors implemented; arbitrary JSON excluded |
+| metaflow `children` | recursive object | Conditional/admin | nested guided node editor | Supported trees editable to 8 levels/100 nodes; unsupported subtrees lock and preserve their entire root |
 
-Metaflow module `data` must be validated against the selected module contract;
-GridPBX will not provide an unrestricted JSON editor to ordinary account users.
+GridPBX does not provide an unrestricted JSON editor to ordinary account users.
+Projected media, callflow, device, and extension references are translated to
+public UUIDs for `play`, `callflow`, and `move`. Unsupported modules,
+unprojected references, Pivot, embedded flows, and recording-upload actions are
+preserved as locked Switch data so public-ID translation and SSRF policy cannot
+be bypassed.
 
 ## 6. Device implementation acceptance criteria
 
@@ -339,17 +400,14 @@ controls are implemented end to end but Device remains
 
 Still outstanding for Device schema completion:
 
-- account-derived restriction classification editing;
-- custom SIP header editing and sensitive-header policy;
-- dial-plan and formatter editors;
-- music-on-hold selection;
-- hotdesk operational management;
-- external and outbound routing flags;
-- asserted caller-ID administration and E911 capability-driven number choices;
-- provisioning template discovery, reload/reboot commands, and complete
-  line-key parity;
-- ringtone, codec, and other ordered-value reordering where order is material;
-- metaflow module discovery and guided recursive editing.
+- production verification against a real provisioner after local live
+  `/api/phones` discovery was verified with the contract-compatible Compose catalog.
+
+The disposable authenticated Switch lifecycle now passes for Device hotdesk
+sign-in/sign-out and recursive resource-linked metaflow create/edit/clear. It
+uses temporary User, Media, Callflow, and Device resources and removes them in
+reverse dependency order. The same audit now verifies User login creation,
+unchanged-password omission, `require_password_update`, and credential removal.
 
 Device parity is complete only when:
 
@@ -388,12 +446,12 @@ fields remain typed and validated at the User boundary.
 | `call_restriction` | Editable from account number classifications | Pending |
 | `dial_plan`, `formatters` | Conditional/admin guided editors; no unrestricted JSON | Pending |
 | `flags[]` | Conditional/admin allowlisted values | Pending |
-| `hotdesk.enabled`, `hotdesk.id`, `hotdesk.keep_logged_in_elsewhere` | Editable through a dedicated hotdesk workflow | Pending |
-| `hotdesk.pin` | Write-only and redacted; `require_pin` controls requirement | Pending |
+| `hotdesk.enabled`, `hotdesk.id`, `hotdesk.keep_logged_in_elsewhere` | Editable in the Extension slide-over through a typed user hotdesk profile | Implemented and live create/edit/clear verified |
+| `hotdesk.pin`, `hotdesk.require_pin` | PIN is write-only and redacted; an unchanged configured PIN is preserved through a private read-before-write | Implemented and live preserve/clear verified |
 | `media`, `music_on_hold.media_id`, `ringtones` | Capability-gated; media references use public UUIDs | Pending |
 | `metaflows` | Conditional guided recursive editor | Pending |
-| `password` | Write-only credential workflow; never returned or persisted readably | Pending |
-| `require_password_update` | Managed with the GUI password workflow | Pending |
+| `password` | Write-only; required on login creation or normalized username change, omitted when unchanged, and never returned or persisted readably | Implemented and live create/unchanged/clear verified |
+| `require_password_update` | Editable only while a login username exists | Implemented and live set/clear verified |
 | `priv_level` | Administrator-only role mapping; never accepted from ordinary account forms | Pending policy mapping |
 | `feature_level` | Capability/service-plan controlled | Pending |
 | `profile` | Editable only through a bounded profile schema | Pending |
@@ -403,8 +461,15 @@ fields remain typed and validated at the User boundary.
 
 Current checkpoint: create and edit forms use one domain-owned Zod contract,
 Laravel revalidates the boundary, and the implemented configuration is written
-through `UserAdvancedData`. The complete redacted response remains in
-`switch_json`; only the safe subset is returned as `configuration`.
+through `UserAdvancedData`, the entity-organized `UserHotdeskData`, and
+`UserCredentialsData`. Crossbar hashes and deletes the submitted plaintext
+password; GridPBX therefore never attempts to read or preserve it. An unchanged
+username is updated without resending the password, while username removal
+requires explicit UI/API confirmation. The complete redacted response remains
+in `switch_json`; only the safe subset and configured-state metadata are returned
+as `configuration`. Hotdesk IDs remain
+account-scoped Switch values, while primary keys and upstream resource IDs are
+not exposed.
 
 ## 8. Voicemail field-level matrix
 
@@ -493,7 +558,7 @@ subtree.
 | `type: parking` | Editable position 1–10 as integer, numeric string, or labeled integer | Implemented |
 | labeled value object | Editable only when a value is present; label/value limited to 255 characters by GridPBX storage | Implemented |
 | `provision.endpoint_brand`, `endpoint_family`, `endpoint_model` | Read-only capability identity in this workflow; edited in Device | Implemented |
-| `check_sync_event`, `check_sync_reload`, `check_sync_reboot` | Managed provisioning commands, never ordinary line-key form fields | Pending provisioning administration |
+| `check_sync_event`, `check_sync_reload`, `check_sync_reboot` | Managed in the Device provisioning panel; reload and reboot are explicit audited Device actions | Implemented and live verified for provisionable Device types |
 
 The right-side editor uses a domain composable and Zod, including duplicate
 category/position detection and type-dependent value validation. Laravel and

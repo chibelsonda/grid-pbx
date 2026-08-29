@@ -206,7 +206,7 @@ function humanize(value: string | null): string {
             </tr>
             <tr v-else-if="phoneNumbers.records.length === 0">
               <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                <HashtagIcon class="mx-auto mb-3 size-8 text-slate-300" />No phone numbers are
+                <HashtagIcon class="mx-auto mb-3 size-8 text-slate-400" />No phone numbers are
                 projected for this account.<br /><span class="mt-1 inline-block text-[11px]"
                   >Synchronize to confirm the Switch inventory.</span
                 >

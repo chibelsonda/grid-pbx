@@ -11,7 +11,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
-use GridPbx\Switch\Exceptions\SwitchRequestException;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 

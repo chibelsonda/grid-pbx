@@ -13,7 +13,7 @@ use App\Domains\SwitchSynchronization\Services\ExtensionSynchronizationService;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailGreeting;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 

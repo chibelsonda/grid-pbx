@@ -187,9 +187,24 @@ class DeviceMutationService
             'outbound_flags',
             'dial_plan',
             'metaflows',
+            'flags',
+            'formatters',
         ] as $field) {
             if (array_key_exists($field, $data)) {
                 $mutation[$field] = $data[$field];
+            }
+        }
+
+        if (isset($data['provision']) && is_array($data['provision'])) {
+            $provisioning = Arr::only($data['provision'], [
+                'id',
+                'check_sync_event',
+                'check_sync_reload',
+                'check_sync_reboot',
+            ]);
+
+            if ($provisioning !== []) {
+                $mutation['provision'] = $provisioning;
             }
         }
 
@@ -228,7 +243,7 @@ class DeviceMutationService
             'device_type' => $this->stringValue($snapshot['device_type'] ?? null),
             'make' => $this->stringValue($snapshot['make'] ?? Arr::get($snapshot, 'provision.endpoint_brand')),
             'endpoint_family' => $this->stringValue(Arr::get($snapshot, 'provision.endpoint_family')),
-            'model' => $this->stringValue($snapshot['model'] ?? Arr::get($snapshot, 'provision.endpoint_model')),
+            'model' => $this->modelValue($snapshot['model'] ?? Arr::get($snapshot, 'provision.endpoint_model')),
             'mac_address' => $this->stringValue($snapshot['mac_address'] ?? Arr::get($snapshot, 'provision.mac_address')),
             'is_enabled' => (bool) ($snapshot['enabled'] ?? true),
             'last_synced_at' => now(),
@@ -246,6 +261,23 @@ class DeviceMutationService
     private function stringValue(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function modelValue(mixed $value): ?string
+    {
+        if (is_string($value) && $value !== '') {
+            return $value;
+        }
+
+        if (is_int($value)) {
+            return (string) $value;
+        }
+
+        if (is_array($value)) {
+            return $this->stringValue($value[0] ?? null);
+        }
+
+        return null;
     }
 
     /**

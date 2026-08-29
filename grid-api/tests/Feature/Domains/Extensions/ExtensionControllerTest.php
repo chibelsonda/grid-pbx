@@ -104,12 +104,20 @@ class ExtensionControllerTest extends TestCase
                 && $data['call_waiting']['enabled'] === false
                 && $data['do_not_disturb']['enabled'] === true
                 && $data['contact_list']['exclude'] === true
-                && $data['caller_id_options']['outbound_privacy'] === 'name',
+                && $data['caller_id_options']['outbound_privacy'] === 'name'
+                && $data['hotdesk']['enabled'] === true
+                && $data['hotdesk']['id'] === '1001'
+                && $data['hotdesk']['pin'] === '2468'
+                && $data['password'] === 'correct-horse-battery-staple'
+                && $data['require_password_update'] === true
+                && ! array_key_exists('password_confirmation', $data),
         )->andReturn([
             'id' => 'switch-user-1001',
             'first_name' => 'Alice',
             'last_name' => 'Operator',
             'username' => 'alice.operator',
+            'password' => 'correct-horse-battery-staple',
+            'require_password_update' => true,
             'email' => 'alice@example.test',
             'timezone' => 'Asia/Manila',
             'enabled' => true,
@@ -120,6 +128,13 @@ class ExtensionControllerTest extends TestCase
             'do_not_disturb' => ['enabled' => true],
             'contact_list' => ['exclude' => true],
             'caller_id_options' => ['outbound_privacy' => 'name'],
+            'hotdesk' => [
+                'enabled' => true,
+                'id' => '1001',
+                'keep_logged_in_elsewhere' => true,
+                'require_pin' => true,
+                'pin' => '2468',
+            ],
         ]);
         $gateway->shouldReceive('createVoicemailBox')->once()->withArgs(
             fn ($providedAccount, array $data): bool => $providedAccount->is($account)
@@ -187,6 +202,13 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonPath('data.configuration.do_not_disturb.enabled', true)
             ->assertJsonPath('data.configuration.contact_list.exclude', true)
             ->assertJsonPath('data.configuration.caller_id_options.outbound_privacy', 'name')
+            ->assertJsonPath('data.configuration.credentials.password_configured', true)
+            ->assertJsonPath('data.configuration.credentials.require_password_update', true)
+            ->assertJsonPath('data.configuration.hotdesk.enabled', true)
+            ->assertJsonPath('data.configuration.hotdesk.id', '1001')
+            ->assertJsonPath('data.configuration.hotdesk.keep_logged_in_elsewhere', true)
+            ->assertJsonPath('data.configuration.hotdesk.require_pin', true)
+            ->assertJsonPath('data.configuration.hotdesk.pin_configured', true)
             ->assertJsonPath('data.callflows.0.modules.0', 'user')
             ->assertJsonPath('data.callflows.0.modules.1', 'voicemail');
         $extension = SwitchExtension::query()->where('switch_resource_id', 'switch-user-1001')->firstOrFail();
@@ -194,6 +216,8 @@ class ExtensionControllerTest extends TestCase
         $this->assertSame('extension_provisioning', $extension->managed_by_workflow);
         $this->assertSame('en-US', $extension->switch_json['language']);
         $this->assertTrue($extension->switch_json['do_not_disturb']['enabled']);
+        $this->assertSame('[REDACTED]', $extension->switch_json['hotdesk']['pin']);
+        $this->assertSame('[REDACTED]', $extension->switch_json['password']);
         $this->assertTrue($extension->devices()->firstOrFail()->is_managed);
         $this->assertSame('[REDACTED]', $extension->devices()->firstOrFail()->switch_json['sip']['password']);
         $this->assertTrue($extension->voicemailBoxes()->firstOrFail()->is_managed);
@@ -208,7 +232,9 @@ class ExtensionControllerTest extends TestCase
         $this->assertSame('succeeded', $operation->status);
         $this->assertSame($extension->getKey(), $operation->switch_extension_id);
         $this->assertStringNotContainsString('1234', json_encode($operation->context, JSON_THROW_ON_ERROR));
+        $this->assertStringNotContainsString('2468', json_encode($operation->context, JSON_THROW_ON_ERROR));
         $this->assertStringNotContainsString('a-long-random-secret', json_encode($operation->context, JSON_THROW_ON_ERROR));
+        $this->assertStringNotContainsString('correct-horse-battery-staple', $response->getContent());
     }
 
     public function test_it_compensates_in_reverse_order_when_related_resource_creation_fails(): void
@@ -278,6 +304,8 @@ class ExtensionControllerTest extends TestCase
         $payload = $this->extensionPayload();
         $payload['caller_id_options']['outbound_privacy'] = 'secret';
         $payload['do_not_disturb']['private_state'] = true;
+        $payload['hotdesk']['id'] = 'abc';
+        $payload['hotdesk']['pin'] = '12ab';
         $payload['device']['device_type'] = 'carrier_trunk';
 
         $this->actingAs($user)
@@ -286,8 +314,112 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonValidationErrors([
                 'caller_id_options.outbound_privacy',
                 'do_not_disturb',
+                'hotdesk.id',
+                'hotdesk.pin',
                 'device.device_type',
             ]);
+    }
+
+    public function test_create_rejects_a_device_mac_address_already_used_by_the_account(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        SwitchDevice::factory()->for($account)->create([
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
+        $payload = $this->extensionPayload();
+        $payload['device']['mac_address'] = '00-11-22-33-44-55';
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('device.mac_address');
+    }
+
+    public function test_update_returns_422_when_pin_protection_has_no_new_or_configured_hotdesk_pin(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'is_managed' => true,
+            'managed_by_workflow' => 'extension_provisioning',
+            'switch_json' => ['hotdesk' => ['enabled' => true, 'id' => '1001']],
+        ]);
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('updateUser');
+
+        $this->actingAs($user)
+            ->putJson(
+                "/api/v1/accounts/{$account->id}/extensions/{$extension->id}",
+                $this->updatePayload(),
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('hotdesk.pin');
+    }
+
+    public function test_create_returns_422_when_login_password_is_missing(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
+        $payload = $this->extensionPayload();
+        $payload['password'] = null;
+        $payload['password_confirmation'] = null;
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+    }
+
+    public function test_create_returns_422_when_login_password_is_not_confirmed(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
+        $payload = $this->extensionPayload();
+        $payload['password_confirmation'] = 'different-password';
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+    }
+
+    public function test_update_returns_422_when_login_username_changes_without_a_password(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'username' => 'alice.operator',
+            'is_managed' => true,
+            'managed_by_workflow' => 'extension_provisioning',
+            'switch_json' => ['hotdesk' => ['enabled' => true, 'id' => '1001', 'require_pin' => true, 'pin' => '[REDACTED]']],
+        ]);
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('updateUser');
+        $payload = $this->updatePayload();
+        $payload['username'] = 'alice.changed';
+        $payload['password'] = null;
+        $payload['password_confirmation'] = null;
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('password');
+    }
+
+    public function test_update_returns_422_when_configured_login_removal_is_not_confirmed(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'username' => 'alice.operator',
+            'is_managed' => true,
+            'managed_by_workflow' => 'extension_provisioning',
+            'switch_json' => ['hotdesk' => ['enabled' => true, 'id' => '1001', 'require_pin' => true, 'pin' => '[REDACTED]']],
+        ]);
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('updateUser');
+        $payload = $this->updatePayload();
+        $payload['username'] = null;
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('username');
     }
 
     public function test_it_updates_a_managed_extension_mailbox_and_callflow_as_one_workflow(): void
@@ -299,8 +431,12 @@ class ExtensionControllerTest extends TestCase
             'last_name' => 'Operator',
             'display_name' => 'Alice Operator',
             'extension' => '1001',
+            'username' => 'alice.support',
             'is_managed' => true,
             'managed_by_workflow' => 'extension_provisioning',
+            'switch_json' => [
+                'hotdesk' => ['enabled' => true, 'id' => '1001', 'require_pin' => true, 'pin' => '[REDACTED]'],
+            ],
         ]);
         $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
             'switch_extension_id' => $extension->getKey(),
@@ -327,12 +463,18 @@ class ExtensionControllerTest extends TestCase
                 && $data['call_waiting']['enabled'] === false
                 && $data['do_not_disturb']['enabled'] === true
                 && $data['contact_list']['exclude'] === true
-                && $data['caller_id_options']['outbound_privacy'] === 'name',
+                && $data['caller_id_options']['outbound_privacy'] === 'name'
+                && $data['hotdesk']['pin'] === null
+                && $data['hotdesk']['clear_pin'] === false
+                && $data['password'] === null
+                && $data['require_password_update'] === false
+                && ! array_key_exists('password_confirmation', $data),
         )->andReturn([
             'id' => 'switch-user-1001',
             'first_name' => 'Alice',
             'last_name' => 'Support',
             'username' => 'alice.support',
+            'require_password_update' => false,
             'email' => 'alice@example.test',
             'timezone' => 'Asia/Manila',
             'enabled' => true,
@@ -343,6 +485,13 @@ class ExtensionControllerTest extends TestCase
             'do_not_disturb' => ['enabled' => true],
             'contact_list' => ['exclude' => true],
             'caller_id_options' => ['outbound_privacy' => 'name'],
+            'hotdesk' => [
+                'enabled' => true,
+                'id' => '1001',
+                'keep_logged_in_elsewhere' => true,
+                'require_pin' => true,
+                'pin' => '2468',
+            ],
         ]);
         $gateway->shouldReceive('updateVoicemailBox')->once()->withArgs(
             fn ($providedAccount, string $resourceId, array $data): bool => $providedAccount->is($account)
@@ -392,6 +541,9 @@ class ExtensionControllerTest extends TestCase
             ->assertJsonPath('data.display_name', 'Alice Support')
             ->assertJsonPath('data.extension', '1010')
             ->assertJsonPath('data.configuration.do_not_disturb.enabled', true)
+            ->assertJsonPath('data.configuration.credentials.password_configured', true)
+            ->assertJsonPath('data.configuration.credentials.require_password_update', false)
+            ->assertJsonPath('data.configuration.hotdesk.pin_configured', true)
             ->assertJsonPath('data.voicemail_boxes.0.mailbox', '1010')
             ->assertJsonPath('data.callflows.0.numbers.0', '1010');
         $this->assertDatabaseHas('switch_extensions', [
@@ -413,6 +565,9 @@ class ExtensionControllerTest extends TestCase
         $extension = SwitchExtension::factory()->for($account)->create([
             'is_managed' => true,
             'managed_by_workflow' => 'extension_provisioning',
+            'switch_json' => [
+                'hotdesk' => ['enabled' => true, 'id' => '1001', 'require_pin' => true, 'pin' => '[REDACTED]'],
+            ],
         ]);
         $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
             'switch_extension_id' => $extension->getKey(),
@@ -724,6 +879,10 @@ class ExtensionControllerTest extends TestCase
             'last_name' => 'Operator',
             'extension' => '1001',
             'username' => 'alice.operator',
+            'password' => 'correct-horse-battery-staple',
+            'password_confirmation' => 'correct-horse-battery-staple',
+            'require_password_update' => true,
+            'clear_credentials' => false,
             'email' => 'alice@example.test',
             'timezone' => 'Asia/Manila',
             'is_enabled' => true,
@@ -733,6 +892,14 @@ class ExtensionControllerTest extends TestCase
             'do_not_disturb' => ['enabled' => true],
             'contact_list' => ['exclude' => true],
             'caller_id_options' => ['outbound_privacy' => 'name'],
+            'hotdesk' => [
+                'enabled' => true,
+                'id' => '1001',
+                'keep_logged_in_elsewhere' => true,
+                'require_pin' => true,
+                'pin' => '2468',
+                'clear_pin' => false,
+            ],
             'voicemail' => [
                 'enabled' => true,
                 'notification_emails' => ['alice@example.test'],
@@ -761,6 +928,10 @@ class ExtensionControllerTest extends TestCase
             'last_name' => 'Support',
             'extension' => '1010',
             'username' => 'alice.support',
+            'password' => null,
+            'password_confirmation' => null,
+            'require_password_update' => false,
+            'clear_credentials' => false,
             'email' => 'alice@example.test',
             'timezone' => 'Asia/Manila',
             'is_enabled' => true,
@@ -770,6 +941,14 @@ class ExtensionControllerTest extends TestCase
             'do_not_disturb' => ['enabled' => true],
             'contact_list' => ['exclude' => true],
             'caller_id_options' => ['outbound_privacy' => 'name'],
+            'hotdesk' => [
+                'enabled' => true,
+                'id' => '1001',
+                'keep_logged_in_elsewhere' => true,
+                'require_pin' => true,
+                'pin' => null,
+                'clear_pin' => false,
+            ],
             'voicemail' => [
                 'enabled' => true,
                 'notification_emails' => ['alice@example.test'],

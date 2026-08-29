@@ -551,6 +551,13 @@ Acceptance criteria:
 ### Phase 2: Core PBX management
 
 - Extension workflow combining user, device, voicemail, and basic callflow.
+- Manage the User hotdesk profile inside the Extension aggregate with a
+  schema-aligned dial-pad ID, enabled/PIN/multi-device-login controls, and a
+  write-only PIN that is redacted from `switch_json` and API responses.
+- Manage optional Switch User portal credentials in the Extension aggregate.
+  Require and confirm the write-only password only when creating or changing a
+  username, omit it on unchanged edits, support `require_password_update`, and
+  require explicit confirmation before removing login hashes.
 - Managed extension update plus a dependency preview before any destructive
   operation. Confirmed deletion is an audited reverse-order saga with persisted
   step progress, exact-number confirmation, and safe retry after interruption.

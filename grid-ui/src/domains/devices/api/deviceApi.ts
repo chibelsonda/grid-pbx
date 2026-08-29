@@ -1,5 +1,11 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
-import type { Device, DeviceInput, DeviceOptions, SyncState } from '../types/device'
+import type {
+  Device,
+  DeviceHotdeskMemberships,
+  DeviceInput,
+  DeviceOptions,
+  SyncState,
+} from '../types/device'
 
 export type DevicePage = {
   data: Device[]
@@ -12,6 +18,8 @@ export type DevicePage = {
     sync: SyncState
   }
 }
+
+export type DeviceProvisioningCommand = 'sync' | 'reprovision'
 
 export const deviceApi = {
   async list(accountId: string, search = '', page = 1): Promise<DevicePage> {
@@ -47,9 +55,52 @@ export const deviceApi = {
   async remove(accountId: string, deviceId: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/devices/${deviceId}`)
   },
+  async syncProvisioning(
+    accountId: string,
+    deviceId: string,
+    command: DeviceProvisioningCommand,
+  ): Promise<{ message: string; command: DeviceProvisioningCommand }> {
+    const response = await http.post<
+      ApiResponse<{ message: string; command: DeviceProvisioningCommand }>
+    >(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-sync`,
+      { command },
+    )
+
+    return unwrapApiData(response)
+  },
   async options(accountId: string): Promise<DeviceOptions> {
     const response = await http.get<ApiResponse<DeviceOptions>>(
       `/api/v1/accounts/${accountId}/devices/options`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async hotdeskUsers(accountId: string, deviceId: string): Promise<DeviceHotdeskMemberships> {
+    const response = await http.get<ApiResponse<DeviceHotdeskMemberships>>(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/hotdesk-users`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async signInHotdeskUser(
+    accountId: string,
+    deviceId: string,
+    extensionId: string,
+  ): Promise<DeviceHotdeskMemberships> {
+    const response = await http.put<ApiResponse<DeviceHotdeskMemberships>>(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/hotdesk-users/${extensionId}`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async signOutHotdeskUser(
+    accountId: string,
+    deviceId: string,
+    extensionId: string,
+  ): Promise<DeviceHotdeskMemberships> {
+    const response = await http.delete<ApiResponse<DeviceHotdeskMemberships>>(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/hotdesk-users/${extensionId}`,
     )
 
     return unwrapApiData(response)

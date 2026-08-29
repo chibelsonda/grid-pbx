@@ -23,6 +23,7 @@ class RedactSensitiveSwitchDataTest extends TestCase
             'hotdesk' => [
                 'hotdesk_pin' => 1234,
                 'enabled' => true,
+                'require_pin' => true,
             ],
             'member' => ['pins' => ['1234', '5678']],
             'auth_token' => 'transport-secret',
@@ -46,6 +47,7 @@ class RedactSensitiveSwitchDataTest extends TestCase
         $this->assertSame('[REDACTED]', $redacted['hotdesk']['hotdesk_pin']);
         $this->assertSame('[REDACTED]', $redacted['member']['pins']);
         $this->assertTrue($redacted['hotdesk']['enabled']);
+        $this->assertTrue($redacted['hotdesk']['require_pin']);
         $this->assertSame('[REDACTED]', $redacted['auth_token']);
         $this->assertSame('[REDACTED]', $redacted['payment_tokens']);
         $this->assertSame('[REDACTED]', $redacted['bookkeeper']);

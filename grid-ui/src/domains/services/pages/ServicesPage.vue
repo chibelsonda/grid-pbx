@@ -83,7 +83,7 @@ const amount = (value: number): string =>
         Loading service information…
       </div>
       <div v-else-if="!services.overview" class="card-surface p-14 text-center">
-        <CircleStackIcon class="mx-auto size-9 text-slate-300" />
+        <CircleStackIcon class="mx-auto size-9 text-slate-400" />
         <p class="mt-3 text-sm font-semibold text-slate-600">No service projection yet</p>
         <p class="mt-1 text-xs text-slate-400">
           Run a read-only synchronization to load the current Switch summary.

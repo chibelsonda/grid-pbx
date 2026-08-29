@@ -5,7 +5,7 @@ namespace App\Domains\PhoneNumbers\Gateways;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\PhoneNumbers\Contracts\SwitchPhoneNumberGateway;
 use Generator;
-use GridPbx\Switch\Resources\PhoneNumberResourceClient;
+use GridPbx\Switch\Domains\PhoneNumbers\PhoneNumberResourceClient;
 
 class CrossbarSwitchPhoneNumberGateway implements SwitchPhoneNumberGateway
 {

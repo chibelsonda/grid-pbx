@@ -115,7 +115,7 @@ function humanizePhoneState(state: string | null): string {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <ShieldCheckIcon class="mx-auto size-10 text-slate-300" />
+        <ShieldCheckIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
         <p class="mt-2 text-xs text-slate-500">
           Your organization role can inspect routing but cannot change Switch configuration.

@@ -278,7 +278,7 @@ function humanize(value: string | null): string {
             </tr>
             <tr v-else-if="calls.records.length === 0">
               <td colspan="7" class="px-5 py-14 text-center text-slate-400">
-                <PhoneIcon class="mx-auto mb-3 size-8 text-slate-300" />No call records match the
+                <PhoneIcon class="mx-auto mb-3 size-8 text-slate-400" />No call records match the
                 current filters.<br />
                 <span class="mt-1 inline-block text-[11px]"
                   >Synchronize the approved import window to refresh this projection.</span

@@ -82,6 +82,7 @@ function save(): void {
                 required
                 maxlength="128"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+                :aria-invalid="Boolean(fieldErrors.name)"
               /><span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
                 fieldErrors.name[0]
               }}</span></label

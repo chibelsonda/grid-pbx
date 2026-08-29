@@ -7,7 +7,7 @@ use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Contracts\SwitchAgentGateway;
-use GridPbx\Switch\Exceptions\SwitchRequestException;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 

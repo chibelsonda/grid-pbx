@@ -31,6 +31,20 @@ services:
       timeout: 3s
       retries: 30
 
+  provisioner-catalog:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    volumes:
+      - ./docker/provisioner-catalog/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/provisioner-catalog/phones.json:/usr/share/nginx/html/phones.json:ro
+    ports:
+      - "127.0.0.1:${GRID_PROVISIONER_CATALOG_PORT:-8082}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/phones"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   grid-api:
     build:
       context: .
@@ -55,10 +69,19 @@ services:
       QUEUE_CONNECTION: redis
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      SANCTUM_STATEFUL_DOMAINS: localhost:${GRID_UI_PORT:-5173},127.0.0.1:${GRID_UI_PORT:-5173}
+      SANCTUM_STATEFUL_DOMAINS: localhost:${GRID_UI_PORT:-5173},127.0.0.1:${GRID_UI_PORT:-5173},localhost:*,127.0.0.1:*
       GRID_ADMIN_EMAIL: ${GRID_ADMIN_EMAIL:-admin@gridpbx.local}
       GRID_ADMIN_PASSWORD: ${GRID_ADMIN_PASSWORD:-admin-change-me}
       SWITCH_BASE_URL: ${SWITCH_BASE_URL:-http://switch:8000/v2}
+      SWITCH_PROVISIONER_URL: ${SWITCH_PROVISIONER_URL:-http://provisioner-catalog/api}
+      SWITCH_PROVISIONER_AUTH_TYPE: ${SWITCH_PROVISIONER_AUTH_TYPE:-none}
+      SWITCH_PROVISIONER_TOKEN: ${SWITCH_PROVISIONER_TOKEN:-}
+      SWITCH_PROVISIONER_USERNAME: ${SWITCH_PROVISIONER_USERNAME:-}
+      SWITCH_PROVISIONER_PASSWORD: ${SWITCH_PROVISIONER_PASSWORD:-}
+      SWITCH_PROVISIONER_HEADER_NAME: ${SWITCH_PROVISIONER_HEADER_NAME:-X-Auth-Token}
+      SWITCH_PROVISIONER_TIMEOUT: ${SWITCH_PROVISIONER_TIMEOUT:-10}
+      SWITCH_PROVISIONER_VERIFY_TLS: ${SWITCH_PROVISIONER_VERIFY_TLS:-true}
+      SWITCH_LINE_KEY_MUTATIONS_ENABLED: ${SWITCH_LINE_KEY_MUTATIONS_ENABLED:-false}
       SWITCH_API_KEY: ${SWITCH_API_KEY:-}
       SWITCH_ACCOUNT_ID: ${SWITCH_ACCOUNT_ID:-}
       SWITCH_ACCOUNT_NAME: ${SWITCH_ACCOUNT_NAME:-GridPBX}
@@ -73,6 +96,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      provisioner-catalog:
         condition: service_healthy
     command:
       - sh
@@ -136,6 +161,15 @@ services:
       REDIS_PORT: 6379
       REDIS_QUEUE_RETRY_AFTER: 150
       SWITCH_BASE_URL: ${SWITCH_BASE_URL:-http://switch:8000/v2}
+      SWITCH_PROVISIONER_URL: ${SWITCH_PROVISIONER_URL:-http://provisioner-catalog/api}
+      SWITCH_PROVISIONER_AUTH_TYPE: ${SWITCH_PROVISIONER_AUTH_TYPE:-none}
+      SWITCH_PROVISIONER_TOKEN: ${SWITCH_PROVISIONER_TOKEN:-}
+      SWITCH_PROVISIONER_USERNAME: ${SWITCH_PROVISIONER_USERNAME:-}
+      SWITCH_PROVISIONER_PASSWORD: ${SWITCH_PROVISIONER_PASSWORD:-}
+      SWITCH_PROVISIONER_HEADER_NAME: ${SWITCH_PROVISIONER_HEADER_NAME:-X-Auth-Token}
+      SWITCH_PROVISIONER_TIMEOUT: ${SWITCH_PROVISIONER_TIMEOUT:-10}
+      SWITCH_PROVISIONER_VERIFY_TLS: ${SWITCH_PROVISIONER_VERIFY_TLS:-true}
+      SWITCH_LINE_KEY_MUTATIONS_ENABLED: ${SWITCH_LINE_KEY_MUTATIONS_ENABLED:-false}
       SWITCH_API_KEY: ${SWITCH_API_KEY:-}
       SWITCH_ACCOUNT_ID: ${SWITCH_ACCOUNT_ID:-}
     volumes:

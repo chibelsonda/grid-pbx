@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { deviceApi, type DevicePage } from '../api/deviceApi'
+import {
+  deviceApi,
+  type DevicePage,
+  type DeviceProvisioningCommand,
+} from '../api/deviceApi'
 import type { Device, DeviceInput, DeviceOptions } from '../types/device'
 import { useDeviceStore } from './deviceStore'
+import { legacyDeviceSchemaCompatibility } from '../deviceForm'
 
 vi.mock('../api/deviceApi', () => ({
   deviceApi: {
@@ -11,6 +16,14 @@ vi.mock('../api/deviceApi', () => ({
     create: vi.fn<(accountId: string, input: DeviceInput) => Promise<Device>>(),
     update: vi.fn<(accountId: string, deviceId: string, input: DeviceInput) => Promise<Device>>(),
     remove: vi.fn<(accountId: string, deviceId: string) => Promise<void>>(),
+    syncProvisioning:
+      vi.fn<
+        (
+          accountId: string,
+          deviceId: string,
+          command: DeviceProvisioningCommand,
+        ) => Promise<{ message: string; command: DeviceProvisioningCommand }>
+      >(),
     options: vi.fn<(accountId: string) => Promise<DeviceOptions>>(),
   },
 }))
@@ -87,7 +100,33 @@ describe('device store', () => {
     vi.mocked(deviceApi.options).mockResolvedValue({
       extensions: [{ id: 'extension-1', display_name: 'Alice Operator', extension: '1001' }],
       media: [{ id: 'media-1', name: 'Office music' }],
+      caller_id_numbers: [
+        {
+          id: 'number-1',
+          number: '+15551234567',
+          display_name: 'Main line',
+          e911_enabled: true,
+        },
+      ],
+      provisioning_catalog: {
+        available: true,
+        reason: null,
+        brands: [
+          {
+            id: 'yealink',
+            name: 'Yealink',
+            families: [
+              {
+                id: 't5',
+                name: 'T5',
+                models: [{ id: 't54w', name: 'T54W', template_id: 'yealink_t5_t54w' }],
+              },
+            ],
+          },
+        ],
+      },
       restrictions: [{ key: 'international', label: 'International', emergency: false }],
+      device_schema: legacyDeviceSchemaCompatibility,
     })
     const store = useDeviceStore()
 
@@ -96,6 +135,8 @@ describe('device store', () => {
     expect(deviceApi.options).toHaveBeenCalledWith('account-1')
     expect(store.extensionOptions[0]?.id).toBe('extension-1')
     expect(store.mediaOptions[0]?.id).toBe('media-1')
+    expect(store.callerIdNumberOptions[0]?.number).toBe('+15551234567')
+    expect(store.provisioningCatalog.brands[0]?.id).toBe('yealink')
     expect(store.restrictionOptions[0]?.key).toBe('international')
   })
 
@@ -107,6 +148,9 @@ describe('device store', () => {
         endpoint_brand: 'Yealink',
         endpoint_family: null,
         endpoint_model: 'T54W',
+        check_sync_event: null,
+        check_sync_reload: null,
+        check_sync_reboot: null,
       },
       mac_address: '00:11:22:33:44:55',
       is_enabled: true,
@@ -135,6 +179,21 @@ describe('device store', () => {
     expect(created).toEqual(device)
     expect(store.detail).toEqual(device)
     expect(store.records).toEqual([device])
+    expect(store.mutationLoading).toBe(false)
+  })
+
+  it('sends an explicit provisioning command and exposes its success message', async () => {
+    vi.mocked(deviceApi.syncProvisioning).mockResolvedValue({
+      message: 'Switch accepted the device synchronization request.',
+      command: 'sync',
+    })
+    const store = useDeviceStore()
+
+    const succeeded = await store.syncProvisioning('account-1', 'device-1', 'sync')
+
+    expect(deviceApi.syncProvisioning).toHaveBeenCalledWith('account-1', 'device-1', 'sync')
+    expect(succeeded).toBe(true)
+    expect(store.operationMessage).toContain('synchronization')
     expect(store.mutationLoading).toBe(false)
   })
 })

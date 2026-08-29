@@ -25,6 +25,32 @@ export type ExtensionUserConfiguration = {
   caller_id_options: { outbound_privacy: 'full' | 'name' | 'number' | 'none' }
 }
 
+export type ExtensionHotdeskProfile = {
+  enabled: boolean
+  id: string | null
+  keep_logged_in_elsewhere: boolean
+  require_pin: boolean
+  pin_configured: boolean
+}
+
+export type ExtensionCredentialsProfile = {
+  password_configured: boolean
+  require_password_update: boolean
+}
+
+export type ExtensionCredentialsInput = {
+  username: string | null
+  password: string | null
+  password_confirmation: string | null
+  require_password_update: boolean
+  clear_credentials: boolean
+}
+
+export type ExtensionHotdeskInput = Omit<ExtensionHotdeskProfile, 'pin_configured'> & {
+  pin: string | null
+  clear_pin: boolean
+}
+
 export type ExtensionDevice = {
   id: string
   name: string | null
@@ -64,7 +90,10 @@ export type ExtensionCallflow = {
 }
 
 export type ExtensionDetail = Extension & {
-  configuration: ExtensionUserConfiguration
+  configuration: ExtensionUserConfiguration & {
+    credentials: ExtensionCredentialsProfile
+    hotdesk: ExtensionHotdeskProfile
+  }
   devices: ExtensionDevice[]
   voicemail_boxes: ExtensionVoicemailBox[]
   callflows: ExtensionCallflow[]
@@ -75,9 +104,14 @@ export type ExtensionCreate = ExtensionUserConfiguration & {
   last_name: string
   extension: string
   username: string | null
+  password: string | null
+  password_confirmation: string | null
+  require_password_update: boolean
+  clear_credentials: boolean
   email: string | null
   timezone: string | null
   is_enabled: boolean
+  hotdesk: ExtensionHotdeskInput
   voicemail: {
     enabled: boolean
     notification_emails: string[]

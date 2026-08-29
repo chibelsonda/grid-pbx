@@ -7,6 +7,13 @@ class RedactSensitiveSwitchData
     private const REDACTED = '[REDACTED]';
 
     /** @var list<string> */
+    private const NON_SENSITIVE_PIN_METADATA_KEYS = [
+        'clear_pin',
+        'pin_configured',
+        'require_pin',
+    ];
+
+    /** @var list<string> */
     private const SENSITIVE_KEYS = [
         'api_key',
         'authorization',
@@ -62,6 +69,10 @@ class RedactSensitiveSwitchData
     private function isSensitiveKey(string $key): bool
     {
         $normalizedKey = mb_strtolower(str_replace(['-', ' '], '_', $key));
+
+        if (in_array($normalizedKey, self::NON_SENSITIVE_PIN_METADATA_KEYS, true)) {
+            return false;
+        }
 
         if (in_array($normalizedKey, self::SENSITIVE_KEYS, true)) {
             return true;

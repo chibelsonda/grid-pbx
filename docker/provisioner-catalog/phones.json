@@ -1,0 +1,69 @@
+{
+  "status": "success",
+  "data": {
+    "cisco": {
+      "id": "cisco",
+      "name": "Cisco",
+      "families": {
+        "spa5xx": {
+          "id": "cisco_spa5xx",
+          "name": "SPA 5xx",
+          "models": {
+            "spa504g": { "id": "cisco_spa5xx_spa504g", "name": "SPA504G", "max_keys": 4, "max_expansion_modules": 0, "keys_per_expansion_module": 0, "supported_key_types": ["line", "presence", "speed_dial"] },
+            "spa525g2": { "id": "cisco_spa5xx_spa525g2", "name": "SPA525G2", "max_keys": 5, "max_expansion_modules": 2, "keys_per_expansion_module": 32, "supported_key_types": ["line", "presence", "speed_dial", "parking"] }
+          }
+        }
+      }
+    },
+    "grandstream": {
+      "id": "grandstream",
+      "name": "Grandstream",
+      "families": {
+        "gxphd": {
+          "id": "grandstream_gxphd",
+          "name": "GXP HD",
+          "models": {
+            "gxp2130": { "id": "grandstream_gxphd_gxp2130", "name": "GXP2130", "max_keys": 8, "max_expansion_modules": 0, "keys_per_expansion_module": 0, "supported_key_types": ["line", "presence", "speed_dial", "parking"] },
+            "gxp2170": { "id": "grandstream_gxphd_gxp2170", "name": "GXP2170", "max_keys": 12, "max_expansion_modules": 4, "keys_per_expansion_module": 40, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"] }
+          }
+        }
+      }
+    },
+    "polycom": {
+      "id": "polycom",
+      "name": "Poly",
+      "families": {
+        "vvx": {
+          "id": "polycom_vvx",
+          "name": "VVX",
+          "models": {
+            "vvx201": { "id": "polycom_vvx_vvx201", "name": "VVX 201", "max_keys": 2, "max_expansion_modules": 0, "keys_per_expansion_module": 0, "supported_key_types": ["line", "presence", "speed_dial"] },
+            "vvx300": { "id": "polycom_vvx_vvx300", "name": "VVX 300", "max_keys": 6, "max_expansion_modules": 1, "keys_per_expansion_module": 28, "supported_key_types": ["line", "presence", "speed_dial", "parking"] }
+          }
+        }
+      }
+    },
+    "yealink": {
+      "id": "yealink",
+      "name": "Yealink",
+      "families": {
+        "t4x": {
+          "id": "yealink_t4x",
+          "name": "T4 Series",
+          "models": {
+            "t42": { "id": "yealink_t4x_t42", "name": "T42", "max_keys": 6, "max_expansion_modules": 0, "keys_per_expansion_module": 0, "supported_key_types": ["line", "presence", "speed_dial", "parking"] },
+            "t46": { "id": "yealink_t4x_t46", "name": "T46", "max_keys": 10, "max_expansion_modules": 6, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"] }
+          }
+        },
+        "t5x": {
+          "id": "yealink_t5x",
+          "name": "T5 Series",
+          "models": {
+            "t54w": { "id": "yealink_t5x_t54w", "name": "T54W", "max_keys": 10, "max_expansion_modules": 3, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"], "value_sources": ["extensions", "devices"] },
+            "t57w": { "id": "yealink_t5x_t57w", "name": "T57W", "max_keys": 29, "max_expansion_modules": 3, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"], "value_sources": ["extensions", "devices"] }
+          }
+        }
+      }
+    }
+  }
+}

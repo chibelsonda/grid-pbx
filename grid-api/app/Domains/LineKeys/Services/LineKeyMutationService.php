@@ -4,6 +4,7 @@ namespace App\Domains\LineKeys\Services;
 
 use App\Domains\Auditing\Services\AuditService;
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Devices\Services\ProvisioningModelCapabilitiesService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\LineKeys\Contracts\SwitchLineKeyGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
@@ -20,6 +21,7 @@ class LineKeyMutationService
         private readonly LineKeyProjectionService $projection,
         private readonly RedactSensitiveSwitchData $redactor,
         private readonly AuditService $audit,
+        private readonly ProvisioningModelCapabilitiesService $modelCapabilities,
     ) {}
 
     /** @param list<array{category: string, position: int, type: string, value: string|int|null, label: string|null}> $keys */
@@ -29,9 +31,11 @@ class LineKeyMutationService
             throw new ConflictHttpException('Line-key mutations are disabled by server configuration.');
         }
 
-        if ($device->make === null || $device->model === null) {
-            throw new ConflictHttpException('The device needs an endpoint brand and model before it can be provisioned.');
+        if ($device->make === null || $device->model === null || $device->mac_address === null) {
+            throw new ConflictHttpException('The device needs an endpoint brand, model, and MAC address before it can be provisioned.');
         }
+
+        $this->modelCapabilities->assertKeysFit($device, $keys);
 
         try {
             $snapshot = $this->gateway->update($account, $device->switch_resource_id, $keys);

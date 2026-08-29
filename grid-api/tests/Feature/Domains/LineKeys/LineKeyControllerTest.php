@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Domains\LineKeys;
 
+use App\Domains\Devices\Contracts\SwitchProvisioningCatalogGateway;
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\LineKeys\Contracts\SwitchLineKeyGateway;
 use App\Domains\LineKeys\Models\SwitchLineKey;
@@ -84,6 +86,68 @@ class LineKeyControllerTest extends TestCase
             ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", ['line_keys' => []])
             ->assertConflict()
             ->assertJsonPath('message', 'Line-key mutations are disabled by server configuration.');
+    }
+
+    public function test_preview_requires_a_mac_address_for_line_key_apply(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'make' => 'Yealink',
+            'model' => 'T54W',
+            'mac_address' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys/preview")
+            ->assertOk()
+            ->assertJsonPath('data.capability.apply_available', false)
+            ->assertJsonPath(
+                'data.capability.reason',
+                'The device needs an endpoint brand, model, and MAC address before it can be provisioned.',
+            );
+    }
+
+    public function test_preview_returns_selected_model_line_key_capabilities(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'make' => 'yealink',
+            'endpoint_family' => 't5',
+            'model' => 't54w',
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-1001',
+            'display_name' => 'Alice Operator',
+            'extension' => '1001',
+        ]);
+        SwitchExtension::factory()->create([
+            'switch_resource_id' => 'foreign-switch-user',
+            'display_name' => 'Foreign Operator',
+        ]);
+        $this->mock(SwitchProvisioningCatalogGateway::class)
+            ->shouldReceive('catalog')
+            ->once()
+            ->andReturn($this->provisioningCatalog());
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys/preview")
+            ->assertOk()
+            ->assertJsonPath('data.capability.model.matched', true)
+            ->assertJsonPath('data.capability.model.max_keys', 10)
+            ->assertJsonPath('data.capability.model.max_expansion_modules', 3)
+            ->assertJsonPath('data.capability.model.keys_per_expansion_module', 20)
+            ->assertJsonPath('data.capability.model.total_keys', 70)
+            ->assertJsonPath('data.capability.model.supported_key_types.1', 'presence')
+            ->assertJsonCount(1, 'data.value_choices')
+            ->assertJsonPath('data.value_choices.0.id', $extension->id)
+            ->assertJsonPath('data.value_choices.0.source', 'extensions')
+            ->assertJsonPath('data.value_choices.0.value', 'switch-user-1001')
+            ->assertJsonPath('data.value_choices.0.label', 'Alice Operator')
+            ->assertJsonPath('data.value_choices.0.description', '1001')
+            ->assertDontSee('foreign-switch-user');
     }
 
     public function test_enabled_mutation_patches_switch_and_reprojects_redacted_device_data(): void
@@ -177,6 +241,66 @@ class LineKeyControllerTest extends TestCase
                 'line_keys.1.value',
                 'line_keys.2.value',
             ]);
+    }
+
+    public function test_model_capability_violations_return_422_before_switch_mutation(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'make' => 'yealink',
+            'endpoint_family' => 't5',
+            'model' => 't54w',
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+        $this->mock(SwitchProvisioningCatalogGateway::class)
+            ->shouldReceive('catalog')
+            ->once()
+            ->andReturn($this->provisioningCatalog());
+        $this->mock(SwitchLineKeyGateway::class)->shouldNotReceive('update');
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [
+                    [
+                        'category' => 'combo',
+                        'position' => 70,
+                        'type' => 'parking',
+                        'value' => 1,
+                        'label' => null,
+                    ],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['line_keys.0.position', 'line_keys.0.type']);
+    }
+
+    /** @return array<string, mixed> */
+    private function provisioningCatalog(): array
+    {
+        return [
+            'available' => true,
+            'reason' => null,
+            'brands' => [[
+                'id' => 'yealink',
+                'name' => 'Yealink',
+                'families' => [[
+                    'id' => 't5',
+                    'name' => 'T5',
+                    'models' => [[
+                        'id' => 't54w',
+                        'name' => 'T54W',
+                        'template_id' => 'yealink_t5_t54w',
+                        'max_keys' => 10,
+                        'max_expansion_modules' => 3,
+                        'keys_per_expansion_module' => 20,
+                        'supported_key_types' => ['line', 'presence'],
+                        'value_sources' => ['extensions'],
+                        'manufacturer_provider' => 'yealink-rps',
+                    ]],
+                ]],
+            ]],
+        ];
     }
 
     /** @return array{User, SwitchAccount} */

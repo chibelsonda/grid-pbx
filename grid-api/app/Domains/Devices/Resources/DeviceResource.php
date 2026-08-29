@@ -3,7 +3,9 @@
 namespace App\Domains\Devices\Resources;
 
 use App\Domains\Devices\Models\SwitchDevice;
+use App\Domains\Devices\Services\DeviceMetaflowPolicy;
 use App\Domains\Media\Models\SwitchMedia;
+use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Arr;
@@ -50,6 +52,11 @@ class DeviceResource extends JsonResource
             'number',
             'route',
             'static_route',
+            'custom_sip_interface',
+            'forward',
+            'proxy',
+            'static_invite',
+            'transport',
             'ignore_completed_elsewhere',
         ]);
         $sip['custom_sip_headers'] = $this->customSipHeaders(Arr::get($snapshot, 'sip.custom_sip_headers'));
@@ -83,10 +90,10 @@ class DeviceResource extends JsonResource
                 'progress_timeout' => Arr::get($snapshot, 'media.progress_timeout'),
             ],
             'caller_id' => [
-                'internal' => $this->object($snapshot, 'caller_id.internal', ['name', 'number']),
-                'external' => $this->object($snapshot, 'caller_id.external', ['name', 'number']),
-                'emergency' => $this->object($snapshot, 'caller_id.emergency', ['name', 'number']),
-                'asserted' => $this->object($snapshot, 'caller_id.asserted', ['name', 'number', 'realm']),
+                'internal' => $this->nullableStringObject($snapshot, 'caller_id.internal', ['name', 'number']),
+                'external' => $this->nullableStringObject($snapshot, 'caller_id.external', ['name', 'number']),
+                'emergency' => $this->nullableStringObject($snapshot, 'caller_id.emergency', ['name', 'number']),
+                'asserted' => $this->nullableStringObject($snapshot, 'caller_id.asserted', ['name', 'number', 'realm']),
             ],
             'caller_id_options' => $this->object($snapshot, 'caller_id_options', ['outbound_privacy']),
             'call_waiting' => $this->object($snapshot, 'call_waiting', ['enabled']),
@@ -106,10 +113,30 @@ class DeviceResource extends JsonResource
             'outbound_flags' => $this->outboundFlags(Arr::get($snapshot, 'outbound_flags')),
             'dial_plan' => $this->dialPlan(Arr::get($snapshot, 'dial_plan')),
             'metaflows' => $this->metaflows(Arr::get($snapshot, 'metaflows')),
+            'flags' => $this->stringList(Arr::get($snapshot, 'flags')),
+            'formatters' => $this->formatters(Arr::get($snapshot, 'formatters')),
+            'provision' => $this->provision($snapshot),
             'hotdesk' => [
                 'active_user_count' => $this->associativeCount(Arr::get($snapshot, 'hotdesk.users')),
             ],
         ];
+    }
+
+    /** @param array<string, mixed> $snapshot @return array<string, mixed> */
+    private function provision(array $snapshot): array
+    {
+        $provision = $this->nullableStringObject($snapshot, 'provision', [
+            'id',
+            'check_sync_event',
+            'check_sync_reload',
+            'check_sync_reboot',
+        ]);
+        $endpointModel = Arr::get($snapshot, 'provision.endpoint_model');
+        $provision['endpoint_model'] = is_array($endpointModel)
+            ? $this->stringList($endpointModel)
+            : (is_int($endpointModel) ? $endpointModel : $this->nullableString($endpointModel));
+
+        return $provision;
     }
 
     /** @return array{media_id: string|null, media_name: string|null} */
@@ -206,10 +233,12 @@ class DeviceResource extends JsonResource
         return ['system' => $this->stringList($value['system'] ?? null), 'rules' => $rules];
     }
 
-    /** @return array{binding_digit: string|null, digit_timeout: int|null, listen_on: string|null, number_flow_count: int, pattern_flow_count: int} */
+    /** @return array<string, mixed> */
     private function metaflows(mixed $value): array
     {
         $metaflows = is_array($value) ? $value : [];
+        $policy = app(DeviceMetaflowPolicy::class);
+        $account = SwitchAccount::query()->find($this->switch_account_id);
 
         return [
             'binding_digit' => $this->nullableString($metaflows['binding_digit'] ?? null),
@@ -217,6 +246,8 @@ class DeviceResource extends JsonResource
             'listen_on' => $this->nullableString($metaflows['listen_on'] ?? null),
             'number_flow_count' => $this->associativeCount($metaflows['numbers'] ?? null),
             'pattern_flow_count' => $this->associativeCount($metaflows['patterns'] ?? null),
+            'actions' => $policy->editableActions($metaflows, $account),
+            'locked_action_count' => $policy->lockedActionCount($metaflows, $account),
         ];
     }
 
@@ -228,6 +259,58 @@ class DeviceResource extends JsonResource
     private function nullableString(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @return list<array{field: string, direction: string|null, match_invite_format: bool, prefix: string|null, regex: string|null, strip: bool, suffix: string|null, value: string|null}> */
+    private function formatters(mixed $value): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $rows = [];
+
+        foreach ($value as $field => $settings) {
+            if (! is_string($field)) {
+                continue;
+            }
+
+            $options = is_array($settings) && array_is_list($settings) ? $settings : [$settings];
+
+            foreach ($options as $option) {
+                if (! is_array($option)) {
+                    continue;
+                }
+
+                $rows[] = [
+                    'field' => $field,
+                    'direction' => $this->nullableString($option['direction'] ?? null),
+                    'match_invite_format' => (bool) ($option['match_invite_format'] ?? false),
+                    'prefix' => $this->nullableString($option['prefix'] ?? null),
+                    'regex' => $this->nullableString($option['regex'] ?? null),
+                    'strip' => (bool) ($option['strip'] ?? false),
+                    'suffix' => $this->nullableString($option['suffix'] ?? null),
+                    'value' => $this->nullableString($option['value'] ?? null),
+                ];
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $snapshot
+     * @param  list<string>  $keys
+     * @return array<string, string|null>
+     */
+    private function nullableStringObject(array $snapshot, string $path, array $keys): array
+    {
+        $value = Arr::get($snapshot, $path);
+        $value = is_array($value) ? $value : [];
+
+        return collect($keys)
+            ->mapWithKeys(fn (string $key): array => [$key => $this->nullableString($value[$key] ?? null)])
+            ->all();
     }
 
     /**

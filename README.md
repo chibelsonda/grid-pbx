@@ -25,7 +25,7 @@ All published ports bind to `127.0.0.1`.
 
 ```bash
 cp .env.example .env
-docker compose up -d mysql redis grid-api grid-worker grid-ui
+docker compose up -d mysql redis provisioner-catalog grid-api grid-worker grid-ui
 bash scripts/status.sh
 ```
 
@@ -40,6 +40,7 @@ environment or relying on durable sessions.
 | Vue UI | http://localhost:5173 |
 | Laravel API | http://localhost:8081 |
 | API health | http://localhost:8081/api/v1/health |
+| Local provisioning catalog | http://localhost:8082/api/phones |
 | MySQL | `127.0.0.1:3309` (`gridpbx` database) |
 
 The initial local Laravel account is:
@@ -140,6 +141,11 @@ top-ups, and charge acceptance are not exposed by GridPBX.
 
 Line-key inventory and safe provisioning previews are available from the
 projected device `provision.combo_keys` and `provision.feature_keys` data.
+The local discovery-only phone catalog supplies brand, family, and model
+choices to the Device form; see
+[docs/LOCAL_PROVISIONING_CATALOG.md](docs/LOCAL_PROVISIONING_CATALOG.md). It is
+not a physical-phone provisioning server.
+
 Applying a line-key map can cause the external provisioner to update a physical
 phone, so local and new deployments keep it disabled:
 
@@ -157,7 +163,7 @@ phone configuration.
 ```bash
 docker compose down
 docker compose ps
-docker compose logs -f grid-api grid-worker grid-ui mysql
+docker compose logs -f grid-api grid-worker grid-ui provisioner-catalog mysql
 ```
 
 `docker compose down` preserves MySQL and Redis volumes. Running

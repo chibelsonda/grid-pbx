@@ -2,3 +2,16 @@ Grid pbx todo
 - Make db migration clean when db is stable
 - Check how grid-api handle kazoo token to gain access
 - Make api and ui code easy to run on other machine
+- Check if bulk update/delete applicable to all entities
+
+
+
+Deployment
+- State the grid-api-switch is not using any framework 
+- Deploy the api and ui and ask Greg if he find it useful to share the code
+
+
+
+
+
+Next: add secure provisioning enrollment state and confirmed enroll/detach controls, while keeping the actual manufacturer ZTP adapter disabled until the client provides its provisioner URL, authentication, and provider contract.

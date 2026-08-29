@@ -4,19 +4,21 @@ namespace App\Domains\Extensions\Gateways;
 
 use App\Domains\Extensions\Contracts\SwitchExtensionProvisioningGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
-use GridPbx\Switch\Dto\Callflows\CallflowCreateData;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
-use GridPbx\Switch\Dto\Callflows\ManagedExtensionCallflowWriteData;
-use GridPbx\Switch\Dto\Devices\DeviceWriteData;
-use GridPbx\Switch\Dto\Users\UserAdvancedData;
-use GridPbx\Switch\Dto\Users\UserWriteData;
-use GridPbx\Switch\Dto\Voicemail\VoicemailBoxWriteData;
-use GridPbx\Switch\Resources\AccountResource;
-use GridPbx\Switch\Resources\AccountResourceClient;
-use GridPbx\Switch\Resources\CallflowResourceClient;
-use GridPbx\Switch\Resources\DeviceResourceClient;
-use GridPbx\Switch\Resources\UserResourceClient;
-use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
+use GridPbx\Switch\Domains\Accounts\AccountResource;
+use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\ManagedExtensionCallflowWriteData;
+use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
+use GridPbx\Switch\Domains\Devices\Dto\DeviceWriteData;
+use GridPbx\Switch\Domains\Users\Dto\Credentials\UserCredentialsData;
+use GridPbx\Switch\Domains\Users\Dto\Hotdesk\UserHotdeskData;
+use GridPbx\Switch\Domains\Users\Dto\UserAdvancedData;
+use GridPbx\Switch\Domains\Users\Dto\UserWriteData;
+use GridPbx\Switch\Domains\Users\UserResourceClient;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
+use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 
 class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvisioningGateway
 {
@@ -35,10 +37,11 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             lastName: $data['last_name'],
             extension: $data['extension'],
             enabled: $data['is_enabled'],
-            username: $data['username'] ?? null,
             email: $data['email'] ?? null,
             timezone: $data['timezone'] ?? null,
             advanced: $this->userAdvancedData($data),
+            hotdesk: $this->userHotdeskData($data),
+            credentials: $this->userCredentialsData($data),
         ))->toArray();
     }
 
@@ -54,10 +57,11 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             lastName: $data['last_name'],
             extension: $data['extension'],
             enabled: $data['is_enabled'],
-            username: $data['username'] ?? null,
             email: $data['email'] ?? null,
             timezone: $data['timezone'] ?? null,
             advanced: $this->userAdvancedData($data),
+            hotdesk: $this->userHotdeskData($data, true),
+            credentials: $this->userCredentialsData($data),
         ))->toArray();
     }
 
@@ -71,6 +75,49 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             doNotDisturb: $data['do_not_disturb']['enabled'] ?? null,
             excludeFromContactList: $data['contact_list']['exclude'] ?? null,
             outboundPrivacy: $data['caller_id_options']['outbound_privacy'] ?? null,
+        );
+    }
+
+    /** @param array<string, mixed> $data */
+    private function userCredentialsData(array $data): UserCredentialsData
+    {
+        return new UserCredentialsData(
+            username: isset($data['username']) && is_string($data['username']) && $data['username'] !== ''
+                ? $data['username']
+                : null,
+            password: isset($data['password']) && is_string($data['password']) && $data['password'] !== ''
+                ? $data['password']
+                : null,
+            requirePasswordUpdate: (bool) ($data['require_password_update'] ?? false),
+        );
+    }
+
+    /** @param array<string, mixed> $data */
+    private function userHotdeskData(array $data, bool $updating = false): ?UserHotdeskData
+    {
+        $hotdesk = $data['hotdesk'] ?? null;
+
+        if (! is_array($hotdesk)) {
+            return null;
+        }
+
+        $pin = isset($hotdesk['pin']) && is_string($hotdesk['pin']) && $hotdesk['pin'] !== ''
+            ? $hotdesk['pin']
+            : null;
+        $requirePin = (bool) ($hotdesk['require_pin'] ?? false);
+
+        return new UserHotdeskData(
+            enabled: (bool) ($hotdesk['enabled'] ?? false),
+            id: isset($hotdesk['id']) && is_string($hotdesk['id']) && $hotdesk['id'] !== ''
+                ? $hotdesk['id']
+                : null,
+            keepLoggedInElsewhere: (bool) ($hotdesk['keep_logged_in_elsewhere'] ?? false),
+            requirePin: $requirePin,
+            pin: $pin,
+            preservePin: $updating
+                && $requirePin
+                && $pin === null
+                && ! (bool) ($hotdesk['clear_pin'] ?? false),
         );
     }
 

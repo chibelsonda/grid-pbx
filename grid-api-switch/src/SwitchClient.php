@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch;
 
-use GridPbx\Switch\Contracts\TokenProvider;
-use GridPbx\Switch\Exceptions\SwitchRequestException;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Exception\RequestException;

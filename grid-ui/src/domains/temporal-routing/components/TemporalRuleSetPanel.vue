@@ -66,6 +66,7 @@ const form = reactive<TemporalRuleSetInput>({
                 required
                 maxlength="128"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+                :aria-invalid="Boolean(fieldErrors.name)"
             /></label>
             <div class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Schedule rules</span
@@ -78,6 +79,7 @@ const form = reactive<TemporalRuleSetInput>({
                   type="checkbox"
                   :value="rule.id"
                   class="size-4 accent-brand-500"
+                  :aria-invalid="Boolean(fieldErrors.rule_ids)"
                 /><span
                   ><span class="block text-xs font-semibold text-slate-700">{{ rule.label }}</span
                   ><span class="text-[10px] text-slate-400">{{ rule.detail }}</span></span

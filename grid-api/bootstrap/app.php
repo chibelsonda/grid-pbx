@@ -1,6 +1,6 @@
 <?php
 
-use GridPbx\Switch\Exceptions\SwitchRequestException;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;

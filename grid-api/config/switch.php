@@ -2,6 +2,16 @@
 
 return [
     'base_url' => env('SWITCH_BASE_URL', 'http://switch:8000/v2'),
+    'provisioner_url' => env('SWITCH_PROVISIONER_URL'),
+    'provisioner' => [
+        'auth_type' => env('SWITCH_PROVISIONER_AUTH_TYPE', 'none'),
+        'token' => env('SWITCH_PROVISIONER_TOKEN'),
+        'username' => env('SWITCH_PROVISIONER_USERNAME'),
+        'password' => env('SWITCH_PROVISIONER_PASSWORD'),
+        'header_name' => env('SWITCH_PROVISIONER_HEADER_NAME', 'X-Auth-Token'),
+        'timeout' => (float) env('SWITCH_PROVISIONER_TIMEOUT', 10),
+        'verify_tls' => filter_var(env('SWITCH_PROVISIONER_VERIFY_TLS', true), FILTER_VALIDATE_BOOL),
+    ],
     'api_key' => env('SWITCH_API_KEY'),
     'timeout' => (float) env('SWITCH_TIMEOUT', 10),
     'cdr_page_size' => (int) env('SWITCH_CDR_PAGE_SIZE', 200),

@@ -5,10 +5,10 @@ namespace App\Domains\Directories\Gateways;
 use App\Domains\Directories\Contracts\SwitchDirectoryGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
-use GridPbx\Switch\Dto\Directories\DirectoryWriteData;
-use GridPbx\Switch\Dto\Users\UserDirectoryMappingsWriteData;
-use GridPbx\Switch\Resources\DirectoryResourceClient;
-use GridPbx\Switch\Resources\UserResourceClient;
+use GridPbx\Switch\Domains\Directories\DirectoryResourceClient;
+use GridPbx\Switch\Domains\Directories\Dto\DirectoryWriteData;
+use GridPbx\Switch\Domains\Users\Dto\UserDirectoryMappingsWriteData;
+use GridPbx\Switch\Domains\Users\UserResourceClient;
 use Throwable;
 
 class CrossbarSwitchDirectoryGateway implements SwitchDirectoryGateway

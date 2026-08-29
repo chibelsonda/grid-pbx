@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { extensionApi, type ExtensionPage } from '../api/extensionApi'
-import { defaultExtensionUserConfiguration } from '../extensionForm'
+import { defaultExtensionHotdeskInput, defaultExtensionUserConfiguration } from '../extensionForm'
 import type {
   ExtensionCreate,
   ExtensionDeletionPreview,
@@ -52,7 +52,20 @@ const extension: ExtensionDetail = {
   is_managed: true,
   sync_status: 'healthy',
   last_synced_at: '2026-08-28T10:00:00+08:00',
-  configuration: defaultExtensionUserConfiguration(),
+  configuration: {
+    ...defaultExtensionUserConfiguration(),
+    credentials: {
+      password_configured: true,
+      require_password_update: false,
+    },
+    hotdesk: {
+      enabled: true,
+      id: '1001',
+      keep_logged_in_elsewhere: false,
+      require_pin: true,
+      pin_configured: true,
+    },
+  },
   devices: [],
   voicemail_boxes: [],
   callflows: [],
@@ -62,11 +75,16 @@ const input: ExtensionUpdate = {
   first_name: 'Alice',
   last_name: 'Operations',
   username: 'alice',
+  password: null,
+  password_confirmation: null,
+  require_password_update: false,
+  clear_credentials: false,
   email: 'alice@example.test',
   extension: '1002',
   timezone: 'Asia/Manila',
   is_enabled: true,
   ...defaultExtensionUserConfiguration(),
+  hotdesk: defaultExtensionHotdeskInput(),
   voicemail: {
     enabled: false,
     notification_emails: [],

@@ -3,7 +3,7 @@
 namespace App\Domains\SwitchSynchronization\Contracts;
 
 use App\Domains\Organizations\Models\SwitchAccount;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 
 interface SwitchExtensionGateway
 {

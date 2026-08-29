@@ -8,7 +8,7 @@ use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Recordings\Contracts\SwitchRecordingGateway;
 use App\Domains\Recordings\Models\SwitchRecording;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
@@ -29,7 +29,8 @@ class RecordingControllerTest extends TestCase
 
     public function test_authorized_user_streams_audio_with_range_and_auditing_headers(): void
     {
-        [$user, $account] = $this->accessibleAccount(); $recording = SwitchRecording::factory()->for($account)->create();
+        [$user, $account] = $this->accessibleAccount();
+        $recording = SwitchRecording::factory()->for($account)->create();
         $this->mock(SwitchRecordingGateway::class)->shouldReceive('audio')->once()->withArgs(fn (SwitchAccount $received, string $id, ?string $range) => $received->is($account) && $id === $recording->switch_resource_id && $range === 'bytes=0-3')->andReturn(new BinaryResponse(Utils::streamFor('MP3!'), 206, 'audio/mpeg', 4, 'bytes 0-3/10'));
 
         $response = $this->actingAs($user)->withHeader('Range', 'bytes=0-3')->get("/api/v1/accounts/{$account->id}/recordings/{$recording->id}/audio");
@@ -43,7 +44,8 @@ class RecordingControllerTest extends TestCase
 
     public function test_cross_account_recording_is_not_exposed(): void
     {
-        [$user, $account] = $this->accessibleAccount(); $foreign = SwitchRecording::factory()->create();
+        [$user, $account] = $this->accessibleAccount();
+        $foreign = SwitchRecording::factory()->create();
         $this->mock(SwitchRecordingGateway::class)->shouldIgnoreMissing();
         $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/recordings/{$foreign->id}")->assertNotFound();
     }
@@ -51,7 +53,10 @@ class RecordingControllerTest extends TestCase
     /** @return array{User, SwitchAccount} */
     private function accessibleAccount(OrganizationRole $role = OrganizationRole::AccountOperator): array
     {
-        $user = User::factory()->create(); $organization = Organization::factory()->create(); $organization->users()->attach($user, ['role' => $role->value]);
+        $user = User::factory()->create();
+        $organization = Organization::factory()->create();
+        $organization->users()->attach($user, ['role' => $role->value]);
+
         return [$user, SwitchAccount::factory()->for($organization)->create()];
     }
 }

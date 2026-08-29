@@ -20,7 +20,7 @@ use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
 use App\Domains\Voicemail\Services\VoicemailGreetingProjectionService;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 

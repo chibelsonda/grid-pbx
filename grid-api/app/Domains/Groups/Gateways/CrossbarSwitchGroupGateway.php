@@ -5,9 +5,9 @@ namespace App\Domains\Groups\Gateways;
 use App\Domains\Groups\Contracts\SwitchGroupGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
-use GridPbx\Switch\Dto\Groups\GroupEndpointWriteData;
-use GridPbx\Switch\Dto\Groups\GroupWriteData;
-use GridPbx\Switch\Resources\GroupResourceClient;
+use GridPbx\Switch\Domains\Groups\Dto\GroupEndpointWriteData;
+use GridPbx\Switch\Domains\Groups\Dto\GroupWriteData;
+use GridPbx\Switch\Domains\Groups\GroupResourceClient;
 
 class CrossbarSwitchGroupGateway implements SwitchGroupGateway
 {

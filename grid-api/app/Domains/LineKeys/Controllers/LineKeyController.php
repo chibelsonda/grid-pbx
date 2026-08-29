@@ -38,6 +38,7 @@ class LineKeyController extends Controller
         return response()->json(['data' => [
             'device' => (new LineKeyDeviceResource($preview['device']))->resolve($request),
             'capability' => $preview['capability'],
+            'value_choices' => $preview['value_choices'],
             'payload_preview' => $preview['payload_preview'],
         ]]);
     }

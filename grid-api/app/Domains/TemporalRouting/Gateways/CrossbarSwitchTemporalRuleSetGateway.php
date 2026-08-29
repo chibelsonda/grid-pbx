@@ -5,8 +5,8 @@ namespace App\Domains\TemporalRouting\Gateways;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleSetGateway;
 use Generator;
-use GridPbx\Switch\Dto\TemporalRuleSets\TemporalRuleSetWriteData;
-use GridPbx\Switch\Resources\TemporalRuleSetResourceClient;
+use GridPbx\Switch\Domains\TemporalRuleSets\Dto\TemporalRuleSetWriteData;
+use GridPbx\Switch\Domains\TemporalRuleSets\TemporalRuleSetResourceClient;
 
 class CrossbarSwitchTemporalRuleSetGateway implements SwitchTemporalRuleSetGateway
 {

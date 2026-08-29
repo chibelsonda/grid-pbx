@@ -5,8 +5,8 @@ namespace App\Domains\LineKeys\Services;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\LineKeys\Models\SwitchLineKey;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
-use GridPbx\Switch\Dto\LineKeys\DeviceProvisioningSnapshot;
-use GridPbx\Switch\Dto\LineKeys\LineKeySnapshot;
+use GridPbx\Switch\Domains\LineKeys\Dto\DeviceProvisioningSnapshot;
+use GridPbx\Switch\Domains\LineKeys\Dto\LineKeySnapshot;
 
 class LineKeyProjectionService
 {

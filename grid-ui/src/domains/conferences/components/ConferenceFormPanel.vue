@@ -99,6 +99,7 @@ function save(): void {
                 required
                 maxlength="128"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+                :aria-invalid="Boolean(fieldErrors.name)"
               /><span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
                 fieldErrors.name[0]
               }}</span></label
@@ -108,6 +109,7 @@ function save(): void {
               ><FormSelect
                 v-model="form.owner_id"
                 class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
+                :aria-invalid="Boolean(fieldErrors.owner_id)"
                 ><option :value="null">No owner</option>
                 <option v-for="owner in options.owners" :key="owner.id" :value="owner.id">
                   {{ owner.label }}{{ owner.detail ? ` · ${owner.detail}` : '' }}

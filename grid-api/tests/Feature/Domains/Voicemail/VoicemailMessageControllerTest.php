@@ -10,7 +10,7 @@ use App\Domains\Voicemail\Contracts\SwitchVoicemailMessageGateway;
 use App\Domains\Voicemail\Enums\VoicemailMessageFolder;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use GuzzleHttp\Psr7\Utils;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;

@@ -157,7 +157,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <IdentificationIcon class="mx-auto size-10 text-slate-300" />
+        <IdentificationIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Extension unavailable</h2>
         <p class="mt-2 text-xs text-slate-500">{{ extensions.detailError }}</p>
         <RouterLink

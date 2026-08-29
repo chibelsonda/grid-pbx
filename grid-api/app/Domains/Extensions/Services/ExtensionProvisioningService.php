@@ -18,7 +18,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;

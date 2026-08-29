@@ -5,12 +5,12 @@ namespace App\Domains\SwitchSynchronization\Gateways;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Contracts\SwitchExtensionGateway;
 use Generator;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
-use GridPbx\Switch\Resources\AccountResource;
-use GridPbx\Switch\Resources\AccountResourceClient;
-use GridPbx\Switch\Resources\DeviceResourceClient;
-use GridPbx\Switch\Resources\MediaResourceClient;
-use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
+use GridPbx\Switch\Domains\Accounts\AccountResource;
+use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
+use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
+use GridPbx\Switch\Domains\Media\MediaResourceClient;
+use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 
 class CrossbarSwitchExtensionGateway implements SwitchExtensionGateway
 {

@@ -5,8 +5,8 @@ namespace App\Domains\Conferences\Gateways;
 use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Generator;
-use GridPbx\Switch\Dto\Conferences\ConferenceWriteData;
-use GridPbx\Switch\Resources\ConferenceResourceClient;
+use GridPbx\Switch\Domains\Conferences\ConferenceResourceClient;
+use GridPbx\Switch\Domains\Conferences\Dto\ConferenceWriteData;
 
 class CrossbarSwitchConferenceGateway implements SwitchConferenceGateway
 {

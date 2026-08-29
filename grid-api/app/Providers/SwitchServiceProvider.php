@@ -11,7 +11,11 @@ use App\Domains\CallRouting\Gateways\CrossbarSwitchCallflowGateway;
 use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
 use App\Domains\Conferences\Gateways\CrossbarSwitchConferenceGateway;
 use App\Domains\Devices\Contracts\SwitchDeviceGateway;
+use App\Domains\Devices\Contracts\SwitchProvisioningCatalogGateway;
 use App\Domains\Devices\Gateways\CrossbarSwitchDeviceGateway;
+use App\Domains\Devices\Gateways\ProvisionerSwitchProvisioningCatalogGateway;
+use App\Domains\Devices\Gateways\UnavailableSwitchProvisioningCatalogGateway;
+use App\Domains\Devices\Services\DeviceMetaflowPolicy;
 use App\Domains\Directories\Contracts\SwitchDirectoryGateway;
 use App\Domains\Directories\Gateways\CrossbarSwitchDirectoryGateway;
 use App\Domains\Extensions\Contracts\SwitchExtensionProvisioningGateway;
@@ -50,30 +54,33 @@ use App\Domains\Voicemail\Contracts\SwitchVoicemailMessageGateway;
 use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailBoxGateway;
 use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailGreetingGateway;
 use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailMessageGateway;
-use GridPbx\Switch\ApiKeyTokenProvider;
-use GridPbx\Switch\Contracts\TokenProvider;
-use GridPbx\Switch\Resources\AccountResourceClient;
-use GridPbx\Switch\Resources\AgentResourceClient;
-use GridPbx\Switch\Resources\BlacklistResourceClient;
-use GridPbx\Switch\Resources\CallDetailRecordResourceClient;
-use GridPbx\Switch\Resources\CallflowResourceClient;
-use GridPbx\Switch\Resources\ConferenceResourceClient;
-use GridPbx\Switch\Resources\DeviceResourceClient;
-use GridPbx\Switch\Resources\DirectoryResourceClient;
-use GridPbx\Switch\Resources\FaxBoxResourceClient;
-use GridPbx\Switch\Resources\FaxMessageResourceClient;
-use GridPbx\Switch\Resources\GroupResourceClient;
-use GridPbx\Switch\Resources\LineKeyResourceClient;
-use GridPbx\Switch\Resources\MediaResourceClient;
-use GridPbx\Switch\Resources\MenuResourceClient;
-use GridPbx\Switch\Resources\PhoneNumberResourceClient;
-use GridPbx\Switch\Resources\QueueResourceClient;
-use GridPbx\Switch\Resources\RecordingResourceClient;
-use GridPbx\Switch\Resources\ServiceResourceClient;
-use GridPbx\Switch\Resources\TemporalRuleResourceClient;
-use GridPbx\Switch\Resources\TemporalRuleSetResourceClient;
-use GridPbx\Switch\Resources\UserResourceClient;
-use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
+use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Agents\AgentResourceClient;
+use GridPbx\Switch\Domains\Blacklists\BlacklistResourceClient;
+use GridPbx\Switch\Domains\CallDetailRecords\CallDetailRecordResourceClient;
+use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
+use GridPbx\Switch\Domains\Conferences\ConferenceResourceClient;
+use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
+use GridPbx\Switch\Domains\Directories\DirectoryResourceClient;
+use GridPbx\Switch\Domains\Faxes\FaxBoxResourceClient;
+use GridPbx\Switch\Domains\Faxes\FaxMessageResourceClient;
+use GridPbx\Switch\Domains\Groups\GroupResourceClient;
+use GridPbx\Switch\Domains\LineKeys\LineKeyResourceClient;
+use GridPbx\Switch\Domains\Media\MediaResourceClient;
+use GridPbx\Switch\Domains\Menus\MenuResourceClient;
+use GridPbx\Switch\Domains\PhoneNumbers\PhoneNumberResourceClient;
+use GridPbx\Switch\Domains\Provisioning\ProvisionerClient;
+use GridPbx\Switch\Domains\Provisioning\ProvisionerConfig;
+use GridPbx\Switch\Domains\Provisioning\ProvisioningCatalogResourceClient;
+use GridPbx\Switch\Domains\Queues\QueueResourceClient;
+use GridPbx\Switch\Domains\Recordings\RecordingResourceClient;
+use GridPbx\Switch\Domains\Services\ServiceResourceClient;
+use GridPbx\Switch\Domains\TemporalRules\TemporalRuleResourceClient;
+use GridPbx\Switch\Domains\TemporalRuleSets\TemporalRuleSetResourceClient;
+use GridPbx\Switch\Domains\Users\UserResourceClient;
+use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
+use GridPbx\Switch\Shared\Authentication\ApiKeyTokenProvider;
+use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -84,11 +91,37 @@ class SwitchServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->scoped(DeviceMetaflowPolicy::class);
         $this->app->bind(SwitchCallflowGateway::class, CrossbarSwitchCallflowGateway::class);
         $this->app->bind(SwitchConferenceGateway::class, CrossbarSwitchConferenceGateway::class);
         $this->app->bind(SwitchBlacklistGateway::class, CrossbarSwitchBlacklistGateway::class);
         $this->app->bind(SwitchCallDetailRecordGateway::class, CrossbarSwitchCallDetailRecordGateway::class);
         $this->app->bind(SwitchDeviceGateway::class, CrossbarSwitchDeviceGateway::class);
+        $this->app->singleton(SwitchProvisioningCatalogGateway::class, function ($app) {
+            $baseUrl = trim((string) config('switch.provisioner_url'));
+
+            if ($baseUrl === '') {
+                return new UnavailableSwitchProvisioningCatalogGateway;
+            }
+
+            $client = new ProvisionerClient(
+                $app->make(ClientInterface::class),
+                new ProvisionerConfig(
+                    baseUrl: $baseUrl,
+                    authType: (string) config('switch.provisioner.auth_type'),
+                    token: config('switch.provisioner.token'),
+                    username: config('switch.provisioner.username'),
+                    password: config('switch.provisioner.password'),
+                    headerName: (string) config('switch.provisioner.header_name'),
+                    timeout: (float) config('switch.provisioner.timeout'),
+                    verifyTls: (bool) config('switch.provisioner.verify_tls'),
+                ),
+            );
+
+            return new ProvisionerSwitchProvisioningCatalogGateway(
+                new ProvisioningCatalogResourceClient($client),
+            );
+        });
         $this->app->bind(SwitchDirectoryGateway::class, CrossbarSwitchDirectoryGateway::class);
         $this->app->bind(SwitchExtensionGateway::class, CrossbarSwitchExtensionGateway::class);
         $this->app->bind(SwitchExtensionProvisioningGateway::class, CrossbarSwitchExtensionProvisioningGateway::class);

@@ -4,9 +4,9 @@ namespace App\Domains\Voicemail\Gateways;
 
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
-use GridPbx\Switch\Dto\Voicemail\VoicemailBoxAdvancedData;
-use GridPbx\Switch\Dto\Voicemail\VoicemailBoxWriteData;
-use GridPbx\Switch\Resources\VoicemailBoxResourceClient;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxAdvancedData;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
+use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 
 class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
 {

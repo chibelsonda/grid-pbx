@@ -260,7 +260,7 @@ function routeTitle(route: {
             </tr>
             <tr v-else-if="callflows.records.length === 0">
               <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                <ArrowPathRoundedSquareIcon class="mx-auto mb-3 size-8 text-slate-300" />No call
+                <ArrowPathRoundedSquareIcon class="mx-auto mb-3 size-8 text-slate-400" />No call
                 routes match this account and filter.
               </td>
             </tr>

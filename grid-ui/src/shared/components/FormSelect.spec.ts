@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { DOMWrapper, mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import FormSelect from './FormSelect.vue'
 
@@ -14,10 +14,33 @@ describe('FormSelect', () => {
 
     expect(wrapper.get('button').text()).toContain('Weekly')
     await wrapper.get('button').trigger('click')
-    const options = wrapper.findAll('[role="option"]')
+    const options = Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]')).map(
+      (option) => new DOMWrapper(option),
+    )
     expect(options.map((option) => option.text())).toEqual(['Daily', 'Weekly'])
     await options[0]?.trigger('click')
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['daily'])
+    wrapper.unmount()
+  })
+
+  it('teleports and viewport-positions options so overflow containers cannot clip them', async () => {
+    const wrapper = mount(FormSelect, {
+      props: { modelValue: '' },
+      slots: {
+        default:
+          '<option value="">Select a brand</option><option value="cisco">Cisco</option><option value="grandstream">Grandstream</option>',
+      },
+      attachTo: document.body,
+    })
+
+    await wrapper.get('button').trigger('click')
+    const menu = document.body.querySelector<HTMLElement>('[role="listbox"]')
+
+    expect(menu).not.toBeNull()
+    expect(wrapper.element.contains(menu)).toBe(false)
+    expect(menu?.classList.contains('fixed')).toBe(true)
+    expect(menu?.style.visibility).toBe('visible')
+    expect(menu?.style.maxHeight).toMatch(/px$/)
     wrapper.unmount()
   })
 

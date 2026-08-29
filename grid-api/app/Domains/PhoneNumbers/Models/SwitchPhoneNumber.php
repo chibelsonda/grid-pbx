@@ -71,4 +71,18 @@ class SwitchPhoneNumber extends Model
     {
         return SwitchPhoneNumberFactory::new();
     }
+
+    public function isE911Enabled(): bool
+    {
+        $features = collect($this->features ?? [])
+            ->filter(static fn (mixed $feature): bool => is_string($feature))
+            ->map(static fn (string $feature): string => strtolower($feature));
+
+        return $features->contains('e911')
+            || in_array(strtolower((string) $this->e911_status), [
+                'active',
+                'enabled',
+                'provisioned',
+            ], true);
+    }
 }

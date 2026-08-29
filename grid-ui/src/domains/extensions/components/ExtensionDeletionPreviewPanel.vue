@@ -192,6 +192,7 @@ const confirmed = computed(
             v-model="confirmation"
             autocomplete="off"
             class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
+            :aria-invalid="Boolean(fieldErrors.confirmation)"
           />
           <span v-if="fieldErrors.confirmation" class="text-[10px] text-danger">{{
             fieldErrors.confirmation[0]

@@ -7,8 +7,9 @@ withDefaults(
     label: string
     description?: string
     disabled?: boolean
+    invalid?: boolean
   }>(),
-  { description: '', disabled: false },
+  { description: '', disabled: false, invalid: false },
 )
 
 const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
@@ -31,6 +32,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
     <Switch
       :model-value="modelValue"
       :disabled="disabled"
+      :aria-invalid="invalid || undefined"
       class="relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       :class="modelValue ? 'bg-brand-500' : 'bg-slate-200'"
       @update:model-value="emit('update:modelValue', $event)"

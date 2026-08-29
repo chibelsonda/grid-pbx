@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { LineKeyCapability } from '../types/lineKey'
 
 const keyTypes = ['line', 'presence', 'personal_parking', 'speed_dial', 'parking'] as const
 
@@ -39,23 +40,61 @@ const lineKeySchema = z
     }
   })
 
-export const lineKeyFormSchema = z
-  .object({ line_keys: z.array(lineKeySchema).max(100) })
-  .strict()
-  .superRefine(({ line_keys: lineKeys }, context) => {
-    const seen = new Set<string>()
+export function createLineKeyFormSchema(capability?: LineKeyCapability) {
+  const totalKeys = capability?.model.total_keys ?? null
+  const maximumAssignments = totalKeys === null ? 100 : Math.min(totalKeys, 1000)
+  const supportedTypes = new Set(capability?.model.supported_key_types ?? keyTypes)
 
-    lineKeys.forEach((key, index) => {
-      const identity = `${key.category}:${key.position}`
+  return z
+    .object({ line_keys: z.array(lineKeySchema).max(maximumAssignments) })
+    .strict()
+    .superRefine(({ line_keys: lineKeys }, context) => {
+      const seen = new Set<string>()
+      const physicalPositions = new Set<number>()
 
-      if (seen.has(identity)) {
-        context.addIssue({
-          code: 'custom',
-          path: ['line_keys', index, 'position'],
-          message: 'Each category and position combination must be unique.',
-        })
-      }
+      lineKeys.forEach((key, index) => {
+        const identity = `${key.category}:${key.position}`
 
-      seen.add(identity)
+        if (seen.has(identity)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['line_keys', index, 'position'],
+            message: 'Each category and position combination must be unique.',
+          })
+        }
+
+        seen.add(identity)
+
+        if (capability?.model.matched && physicalPositions.has(key.position)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['line_keys', index, 'position'],
+            message: 'Each physical model position may be assigned only once.',
+          })
+        }
+
+        physicalPositions.add(key.position)
+
+        if (totalKeys !== null && key.position >= totalKeys) {
+          context.addIssue({
+            code: 'custom',
+            path: ['line_keys', index, 'position'],
+            message:
+              totalKeys === 0
+                ? 'The selected model does not expose programmable line keys.'
+                : `Use a position from 0 to ${totalKeys - 1}.`,
+          })
+        }
+
+        if (!supportedTypes.has(key.type)) {
+          context.addIssue({
+            code: 'custom',
+            path: ['line_keys', index, 'type'],
+            message: 'This line-key type is not supported by the selected model.',
+          })
+        }
+      })
     })
-  })
+}
+
+export const lineKeyFormSchema = createLineKeyFormSchema()

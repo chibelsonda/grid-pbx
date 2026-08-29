@@ -228,7 +228,18 @@ partial update from Switch, or resumes a partial deletion after exact-number
 confirmation. Recovery responses expose public operation and extension UUIDs
 plus safe step names; upstream resource IDs, raw context, PINs, and credentials
 remain server-side. Fully compensated creates are marked rolled back and do not
-enter the queue.
+enter the queue. User hotdesk profiles are now edited in both Extension
+slide-overs with schema-aligned ID, enabled state, PIN requirement, and
+multi-device login controls. PINs are write-only, redacted from MySQL and API
+responses, preserved privately when unchanged, and removable only after PIN
+protection is disabled. A disposable live Switch lifecycle verifies profile
+create/edit/preserve/clear and Device sign-in/sign-out behavior.
+The same Extension slide-overs now own the optional Switch portal-login
+workflow. A password is required for login creation or username changes,
+confirmation is validated in Vue and Laravel, unchanged usernames never resend
+the write-only password, and deleting credentials requires an explicit removal
+state. `require_password_update` is exposed only with a username, and plaintext
+passwords remain absent from responses, lifecycle context, and MySQL.
 
 ### 5.3 Devices
 
@@ -252,9 +263,12 @@ registration projection, role authorization, audit logging, credential
 redaction, and Vue management screens are implemented. The LineKey foundation
 also projects `provision.combo_keys` and `provision.feature_keys`, exposes a
 credential-free payload preview, and provides a right-side editor. Applying a
-full key-map replacement uses the Switch device PATCH boundary and remains
-disabled unless `SWITCH_LINE_KEY_MUTATIONS_ENABLED=true` and the device has a
-confirmed endpoint brand and model. Vendor templates, generated provisioning
+full key-map replacement uses a live-verified read-modify-POST boundary because
+Crossbar PATCH recursively merges old key maps. Apply remains disabled unless
+`SWITCH_LINE_KEY_MUTATIONS_ENABLED=true` and the device has a confirmed endpoint
+brand, model, and MAC address. A typed Monster-compatible `/phones` catalog is
+used when `SWITCH_PROVISIONER_URL` is configured; otherwise the UI states that
+discovery is unavailable and permits manual hardware values. Generated provisioning
 documents, bulk settings, and zero-touch provisioning remain conditional.
 The first schema-parity form slice now adds all eight upstream device types,
 Basic/Advanced conditional controls, nested SIP/forwarding/media/caller-ID and

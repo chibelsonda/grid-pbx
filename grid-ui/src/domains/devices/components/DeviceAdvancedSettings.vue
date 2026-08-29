@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import {
-  BellAlertIcon,
+  Tab,
+  TabGroup,
+  TabList,
+  TabPanel,
+  TabPanels,
+} from '@headlessui/vue'
+import {
   IdentificationIcon,
-  MicrophoneIcon,
   MusicalNoteIcon,
   PhoneArrowUpRightIcon,
   ShieldExclamationIcon,
@@ -13,33 +17,71 @@ import {
   VideoCameraIcon,
 } from '@heroicons/vue/24/outline'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import {
   audioCodecs,
   deviceAdvancedTabForError,
   deviceSupportsTab,
-  supportsDeviceNotifications,
-  supportsDeviceRecording,
+  supportsDeviceOption,
+  supportsFaxOption,
+  supportsMusicOnHold,
+  supportsOutboundFlags,
   supportsVideo,
-  usesForwarding,
-  usesSip,
   videoCodecs,
 } from '../deviceForm'
-import type { DeviceConfiguration, DeviceRestrictionOption, DeviceType } from '../types/device'
-import DeviceRecordingSettings from './DeviceRecordingSettings.vue'
-import DeviceRoutingSettings from './DeviceRoutingSettings.vue'
+import type {
+  DeviceCallerIdNumberOption,
+  DeviceConfiguration,
+  DeviceMetaflowResources,
+  DeviceRestrictionOption,
+  DeviceSchemaCompatibility,
+  DeviceType,
+} from '../types/device'
+import DeviceCodecPriority from './DeviceCodecPriority.vue'
+import DeviceRingtoneSettings from './DeviceRingtoneSettings.vue'
 
-const props = defineProps<{
-  deviceType: DeviceType
-  fieldErrors: Record<string, string[]>
-  firstErrorField: string | null
-  isEditing: boolean
-  restrictionOptions: DeviceRestrictionOption[]
-  mediaOptions: Array<{ id: string; name: string | null }>
-}>()
+const props = withDefaults(
+  defineProps<{
+    deviceType: DeviceType
+    fieldErrors: Record<string, string[]>
+    firstErrorField: string | null
+    isEditing: boolean
+    restrictionOptions: DeviceRestrictionOption[]
+    mediaOptions: Array<{ id: string; name: string | null }>
+    metaflowResources?: DeviceMetaflowResources
+    extensionOptions?: Array<{ id: string; display_name: string; extension: string | null }>
+    callerIdNumberOptions?: DeviceCallerIdNumberOption[]
+    schemaCompatibility: DeviceSchemaCompatibility
+  }>(),
+  {
+    callerIdNumberOptions: () => [],
+    metaflowResources: () => ({ callflows: [], devices: [] }),
+    extensionOptions: () => [],
+  },
+)
 const configuration = defineModel<DeviceConfiguration>({ required: true })
 const callerIdScopes = ['internal', 'external', 'emergency'] as const
 const selectedTabIndex = ref(0)
+const inviteFormatLabels = {
+  contact: 'Contact',
+  username: 'Username',
+  npan: 'NPAN',
+  '1npan': '1NPAN',
+  e164: 'E.164',
+  route: 'Route',
+  strip_plus: 'Strip leading +',
+} as const
+const inviteFormatOptions = computed(() =>
+  props.schemaCompatibility.sip.invite_formats.map((format) => ({
+    value: format,
+    label: inviteFormatLabels[format],
+  })),
+)
+const staticOutboundFlags = useDelimitedStringList(
+  () => configuration.value.outbound_flags.static,
+  (values) => (configuration.value.outbound_flags.static = values),
+)
 
 const tabs = computed(() => [
   { key: 'basic', label: 'Basic', icon: Squares2X2Icon },
@@ -117,6 +159,27 @@ function invalidClass(field: string): string {
   return validationControlClass(error(field))
 }
 
+function callerIdOptions(scope: 'external' | 'emergency') {
+  const current = configuration.value.caller_id[scope].number
+  const projected = props.callerIdNumberOptions
+    .filter((option) => scope !== 'emergency' || option.e911_enabled)
+    .map((option) => ({
+      value: option.number,
+      label: option.number,
+      description: option.display_name,
+    }))
+
+  if (current && !projected.some((option) => option.value === current)) {
+    projected.unshift({
+      value: current,
+      label: current,
+      description: 'Current Switch value; not available in the local phone-number projection',
+    })
+  }
+
+  return [{ value: null, label: 'Inherit account caller ID', description: null }, ...projected]
+}
+
 function restrictionAction(key: string): 'inherit' | 'deny' {
   return configuration.value.call_restriction[key]?.action ?? 'inherit'
 }
@@ -124,18 +187,6 @@ function restrictionAction(key: string): 'inherit' | 'deny' {
 function setRestrictionAction(key: string, action: unknown): void {
   if (action !== 'inherit' && action !== 'deny') return
   configuration.value.call_restriction[key] = { action }
-}
-
-function toggleCodec(kind: 'audio' | 'video', codec: string): void {
-  const codecs = configuration.value.media[kind].codecs
-  const index = codecs.indexOf(codec)
-
-  if (index === -1) codecs.push(codec)
-  else codecs.splice(index, 1)
-}
-
-function codecSelected(kind: 'audio' | 'video', codec: string): boolean {
-  return configuration.value.media[kind].codecs.includes(codec)
 }
 
 function toggleEncryptionMethod(method: string): void {
@@ -148,7 +199,7 @@ function toggleEncryptionMethod(method: string): void {
 </script>
 
 <template>
-  <article class="card-surface overflow-hidden">
+  <article class="card-surface overflow-visible">
     <TabGroup :selected-index="selectedTabIndex" @change="selectTab">
       <TabList
         class="flex gap-1 overflow-x-auto border-b border-slate-100 bg-slate-50/70 px-4 pt-3"
@@ -212,12 +263,20 @@ function toggleEncryptionMethod(method: string): void {
             </label>
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Number</span>
-              <input
+              <FormListbox
+                v-if="scope !== 'internal'"
                 v-model="configuration.caller_id[scope].number"
+                :invalid="Boolean(error(`caller_id.${scope}.number`))"
+                :options="callerIdOptions(scope)"
+                :aria-label="`${scope} caller ID number`"
+              />
+              <input
+                v-else
+                v-model="configuration.caller_id.internal.number"
                 maxlength="35"
                 class="field-control"
-                :class="invalidClass(`caller_id.${scope}.number`)"
-                :aria-invalid="Boolean(error(`caller_id.${scope}.number`))"
+                :class="invalidClass('caller_id.internal.number')"
+                :aria-invalid="Boolean(error('caller_id.internal.number'))"
               />
               <span v-if="error(`caller_id.${scope}.number`)" class="text-[11px] text-danger">{{
                 error(`caller_id.${scope}.number`)
@@ -308,14 +367,7 @@ function toggleEncryptionMethod(method: string): void {
               <FormListbox
                 v-model="configuration.sip.invite_format"
                 :invalid="Boolean(error('sip.invite_format'))"
-                :options="[
-                  { value: 'contact', label: 'Contact' },
-                  { value: 'username', label: 'Username' },
-                  { value: 'npan', label: 'NPAN' },
-                  { value: '1npan', label: '1NPAN' },
-                  { value: 'e164', label: 'E.164' },
-                  { value: 'route', label: 'Route' },
-                ]"
+                :options="inviteFormatOptions"
               />
               <span v-if="error('sip.invite_format')" class="text-[11px] text-danger">{{
                 error('sip.invite_format')
@@ -449,45 +501,126 @@ function toggleEncryptionMethod(method: string): void {
                 error('sip.static_route')
               }}</span>
             </label>
-            <ToggleSwitch
-              v-model="configuration.sip.ignore_completed_elsewhere"
-              label="Ignore completed elsewhere"
-              description="Do not mark group calls answered elsewhere as missed"
-              class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
-            />
+            <label v-if="schemaCompatibility.sip.custom_sip_interface" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Custom SIP interface</span>
+              <input
+                v-model="configuration.sip.custom_sip_interface"
+                maxlength="255"
+                class="field-control font-mono"
+                :class="invalidClass('sip.custom_sip_interface')"
+                :aria-invalid="Boolean(error('sip.custom_sip_interface'))"
+                placeholder="Optional interface name"
+              />
+              <span v-if="error('sip.custom_sip_interface')" class="text-[11px] text-danger">{{
+                error('sip.custom_sip_interface')
+              }}</span>
+            </label>
+            <label v-if="schemaCompatibility.sip.forward" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Forward IP</span>
+              <input
+                v-model="configuration.sip.forward"
+                maxlength="255"
+                class="field-control font-mono"
+                :class="invalidClass('sip.forward')"
+                :aria-invalid="Boolean(error('sip.forward'))"
+                placeholder="Optional forwarding host"
+              />
+              <span v-if="error('sip.forward')" class="text-[11px] text-danger">{{
+                error('sip.forward')
+              }}</span>
+            </label>
+            <label v-if="schemaCompatibility.sip.proxy" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">SIP proxy</span>
+              <input
+                v-model="configuration.sip.proxy"
+                maxlength="2048"
+                class="field-control font-mono"
+                :class="invalidClass('sip.proxy')"
+                :aria-invalid="Boolean(error('sip.proxy'))"
+                placeholder="Optional proxy address"
+              />
+              <span v-if="error('sip.proxy')" class="text-[11px] text-danger">{{
+                error('sip.proxy')
+              }}</span>
+            </label>
+            <label v-if="schemaCompatibility.sip.static_invite" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Static SIP To user</span>
+              <input
+                v-model="configuration.sip.static_invite"
+                maxlength="2048"
+                class="field-control font-mono"
+                :class="invalidClass('sip.static_invite')"
+                :aria-invalid="Boolean(error('sip.static_invite'))"
+                placeholder="Optional To user"
+              />
+              <span v-if="error('sip.static_invite')" class="text-[11px] text-danger">{{
+                error('sip.static_invite')
+              }}</span>
+            </label>
+            <label v-if="schemaCompatibility.sip.transport" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">SIP transport</span>
+              <input
+                v-model="configuration.sip.transport"
+                maxlength="32"
+                class="field-control font-mono"
+                :class="invalidClass('sip.transport')"
+                :aria-invalid="Boolean(error('sip.transport'))"
+                placeholder="udp, tcp, or tls"
+              />
+              <span v-if="error('sip.transport')" class="text-[11px] text-danger">{{
+                error('sip.transport')
+              }}</span>
+            </label>
+            <label
+              v-if="supportsOutboundFlags(deviceType)"
+              class="grid gap-2 sm:col-span-2"
+            >
+              <span class="text-xs font-semibold text-slate-600">Outbound flags</span>
+              <textarea
+                v-model="staticOutboundFlags"
+                rows="2"
+                class="field-control min-h-20 py-2"
+                :class="invalidClass('outbound_flags.static')"
+                :aria-invalid="Boolean(error('outbound_flags.static'))"
+                placeholder="fax, trusted"
+              />
+              <span class="text-[10px] text-slate-500">
+                Separate Switch resource flags with commas or new lines.
+              </span>
+              <span v-if="error('outbound_flags.static')" class="text-[11px] text-danger">{{
+                error('outbound_flags.static')
+              }}</span>
+            </label>
           </TabPanel>
         </template>
 
         <template v-if="deviceSupportsTab(deviceType, 'audio')">
           <TabPanel class="grid gap-6 outline-none">
-            <section class="grid gap-3">
-              <div>
-                <h3 class="text-xs font-semibold text-slate-700">Audio codecs</h3>
-                <p class="mt-1 text-[10px] text-slate-400">
-                  Selected codecs are sent in the order shown.
-                </p>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  v-for="codec in audioCodecs"
-                  :key="codec"
-                  type="button"
-                  :aria-pressed="codecSelected('audio', codec)"
-                  class="rounded-md border px-3 py-2 text-xs font-semibold transition"
-                  :class="
-                    codecSelected('audio', codec)
-                      ? 'border-brand-500 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                  "
-                  @click="toggleCodec('audio', codec)"
-                >
-                  {{ codec }}
-                </button>
-              </div>
-              <span v-if="error('media.audio.codecs')" class="text-[11px] text-danger">{{
-                error('media.audio.codecs')
-              }}</span>
-            </section>
+            <label v-if="supportsMusicOnHold(deviceType)" class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Music on hold</span>
+              <FormListbox
+                v-model="configuration.music_on_hold.media_id"
+                :invalid="Boolean(error('music_on_hold.media_id'))"
+                :options="[
+                  { value: null, label: 'Inherit account music' },
+                  ...mediaOptions.map((media) => ({
+                    value: media.id,
+                    label: media.name || 'Untitled media',
+                  })),
+                ]"
+                aria-label="Select device music on hold"
+              />
+              <span v-if="error('music_on_hold.media_id')" class="text-[11px] text-danger">
+                {{ error('music_on_hold.media_id') }}
+              </span>
+            </label>
+            <DeviceCodecPriority
+              v-model="configuration.media.audio.codecs"
+              label="Audio codec priority"
+              description="The Switch negotiates selected codecs from first priority to last."
+              :options="audioCodecs"
+              :error="error('media.audio.codecs')"
+            />
             <div class="grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-2">
               <label class="grid gap-2">
                 <span class="text-xs font-semibold text-slate-600">Bypass media</span>
@@ -535,11 +668,6 @@ function toggleEncryptionMethod(method: string): void {
                 }}</span>
               </div>
               <ToggleSwitch
-                v-if="deviceType === 'fax' || deviceType === 'ata'"
-                v-model="configuration.media.fax_option"
-                label="Enable T.38 fax"
-              />
-              <ToggleSwitch
                 v-model="configuration.media.ignore_early_media"
                 label="Ignore early media"
               />
@@ -563,55 +691,25 @@ function toggleEncryptionMethod(method: string): void {
         </template>
 
         <template v-if="deviceSupportsTab(deviceType, 'video') && supportsVideo(deviceType)">
-          <TabPanel class="grid gap-3 outline-none">
-            <div>
-              <h3 class="text-xs font-semibold text-slate-700">Video codecs</h3>
-              <p class="mt-1 text-[10px] text-slate-400">
-                Select the video formats this endpoint can negotiate.
-              </p>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-for="codec in videoCodecs"
-                :key="codec"
-                type="button"
-                :aria-pressed="codecSelected('video', codec)"
-                class="rounded-md border px-3 py-2 text-xs font-semibold transition"
-                :class="
-                  codecSelected('video', codec)
-                    ? 'border-brand-500 bg-brand-50 text-brand-700'
-                    : 'border-slate-200 text-slate-500 hover:border-slate-300'
-                "
-                @click="toggleCodec('video', codec)"
-              >
-                {{ codec }}
-              </button>
-            </div>
-            <span v-if="error('media.video.codecs')" class="text-[11px] text-danger">
-              {{ error('media.video.codecs') }}
-            </span>
+          <TabPanel class="outline-none">
+            <DeviceCodecPriority
+              v-model="configuration.media.video.codecs"
+              label="Video codec priority"
+              description="The Switch negotiates selected codecs from first priority to last."
+              :options="videoCodecs"
+              :error="error('media.video.codecs')"
+            />
           </TabPanel>
         </template>
 
         <TabPanel class="grid gap-4 outline-none sm:grid-cols-2">
-          <template v-if="usesForwarding(deviceType)">
-            <ToggleSwitch
-              v-model="configuration.call_forward.enabled"
-              label="Enable call forwarding"
-            />
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Forwarding number</span>
-              <input
-                v-model="configuration.call_forward.number"
-                maxlength="15"
-                class="field-control"
-                :class="invalidClass('call_forward.number')"
-                :aria-invalid="Boolean(error('call_forward.number'))"
-              />
-              <span v-if="error('call_forward.number')" class="text-[11px] text-danger">{{
-                error('call_forward.number')
-              }}</span>
-            </label>
+          <DeviceRingtoneSettings
+            v-if="supportsDeviceOption(deviceType, 'ringtones')"
+            v-model="configuration.ringtones"
+            :field-errors="fieldErrors"
+            class="sm:col-span-2"
+          />
+          <template v-if="supportsDeviceOption(deviceType, 'forwarding')">
             <ToggleSwitch
               v-model="configuration.call_forward.require_keypress"
               label="Require keypress"
@@ -621,136 +719,23 @@ function toggleEncryptionMethod(method: string): void {
               v-model="configuration.call_forward.keep_caller_id"
               label="Keep original caller ID"
             />
-            <ToggleSwitch
-              v-model="configuration.call_forward.direct_calls_only"
-              label="Direct calls only"
-            />
-            <ToggleSwitch
-              v-model="configuration.call_forward.failover"
-              label="Forward only when offline"
-            />
-            <ToggleSwitch
-              v-model="configuration.call_forward.ignore_early_media"
-              label="Ignore early media"
-            />
-            <ToggleSwitch
-              v-model="configuration.call_forward.substitute"
-              label="Replace this device"
-            />
-            <ToggleSwitch
-              v-model="configuration.contact_list.exclude"
-              label="Hide from contact list"
-            />
           </template>
           <ToggleSwitch
-            v-if="deviceType === 'fax' || deviceType === 'ata'"
+            v-if="supportsDeviceOption(deviceType, 'fax') && supportsFaxOption(deviceType)"
             v-model="configuration.media.fax_option"
             label="Enable T.38 fax"
             description="Negotiate fax media for this endpoint"
           />
-          <ToggleSwitch v-model="configuration.call_waiting.enabled" label="Call waiting" />
-          <ToggleSwitch v-model="configuration.do_not_disturb.enabled" label="Do not disturb" />
-          <ToggleSwitch v-model="configuration.exclude_from_queues" label="Exclude from queues" />
-          <label v-if="!deviceSupportsTab(deviceType, 'caller-id')" class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Presence ID</span>
-            <input
-              v-model="configuration.presence_id"
-              maxlength="255"
-              class="field-control"
-              :class="invalidClass('presence_id')"
-              :aria-invalid="Boolean(error('presence_id'))"
-            />
-            <span v-if="error('presence_id')" class="text-[11px] text-danger">{{
-              error('presence_id')
-            }}</span>
-          </label>
-          <section
-            v-if="supportsDeviceRecording(deviceType)"
-            class="grid gap-4 border-t border-slate-100 pt-5 sm:col-span-2"
-          >
-            <div class="flex items-center gap-2">
-              <MicrophoneIcon class="size-4 text-brand-500" />
-              <h3 class="text-xs font-semibold text-slate-700">Call recording</h3>
-            </div>
-            <DeviceRecordingSettings
-              v-model="configuration.call_recording"
-              :field-errors="fieldErrors"
-            />
-          </section>
-          <section
-            v-if="supportsDeviceNotifications(deviceType)"
-            class="grid gap-5 border-t border-slate-100 pt-5 sm:col-span-2 sm:grid-cols-2"
-          >
-            <div class="flex items-center gap-2 sm:col-span-2">
-              <BellAlertIcon class="size-4 text-brand-500" />
-              <h3 class="text-xs font-semibold text-slate-700">Notifications and locale</h3>
-            </div>
-            <ToggleSwitch
-              v-model="configuration.mwi_unsolicited_updates"
-              label="Unsolicited MWI updates"
-            />
-            <ToggleSwitch
-              v-model="configuration.register_overwrite_notify"
-              label="Registration overwrite notifications"
-            />
-            <ToggleSwitch
-              :model-value="!configuration.suppress_unregister_notifications"
-              label="Unregistration notifications"
-              @update:model-value="configuration.suppress_unregister_notifications = !$event"
-            />
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Language</span>
-              <input
-                v-model="configuration.language"
-                maxlength="32"
-                class="field-control"
-                :class="invalidClass('language')"
-                :aria-invalid="Boolean(error('language'))"
-                placeholder="Account default"
-              />
-              <span v-if="error('language')" class="text-[11px] text-danger">{{
-                error('language')
-              }}</span>
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Timezone</span>
-              <input
-                v-model="configuration.timezone"
-                class="field-control"
-                :class="invalidClass('timezone')"
-                :aria-invalid="Boolean(error('timezone'))"
-                placeholder="Account default"
-              />
-              <span v-if="error('timezone')" class="text-[11px] text-danger">{{
-                error('timezone')
-              }}</span>
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Internal ringtone header</span>
-              <input
-                v-model="configuration.ringtones.internal"
-                maxlength="256"
-                class="field-control"
-                :class="invalidClass('ringtones.internal')"
-                :aria-invalid="Boolean(error('ringtones.internal'))"
-              />
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">External ringtone header</span>
-              <input
-                v-model="configuration.ringtones.external"
-                maxlength="256"
-                class="field-control"
-                :class="invalidClass('ringtones.external')"
-                :aria-invalid="Boolean(error('ringtones.external'))"
-              />
-            </label>
-          </section>
-          <DeviceRoutingSettings
-            v-model="configuration"
-            :field-errors="fieldErrors"
-            :media-options="mediaOptions"
-            :supports-sip="usesSip(deviceType)"
+          <ToggleSwitch
+            v-if="supportsDeviceOption(deviceType, 'contact-list')"
+            v-model="configuration.contact_list.exclude"
+            label="Hide from contact list"
+          />
+          <ToggleSwitch
+            v-if="supportsDeviceOption(deviceType, 'ignore-completed-elsewhere')"
+            v-model="configuration.sip.ignore_completed_elsewhere"
+            label="Ignore completed elsewhere"
+            description="Do not mark group calls answered elsewhere as missed"
           />
         </TabPanel>
 
@@ -775,7 +760,7 @@ function toggleEncryptionMethod(method: string): void {
             />
           </section>
 
-          <section class="overflow-hidden rounded-lg border border-slate-200">
+          <section class="overflow-visible rounded-lg border border-slate-200">
             <header class="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
               <h3 class="text-xs font-semibold text-slate-700">Number classifications</h3>
               <p class="mt-1 text-[10px] leading-4 text-slate-400">

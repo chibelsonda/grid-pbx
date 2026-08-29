@@ -4,12 +4,12 @@ namespace App\Domains\CallRouting\Gateways;
 
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
-use GridPbx\Switch\Dto\Callflows\CallflowCreateData;
-use GridPbx\Switch\Dto\Callflows\CallflowSnapshot;
-use GridPbx\Switch\Dto\Callflows\CallflowWriteData;
-use GridPbx\Switch\Resources\AccountResource;
-use GridPbx\Switch\Resources\AccountResourceClient;
-use GridPbx\Switch\Resources\CallflowResourceClient;
+use GridPbx\Switch\Domains\Accounts\AccountResource;
+use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use UnexpectedValueException;
 
 class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway

@@ -4,6 +4,7 @@ import type {
   DeviceRecordingParameters,
   DeviceRecordingSource,
   DeviceRestrictionOption,
+  DeviceSchemaCompatibility,
   DeviceType,
 } from './types/device'
 import type { Component } from 'vue'
@@ -92,6 +93,27 @@ export const audioCodecs = [
 ] as const
 export const videoCodecs = ['H261', 'H263', 'H264', 'VP8'] as const
 
+export const legacyDeviceSchemaCompatibility: DeviceSchemaCompatibility = {
+  source: 'bundled_legacy_fallback',
+  schema_id: 'devices',
+  call_forward: { number_max_length: 15 },
+  sip: {
+    invite_formats: ['username', 'npan', '1npan', 'e164', 'route', 'contact'],
+    custom_sip_interface: false,
+    forward: false,
+    proxy: false,
+    static_invite: false,
+    transport: false,
+  },
+  provision: {
+    template_id: false,
+    endpoint_model_types: ['string', 'integer'],
+    check_sync_event: true,
+    check_sync_reload: true,
+    check_sync_reboot: true,
+  },
+}
+
 export function defaultDeviceConfiguration(): DeviceConfiguration {
   return {
     call_forward: {
@@ -116,6 +138,11 @@ export function defaultDeviceConfiguration(): DeviceConfiguration {
       number: null,
       route: null,
       static_route: null,
+      custom_sip_interface: null,
+      forward: null,
+      proxy: null,
+      static_invite: null,
+      transport: null,
       ignore_completed_elsewhere: false,
       custom_sip_headers: { in: [], out: [] },
     },
@@ -161,6 +188,17 @@ export function defaultDeviceConfiguration(): DeviceConfiguration {
       listen_on: 'both',
       number_flow_count: 0,
       pattern_flow_count: 0,
+      actions: [],
+      locked_action_count: 0,
+    },
+    flags: [],
+    formatters: [],
+    provision: {
+      id: null,
+      endpoint_model: null,
+      check_sync_event: null,
+      check_sync_reload: null,
+      check_sync_reboot: null,
     },
     hotdesk: { active_user_count: 0 },
   }
@@ -228,9 +266,30 @@ export function hydrateDeviceConfiguration(
       system: [...(source.dial_plan?.system ?? defaults.dial_plan.system)],
       rules: (source.dial_plan?.rules ?? defaults.dial_plan.rules).map((rule) => ({ ...rule })),
     },
-    metaflows: { ...defaults.metaflows, ...source.metaflows },
+    metaflows: {
+      ...defaults.metaflows,
+      ...source.metaflows,
+      actions: (source.metaflows?.actions ?? []).map((action) => ({
+        ...action,
+        data: { ...action.data },
+        children: hydrateMetaflowChildren(action.children),
+      })),
+    },
+    flags: [...(source.flags ?? defaults.flags)],
+    formatters: (source.formatters ?? defaults.formatters).map((formatter) => ({ ...formatter })),
+    provision: { ...defaults.provision, ...source.provision },
     hotdesk: { ...defaults.hotdesk, ...source.hotdesk },
   }
+}
+
+function hydrateMetaflowChildren(
+  children: DeviceConfiguration['metaflows']['actions'][number]['children'] | undefined,
+): DeviceConfiguration['metaflows']['actions'][number]['children'] {
+  return (children ?? []).map((child) => ({
+    ...child,
+    data: { ...child.data },
+    children: hydrateMetaflowChildren(child.children),
+  }))
 }
 
 function defaultRecordingParameters(): DeviceRecordingParameters {
@@ -272,12 +331,80 @@ export function usesForwarding(deviceType: DeviceType): boolean {
   return ['cellphone', 'smartphone', 'landline'].includes(deviceType)
 }
 
+export function isForwardingOnlyDevice(deviceType: DeviceType): boolean {
+  return deviceType === 'cellphone' || deviceType === 'landline'
+}
+
 export function supportsVideo(deviceType: DeviceType): boolean {
   return ['sip_device', 'smartphone', 'softphone'].includes(deviceType)
 }
 
 export function supportsProvisioning(deviceType: DeviceType): boolean {
   return ['sip_device', 'fax', 'ata'].includes(deviceType)
+}
+
+export function supportsFaxOption(deviceType: DeviceType): boolean {
+  return ['sip_device', 'softphone', 'fax', 'ata'].includes(deviceType)
+}
+
+export function supportsIgnoreCompletedElsewhere(deviceType: DeviceType): boolean {
+  return deviceType === 'sip_device' || deviceType === 'softphone'
+}
+
+export function supportsOutboundFlags(deviceType: DeviceType): boolean {
+  return ['sip_device', 'smartphone', 'softphone', 'ata'].includes(deviceType)
+}
+
+export function supportsMusicOnHold(deviceType: DeviceType): boolean {
+  return deviceType === 'sip_device' || deviceType === 'softphone'
+}
+
+export type DeviceOptionCapability =
+  | 'forwarding'
+  | 'ringtones'
+  | 'fax'
+  | 'contact-list'
+  | 'ignore-completed-elsewhere'
+
+export const deviceOptionCapabilities: Record<
+  DeviceType,
+  ReadonlySet<DeviceOptionCapability>
+> = {
+  sip_device: new Set(['ringtones', 'fax', 'contact-list', 'ignore-completed-elsewhere']),
+  cellphone: new Set(['forwarding', 'contact-list']),
+  smartphone: new Set(['forwarding', 'contact-list']),
+  landline: new Set(['forwarding', 'contact-list']),
+  softphone: new Set(['fax', 'contact-list', 'ignore-completed-elsewhere']),
+  fax: new Set(['fax', 'contact-list']),
+  ata: new Set(['fax', 'contact-list']),
+  sip_uri: new Set(['contact-list']),
+}
+
+export function supportsDeviceOption(
+  deviceType: DeviceType,
+  capability: DeviceOptionCapability,
+): boolean {
+  return deviceOptionCapabilities[deviceType].has(capability)
+}
+
+export type DeviceFieldGroup = 'contact-list' | 'endpoint-behavior' | 'advanced-routing'
+
+export const deviceFieldCapabilities: Record<DeviceType, ReadonlySet<DeviceFieldGroup>> = {
+  sip_device: new Set(['contact-list', 'endpoint-behavior', 'advanced-routing']),
+  cellphone: new Set(['contact-list']),
+  smartphone: new Set(['contact-list', 'endpoint-behavior', 'advanced-routing']),
+  softphone: new Set(['contact-list', 'endpoint-behavior', 'advanced-routing']),
+  landline: new Set(['contact-list']),
+  fax: new Set(['contact-list', 'endpoint-behavior', 'advanced-routing']),
+  ata: new Set(['contact-list', 'endpoint-behavior', 'advanced-routing']),
+  sip_uri: new Set(['contact-list']),
+}
+
+export function supportsDeviceFieldGroup(
+  deviceType: DeviceType,
+  fieldGroup: DeviceFieldGroup,
+): boolean {
+  return deviceFieldCapabilities[deviceType].has(fieldGroup)
 }
 
 export const deviceFormTabs: Record<DeviceType, DeviceFormTab[]> = {
@@ -307,11 +434,21 @@ export function isBasicDeviceErrorField(field: string): boolean {
   return (
     ['name', 'device_type', 'mac_address', 'assigned_extension_id', 'call_forward.number'].some(
       (path) => field === path || field.startsWith(`${path}.`),
-    ) || field.startsWith('provision.')
+    ) ||
+    ['provision.endpoint_brand', 'provision.endpoint_family', 'provision.endpoint_model'].includes(
+      field,
+    )
   )
 }
 
 export function deviceAdvancedTabForError(field: string, deviceType?: DeviceType): string {
+  if (field === 'sip.ignore_completed_elsewhere') return 'options'
+  if (field.startsWith('outbound_flags.') && deviceType && deviceSupportsTab(deviceType, 'sip')) {
+    return 'sip'
+  }
+  if (field.startsWith('music_on_hold.') && deviceType && deviceSupportsTab(deviceType, 'audio')) {
+    return 'audio'
+  }
   if (field.startsWith('sip.')) return 'sip'
   if (field.startsWith('media.video.')) return 'video'
   if (field.startsWith('media.')) return 'audio'
@@ -321,6 +458,9 @@ export function deviceAdvancedTabForError(field: string, deviceType?: DeviceType
     field.startsWith('outbound_flags.') ||
     field.startsWith('dial_plan.') ||
     field.startsWith('metaflows.') ||
+    field.startsWith('flags') ||
+    field.startsWith('formatters.') ||
+    field.startsWith('provision.check_sync_') ||
     field.startsWith('sip.custom_sip_headers.')
   ) {
     return 'options'

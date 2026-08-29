@@ -3,12 +3,14 @@
 namespace App\Domains\Devices\Models;
 
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
+use App\Domains\Devices\Support\MacAddress;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\LineKeys\Models\SwitchLineKey;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchDeviceFactory;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -76,6 +78,14 @@ class SwitchDevice extends Model
             'is_managed' => 'boolean',
             'switch_json' => 'array',
         ];
+    }
+
+    /** @return Attribute<string|null, string|null> */
+    protected function macAddress(): Attribute
+    {
+        return Attribute::make(
+            set: static fn (?string $value): ?string => MacAddress::canonicalize($value),
+        );
     }
 
     protected static function newFactory(): SwitchDeviceFactory

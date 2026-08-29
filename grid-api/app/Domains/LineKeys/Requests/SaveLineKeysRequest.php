@@ -17,7 +17,7 @@ class SaveLineKeysRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'line_keys' => ['present', 'array', 'max:100'],
+            'line_keys' => ['present', 'array', 'max:1000'],
             'line_keys.*.category' => ['required', Rule::in(['combo', 'feature'])],
             'line_keys.*.position' => ['required', 'integer', 'min:0', 'max:999'],
             'line_keys.*.type' => ['required', Rule::in(['line', 'presence', 'personal_parking', 'speed_dial', 'parking'])],

@@ -29,6 +29,7 @@ const configuration = defineModel<ExtensionUserConfiguration>({ required: true }
           maxlength="32"
           placeholder="Account default"
           class="field-control"
+          :aria-invalid="Boolean(fieldErrors.language)"
         />
         <span v-if="fieldErrors.language" class="text-[10px] text-danger">{{
           fieldErrors.language[0]
@@ -44,6 +45,7 @@ const configuration = defineModel<ExtensionUserConfiguration>({ required: true }
           maxlength="255"
           placeholder="Defaults to extension number"
           class="field-control"
+          :aria-invalid="Boolean(fieldErrors.presence_id)"
         />
         <span v-if="fieldErrors.presence_id" class="text-[10px] text-danger">{{
           fieldErrors.presence_id[0]
@@ -73,6 +75,7 @@ const configuration = defineModel<ExtensionUserConfiguration>({ required: true }
         <span class="text-xs font-semibold text-slate-600">Outbound caller-ID privacy</span>
         <FormListbox
           v-model="configuration.caller_id_options.outbound_privacy"
+          :invalid="Boolean(fieldErrors['caller_id_options.outbound_privacy'])"
           :options="[
             { value: 'none', label: 'Show name and number' },
             { value: 'name', label: 'Hide name' },

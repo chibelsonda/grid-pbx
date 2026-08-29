@@ -3,7 +3,7 @@
 namespace App\Domains\Voicemail\Contracts;
 
 use App\Domains\Organizations\Models\SwitchAccount;
-use GridPbx\Switch\Http\BinaryResponse;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 use Psr\Http\Message\StreamInterface;
 
 interface SwitchVoicemailGreetingGateway

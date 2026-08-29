@@ -75,6 +75,7 @@ function submit(): void {
                 required
                 maxlength="128"
                 class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+                :aria-invalid="Boolean(fieldErrors.name)"
               /><span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
                 fieldErrors.name[0]
               }}</span></label
@@ -85,6 +86,7 @@ function submit(): void {
                 v-model="form.numbersText"
                 rows="10"
                 class="rounded-md border border-slate-200 px-3 py-2 font-mono text-xs"
+                :aria-invalid="Boolean(invalidNumbers.length || fieldErrors.numbers)"
                 placeholder="+15550001000&#10;+15550001001"
               /><span class="text-[10px] text-slate-400"
                 >One E.164 number per line. {{ numbers.length }} unique number{{

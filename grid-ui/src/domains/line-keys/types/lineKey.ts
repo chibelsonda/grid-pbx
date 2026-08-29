@@ -24,17 +24,36 @@ export type LineKeyCapability = {
   preview_available: boolean
   apply_available: boolean
   reason: string | null
+  model: {
+    matched: boolean
+    max_keys: number | null
+    max_expansion_modules: number | null
+    keys_per_expansion_module: number | null
+    total_keys: number | null
+    supported_key_types: LineKeyType[]
+    value_sources: string[]
+    manufacturer_provider: string | null
+  }
 }
 
 export type LineKeyPreview = {
   device: LineKeyDevice
   capability: LineKeyCapability
+  value_choices: LineKeyValueChoice[]
   payload_preview: {
     provision: {
       combo_keys: Record<string, unknown>
       feature_keys: Record<string, unknown>
     }
   }
+}
+
+export type LineKeyValueChoice = {
+  id: string
+  source: 'extensions' | 'devices'
+  value: string
+  label: string
+  description: string | null
 }
 
 export type LineKeyInput = {

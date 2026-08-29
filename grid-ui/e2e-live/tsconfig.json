@@ -1,0 +1,9 @@
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM"],
+    "noEmit": true,
+    "types": ["node", "@playwright/test"]
+  },
+  "include": ["./**/*", "../playwright.live.config.ts"]
+}

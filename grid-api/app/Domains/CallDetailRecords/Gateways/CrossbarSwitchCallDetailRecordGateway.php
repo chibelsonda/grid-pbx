@@ -6,7 +6,7 @@ use App\Domains\CallDetailRecords\Contracts\SwitchCallDetailRecordGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use DateTimeInterface;
 use Generator;
-use GridPbx\Switch\Resources\CallDetailRecordResourceClient;
+use GridPbx\Switch\Domains\CallDetailRecords\CallDetailRecordResourceClient;
 
 class CrossbarSwitchCallDetailRecordGateway implements SwitchCallDetailRecordGateway
 {

@@ -11,17 +11,14 @@ import DeviceBasicSettings from '../components/DeviceBasicSettings.vue'
 import DeviceTypeSelector from '../components/DeviceTypeSelector.vue'
 import {
   defaultDeviceConfiguration,
-  deviceSupportsTab,
   hydrateDeviceConfiguration,
   hydrateDeviceRestrictions,
   isBasicDeviceErrorField,
-  supportsDeviceNotifications,
-  supportsDeviceRecording,
   usesForwarding,
-  usesSip,
 } from '../deviceForm'
+import { buildDeviceInput } from '../deviceInput'
 import { useDeviceStore } from '../stores/deviceStore'
-import { deviceFormSchema } from '../schemas/deviceFormSchema'
+import { createDeviceFormSchema } from '../schemas/deviceFormSchema'
 import type { DeviceBasicForm, DeviceConfiguration, DeviceInput, DeviceType } from '../types/device'
 
 const route = useRoute()
@@ -70,6 +67,9 @@ watch(
         form.is_enabled = device.is_enabled
         form.assigned_extension_id = device.assigned_extension?.id ?? ''
         Object.assign(configuration, hydrateDeviceConfiguration(device.configuration))
+        if (configuration.provision.endpoint_model === null) {
+          configuration.provision.endpoint_model = device.model
+        }
         configuration.call_restriction = hydrateDeviceRestrictions(
           configuration.call_restriction,
           devices.restrictionOptions,
@@ -97,17 +97,20 @@ watch(
   { deep: true },
 )
 
-function nullable(value: string | null): string | null {
-  const trimmed = value?.trim() ?? ''
-
-  return trimmed === '' ? null : trimmed
-}
-
 function selectDeviceType(deviceType: DeviceType): void {
   form.device_type = deviceType
   configuration.call_forward.enabled = usesForwarding(deviceType)
   configuration.media.fax_option = deviceType === 'fax'
-  configuration.sip.invite_format = deviceType === 'sip_uri' ? 'route' : 'contact'
+  configuration.outbound_flags.static =
+    deviceType === 'fax'
+      ? [...new Set(['fax', ...configuration.outbound_flags.static])]
+      : configuration.outbound_flags.static.filter((flag) => flag !== 'fax')
+  configuration.sip.invite_format =
+    deviceType === 'sip_uri' && devices.schemaCompatibility.sip.invite_formats.includes('route')
+      ? 'route'
+      : devices.schemaCompatibility.sip.invite_formats.includes('contact')
+        ? 'contact'
+        : (devices.schemaCompatibility.sip.invite_formats[0] ?? 'username')
 }
 
 function selectFormTab(index: number): void {
@@ -123,97 +126,11 @@ function revealFirstError(errors: Record<string, string[]>): void {
 async function save(): Promise<void> {
   if (!accounts.selectedId) return
 
-  const { username_configured: _usernameConfigured, ...sipConfiguration } = configuration.sip
-
-  const input: DeviceInput = {
-    name: form.name.trim(),
-    device_type: form.device_type,
-    provision: {
-      endpoint_brand: nullable(form.make),
-      endpoint_family: nullable(form.family),
-      endpoint_model: nullable(form.model),
-    },
-    mac_address: nullable(form.mac_address),
-    is_enabled: form.is_enabled,
-    assigned_extension_id: nullable(form.assigned_extension_id),
-    ...(usesForwarding(form.device_type)
-      ? {
-          call_forward: {
-            ...configuration.call_forward,
-            number: nullable(configuration.call_forward.number),
-          },
-        }
-      : {}),
-    ...(usesSip(form.device_type)
-      ? {
-          sip: {
-            ...sipConfiguration,
-            username: nullable(configuration.sip.username),
-            password: nullable(configuration.sip.password),
-            realm: nullable(configuration.sip.realm),
-            ip: nullable(configuration.sip.ip),
-            number: nullable(configuration.sip.number),
-            route: nullable(configuration.sip.route),
-            static_route: nullable(configuration.sip.static_route),
-          },
-          ...(deviceSupportsTab(form.device_type, 'audio') ||
-          form.device_type === 'fax' ||
-          form.device_type === 'ata'
-            ? { media: configuration.media }
-            : {}),
-        }
-      : {}),
-    ...(deviceSupportsTab(form.device_type, 'caller-id')
-      ? {
-          caller_id: configuration.caller_id,
-          caller_id_options: configuration.caller_id_options,
-        }
-      : {}),
-    call_waiting: configuration.call_waiting,
-    do_not_disturb: configuration.do_not_disturb,
-    contact_list: configuration.contact_list,
-    exclude_from_queues: configuration.exclude_from_queues,
-    language: nullable(configuration.language),
-    timezone: nullable(configuration.timezone),
-    presence_id: nullable(configuration.presence_id),
-    ...(supportsDeviceNotifications(form.device_type)
-      ? {
-          mwi_unsolicited_updates: configuration.mwi_unsolicited_updates,
-          register_overwrite_notify: configuration.register_overwrite_notify,
-          suppress_unregister_notifications: configuration.suppress_unregister_notifications,
-          ringtones: {
-            internal: nullable(configuration.ringtones.internal),
-            external: nullable(configuration.ringtones.external),
-          },
-        }
-      : {}),
-    ...(deviceSupportsTab(form.device_type, 'restrictions')
-      ? { call_restriction: configuration.call_restriction }
-      : {}),
-    ...(supportsDeviceRecording(form.device_type)
-      ? { call_recording: configuration.call_recording }
-      : {}),
-    music_on_hold: { media_id: configuration.music_on_hold.media_id },
-    outbound_flags: {
-      static: [...configuration.outbound_flags.static],
-      dynamic: [...configuration.outbound_flags.dynamic],
-    },
-    dial_plan: {
-      system: [...configuration.dial_plan.system],
-      rules: configuration.dial_plan.rules.map((rule) => ({
-        pattern: rule.pattern.trim(),
-        description: nullable(rule.description),
-        prefix: nullable(rule.prefix),
-        suffix: nullable(rule.suffix),
-      })),
-    },
-    metaflows: {
-      binding_digit: configuration.metaflows.binding_digit,
-      digit_timeout: configuration.metaflows.digit_timeout,
-      listen_on: configuration.metaflows.listen_on,
-    },
-  }
-  const validation = validateForm(deviceFormSchema, input)
+  const input: DeviceInput = buildDeviceInput(form, configuration, devices.schemaCompatibility)
+  const validation = validateForm(
+    createDeviceFormSchema(devices.schemaCompatibility, devices.provisioningCatalog),
+    input,
+  )
 
   if (!validation.success) {
     devices.fieldErrors = validation.errors
@@ -255,7 +172,7 @@ function close(): void {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <KeyIcon class="mx-auto size-10 text-slate-300" />
+        <KeyIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
         <p class="mt-2 text-xs text-slate-500">
           Your organization role can view devices but cannot change Switch configuration.
@@ -324,6 +241,8 @@ function close(): void {
               v-model:configuration="configuration"
               :extension-options="devices.extensionOptions"
               :field-errors="devices.fieldErrors"
+              :provisioning-catalog="devices.provisioningCatalog"
+              :schema-compatibility="devices.schemaCompatibility"
             />
           </TabPanel>
 
@@ -336,7 +255,11 @@ function close(): void {
               :first-error-field="firstErrorField"
               :is-editing="isEditing"
               :media-options="devices.mediaOptions"
+              :metaflow-resources="devices.metaflowResources"
+              :extension-options="devices.extensionOptions"
+              :caller-id-number-options="devices.callerIdNumberOptions"
               :restriction-options="devices.restrictionOptions"
+              :schema-compatibility="devices.schemaCompatibility"
             >
               <template #basic>
                 <DeviceBasicSettings
@@ -344,6 +267,8 @@ function close(): void {
                   v-model:configuration="configuration"
                   :extension-options="devices.extensionOptions"
                   :field-errors="devices.fieldErrors"
+                  :provisioning-catalog="devices.provisioningCatalog"
+                  :schema-compatibility="devices.schemaCompatibility"
                 />
               </template>
             </DeviceAdvancedSettings>

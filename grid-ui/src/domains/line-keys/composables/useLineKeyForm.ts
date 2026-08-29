@@ -1,11 +1,9 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
-import { lineKeyFormSchema } from '../schemas/lineKeyFormSchema'
+import { createLineKeyFormSchema } from '../schemas/lineKeyFormSchema'
 import type { LineKeyInput, LineKeyPreview } from '../types/lineKey'
 
-type LineKeyFormResult =
-  | { success: true; data: LineKeyInput[] }
-  | { success: false; data: null }
+type LineKeyFormResult = { success: true; data: LineKeyInput[] } | { success: false; data: null }
 
 function nullableText(value: string | null): string | null {
   const trimmed = value?.trim() ?? ''
@@ -43,6 +41,10 @@ export function useLineKeyForm(preview: LineKeyPreview) {
     })),
   )
   const validationErrors = ref<FormErrors>({})
+  const maximumAssignments = computed(() =>
+    Math.min(preview.capability.model.total_keys ?? 100, 1000),
+  )
+  const canAdd = computed(() => form.length < maximumAssignments.value)
   const normalizedKeys = computed(() => form.map(normalizedKey))
   const safePreview = computed(() => ({
     provision: {
@@ -61,12 +63,20 @@ export function useLineKeyForm(preview: LineKeyPreview) {
 
   watch(form, () => (validationErrors.value = {}), { deep: true })
 
-  function add(): void {
-    const positions = form.filter((key) => key.category === 'feature').map((key) => key.position)
+  function add(startPosition = 0, endPosition = 999): void {
+    if (!canAdd.value) return
+
+    const positions = new Set(form.map((key) => key.position))
+    let position = startPosition
+
+    while (position <= endPosition && positions.has(position)) position += 1
+
+    if (position > endPosition) return
+
     form.push({
       category: 'feature',
-      position: positions.length ? Math.max(...positions) + 1 : 0,
-      type: 'speed_dial',
+      position,
+      type: preview.capability.model.supported_key_types[0] ?? 'speed_dial',
       label: null,
       value: null,
     })
@@ -77,7 +87,9 @@ export function useLineKeyForm(preview: LineKeyPreview) {
   }
 
   function validate(): LineKeyFormResult {
-    const result = validateForm(lineKeyFormSchema, { line_keys: normalizedKeys.value })
+    const result = validateForm(createLineKeyFormSchema(preview.capability), {
+      line_keys: normalizedKeys.value,
+    })
     validationErrors.value = result.errors
 
     return result.success
@@ -85,5 +97,5 @@ export function useLineKeyForm(preview: LineKeyPreview) {
       : { success: false, data: null }
   }
 
-  return { add, form, remove, safePreview, validate, validationErrors }
+  return { add, canAdd, form, remove, safePreview, validate, validationErrors }
 }

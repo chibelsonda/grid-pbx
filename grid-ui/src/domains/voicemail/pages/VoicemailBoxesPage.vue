@@ -80,7 +80,7 @@ function loadFirstPage(): void {
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>
-        <MicrophoneIcon class="mx-auto size-10 text-slate-300" />
+        <MicrophoneIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
         <p class="mt-2 text-xs text-slate-500">
           Map and synchronize an account before viewing voicemail boxes.

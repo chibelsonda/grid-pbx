@@ -6,13 +6,15 @@ use App\Domains\Faxes\Contracts\SwitchFaxGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Carbon\CarbonImmutable;
 use Generator;
-use GridPbx\Switch\Http\BinaryResponse;
-use GridPbx\Switch\Resources\FaxMessageResourceClient;
+use GridPbx\Switch\Domains\Faxes\FaxMessageResourceClient;
+use GridPbx\Switch\Shared\Http\BinaryResponse;
 
 class CrossbarSwitchFaxGateway implements SwitchFaxGateway
 {
     private const GREGORIAN_UNIX_OFFSET = 62167219200;
+
     public function __construct(private readonly FaxMessageResourceClient $faxes) {}
+
     public function all(SwitchAccount $account, string $folder, CarbonImmutable $from, CarbonImmutable $to): Generator
     {
         foreach ($this->faxes->all($account->switch_account_id, $folder, $from->timestamp, $to->timestamp) as $fax) {
@@ -29,5 +31,9 @@ class CrossbarSwitchFaxGateway implements SwitchFaxGateway
             ];
         }
     }
-    public function document(SwitchAccount $account, string $folder, string $resourceId, ?string $range = null): BinaryResponse { return $this->faxes->document($account->switch_account_id, $folder, $resourceId, $range); }
+
+    public function document(SwitchAccount $account, string $folder, string $resourceId, ?string $range = null): BinaryResponse
+    {
+        return $this->faxes->document($account->switch_account_id, $folder, $resourceId, $range);
+    }
 }
