@@ -53,6 +53,7 @@ class CrossbarSwitchTemporalRuleGateway implements SwitchTemporalRuleGateway
             timeWindowStop: $data['time_window_stop'] ?? null, enabled: $data['enabled'] ?? null,
             days: array_values($data['days'] ?? []), weekdays: array_values($data['weekdays'] ?? []),
             month: $data['month'] ?? null, ordinal: $data['ordinal'] ?? null,
+            flags: array_values($data['flags'] ?? []),
         );
     }
 }

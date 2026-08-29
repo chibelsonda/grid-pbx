@@ -33,6 +33,9 @@ final readonly class ConferenceSnapshot extends EntitySnapshot
     public bool $playWelcome;
     public bool $requireModerator;
     public bool $waitForModerator;
+    public ?string $maxMembersMediaId;
+    public bool|string|null $playEntryTone;
+    public bool|string|null $playExitTone;
     public int $activeMembers;
     public int $activeModerators;
     public int $durationSeconds;
@@ -74,9 +77,17 @@ final readonly class ConferenceSnapshot extends EntitySnapshot
         $this->playWelcome = (bool) ($data['play_welcome'] ?? true);
         $this->requireModerator = (bool) ($data['require_moderator'] ?? false);
         $this->waitForModerator = (bool) ($data['wait_for_moderator'] ?? false);
+        $this->maxMembersMediaId = $this->nullableString($data['max_members_media'] ?? null);
+        $this->playEntryTone = $this->tone($data['play_entry_tone'] ?? null);
+        $this->playExitTone = $this->tone($data['play_exit_tone'] ?? null);
         $this->activeMembers = max(0, (int) ($realtime['members'] ?? 0));
         $this->activeModerators = max(0, (int) ($realtime['moderators'] ?? 0));
         $this->durationSeconds = max(0, (int) ($realtime['duration'] ?? 0));
         $this->isLocked = (bool) ($realtime['is_locked'] ?? false);
+    }
+
+    private function tone(mixed $value): bool|string|null
+    {
+        return is_bool($value) || (is_string($value) && $value !== '') ? $value : null;
     }
 }

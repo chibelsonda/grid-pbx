@@ -1,4 +1,7 @@
 export type ConferenceOwner = { id: string; label: string | null; extension: string | null }
+export type ConferenceMedia = { id: string; name: string }
+export type ConferenceToneMode = 'enabled' | 'disabled' | 'media' | 'current_custom'
+export type ConferenceTone = { mode: ConferenceToneMode; media: ConferenceMedia | null }
 export type Conference = {
   id: string
   name: string
@@ -22,6 +25,9 @@ export type Conference = {
   play_welcome: boolean
   require_moderator: boolean
   wait_for_moderator: boolean
+  max_members_media: ConferenceMedia | null
+  entry_tone: ConferenceTone
+  exit_tone: ConferenceTone
   runtime: { members: number; moderators: number; duration_seconds: number; is_locked: boolean }
   sync_status: 'healthy' | 'syncing' | 'stale' | 'error'
   last_synced_at: string | null
@@ -50,7 +56,12 @@ export type ConferenceInput = {
   play_welcome: boolean
   require_moderator: boolean
   wait_for_moderator: boolean
+  max_members_media_id: string | null
+  play_entry_tone_mode: ConferenceToneMode
+  play_entry_tone_media_id: string | null
+  play_exit_tone_mode: ConferenceToneMode
+  play_exit_tone_media_id: string | null
 }
 export type ConferenceOption = { id: string; label: string; detail: string | null }
-export type ConferenceOptions = { owners: ConferenceOption[] }
+export type ConferenceOptions = { owners: ConferenceOption[]; media: ConferenceOption[] }
 export type ConferenceSyncRun = { id: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; error_message: string | null }

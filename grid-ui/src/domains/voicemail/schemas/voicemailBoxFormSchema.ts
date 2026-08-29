@@ -1,6 +1,17 @@
 import { z } from 'zod'
 
-export const voicemailBoxFormSchema = z
+const voicemailNotificationCallbackSchema = z
+  .object({
+    disabled: z.boolean(),
+    number: z.string().trim().min(1).max(64).nullable(),
+    attempts: z.number().int().min(0).max(100).nullable(),
+    interval_s: z.number().int().min(0).max(604800).nullable(),
+    timeout_s: z.number().int().min(0).max(3600).nullable(),
+    schedule: z.array(z.number().int().min(0).max(604800)).max(100),
+  })
+  .strict()
+
+const voicemailBoxBaseSchema = z
   .object({
     name: z.string().trim().min(1, 'Enter a mailbox name.').max(128),
     mailbox: z.string().regex(/^\d{1,30}$/, 'Use 1–30 digits.'),
@@ -32,5 +43,40 @@ export const voicemailBoxFormSchema = z
     skip_instructions: z.boolean(),
     is_voicemail_ff_rw_enabled: z.boolean(),
     seek_duration_ms: z.number().int().min(0).max(300000),
+    notify_callback: voicemailNotificationCallbackSchema.nullable(),
   })
   .strict()
+
+export function voicemailBoxFormSchemaFor(editing: boolean, pinConfigured = false) {
+  return voicemailBoxBaseSchema.superRefine((input, context) => {
+    if (input.require_pin && input.pin === null && (!editing || !pinConfigured)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['pin'],
+        message: 'Enter a mailbox PIN when PIN protection is enabled.',
+      })
+    }
+
+    if (input.save_after_notify && input.delete_after_notify) {
+      context.addIssue({
+        code: 'custom',
+        path: ['delete_after_notify'],
+        message: 'Delete after notification cannot be enabled while save is enabled.',
+      })
+    }
+
+    if (
+      input.notify_callback !== null &&
+      !input.notify_callback.disabled &&
+      input.notify_callback.number === null
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['notify_callback', 'number'],
+        message: 'Enter a callback number when callback notifications are enabled.',
+      })
+    }
+  })
+}
+
+export const voicemailBoxFormSchema = voicemailBoxFormSchemaFor(false)

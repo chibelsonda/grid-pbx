@@ -31,6 +31,16 @@ final readonly class QueueSnapshot extends EntitySnapshot
 
     public ?string $musicOnHoldMediaId;
 
+    public ?string $announceMediaId;
+
+    public ?int $maxPriority;
+
+    public ?QueueAnnouncementsSnapshot $announcements;
+
+    public ?string $cdrUrl;
+
+    public ?string $recordingUrl;
+
     /** @var list<string> */
     public array $agentIds;
 
@@ -58,6 +68,13 @@ final readonly class QueueSnapshot extends EntitySnapshot
         $this->recordCaller = (bool) ($data['record_caller'] ?? false);
         $this->callerExitKey = is_string($data['caller_exit_key'] ?? null) ? $data['caller_exit_key'] : '#';
         $this->musicOnHoldMediaId = $this->nullableString($data['moh'] ?? null);
+        $this->announceMediaId = $this->nullableString($data['announce'] ?? null);
+        $this->maxPriority = is_int($data['max_priority'] ?? null) ? $data['max_priority'] : null;
+        $this->announcements = is_array($data['announcements'] ?? null)
+            ? new QueueAnnouncementsSnapshot($data['announcements'])
+            : null;
+        $this->cdrUrl = $this->nullableString($data['cdr_url'] ?? null);
+        $this->recordingUrl = $this->nullableString($data['recording_url'] ?? null);
         $this->agentIds = $this->stringList($data['agents'] ?? []);
     }
 }

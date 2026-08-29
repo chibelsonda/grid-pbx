@@ -21,7 +21,7 @@ class MenuMutationService
         $resourceId = null;
 
         try {
-            $snapshot = $this->gateway->create($account, $this->resolve($account, $data));
+            $snapshot = $this->gateway->create($account, $this->resolve($account, $data, null));
             $resourceId = is_string($snapshot['id'] ?? null) ? $snapshot['id'] : null;
 
             if ($resourceId === null) {
@@ -51,7 +51,7 @@ class MenuMutationService
         $previous = $this->writeDataFromModel($menu);
 
         try {
-            $snapshot = $this->gateway->update($account, $menu->switch_resource_id, $this->resolve($account, $data));
+            $snapshot = $this->gateway->update($account, $menu->switch_resource_id, $this->resolve($account, $data, $menu));
 
             return DB::transaction(function () use ($account, $actor, $ipAddress, $snapshot): SwitchMenu {
                 $updated = $this->projection->project($account, $snapshot);
@@ -86,9 +86,12 @@ class MenuMutationService
     /** @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    private function resolve(SwitchAccount $account, array $data): array
+    private function resolve(SwitchAccount $account, array $data, ?SwitchMenu $menu): array
     {
-        $resolved = $data;
+        $resolved = [
+            ...$data,
+            'switch_flags' => $menu === null ? [] : $this->stringList($menu->switch_json['flags'] ?? null),
+        ];
 
         foreach (['greeting', 'invalid', 'transfer', 'exit'] as $type) {
             $publicId = $data["{$type}_media_id"] ?? null;
@@ -120,7 +123,17 @@ class MenuMutationService
             'switch_invalid_media' => $menu->invalid_media_reference ?? $menu->invalid_media_enabled,
             'switch_transfer_media' => $menu->transfer_media_reference ?? $menu->transfer_media_enabled,
             'switch_exit_media' => $menu->exit_media_reference ?? $menu->exit_media_enabled,
+            'switch_flags' => $this->stringList($menu->switch_json['flags'] ?? null),
         ];
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        return array_values(array_filter(
+            is_array($value) ? $value : [],
+            static fn (mixed $item): bool => is_string($item) && $item !== '',
+        ));
     }
 
     private function containsMenu(mixed $node, string $resourceId): bool

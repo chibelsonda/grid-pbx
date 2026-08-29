@@ -11,7 +11,10 @@ export const useGroupStore = defineStore('groups', {
   actions: {
     reset(): void { this.records = []; this.detail = null; this.options = { ...emptyOptions }; this.total = 0; this.error = null; this.clearMutationError() },
     clearMutationError(): void { this.mutationError = null; this.fieldErrors = {} },
-    capture(error: unknown, fallback: string): void { this.mutationError = message(error, fallback); this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {} },
+    capture(error: unknown, fallback: string): void {
+      this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+      this.mutationError = Object.keys(this.fieldErrors).length > 0 ? null : message(error, fallback)
+    },
     async load(accountId: string, page = 1): Promise<void> { this.loading = true; this.error = null; try { const response = await groupApi.list(accountId, this.search, page); this.records = response.data; this.page = response.meta.current_page; this.lastPage = response.meta.last_page; this.total = response.meta.total } catch (error) { this.error = message(error, 'Unable to load groups.') } finally { this.loading = false } },
     async prepare(accountId: string, id?: string): Promise<void> { this.loading = true; this.clearMutationError(); try { const [options, detail] = await Promise.all([groupApi.options(accountId), id ? groupApi.detail(accountId, id) : Promise.resolve(null)]); this.options = options; this.detail = detail } catch (error) { this.error = message(error, 'Unable to prepare the group form.') } finally { this.loading = false } },
     replace(record: Group): void { const index = this.records.findIndex(({ id }) => id === record.id); if (index >= 0) this.records[index] = record; else this.records.unshift(record); this.detail = record },

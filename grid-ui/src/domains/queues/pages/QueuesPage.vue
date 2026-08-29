@@ -269,6 +269,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     :current="queues.agentStatus"
     :loading="queues.statusLoading"
     :error="queues.mutationError"
+    :field-errors="queues.fieldErrors"
     :can-manage="canManage"
     @close="agentPanel = false"
     @save="saveAgentStatus"

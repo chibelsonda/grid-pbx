@@ -13,7 +13,7 @@ class ConferenceService
      */
     public function paginate(SwitchAccount $account, array $filters, int $perPage): LengthAwarePaginator
     {
-        return $account->conferences()->with(['owner', 'numbers'])
+        return $account->conferences()->with(['owner', 'numbers', 'switchAccount.media'])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where(fn ($nested) => $nested->where('name', 'like', "%{$search}%")->orWhereHas('numbers', fn ($numbers) => $numbers->where('number', 'like', "%{$search}%"))))
             ->when(($filters['status'] ?? null) === 'active', fn ($query) => $query->where('active_members', '>', 0))
             ->when(($filters['status'] ?? null) === 'inactive', fn ($query) => $query->where('active_members', 0)->where('is_locked', false))
@@ -23,12 +23,23 @@ class ConferenceService
 
     public function find(SwitchAccount $account, string $id): SwitchConference
     {
-        return $account->conferences()->where('id', $id)->with(['owner', 'numbers'])->firstOrFail();
+        return $account->conferences()->where('id', $id)->with(['owner', 'numbers', 'switchAccount.media'])->firstOrFail();
     }
 
     /** @return array<string, mixed> */
     public function options(SwitchAccount $account): array
     {
-        return ['owners' => $account->extensions()->orderBy('display_name')->get()->map(fn ($item): array => ['id' => $item->id, 'label' => $item->display_name ?? $item->extension ?? 'Unnamed user', 'detail' => $item->extension])->values()->all()];
+        return [
+            'owners' => $account->extensions()->orderBy('display_name')->get()->map(fn ($item): array => [
+                'id' => $item->id,
+                'label' => $item->display_name ?? $item->extension ?? 'Unnamed user',
+                'detail' => $item->extension,
+            ])->values()->all(),
+            'media' => $account->media()->orderBy('name')->get()->map(fn ($item): array => [
+                'id' => $item->id,
+                'label' => $item->name,
+                'detail' => $item->description,
+            ])->values()->all(),
+        ];
     }
 }

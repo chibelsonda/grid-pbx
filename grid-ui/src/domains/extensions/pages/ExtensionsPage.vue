@@ -30,7 +30,10 @@ watch(
   () => accounts.selectedId,
   (accountId) => {
     extensions.reset()
-    if (accountId) void extensions.load(accountId, 1)
+    if (accountId) {
+      void extensions.load(accountId, 1)
+      void extensions.loadOptions(accountId)
+    }
   },
   { immediate: true },
 )
@@ -268,6 +271,7 @@ function recoverOperation(
     :saving="extensions.mutationLoading"
     :error="extensions.mutationError"
     :field-errors="extensions.fieldErrors"
+    :options="extensions.formOptions"
     @close="creating = false"
     @save="createExtension"
   />

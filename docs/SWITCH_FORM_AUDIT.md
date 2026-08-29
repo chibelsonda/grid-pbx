@@ -73,6 +73,41 @@ Every audited schema path records:
 - Never expose raw `switch_json` to Vue and never send the stored snapshot
   wholesale back to Switch.
 
+## Shared form acceptance baseline
+
+The Device pilot established a UI and validation baseline that applies to every
+mutation-capable entity. Reusing the visual treatment does not mean using one
+generic form or exposing every schema field for every workflow.
+
+1. Create and edit workflows open in a right-side slideover unless the entity
+   needs a dedicated visual editor, upload surface, or operational console.
+2. Zod owns immediate client validation and Laravel repeats all trust-boundary
+   validation. The two contracts must agree on required values, lengths,
+   enums, conditional fields, and clear semantics.
+3. Every invalid text input, textarea, listbox, combobox, switch container, and
+   compound editor receives the shared red invalid border/focus treatment and
+   `aria-invalid`. Its message is displayed next to the control.
+4. Client validation does not add a duplicate top or bottom summary alert.
+   Global alerts are reserved for server, authorization, connectivity, and
+   Switch mutation failures that cannot be assigned to a field.
+5. Select popovers render above their card and remain fully visible inside a
+   scrolling slideover. Labels, helper text, placeholders, and ordinary borders
+   use the approved readable neutral palette.
+6. Headless UI primitives and shared form helpers are preferred for interactive
+   controls. Entity-owned components retain domain-specific conditional logic.
+7. Related records are selected through account-scoped public UUID options.
+   Database primary keys and Switch resource identifiers never cross into Vue.
+8. Secrets are write-only. Edit forms show configured-state metadata and
+   explicit preserve, rotate, or clear operations instead of returning a saved
+   secret.
+9. Schema-supported fields are shown only in a useful, authorized workflow.
+   Capability-gated, operational, unsafe, obsolete, and unsupported fields are
+   conditionally shown, moved to a dedicated command, or explicitly documented
+   as excluded.
+10. Focused component/contract tests cover invalid styling and conditional
+    visibility. Isolated headless Playwright covers clipping, keyboard behavior,
+    and console/network errors without taking control of the desktop pointer.
+
 ## Device pilot
 
 ### Legacy Grid Device source comparison (2026-08-29)
@@ -263,6 +298,242 @@ for Device hotdesk sign-in/sign-out, recursive resource-linked metaflow
 create/edit/clear, User hotdesk profile create/edit/PIN-preserve/clear, and
 User portal credentials create/unchanged-password omission/forced-update/clear.
 Remaining runtime work is connecting a real external provisioner catalog.
+
+## User/Extension and Voicemail audit checkpoint (2026-08-29)
+
+This is the first Wave 2 audit. It compares the connected `users` and
+`vmboxes` schemas, their referenced schemas, current Monster workflows, and the
+existing Vue, Laravel, and `grid-api-switch` implementations. No form changes
+were made as part of this checkpoint.
+
+### User/Extension findings
+
+The People & Extensions workflow intentionally treats User as the aggregate
+root for an optional managed Device, Voicemail Box, and Callflow. That workflow
+is useful, but each nested object still keeps its own schema and dedicated
+full editor.
+
+| Area | Current evidence | Decision / required remediation |
+| --- | --- | --- |
+| Core identity validation | First name, last name, extension, email, and timezone show inline messages but do not consistently apply the shared invalid border or `aria-invalid` | Apply the shared validation-control helper and remove the duplicate client-validation summary alert from create and edit |
+| User options | Language and presence ID expose `aria-invalid` but not the invalid border; switches have no shared invalid container treatment | Use the same control helper for inputs and switch containers |
+| Credentials and hotdesk | Typed, write-only secret handling and live preserve/clear behavior are implemented; several controls duplicate hard-coded invalid classes | Preserve the security contract and replace duplicated styling with the shared helper |
+| Language, timezone, and presence | Current fields are free text; Monster used account-derived selections for the values it knew | Prefer capability/account-backed listboxes or comboboxes while preserving an existing unprojected value during edit |
+| Initial Device during create | The aggregate exposes a small starter Device payload with plain make/model and SIP fields; it does not share Device catalog validation, type capabilities, icons, or conditional fields | Keep this as an explicitly minimal starter endpoint or extract reusable Device sections; do not duplicate the full Device editor inside User creation. Validate every exposed starter field with the Device domain services and direct users to the full Device editor for advanced configuration |
+| Managed Voicemail during create/edit | The aggregate exposes only enablement, notification emails, transcription, and PIN setup | Keep the intentionally small mailbox bootstrap and route advanced mailbox configuration to the Voicemail editor |
+| Current User schema coverage | Calling options, contact-list exclusion, privacy, credentials, and hotdesk are typed; caller-ID variants, call forwarding/recording/restrictions, media, MOH, ringtones, flags, formatters, dial plan, metaflows, profile, pronounced name, feature/role policy, and verified status remain unimplemented or policy-gated | Add bounded, capability-driven sections in batches; do not expose raw nested JSON or copy every Monster feature tile without checking the connected schema |
+| Relationships | Managed Device, Voicemail Box, and Callflow creation is orchestrated and projected through public API records | Add lifecycle tests for compensation and partial failure as form scope expands; related domain editors remain separate |
+
+The connected schema requires `first_name` and `last_name` and currently
+advertises the remaining User groups recorded in the field matrix. Monster is
+still valuable for feature grouping—caller ID, call forwarding, hotdesk,
+voicemail, music on hold, recording, and DND—but the connected schema and
+observed clear behavior determine the actual payload.
+
+### Voicemail findings
+
+| Area | Current evidence | Decision / required remediation |
+| --- | --- | --- |
+| Invalid controls | Name, mailbox, timezone, notification emails, assignment, seek duration, and PIN expose inline errors but do not consistently receive the shared invalid border | Apply the shared validation-control helper to native and Headless UI controls, including compound/toggle containers |
+| Error presentation | Zod failures are copied into the store's global mutation error and displayed above the submit button | Keep client errors inline only; retain the global error region solely for API/Switch failures |
+| Assignment and timezone | Assignment uses the older select wrapper and timezone uses a native input/datalist | Use non-clipping Headless UI choices backed by account extensions and supported timezone options; preserve existing values safely |
+| PIN behavior | The PIN is write-only and an omitted edit PIN is not sent to Switch, but create validation does not require a PIN when `require_pin` is enabled | Add matching Zod/Laravel conditional validation. Edit must distinguish an already-configured PIN from a mailbox that needs a new PIN without exposing the secret |
+| ASR-dependent fields | The schema supports transcription, while actual provider availability is returned only by the Switch authentication response and is not yet retained by the GridPBX session contract | Publish the known/unknown capability state, preserve the schema field, and do not claim runtime availability until session capability projection is implemented |
+| Notification precedence | Save-after-notify overrides delete-after-notify in Switch | Disable and clear Delete in Vue when Save is enabled, and reject the contradictory pair at both Zod and Laravel boundaries |
+| `flags[]` ownership | The schema defines flags as values set by external applications | Preserve projected flags on every update; do not expose them as an operator-editable form field |
+| `notify.callback` | The schema provides a typed callback object but Monster does not expose it in the basic mailbox workflow | Provide a bounded advanced workflow for number, disabled state, attempts, interval, timeout, and ordered schedule; do not expose raw callback JSON |
+| Intentional differences | `announcement_only` is unsupported by the connected schema; `mp4` is accepted by the current schema even though Monster hid it; greeting and message operations already use dedicated workflows | Preserve these intentional schema-first decisions |
+
+### Wave 2 implementation batches
+
+1. Extract the shared invalid-control treatment and remove duplicate client
+   validation alerts in User/Extension and Voicemail. Add focused component
+   tests before applying the helper to later domains.
+2. Align User/Extension option controls and the minimal nested Device/Voicemail
+   bootstrap with account capabilities and owning-domain validation services.
+3. Fix Voicemail conditional PIN and ASR behavior, notification precedence,
+   timezone/assignment choices, preserve external flags, then add bounded
+   callback support.
+4. Run focused Zod, Vue, Laravel, and `grid-api-switch` tests followed by an
+   isolated headless Playwright create/edit/clear and clipping walkthrough.
+5. Only after these acceptance checks pass, audit Directory and LineKey using
+   the same baseline.
+
+Current progress: batch 1 is complete for User/Extension and Voicemail. Their
+text inputs, textareas, listboxes, and applicable switch containers now use the
+shared invalid treatment; nested errors resolve to the owning control; local
+Zod failures remain inline; and API validation responses with field errors no
+longer create a duplicate global alert. Focused unit tests, TypeScript, the
+production build pass. The isolated headless Extension/Voicemail walkthrough
+remains pending because Chromium cannot launch inside the current sandbox and
+the escalated launch was not approved. Later entity forms have not yet been
+declared compliant by this result.
+
+Batch 2 is complete for User/Extension option sourcing and the starter Device
+boundary. Timezone, language, and presence now use API-backed Headless UI
+choices, represent inheritance as `null`, and preserve a projected legacy
+value during edit. The Devices domain publishes the starter capability set.
+The aggregate wizard permits only SIP-capable endpoint types that it can fully
+create, conditionally permits MAC identity for provisionable desk/fax/ATA
+types, and directs catalog/model/line-key/advanced work to the full Device
+editor. Cellphone, landline, and SIP URI remain available in the full Device
+workflow, where their required destination fields exist.
+
+The same batch replaces Voicemail's native timezone/datalist and assignment
+select with API-backed Headless UI listboxes. Account inheritance is `null`,
+public Extension UUIDs are the only assignment identifiers exposed, and legacy
+projected values are retained safely during edit. New protected mailboxes—and
+existing mailboxes enabling protection—now require a 4–6 digit PIN in both Zod
+and Laravel; an already protected mailbox may be edited with a blank PIN to
+keep the existing write-only secret.
+
+The Voicemail callback object is now represented by an entity-organized Switch
+DTO and bounded API/UI fields. Turning callback configuration off removes the
+public `notify` object on the full Crossbar update. Notification disposition is
+deterministic: Save clears Delete in the form, while contradictory direct API
+payloads are rejected. External `flags[]` are deliberately not editable and
+are preserved from `switch_json` during updates. The options response reports
+transcription as schema-supported with runtime availability `null`; the form
+shows that honest unknown state until authentication capability projection is
+available. An isolated authenticated headless walkthrough created an
+unassigned mailbox with a paused callback, edited it, cleared the callback,
+and removed the disposable mailbox. The walkthrough also established that an
+unassigned mailbox must omit `owner_id`; the connected Switch rejects an
+explicit JSON `null` for that field.
+
+### Directory and Line Key follow-through (2026-08-29)
+
+Directory now follows the same form baseline. The sort control uses the shared
+Headless UI listbox and was verified inside the viewport with isolated headless
+Playwright. Name, DTMF, confirmation, and member controls use the shared red
+invalid treatment; the blank-name path remains inline and no duplicate global
+validation alert is shown. Directory `flags[]` are external-application-owned,
+so the operator editor was removed, Laravel now prohibits flag input, create
+initializes an empty list, and edits/compensation preserve the projected flags.
+
+Line Key already used capability-filtered Headless UI choices, grouped
+main-unit/expansion slots, Zod, and field-level invalid styling. Its store now
+also suppresses the duplicate mutation alert when the API returns actionable
+nested field errors. The existing provisioning walkthrough remains the live
+clipping and grouped-slot acceptance surface.
+
+### Group and Menu follow-through (2026-08-29)
+
+Group now uses a domain Zod/composable boundary, shared invalid styling, and
+Headless UI choices for music-on-hold and member selection. Nested member
+errors resolve to the member editor, API field errors remain inline, and the
+authenticated headless walkthrough verified the red name border and a
+viewport-bounded music listbox. The current Group schema contains only name,
+endpoints, music-on-hold, and external flags; GridPBX exposes the first three
+and preserves the external flags without accepting them from operators.
+
+Menu applies the same baseline to every numeric, PIN, pattern, toggle, and
+media control. Its current schema supports custom invalid, transfer, and exit
+media in addition to the smaller legacy Monster workflow, so those bounded
+controls are an intentional schema-backed superset. External flags are never
+operator-editable. A blank recording PIN on edit means keep the existing
+write-only value: `grid-api-switch` obtains it only for the outbound full
+Switch update and never returns or persists the secret in GridPBX. The
+authenticated headless walkthrough verified multiple red invalid controls,
+inline-only errors, a non-clipping media listbox, and clean browser/network
+state.
+
+### Queue and Agent follow-through (2026-08-29)
+
+Queue now uses the same domain Zod/composable, Headless UI, invalid-control,
+and inline-only error baseline. The current Switch schema additions are
+represented as virtual fields read from and written back to `switch_json`:
+connect announcement media, create-only maximum priority, announcement
+interval, position/wait announcements, and the optional all-or-none set of
+four custom announcement prompts. Only public Media UUIDs cross the UI/API
+boundary; Laravel resolves Switch resource identifiers inside the account.
+No JSON-derived field added a MySQL column.
+
+An authenticated isolated lifecycle created a disposable queue with priority
+and periodic announcements, edited the interval, cleared the announcement
+object, and deleted the queue. The same run verified the Headless UI menu stays
+inside the viewport and validation remains inline with red controls.
+
+`cdr_url` and `recording_url` remain deliberately absent from the operator
+form until an outbound URL/SSRF allowlist policy is available. Existing values
+are preserved across full Switch updates but are never returned by the API.
+Agent status actions use a separate Zod/composable and Headless UI command
+form with conditional pause-timeout validation. Automated live status changes
+are intentionally not sent to real agents; the audited API boundary remains
+covered with an isolated gateway test.
+
+### Conference follow-through (2026-08-29)
+
+Conference now uses the same domain Zod/composable, Headless UI, shared red
+invalid-control, and inline-only validation baseline. All role-number lists
+follow the connected `conferences.json` schema: the arrays must be present but
+may be empty. This corrected an API-only `required|array` rule that rejected a
+schema-valid Conference without moderator numbers.
+
+The current-schema sound fields are exposed through typed virtual values, not
+new MySQL columns. `max_members_media` resolves a public account Media UUID;
+`play_entry_tone` and `play_exit_tone` support the standard tone, silence, or
+projected Media. An existing custom Switch tone that is not in the projected
+Media catalog is represented only as “keep current custom tone,” so its raw
+Switch value is neither leaked nor accidentally overwritten. Unresolved
+conference-full media is preserved across edits.
+
+An authenticated isolated lifecycle verified a viewport-bounded Headless UI
+tone menu, red inline validation, create with an empty moderator list, edit of
+the entry-tone mode, and cleanup. The first failed locator left one disposable
+record; that exact test artifact was subsequently deleted through the same
+isolated headless UI.
+
+Bridge credentials, `domain`, external `flags`, read-only media-server
+`focus`, and arbitrary nested `controls`/`profile` objects are intentionally
+not operator-editable. They remain Switch-owned or advanced opaque data rather
+than unsafe free-form inputs in the simplified form.
+
+### Temporal Rule and Rule Set follow-through (2026-08-29)
+
+Temporal Rules now follow the current `temporal_rules.json` contract rather
+than treating the legacy schedule form as the payload definition. Name and
+cycle are the only upstream-required fields. The API applies the Switch
+defaults for omitted interval and recurrence arrays, does not impose an
+upstream-unsupported interval maximum, and retains the schema bounds for day,
+month, ordinal, weekday, and time-window values. The Vue form conditionally
+shows weekday, day-of-month, ordinal, and month controls for the cycles where
+they are meaningful without turning optional Switch properties into invented
+required fields.
+
+The form uses a domain composable, Zod, viewport-bounded Headless UI cycle and
+ordinal choices, shared red invalid styling, and inline-only errors. Invalid
+day tokens are reported instead of being silently discarded. Rule Set
+membership is selected with public Rule UUIDs and now has an explicit ordered
+list with move controls, matching the ordered `temporal_rules` payload.
+
+`enabled` is not an ordinary CRUD field. Force active, force inactive, and
+resume schedule use the confirmed, audited command endpoint and map to
+`true`, `false`, and an explicit `null` PATCH respectively. Laravel prohibits
+operator attempts to write `enabled` or external `flags` through CRUD. A
+normal edit preserves an existing override, and both Rule and Rule Set edits
+preserve Switch-owned flags from the redacted `switch_json` snapshot. The
+editable fieldsets remain locked until an operational command finishes so a
+late projection refresh cannot overwrite user input.
+
+Rule Set commands apply the selected override to every resolved member Rule
+under an account-scoped lock and attempt compensation after a partial failure.
+Effective status is a GridPBX projection evaluated in the account timezone;
+it is clearly separated from the persisted override and does not claim to be
+a Switch runtime status endpoint. Delete validation prevents removing Rules
+used by Rule Sets or Callflows and prevents removing Rule Sets used by
+Callflows.
+
+Focused Switch, Laravel, Vue, and isolated authenticated Playwright checks now
+cover schema defaults, external-flag preservation, CRUD/command separation,
+inline validation, conditional fields, ordered membership, create/edit,
+force active/inactive, reset, and cleanup. The final isolated run passed both
+tests without console, page, or server errors. Twelve stale disposable Rules and
+four stale disposable Rule Sets from earlier failed locator attempts were
+removed by exact `E2E hours`/`E2E schedule` prefixes; no non-test records were
+deleted. The cleanup pass also exposed and corrected orphaned membership rows
+after soft-deleting a Rule Set; new deletes remove those rows, and historical
+memberships whose parent set is already deleted no longer block Rule cleanup.
 
 ## Delivery order
 

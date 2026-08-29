@@ -49,6 +49,26 @@ class ExtensionControllerTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_it_returns_safe_extension_form_options_for_the_accessible_account(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $account->update(['timezone' => 'Asia/Manila']);
+        SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Alice Operator',
+            'extension' => '1001',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/extensions/options")
+            ->assertOk()
+            ->assertJsonPath('data.account_defaults.timezone', 'Asia/Manila')
+            ->assertJsonPath('data.languages.0.value', 'en-US')
+            ->assertJsonPath('data.presence_ids.0.value', '1001')
+            ->assertJsonPath('data.starter_device.supported_types.0', 'sip_device')
+            ->assertJsonCount(5, 'data.starter_device.supported_types')
+            ->assertJsonFragment(['Europe/London']);
+    }
+
     public function test_it_returns_projected_devices_voicemail_and_callflows_for_an_extension(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -318,6 +338,19 @@ class ExtensionControllerTest extends TestCase
                 'hotdesk.pin',
                 'device.device_type',
             ]);
+    }
+
+    public function test_create_rejects_device_types_that_require_the_full_device_workflow(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchExtensionProvisioningGateway::class)->shouldNotReceive('createUser');
+        $payload = $this->extensionPayload();
+        $payload['device']['device_type'] = 'cellphone';
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('device.device_type');
     }
 
     public function test_create_rejects_a_device_mac_address_already_used_by_the_account(): void
@@ -911,8 +944,6 @@ class ExtensionControllerTest extends TestCase
                 'enabled' => true,
                 'name' => 'Alice desk phone',
                 'device_type' => 'sip_device',
-                'make' => null,
-                'model' => null,
                 'mac_address' => null,
                 'sip_username' => 'alice-1001',
                 'sip_password' => 'a-long-random-secret',

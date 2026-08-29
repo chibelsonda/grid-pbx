@@ -10,6 +10,7 @@ use App\Domains\Voicemail\Requests\ListVoicemailBoxesRequest;
 use App\Domains\Voicemail\Requests\SaveVoicemailBoxRequest;
 use App\Domains\Voicemail\Resources\VoicemailBoxResource;
 use App\Domains\Voicemail\Services\VoicemailBoxMutationService;
+use App\Domains\Voicemail\Services\VoicemailBoxOptionsService;
 use App\Domains\Voicemail\Services\VoicemailBoxService;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
@@ -20,6 +21,19 @@ use Illuminate\Support\Facades\Gate;
 
 class VoicemailBoxController extends Controller
 {
+    public function options(
+        Request $request,
+        string $account,
+        SwitchAccountService $accounts,
+        VoicemailBoxOptionsService $options,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+
+        return response()->json(['data' => $options->get($switchAccount)]);
+    }
+
     public function index(
         ListVoicemailBoxesRequest $request,
         string $account,

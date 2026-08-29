@@ -25,7 +25,6 @@ export type DirectoryInput = {
   min_dtmf: number
   max_dtmf: number
   sort_by: 'first_name' | 'last_name'
-  flags: string[]
   member_ids: string[]
 }
 
@@ -33,4 +32,8 @@ export type DirectoryOptions = {
   extensions: Array<{ id: string; label: string; detail: string | null }>
 }
 
-export type DirectorySyncRun = { id: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; error_message: string | null }
+export type DirectorySyncRun = {
+  id: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  error_message: string | null
+}

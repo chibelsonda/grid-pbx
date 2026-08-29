@@ -9,6 +9,7 @@ import type {
   DeviceInput,
   DeviceMetaflowResources,
   DeviceProvisioningCatalog,
+  DeviceProvisioningEnrollment,
   DeviceRestrictionOption,
   DeviceSchemaCompatibility,
   ExtensionOption,
@@ -17,6 +18,17 @@ import type {
 import { legacyDeviceSchemaCompatibility } from '../deviceForm'
 
 const defaultSync: SyncState = { status: 'stale', last_successful_at: null, error_message: null }
+const defaultProvisioningEnrollment: DeviceProvisioningEnrollment = {
+  status: 'not_enrolled',
+  provider: null,
+  eligible: false,
+  adapter_available: false,
+  can_enroll: false,
+  can_detach: false,
+  reason: 'Provisioning enrollment state has not been loaded.',
+  enrolled_at: null,
+  detached_at: null,
+}
 
 export const useDeviceStore = defineStore('devices', {
   state: () => ({
@@ -50,6 +62,8 @@ export const useDeviceStore = defineStore('devices', {
     ) as DeviceSchemaCompatibility,
     hotdeskMemberships: { users: [], unresolved_count: 0 } as DeviceHotdeskMemberships,
     hotdeskLoading: false,
+    provisioningEnrollment: { ...defaultProvisioningEnrollment },
+    provisioningEnrollmentLoading: false,
   }),
   actions: {
     reset(): void {
@@ -77,6 +91,8 @@ export const useDeviceStore = defineStore('devices', {
       this.schemaCompatibility = structuredClone(legacyDeviceSchemaCompatibility)
       this.hotdeskMemberships = { users: [], unresolved_count: 0 }
       this.hotdeskLoading = false
+      this.provisioningEnrollment = { ...defaultProvisioningEnrollment }
+      this.provisioningEnrollmentLoading = false
     },
     async load(accountId: string, page?: number): Promise<void> {
       this.loading = true
@@ -178,6 +194,56 @@ export const useDeviceStore = defineStore('devices', {
         return true
       } catch (error) {
         this.captureMutationError(error, 'Unable to send the provisioning command.')
+
+        return false
+      } finally {
+        this.mutationLoading = false
+      }
+    },
+    async loadProvisioningEnrollment(accountId: string, deviceId: string): Promise<void> {
+      this.provisioningEnrollmentLoading = true
+
+      try {
+        this.provisioningEnrollment = await deviceApi.provisioningEnrollment(accountId, deviceId)
+      } catch (error) {
+        this.provisioningEnrollment = {
+          ...defaultProvisioningEnrollment,
+          reason: axios.isAxiosError(error)
+            ? (error.response?.data?.message ?? 'Unable to load provisioning enrollment state.')
+            : 'Unable to load provisioning enrollment state.',
+        }
+      } finally {
+        this.provisioningEnrollmentLoading = false
+      }
+    },
+    async enrollProvisioning(accountId: string, deviceId: string): Promise<boolean> {
+      return this.mutateProvisioningEnrollment(() =>
+        deviceApi.enrollProvisioning(accountId, deviceId),
+      )
+    },
+    async detachProvisioning(accountId: string, deviceId: string): Promise<boolean> {
+      return this.mutateProvisioningEnrollment(() =>
+        deviceApi.detachProvisioning(accountId, deviceId),
+      )
+    },
+    async mutateProvisioningEnrollment(
+      operation: () => Promise<{
+        message: string
+        enrollment: DeviceProvisioningEnrollment
+      }>,
+    ): Promise<boolean> {
+      this.mutationLoading = true
+      this.mutationError = null
+      this.operationMessage = null
+
+      try {
+        const result = await operation()
+        this.provisioningEnrollment = result.enrollment
+        this.operationMessage = result.message
+
+        return true
+      } catch (error) {
+        this.captureMutationError(error, 'Unable to update provisioning enrollment.')
 
         return false
       } finally {

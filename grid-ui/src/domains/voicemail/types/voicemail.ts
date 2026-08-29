@@ -19,6 +19,15 @@ export type VoicemailGreeting = {
   last_synced_at: string | null
 }
 
+export type VoicemailNotificationCallback = {
+  disabled: boolean
+  number: string | null
+  attempts: number | null
+  interval_s: number | null
+  timeout_s: number | null
+  schedule: number[]
+}
+
 export type VoicemailBoxConfiguration = {
   check_if_owner: boolean
   delete_after_notify: boolean
@@ -33,6 +42,7 @@ export type VoicemailBoxConfiguration = {
   skip_instructions: boolean
   is_voicemail_ff_rw_enabled: boolean
   seek_duration_ms: number
+  notify_callback: VoicemailNotificationCallback | null
 }
 
 export type VoicemailBox = {
@@ -43,6 +53,7 @@ export type VoicemailBox = {
   notification_emails: string[]
   transcribe: boolean
   require_pin: boolean
+  pin_configured: boolean
   is_setup: boolean | null
   configuration: VoicemailBoxConfiguration
   message_counts: {
@@ -101,4 +112,17 @@ export type ExtensionOption = {
   id: string
   display_name: string
   extension: string | null
+}
+
+export type VoicemailFormOptions = {
+  account_defaults: { timezone: string | null }
+  timezones: string[]
+  extensions: ExtensionOption[]
+  capabilities: {
+    voicemail_transcription: {
+      schema_supported: boolean
+      runtime_available: boolean | null
+      default_enabled: boolean | null
+    }
+  }
 }

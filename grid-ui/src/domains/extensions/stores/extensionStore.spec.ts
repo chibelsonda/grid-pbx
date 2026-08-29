@@ -6,6 +6,7 @@ import type {
   ExtensionCreate,
   ExtensionDeletionPreview,
   ExtensionDetail,
+  ExtensionFormOptions,
   ExtensionRecoveryOperation,
   ExtensionUpdate,
   SyncRun,
@@ -14,6 +15,7 @@ import { useExtensionStore } from './extensionStore'
 
 vi.mock('../api/extensionApi', () => ({
   extensionApi: {
+    options: vi.fn<(accountId: string) => Promise<ExtensionFormOptions>>(),
     list: vi.fn<(accountId: string, search?: string, page?: number) => Promise<ExtensionPage>>(),
     detail: vi.fn<(accountId: string, extensionId: string) => Promise<ExtensionDetail>>(),
     create: vi.fn<(accountId: string, input: ExtensionCreate) => Promise<ExtensionDetail>>(),
@@ -100,6 +102,30 @@ describe('extension store', () => {
     vi.clearAllMocks()
   })
 
+  it('loads account-backed form choices without replacing extension records', async () => {
+    const options: ExtensionFormOptions = {
+      account_defaults: { timezone: 'Asia/Manila' },
+      timezones: ['Asia/Manila'],
+      languages: [{ value: 'en-US', label: 'English (United States)' }],
+      presence_ids: [{ value: '1001', label: '1001 — Alice Operator' }],
+      starter_device: {
+        supported_types: ['sip_device'],
+        provisionable_types: ['sip_device'],
+        sip_credential_types: ['sip_device'],
+      },
+    }
+    vi.mocked(extensionApi.options).mockResolvedValue(options)
+    const store = useExtensionStore()
+    store.records = [extension]
+
+    await store.loadOptions('account-1')
+
+    expect(extensionApi.options).toHaveBeenCalledWith('account-1')
+    expect(store.formOptions).toEqual(options)
+    expect(store.records).toEqual([extension])
+    expect(store.optionsLoading).toBe(false)
+  })
+
   it('updates the active extension and replaces its list projection', async () => {
     const updated = { ...extension, last_name: 'Operations', display_name: 'Alice Operations' }
     vi.mocked(extensionApi.update).mockResolvedValue(updated)
@@ -113,6 +139,24 @@ describe('extension store', () => {
     expect(store.detail).toEqual(updated)
     expect(store.records).toEqual([updated])
     expect(store.mutationLoading).toBe(false)
+  })
+
+  it('keeps API validation failures inline instead of duplicating a mutation alert', async () => {
+    vi.mocked(extensionApi.update).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          message: 'The given data was invalid.',
+          errors: { first_name: ['Enter a first name.'] },
+        },
+      },
+    })
+    const store = useExtensionStore()
+
+    await store.update('account-1', extension.id, input)
+
+    expect(store.fieldErrors).toEqual({ first_name: ['Enter a first name.'] })
+    expect(store.mutationError).toBeNull()
   })
 
   it('loads a read-only dependency preview without mutating extension detail', async () => {

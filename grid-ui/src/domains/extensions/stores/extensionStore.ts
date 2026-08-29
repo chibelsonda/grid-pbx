@@ -1,11 +1,13 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { extensionApi } from '../api/extensionApi'
+import { defaultExtensionFormOptions } from '../extensionForm'
 import type {
   Extension,
   ExtensionCreate,
   ExtensionDeletionPreview,
   ExtensionDetail,
+  ExtensionFormOptions,
   ExtensionRecoveryOperation,
   ExtensionUpdate,
   SyncRun,
@@ -18,6 +20,7 @@ export const useExtensionStore = defineStore('extensions', {
   state: () => ({
     records: [] as Extension[],
     detail: null as ExtensionDetail | null,
+    formOptions: defaultExtensionFormOptions() as ExtensionFormOptions,
     deletionPreview: null as ExtensionDeletionPreview | null,
     recoveryRecords: [] as ExtensionRecoveryOperation[],
     sync: { ...defaultSync },
@@ -28,6 +31,7 @@ export const useExtensionStore = defineStore('extensions', {
     total: 0,
     loading: false,
     detailLoading: false,
+    optionsLoading: false,
     previewLoading: false,
     deletionLoading: false,
     recoveryLoading: false,
@@ -35,6 +39,7 @@ export const useExtensionStore = defineStore('extensions', {
     syncing: false,
     error: null as string | null,
     detailError: null as string | null,
+    optionsError: null as string | null,
     previewError: null as string | null,
     deletionError: null as string | null,
     recoveryError: null as string | null,
@@ -47,6 +52,7 @@ export const useExtensionStore = defineStore('extensions', {
     reset(): void {
       this.records = []
       this.detail = null
+      this.formOptions = defaultExtensionFormOptions()
       this.deletionPreview = null
       this.recoveryRecords = []
       this.sync = { ...defaultSync }
@@ -56,12 +62,27 @@ export const useExtensionStore = defineStore('extensions', {
       this.total = 0
       this.error = null
       this.detailError = null
+      this.optionsError = null
       this.previewError = null
       this.deletionError = null
       this.recoveryError = null
       this.recoveryActionError = null
       this.mutationError = null
       this.fieldErrors = {}
+    },
+    async loadOptions(accountId: string): Promise<void> {
+      this.optionsLoading = true
+      this.optionsError = null
+
+      try {
+        this.formOptions = await extensionApi.options(accountId)
+      } catch (error) {
+        this.optionsError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to load extension form options.')
+          : 'Unable to load extension form options.'
+      } finally {
+        this.optionsLoading = false
+      }
     },
     async create(accountId: string, input: ExtensionCreate): Promise<ExtensionDetail | null> {
       this.mutationLoading = true
@@ -76,8 +97,10 @@ export const useExtensionStore = defineStore('extensions', {
         return extension
       } catch (error) {
         if (axios.isAxiosError(error)) {
-          this.mutationError = error.response?.data?.message ?? 'Unable to provision the extension.'
           this.fieldErrors = error.response?.data?.errors ?? {}
+          this.mutationError = Object.keys(this.fieldErrors).length
+            ? null
+            : (error.response?.data?.message ?? 'Unable to provision the extension.')
         } else {
           this.mutationError = 'Unable to provision the extension.'
         }
@@ -104,8 +127,10 @@ export const useExtensionStore = defineStore('extensions', {
         return extension
       } catch (error) {
         if (axios.isAxiosError(error)) {
-          this.mutationError = error.response?.data?.message ?? 'Unable to update the extension.'
           this.fieldErrors = error.response?.data?.errors ?? {}
+          this.mutationError = Object.keys(this.fieldErrors).length
+            ? null
+            : (error.response?.data?.message ?? 'Unable to update the extension.')
         } else {
           this.mutationError = 'Unable to update the extension.'
         }

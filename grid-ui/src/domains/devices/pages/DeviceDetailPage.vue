@@ -17,6 +17,7 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import DeviceHotdeskPanel from '../components/DeviceHotdeskPanel.vue'
+import DeviceProvisioningEnrollmentPanel from '../components/DeviceProvisioningEnrollmentPanel.vue'
 import { supportsProvisioning } from '../deviceForm'
 import { useDeviceStore } from '../stores/deviceStore'
 
@@ -26,7 +27,7 @@ const accounts = useAccountStore()
 const devices = useDeviceStore()
 const deviceId = computed(() => String(route.params.deviceId))
 const device = computed(() => devices.detail)
-const pendingAction = ref<'delete' | 'sync' | 'reprovision' | null>(null)
+const pendingAction = ref<'delete' | 'sync' | 'reprovision' | 'enroll' | 'detach' | null>(null)
 const modelLabel = computed(() => {
   if (!device.value) return 'Unknown hardware'
 
@@ -41,6 +42,7 @@ watch(
         devices.loadDetail(accountId, selectedDeviceId),
         devices.loadOptions(accountId),
         devices.loadHotdeskUsers(accountId, selectedDeviceId),
+        devices.loadProvisioningEnrollment(accountId, selectedDeviceId),
       ])
     }
   },
@@ -85,6 +87,10 @@ async function confirmAction(): Promise<void> {
 
   if (pendingAction.value === 'delete') {
     await removeDevice()
+  } else if (pendingAction.value === 'enroll') {
+    await devices.enrollProvisioning(accounts.selectedId, device.value.id)
+  } else if (pendingAction.value === 'detach') {
+    await devices.detachProvisioning(accounts.selectedId, device.value.id)
   } else {
     await devices.syncProvisioning(accounts.selectedId, device.value.id, pendingAction.value)
   }
@@ -109,6 +115,24 @@ const confirmation = computed(() => {
         'Switch will ask the endpoint to reboot and reload its provisioning configuration.',
       label: 'Reprovision device',
       tone: 'warning' as const,
+    }
+  }
+
+  if (pendingAction.value === 'enroll') {
+    return {
+      title: 'Enroll this device?',
+      description: `Confirm manufacturer provisioning enrollment for ${device.value?.name ?? 'this device'}. The provider will receive the device identity and MAC address.`,
+      label: 'Enroll device',
+      tone: 'primary' as const,
+    }
+  }
+
+  if (pendingAction.value === 'detach') {
+    return {
+      title: 'Detach provisioning enrollment?',
+      description: `Remove ${device.value?.name ?? 'this device'} from manufacturer provisioning. Switch configuration and the local device projection will be preserved.`,
+      label: 'Detach enrollment',
+      tone: 'danger' as const,
     }
   }
 
@@ -383,6 +407,15 @@ const confirmation = computed(() => {
           </div>
         </article>
       </div>
+      <DeviceProvisioningEnrollmentPanel
+        v-if="device.device_type && supportsProvisioning(device.device_type)"
+        :enrollment="devices.provisioningEnrollment"
+        :loading="devices.provisioningEnrollmentLoading"
+        :busy="devices.mutationLoading"
+        :can-manage="accounts.selected?.permissions.can_manage_devices ?? false"
+        @enroll="pendingAction = 'enroll'"
+        @detach="pendingAction = 'detach'"
+      />
       <DeviceHotdeskPanel
         :candidates="devices.extensionOptions"
         :memberships="devices.hotdeskMemberships"

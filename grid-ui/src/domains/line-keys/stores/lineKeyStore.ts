@@ -61,8 +61,15 @@ export const useLineKeyStore = defineStore('lineKeys', {
         await this.load(accountId)
         return true
       } catch (error) {
-        this.mutationError = message(error, 'Unable to apply line-key configuration.')
-        this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+        if (axios.isAxiosError(error)) {
+          this.fieldErrors = error.response?.data?.errors ?? {}
+          this.mutationError = Object.keys(this.fieldErrors).length
+            ? null
+            : (error.response?.data?.message ?? 'Unable to apply line-key configuration.')
+        } else {
+          this.fieldErrors = {}
+          this.mutationError = 'Unable to apply line-key configuration.'
+        }
         return false
       } finally {
         this.saving = false

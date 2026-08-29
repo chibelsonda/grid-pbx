@@ -286,6 +286,23 @@ export type DeviceHotdeskMemberships = {
   unresolved_count: number
 }
 
+export type DeviceProvisioningEnrollment = {
+  status: 'not_enrolled' | 'enrolled'
+  provider: string | null
+  eligible: boolean
+  adapter_available: boolean
+  can_enroll: boolean
+  can_detach: boolean
+  reason: string | null
+  enrolled_at: string | null
+  detached_at: string | null
+}
+
+export type DeviceProvisioningEnrollmentMutation = {
+  message: string
+  enrollment: DeviceProvisioningEnrollment
+}
+
 export type DeviceRestrictionOption = {
   key: string
   label: string

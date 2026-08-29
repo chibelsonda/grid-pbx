@@ -16,6 +16,9 @@ final readonly class GroupSnapshot extends EntitySnapshot
     /** @var list<GroupEndpointSnapshot> */
     public array $endpoints;
 
+    /** @var list<string> */
+    public array $flags;
+
     /** @param array<string, mixed> $data */
     public function __construct(array $data)
     {
@@ -31,6 +34,7 @@ final readonly class GroupSnapshot extends EntitySnapshot
         $this->name = $name;
         $musicOnHold = is_array($data['music_on_hold'] ?? null) ? $data['music_on_hold'] : [];
         $this->musicOnHoldMediaId = $this->nullableString($musicOnHold['media_id'] ?? null);
+        $this->flags = $this->stringList($data['flags'] ?? null);
         $this->endpoints = array_map(
             static fn (mixed $endpoint, string|int $resourceId): GroupEndpointSnapshot => is_array($endpoint)
                 ? GroupEndpointSnapshot::fromArray((string) $resourceId, $endpoint)

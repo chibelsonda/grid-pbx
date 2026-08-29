@@ -30,6 +30,7 @@ final class ConferenceResourceClientTest extends TestCase
                 'conference_numbers' => ['7000'],
                 'member' => ['numbers' => ['7001'], 'pins' => ['1234'], 'join_muted' => false],
                 'moderator' => ['numbers' => ['7099'], 'pins' => ['9876']],
+                'max_members_media' => 'media-full', 'play_entry_tone' => 'media-entry', 'play_exit_tone' => false,
                 '_read_only' => ['members' => 4, 'moderators' => 1, 'duration' => 90, 'is_locked' => true],
             ]]),
         ]);
@@ -39,6 +40,9 @@ final class ConferenceResourceClientTest extends TestCase
         self::assertSame(['7001'], $conference->memberNumbers);
         self::assertTrue($conference->memberPinConfigured);
         self::assertTrue($conference->moderatorPinConfigured);
+        self::assertSame('media-full', $conference->maxMembersMediaId);
+        self::assertSame('media-entry', $conference->playEntryTone);
+        self::assertFalse($conference->playExitTone);
         self::assertSame(4, $conference->activeMembers);
         self::assertTrue($conference->isLocked);
     }
@@ -50,16 +54,43 @@ final class ConferenceResourceClientTest extends TestCase
             $this->response(['data' => ['id' => 'conference-1', 'name' => 'Standup']]),
         ]);
         $client = new ConferenceResourceClient($switch);
-        $client->create('account-1', new ConferenceWriteData(name: 'Standup', memberNumbers: ['7001']));
+        $client->create('account-1', new ConferenceWriteData(
+            name: 'Standup',
+            memberNumbers: ['7001'],
+            maxMembersMediaId: 'media-full',
+            playEntryTone: true,
+            playExitTone: false,
+        ));
         $client->update('account-1', 'conference-1', new ConferenceWriteData(name: 'Standup', moderatorPin: '9876', clearMemberPin: true));
 
         $create = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
         $update = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertArrayNotHasKey('pins', $create['data']['member']);
+        self::assertSame('media-full', $create['data']['max_members_media']);
+        self::assertTrue($create['data']['play_entry_tone']);
+        self::assertFalse($create['data']['play_exit_tone']);
         self::assertSame([], $update['data']['member']['pins']);
         self::assertSame(['9876'], $update['data']['moderator']['pins']);
         self::assertSame('/v2/accounts/account-1/conferences/conference-1', $this->history[1]['request']->getUri()->getPath());
+    }
+
+    public function test_explicitly_clears_the_conference_full_prompt(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => ['id' => 'conference-1', 'name' => 'Standup']]),
+        ]);
+
+        (new ConferenceResourceClient($switch))->update(
+            'account-1',
+            'conference-1',
+            new ConferenceWriteData(name: 'Standup', clearMaxMembersMedia: true),
+        );
+
+        $update = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertArrayHasKey('max_members_media', $update['data']);
+        self::assertNull($update['data']['max_members_media']);
     }
 
     /** @param list<Response> $responses */

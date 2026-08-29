@@ -1,13 +1,14 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { voicemailApi } from '../api/voicemailApi'
+import { defaultVoicemailFormOptions } from '../voicemailForm'
 import type {
-  ExtensionOption,
   SyncState,
   VoicemailBox,
   VoicemailBoxInput,
   VoicemailMessage,
   VoicemailMessageFolder,
+  VoicemailFormOptions,
 } from '../types/voicemail'
 
 const defaultSync: SyncState = { status: 'stale', last_successful_at: null, error_message: null }
@@ -28,7 +29,7 @@ export const useVoicemailStore = defineStore('voicemail', {
     mutationLoading: false,
     mutationError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
-    extensionOptions: [] as ExtensionOption[],
+    formOptions: defaultVoicemailFormOptions() as VoicemailFormOptions,
     messages: [] as VoicemailMessage[],
     messageSearch: '',
     messageFolder: '',
@@ -55,7 +56,7 @@ export const useVoicemailStore = defineStore('voicemail', {
       this.detailError = null
       this.mutationError = null
       this.fieldErrors = {}
-      this.extensionOptions = []
+      this.formOptions = defaultVoicemailFormOptions()
       this.messages = []
       this.messageSearch = ''
       this.messageFolder = ''
@@ -101,11 +102,11 @@ export const useVoicemailStore = defineStore('voicemail', {
         this.detailLoading = false
       }
     },
-    async loadExtensionOptions(accountId: string): Promise<void> {
+    async loadFormOptions(accountId: string): Promise<void> {
       try {
-        this.extensionOptions = await voicemailApi.extensionOptions(accountId)
+        this.formOptions = await voicemailApi.options(accountId)
       } catch {
-        this.extensionOptions = []
+        this.formOptions = defaultVoicemailFormOptions()
       }
     },
     async loadMessages(accountId: string, voicemailBoxId: string, page?: number): Promise<void> {
@@ -298,8 +299,10 @@ export const useVoicemailStore = defineStore('voicemail', {
     },
     captureMutationError(error: unknown, fallback: string): void {
       if (axios.isAxiosError(error)) {
-        this.mutationError = error.response?.data?.message ?? fallback
         this.fieldErrors = error.response?.data?.errors ?? {}
+        this.mutationError = Object.keys(this.fieldErrors).length
+          ? null
+          : (error.response?.data?.message ?? fallback)
         return
       }
       this.mutationError = fallback

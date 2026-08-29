@@ -7,7 +7,10 @@ use Illuminate\Validation\Rule;
 
 class SaveConferenceRequest extends FormRequest
 {
-    public function authorize(): bool { return true; }
+    public function authorize(): bool
+    {
+        return true;
+    }
 
     /** @return array<string, mixed> */
     public function rules(): array
@@ -15,11 +18,11 @@ class SaveConferenceRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:128'],
             'owner_id' => ['nullable', 'uuid'],
-            'conference_numbers' => ['required', 'array', 'max:20'],
+            'conference_numbers' => ['present', 'array', 'max:20'],
             'conference_numbers.*' => ['string', 'regex:/^[0-9]+$/', 'max:32', 'distinct'],
-            'member_numbers' => ['required', 'array', 'max:20'],
+            'member_numbers' => ['present', 'array', 'max:20'],
             'member_numbers.*' => ['string', 'regex:/^[0-9]+$/', 'max:32', 'distinct'],
-            'moderator_numbers' => ['required', 'array', 'max:20'],
+            'moderator_numbers' => ['present', 'array', 'max:20'],
             'moderator_numbers.*' => ['string', 'regex:/^[0-9]+$/', 'max:32', 'distinct'],
             'member_pin' => ['nullable', 'string', 'regex:/^[0-9]{1,32}$/', Rule::prohibitedIf($this->boolean('clear_member_pin'))],
             'clear_member_pin' => ['required', 'boolean'],
@@ -39,6 +42,11 @@ class SaveConferenceRequest extends FormRequest
             'play_welcome' => ['required', 'boolean'],
             'require_moderator' => ['required', 'boolean'],
             'wait_for_moderator' => ['required', 'boolean'],
+            'max_members_media_id' => ['nullable', 'uuid'],
+            'play_entry_tone_mode' => ['required', Rule::in(['enabled', 'disabled', 'media', 'current_custom'])],
+            'play_entry_tone_media_id' => ['nullable', 'uuid', 'required_if:play_entry_tone_mode,media'],
+            'play_exit_tone_mode' => ['required', Rule::in(['enabled', 'disabled', 'media', 'current_custom'])],
+            'play_exit_tone_media_id' => ['nullable', 'uuid', 'required_if:play_exit_tone_mode,media'],
         ];
     }
 }

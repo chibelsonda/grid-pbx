@@ -8,6 +8,7 @@ use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\Agents\Dto\AgentQueueMembershipWriteData;
 use GridPbx\Switch\Domains\Agents\Dto\AgentStatusWriteData;
 use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
+use GridPbx\Switch\Domains\Queues\Dto\QueueAnnouncementsWriteData;
 use GridPbx\Switch\Domains\Agents\AgentResourceClient;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
 use GridPbx\Switch\SwitchClient;
@@ -47,6 +48,15 @@ final class QueueAndAgentResourceClientTest extends TestCase
                 'record_caller' => true,
                 'caller_exit_key' => '*',
                 'moh' => 'media-1',
+                'announce' => 'media-2',
+                'max_priority' => 20,
+                'announcements' => [
+                    'interval' => 45,
+                    'position_announcements_enabled' => true,
+                    'wait_time_announcements_enabled' => false,
+                ],
+                'cdr_url' => 'https://cdr.example.test/events',
+                'recording_url' => 'https://recordings.example.test/audio',
             ]]),
             $this->response(['data' => ['agent-1', 'agent-2']]),
         ]);
@@ -64,6 +74,14 @@ final class QueueAndAgentResourceClientTest extends TestCase
             recordCaller: true,
             callerExitKey: '*',
             musicOnHoldMediaId: 'media-1',
+            announceMediaId: 'media-2',
+            maxPriority: 20,
+            announcements: new QueueAnnouncementsWriteData(
+                interval: 45,
+                positionAnnouncementsEnabled: true,
+            ),
+            cdrUrl: 'https://cdr.example.test/events',
+            recordingUrl: 'https://recordings.example.test/audio',
         ));
         $client->replaceRoster('account-1', 'queue-1', ['agent-1', 'agent-2']);
         $createBody = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
@@ -71,7 +89,13 @@ final class QueueAndAgentResourceClientTest extends TestCase
 
         self::assertSame('most_idle', $queue->strategy);
         self::assertSame('media-1', $queue->musicOnHoldMediaId);
+        self::assertSame('media-2', $queue->announceMediaId);
+        self::assertSame(20, $queue->maxPriority);
+        self::assertSame(45, $queue->announcements?->interval());
+        self::assertSame('https://cdr.example.test/events', $queue->cdrUrl);
+        self::assertSame('https://recordings.example.test/audio', $createBody['data']['recording_url']);
         self::assertArrayNotHasKey('agents', $createBody['data']);
+        self::assertSame(45, $createBody['data']['announcements']['interval']);
         self::assertSame(['agent-1', 'agent-2'], $rosterBody['data']);
         self::assertSame('/v2/accounts/account-1/queues/queue-1/roster', $this->history[1]['request']->getUri()->getPath());
     }

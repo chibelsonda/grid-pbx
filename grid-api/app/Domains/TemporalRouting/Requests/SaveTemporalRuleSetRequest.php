@@ -13,6 +13,6 @@ class SaveTemporalRuleSetRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['name' => ['required', 'string', 'max:128'], 'rule_ids' => ['required', 'array', 'min:1'], 'rule_ids.*' => ['required', 'uuid', 'distinct']];
+        return ['name' => ['required', 'string', 'max:128'], 'rule_ids' => ['required', 'array', 'min:1'], 'rule_ids.*' => ['required', 'uuid', 'distinct'], 'flags' => ['prohibited']];
     }
 }

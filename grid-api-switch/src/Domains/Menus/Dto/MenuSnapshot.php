@@ -24,6 +24,8 @@ final readonly class MenuSnapshot extends EntitySnapshot
     public string|bool|null $invalidMedia;
     public string|bool|null $transferMedia;
     public string|bool|null $exitMedia;
+    /** @var list<string> */
+    public array $flags;
 
     /** @param array<string, mixed> $data */
     public function __construct(array $data)
@@ -52,6 +54,7 @@ final readonly class MenuSnapshot extends EntitySnapshot
         $this->invalidMedia = $this->mediaValue($media['invalid_media'] ?? null);
         $this->transferMedia = $this->mediaValue($media['transfer_media'] ?? null);
         $this->exitMedia = $this->mediaValue($media['exit_media'] ?? null);
+        $this->flags = $this->stringList($data['flags'] ?? null);
     }
 
     private function mediaValue(mixed $value): string|bool|null

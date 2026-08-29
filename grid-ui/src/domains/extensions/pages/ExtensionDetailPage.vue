@@ -41,7 +41,10 @@ const initials = computed(() =>
 watch(
   [() => accounts.selectedId, extensionId],
   ([accountId, selectedExtensionId]) => {
-    if (accountId && selectedExtensionId) void extensions.loadDetail(accountId, selectedExtensionId)
+    if (accountId && selectedExtensionId) {
+      void extensions.loadDetail(accountId, selectedExtensionId)
+      void extensions.loadOptions(accountId)
+    }
   },
   { immediate: true },
 )
@@ -423,6 +426,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
     :saving="extensions.mutationLoading"
     :error="extensions.mutationError"
     :field-errors="extensions.fieldErrors"
+    :options="extensions.formOptions"
     @close="editPanelOpen = false"
     @save="updateExtension"
   />

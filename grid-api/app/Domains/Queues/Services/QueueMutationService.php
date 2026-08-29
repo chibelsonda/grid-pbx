@@ -23,7 +23,7 @@ class QueueMutationService
     /** @param array<string, mixed> $data */
     public function create(SwitchAccount $account, User $actor, array $data, ?string $ipAddress = null): SwitchQueue
     {
-        $resolved = $this->resolve($account, $data);
+        $resolved = $this->resolve($account, $data, null);
         $resourceId = null;
 
         try {
@@ -57,7 +57,7 @@ class QueueMutationService
     /** @param array<string, mixed> $data */
     public function update(SwitchAccount $account, SwitchQueue $queue, User $actor, array $data, ?string $ipAddress = null): SwitchQueue
     {
-        $resolved = $this->resolve($account, $data);
+        $resolved = $this->resolve($account, $data, $queue);
         $previousData = $this->writeDataFromModel($queue);
         $previousAgentIds = $queue->agents()->pluck('switch_user_resource_id')->all();
 
@@ -112,7 +112,7 @@ class QueueMutationService
     /** @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    private function resolve(SwitchAccount $account, array $data): array
+    private function resolve(SwitchAccount $account, array $data, ?SwitchQueue $queue): array
     {
         $agentIds = array_values($data['agent_ids']);
         $agents = $account->extensions()->whereIn('id', $agentIds)->get();
@@ -121,16 +121,42 @@ class QueueMutationService
             throw ValidationException::withMessages(['agent_ids' => ['One or more selected agents are unavailable for this account.']]);
         }
 
-        $media = empty($data['music_on_hold_media_id']) ? null : $account->media()->where('id', $data['music_on_hold_media_id'])->first();
+        $current = is_array($queue?->switch_json) ? $queue->switch_json : [];
+        $musicOnHold = $this->resolveMediaReference($account, $data['music_on_hold_media_id'] ?? null, 'music_on_hold_media_id', $current['moh'] ?? null);
+        $announce = $this->resolveMediaReference($account, $data['announce_media_id'] ?? null, 'announce_media_id', $current['announce'] ?? null);
+        $currentAnnouncements = is_array($current['announcements'] ?? null) ? $current['announcements'] : [];
+        $currentAnnouncementMedia = is_array($currentAnnouncements['media'] ?? null) ? $currentAnnouncements['media'] : [];
+        $announcementMedia = [];
 
-        if (! empty($data['music_on_hold_media_id']) && $media === null) {
-            throw ValidationException::withMessages(['music_on_hold_media_id' => ['The selected media is unavailable for this account.']]);
+        foreach ([
+            'in_the_queue' => 'announcement_in_the_queue_media_id',
+            'increase_in_call_volume' => 'announcement_increase_in_call_volume_media_id',
+            'the_estimated_wait_time_is' => 'announcement_estimated_wait_time_media_id',
+            'you_are_at_position' => 'announcement_position_media_id',
+        ] as $switchKey => $publicField) {
+            $reference = $this->resolveMediaReference($account, $data[$publicField] ?? null, $publicField, $currentAnnouncementMedia[$switchKey] ?? null);
+
+            if ($reference !== null) {
+                $announcementMedia[$switchKey] = $reference;
+            }
         }
+
+        $announcements = ($data['announcements_enabled'] ?? false) ? [
+            'interval' => (int) $data['announcement_interval'],
+            'position_announcements_enabled' => (bool) $data['position_announcements_enabled'],
+            'wait_time_announcements_enabled' => (bool) $data['wait_time_announcements_enabled'],
+            'media' => $announcementMedia,
+        ] : null;
 
         return [
             ...$data,
             'resolved_agent_ids' => $agents->pluck('switch_resource_id')->values()->all(),
-            'switch_music_on_hold_reference' => $media?->switch_resource_id,
+            'switch_music_on_hold_reference' => $musicOnHold,
+            'switch_announce_media_reference' => $announce,
+            'switch_max_priority' => $queue === null ? ($data['max_priority'] ?? null) : $this->integerValue($current['max_priority'] ?? null),
+            'switch_announcements' => $announcements,
+            'switch_cdr_url' => $queue === null ? null : $this->stringValue($current['cdr_url'] ?? null),
+            'switch_recording_url' => $queue === null ? null : $this->stringValue($current['recording_url'] ?? null),
         ];
     }
 
@@ -144,7 +170,43 @@ class QueueMutationService
             'ring_simultaneously' => $queue->ring_simultaneously, 'enter_when_empty' => $queue->enter_when_empty,
             'record_caller' => $queue->record_caller, 'caller_exit_key' => $queue->caller_exit_key,
             'switch_music_on_hold_reference' => $queue->music_on_hold_reference,
+            'switch_announce_media_reference' => $this->stringValue($queue->switch_json['announce'] ?? null),
+            'switch_max_priority' => $this->integerValue($queue->switch_json['max_priority'] ?? null),
+            'switch_announcements' => is_array($queue->switch_json['announcements'] ?? null) ? $queue->switch_json['announcements'] : null,
+            'switch_cdr_url' => $this->stringValue($queue->switch_json['cdr_url'] ?? null),
+            'switch_recording_url' => $this->stringValue($queue->switch_json['recording_url'] ?? null),
         ];
+    }
+
+    private function resolveMediaReference(SwitchAccount $account, mixed $publicId, string $field, mixed $currentReference): ?string
+    {
+        if (is_string($publicId) && $publicId !== '') {
+            $media = $account->media()->where('id', $publicId)->first();
+
+            if ($media === null) {
+                throw ValidationException::withMessages([$field => ['The selected media is unavailable for this account.']]);
+            }
+
+            return $media->switch_resource_id;
+        }
+
+        $current = $this->stringValue($currentReference);
+
+        if ($current !== null && ! $account->media()->where('switch_resource_id', $current)->exists()) {
+            return $current;
+        }
+
+        return null;
+    }
+
+    private function stringValue(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function integerValue(mixed $value): ?int
+    {
+        return is_int($value) && $value >= 0 && $value <= 255 ? $value : null;
     }
 
     /** @param array<string, mixed> $data

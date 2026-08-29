@@ -64,7 +64,7 @@ class VoicemailBoxMutationService
             $snapshot = $this->gateway->update(
                 $account,
                 $voicemailBox->switch_resource_id,
-                $this->mutationData($account, $data),
+                $this->mutationData($account, $data, $voicemailBox),
             );
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchVoicemailBox {
@@ -132,8 +132,11 @@ class VoicemailBoxMutationService
     /** @param array<string, mixed> $data
      * @return array<string, mixed>
      */
-    private function mutationData(SwitchAccount $account, array $data): array
-    {
+    private function mutationData(
+        SwitchAccount $account,
+        array $data,
+        ?SwitchVoicemailBox $existingVoicemailBox = null,
+    ): array {
         $extension = isset($data['assigned_extension_id'])
             ? $account->extensions()->where('id', $data['assigned_extension_id'])->firstOrFail()
             : null;
@@ -160,6 +163,10 @@ class VoicemailBoxMutationService
             'skip_instructions' => $data['skip_instructions'] ?? null,
             'is_voicemail_ff_rw_enabled' => $data['is_voicemail_ff_rw_enabled'] ?? null,
             'seek_duration_ms' => $data['seek_duration_ms'] ?? null,
+            'flags' => $this->stringList(
+                $existingVoicemailBox === null ? null : ($existingVoicemailBox->switch_json['flags'] ?? null),
+            ),
+            'notify_callback' => $data['notify_callback'],
         ];
     }
 

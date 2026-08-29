@@ -3,6 +3,7 @@
 namespace App\Domains\Devices\Models;
 
 use App\Domains\Devices\Enums\DeviceRegistrationStatus;
+use App\Domains\Devices\Enums\ProvisioningEnrollmentStatus;
 use App\Domains\Devices\Support\MacAddress;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\LineKeys\Models\SwitchLineKey;
@@ -36,6 +37,10 @@ class SwitchDevice extends Model
         'endpoint_family',
         'model',
         'mac_address',
+        'provisioning_enrollment_status',
+        'provisioning_enrollment_provider',
+        'provisioning_enrolled_at',
+        'provisioning_detached_at',
         'is_enabled',
         'registration_status',
         'registration_checked_at',
@@ -72,6 +77,9 @@ class SwitchDevice extends Model
             'is_enabled' => 'boolean',
             'registration_status' => DeviceRegistrationStatus::class,
             'registration_checked_at' => 'datetime',
+            'provisioning_enrollment_status' => ProvisioningEnrollmentStatus::class,
+            'provisioning_enrolled_at' => 'datetime',
+            'provisioning_detached_at' => 'datetime',
             'last_synced_at' => 'datetime',
             'sync_status' => ProjectionStatus::class,
             'projection_version' => 'integer',

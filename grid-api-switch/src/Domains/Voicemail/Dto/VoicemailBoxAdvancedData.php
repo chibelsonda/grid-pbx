@@ -6,6 +6,7 @@ namespace GridPbx\Switch\Domains\Voicemail\Dto;
 
 final readonly class VoicemailBoxAdvancedData
 {
+    /** @param list<string> $flags */
     public function __construct(
         public ?bool $checkIfOwner = null,
         public ?bool $deleteAfterNotify = null,
@@ -20,12 +21,14 @@ final readonly class VoicemailBoxAdvancedData
         public ?bool $skipInstructions = null,
         public ?bool $fastForwardRewindEnabled = null,
         public ?int $seekDurationMilliseconds = null,
+        public array $flags = [],
+        public ?VoicemailNotificationCallbackData $notificationCallback = null,
     ) {}
 
-    /** @return array<string, bool|int|string> */
+    /** @return array<string, mixed> */
     public function toSwitchData(): array
     {
-        return array_filter([
+        $data = array_filter([
             'check_if_owner' => $this->checkIfOwner,
             'delete_after_notify' => $this->deleteAfterNotify,
             'include_message_on_notify' => $this->includeMessageOnNotify,
@@ -40,5 +43,16 @@ final readonly class VoicemailBoxAdvancedData
             'is_voicemail_ff_rw_enabled' => $this->fastForwardRewindEnabled,
             'seek_duration_ms' => $this->seekDurationMilliseconds,
         ], static fn (mixed $value): bool => $value !== null);
+
+        $data['flags'] = array_values(array_unique(array_filter(
+            $this->flags,
+            static fn (mixed $flag): bool => is_string($flag) && $flag !== '',
+        )));
+
+        if ($this->notificationCallback !== null) {
+            $data['notify'] = ['callback' => $this->notificationCallback->toSwitchData()];
+        }
+
+        return $data;
     }
 }

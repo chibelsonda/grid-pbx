@@ -38,8 +38,8 @@ class DirectoryControllerTest extends TestCase
         $gateway = $this->mock(SwitchDirectoryGateway::class);
         $gateway->shouldReceive('create')->once()->withArgs(
             fn (SwitchAccount $received, array $data): bool => $received->is($account)
-                && $data['flags'] === ['public-directory'],
-        )->andReturn(['id' => 'switch-directory-1', 'name' => 'People', 'flags' => ['public-directory']]);
+                && $data['flags'] === [],
+        )->andReturn(['id' => 'switch-directory-1', 'name' => 'People', 'flags' => []]);
         $gateway->shouldReceive('replaceMembers')->once()->withArgs(
             fn (SwitchAccount $received, string $resourceId, array $members): bool => $received->is($account)
                 && $resourceId === 'switch-directory-1'
@@ -47,37 +47,37 @@ class DirectoryControllerTest extends TestCase
         )->andReturn([
             'id' => 'switch-directory-1', 'name' => 'People', 'confirm_match' => true,
             'min_dtmf' => 3, 'max_dtmf' => 0, 'sort_by' => 'last_name',
-            'flags' => ['public-directory'],
+            'flags' => [],
             'users' => [['user_id' => 'switch-user-1', 'callflow_id' => 'switch-callflow-1']],
         ]);
 
         $response = $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/directories", [
             'name' => 'People', 'confirm_match' => true, 'min_dtmf' => 3,
-            'max_dtmf' => 0, 'sort_by' => 'last_name', 'flags' => ['public-directory'],
+            'max_dtmf' => 0, 'sort_by' => 'last_name',
             'member_ids' => [$extension->id],
         ]);
 
         $response->assertCreated()->assertJsonPath('data.name', 'People')
-            ->assertJsonPath('data.flags.0', 'public-directory')
+            ->assertJsonPath('data.flags', [])
             ->assertJsonPath('data.members.0.extension.id', $extension->id)
             ->assertJsonMissingPath('data.members.0.switch_user_resource_id');
         $this->assertDatabaseHas('switch_directories', ['id' => $response->json('data.id'), 'switch_resource_id' => 'switch-directory-1']);
         $this->assertDatabaseHas('switch_directory_members', ['switch_user_resource_id' => 'switch-user-1']);
-        $this->assertSame(['public-directory'], SwitchDirectory::query()->firstOrFail()->switch_json['flags']);
+        $this->assertSame([], SwitchDirectory::query()->firstOrFail()->switch_json['flags']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'directory.created']);
     }
 
-    public function test_invalid_flags_are_rejected_before_switch_mutation(): void
+    public function test_externally_owned_flags_are_rejected_before_switch_mutation(): void
     {
         [$operator, $account] = $this->accessibleAccount();
         $this->mock(SwitchDirectoryGateway::class)->shouldNotReceive('create');
 
         $this->actingAs($operator)
             ->postJson("/api/v1/accounts/{$account->id}/directories", $this->payload([], [
-                'flags' => ['duplicate', 'duplicate'],
+                'flags' => ['operator-replacement'],
             ]))
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('flags.1');
+            ->assertJsonValidationErrors('flags');
     }
 
     public function test_member_failure_restores_the_previous_directory_flags(): void
@@ -91,7 +91,7 @@ class DirectoryControllerTest extends TestCase
         $gateway->shouldReceive('update')->once()->ordered()->withArgs(
             fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
                 && $resourceId === 'switch-directory-1'
-                && $data['flags'] === ['replacement'],
+                && $data['flags'] === ['stable'],
         )->andReturn(['id' => 'switch-directory-1', 'name' => 'People']);
         $gateway->shouldReceive('replaceMembers')->once()->ordered()
             ->andThrow(new \RuntimeException('Member mapping failed.'));
@@ -107,7 +107,7 @@ class DirectoryControllerTest extends TestCase
             $account,
             $directory,
             $operator,
-            $this->payload([], ['flags' => ['replacement']]),
+            [...$this->payload([]), 'flags' => ['replacement']],
         );
     }
 
@@ -131,7 +131,7 @@ class DirectoryControllerTest extends TestCase
     {
         return array_replace([
             'name' => 'People', 'confirm_match' => true, 'min_dtmf' => 3,
-            'max_dtmf' => 0, 'sort_by' => 'last_name', 'flags' => ['public-directory'],
+            'max_dtmf' => 0, 'sort_by' => 'last_name',
             'member_ids' => $members,
         ], $overrides);
     }

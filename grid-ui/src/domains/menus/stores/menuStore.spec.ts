@@ -43,4 +43,21 @@ describe('menu store', () => {
     const store = useMenuStore(); await store.prepare('account-1')
     expect(await store.save('account-1', input)).toBe(true); expect(menuApi.create).toHaveBeenCalledWith('account-1', input)
   })
+
+  it('keeps API validation errors inline without a duplicate mutation alert', async () => {
+    vi.mocked(menuApi.create).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          message: 'The given data was invalid.',
+          errors: { name: ['Enter a menu name.'] },
+        },
+      },
+    })
+    const store = useMenuStore()
+
+    expect(await store.save('account-1', { ...input, name: '' })).toBe(false)
+    expect(store.fieldErrors.name).toEqual(['Enter a menu name.'])
+    expect(store.mutationError).toBeNull()
+  })
 })

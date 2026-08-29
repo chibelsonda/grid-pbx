@@ -3,6 +3,7 @@
 namespace App\Domains\Extensions\Requests;
 
 use App\Domains\Devices\Rules\UniqueDeviceMacAddress;
+use App\Domains\Devices\Services\StarterDevicePolicy;
 use App\Domains\Devices\Support\MacAddress;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Foundation\Http\FormRequest;
@@ -20,6 +21,14 @@ class StoreExtensionRequest extends FormRequest
     public function rules(): array
     {
         $accountId = $this->accountInternalId();
+        $deviceEnabled = $this->boolean('device.enabled');
+        $deviceType = $this->input('device.device_type');
+        $provisionable = $deviceEnabled
+            && is_string($deviceType)
+            && in_array($deviceType, StarterDevicePolicy::PROVISIONABLE_TYPES, true);
+        $supportsSipCredentials = $deviceEnabled
+            && is_string($deviceType)
+            && in_array($deviceType, StarterDevicePolicy::SUPPORTED_TYPES, true);
 
         return [
             'first_name' => ['required', 'string', 'max:128'],
@@ -93,26 +102,25 @@ class StoreExtensionRequest extends FormRequest
             'voicemail.transcribe' => ['required', 'boolean'],
             'voicemail.require_pin' => ['required', 'boolean'],
             'voicemail.pin' => ['nullable', 'required_if:voicemail.require_pin,true', 'string', 'regex:/^[0-9]{4,6}$/'],
-            'device' => ['required', 'array:enabled,name,device_type,make,model,mac_address,sip_username,sip_password'],
+            'device' => ['required', 'array:enabled,name,device_type,mac_address,sip_username,sip_password'],
             'device.enabled' => ['required', 'boolean'],
-            'device.name' => ['nullable', 'required_if:device.enabled,true', 'string', 'max:255'],
+            'device.name' => ['nullable', 'required_if:device.enabled,true', 'string', 'max:128'],
             'device.device_type' => [
                 'nullable',
                 'required_if:device.enabled,true',
                 'string',
-                Rule::in(['sip_device', 'cellphone', 'smartphone', 'softphone', 'landline', 'fax', 'ata', 'sip_uri']),
+                Rule::in(StarterDevicePolicy::SUPPORTED_TYPES),
             ],
-            'device.make' => ['nullable', 'string', 'max:255'],
-            'device.model' => ['nullable', 'string', 'max:255'],
             'device.mac_address' => [
+                Rule::prohibitedIf(! $provisionable),
                 'nullable',
                 'string',
                 'max:64',
                 'regex:/^(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$/',
                 new UniqueDeviceMacAddress($accountId),
             ],
-            'device.sip_username' => ['nullable', 'string', 'min:2', 'max:32'],
-            'device.sip_password' => ['nullable', 'string', 'min:12', 'max:32'],
+            'device.sip_username' => [Rule::prohibitedIf(! $supportsSipCredentials), 'nullable', 'string', 'min:2', 'max:32'],
+            'device.sip_password' => [Rule::prohibitedIf(! $supportsSipCredentials), 'nullable', 'string', 'min:12', 'max:32'],
         ];
     }
 

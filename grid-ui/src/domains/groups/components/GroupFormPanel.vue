@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ArrowDownIcon, ArrowUpIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
+import { useGroupForm } from '../composables/useGroupForm'
 import type { Group, GroupInput, GroupMemberType, GroupOptions } from '../types/group'
 
 const props = defineProps<{
@@ -17,14 +23,21 @@ const emit = defineEmits<{ close: []; save: [input: GroupInput]; remove: [] }>()
 const confirmDelete = ref(false)
 const selectedType = ref<GroupMemberType>('user')
 const selectedId = ref('')
-const form = reactive<GroupInput>({
-  name: props.record?.name ?? '',
-  music_on_hold_media_id: props.record?.music_on_hold_media?.id ?? null,
-  members:
-    props.record?.members?.flatMap((member) =>
-      member.target ? [{ type: member.type, id: member.target.id, weight: member.weight }] : [],
-    ) ?? [],
-})
+const { form, validate, validationErrors } = useGroupForm(props.record)
+const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const memberTypeOptions: ListboxOptionValue[] = [
+  { value: 'user', label: 'User' },
+  { value: 'device', label: 'Device' },
+  { value: 'group', label: 'Group' },
+]
+const musicOnHoldOptions = computed<ListboxOptionValue[]>(() => [
+  { value: null, label: 'Account default' },
+  ...props.options.media.map(({ id, label: optionLabel, detail }) => ({
+    value: id,
+    label: optionLabel,
+    description: detail,
+  })),
+])
 const choices = computed(() =>
   ({
     user: props.options.users,
@@ -35,6 +48,40 @@ const choices = computed(() =>
       !form.members.some((member) => member.type === selectedType.value && member.id === id),
   ),
 )
+const targetOptions = computed<ListboxOptionValue[]>(() => [
+  { value: '', label: 'Select target…' },
+  ...choices.value.map(({ id, label: optionLabel, detail }) => ({
+    value: id,
+    label: optionLabel,
+    description: detail,
+  })),
+])
+
+function fieldError(field: string): string | null {
+  const direct = errors.value[field]?.[0]
+  if (direct) return direct
+
+  return (
+    Object.entries(errors.value).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
+}
+
+function setMusicOnHold(value: ListboxValue): void {
+  if (value === null || typeof value === 'string') form.music_on_hold_media_id = value
+}
+
+function setSelectedType(value: ListboxValue): void {
+  if (value === 'user' || value === 'device' || value === 'group') {
+    selectedType.value = value
+    selectedId.value = ''
+  }
+}
+
+function setSelectedId(value: ListboxValue): void {
+  selectedId.value = typeof value === 'string' ? value : ''
+}
 function label(type: GroupMemberType, id: string): string {
   const list =
     type === 'user'
@@ -69,6 +116,15 @@ function normalize(): void {
     member.weight = index + 1
   })
 }
+
+function submit(): void {
+  if (!props.canManage) return
+  const result = validate()
+
+  if (result.success) {
+    emit('save', result.data)
+  }
+}
 </script>
 
 <template>
@@ -79,13 +135,7 @@ function normalize(): void {
     width="medium"
     @close="emit('close')"
   >
-    <form
-      class="grid gap-5"
-      @submit.prevent="
-        canManage &&
-        emit('save', { ...form, members: form.members.map((member) => ({ ...member })) })
-      "
-    >
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -104,19 +154,26 @@ function normalize(): void {
             ><span class="text-xs font-semibold text-slate-600">Name</span
             ><input
               v-model="form.name"
+              aria-label="Name"
               required
               maxlength="128"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs" /></label
+              class="field-control"
+              :class="validationControlClass(fieldError('name'))"
+              :aria-invalid="Boolean(fieldError('name'))"
+            /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
+              fieldError('name')
+            }}</span></label
           ><label class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Music on hold</span
-            ><FormSelect
-              v-model="form.music_on_hold_media_id"
-              class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-              ><option :value="null">Account default</option>
-              <option v-for="media in options.media" :key="media.id" :value="media.id">
-                {{ media.label }}
-              </option></FormSelect
-            ></label
+            ><FormListbox
+              :model-value="form.music_on_hold_media_id"
+              :options="musicOnHoldOptions"
+              aria-label="Music on hold"
+              :invalid="Boolean(fieldError('music_on_hold_media_id'))"
+              @update:model-value="setMusicOnHold"
+            /><span v-if="fieldError('music_on_hold_media_id')" class="text-[10px] text-danger">{{
+              fieldError('music_on_hold_media_id')
+            }}</span></label
           >
         </div>
       </article>
@@ -129,21 +186,17 @@ function normalize(): void {
         </header>
         <div class="grid gap-4 p-5">
           <div class="grid gap-2 sm:grid-cols-[120px_1fr_auto]">
-            <FormSelect
-              v-model="selectedType"
-              class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-              @change="selectedId = ''"
-              ><option value="user">User</option>
-              <option value="device">Device</option>
-              <option value="group">Group</option></FormSelect
-            ><FormSelect
-              v-model="selectedId"
-              class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-              ><option value="">Select target…</option>
-              <option v-for="choice in choices" :key="choice.id" :value="choice.id">
-                {{ choice.label }}
-              </option></FormSelect
-            ><button
+            <FormListbox
+              :model-value="selectedType"
+              :options="memberTypeOptions"
+              aria-label="Member type"
+              @update:model-value="setSelectedType"
+            /><FormListbox
+              :model-value="selectedId"
+              :options="targetOptions"
+              aria-label="Member target"
+              @update:model-value="setSelectedId"
+            /><button
               type="button"
               :disabled="!selectedId"
               class="h-10 rounded-md bg-slate-700 px-4 text-xs font-semibold text-white disabled:opacity-40"
@@ -152,11 +205,16 @@ function normalize(): void {
               Add
             </button>
           </div>
-          <div class="divide-y divide-slate-100 rounded-md border border-slate-100">
+          <div
+            class="divide-y divide-slate-100 rounded-md border border-slate-200"
+            :class="validationControlClass(fieldError('members'))"
+            :aria-invalid="Boolean(fieldError('members'))"
+          >
             <div
               v-for="(member, index) in form.members"
               :key="`${member.type}-${member.id}`"
               class="flex items-center gap-3 px-4 py-3"
+              :class="validationControlClass(fieldError(`members.${index}`))"
             >
               <span
                 class="grid size-7 place-items-center rounded bg-slate-100 text-[10px] font-bold text-slate-500"
@@ -190,6 +248,9 @@ function normalize(): void {
               No members selected.
             </p>
           </div>
+          <p v-if="fieldError('members')" class="text-[10px] text-danger">
+            {{ fieldError('members') }}
+          </p>
         </div>
       </article>
       <div v-if="record && canManage" class="rounded-md border border-red-100 bg-red-50 p-4">
@@ -211,7 +272,7 @@ function normalize(): void {
         ><button
           v-if="canManage"
           type="submit"
-          :disabled="saving || !form.name.trim()"
+          :disabled="saving"
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"
         >
           {{ saving ? 'Saving…' : 'Save group' }}

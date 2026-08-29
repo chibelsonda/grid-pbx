@@ -27,18 +27,60 @@ class QueueControllerTest extends TestCase
         $gateway->shouldReceive('create')->once()->withArgs(function (SwitchAccount $received, array $data) use ($account): bool {
             return $received->is($account)
                 && $data['resolved_agent_ids'] === ['switch-user-1']
-                && $data['switch_music_on_hold_reference'] === 'switch-media-1';
-        })->andReturn($this->snapshot([]));
+                && $data['switch_music_on_hold_reference'] === 'switch-media-1'
+                && $data['switch_announce_media_reference'] === 'switch-media-1'
+                && $data['switch_max_priority'] === 10
+                && $data['switch_announcements']['media']['you_are_at_position'] === 'switch-media-1';
+        })->andReturn($this->snapshot([
+            'announce' => 'switch-media-1',
+            'max_priority' => 10,
+            'announcements' => [
+                'interval' => 30,
+                'position_announcements_enabled' => true,
+                'wait_time_announcements_enabled' => false,
+                'media' => [
+                    'in_the_queue' => 'switch-media-1',
+                    'increase_in_call_volume' => 'switch-media-1',
+                    'the_estimated_wait_time_is' => 'switch-media-1',
+                    'you_are_at_position' => 'switch-media-1',
+                ],
+            ],
+        ]));
         $gateway->shouldReceive('replaceRoster')->once()->withArgs(fn (SwitchAccount $received, string $queueId, array $agentIds): bool => $received->is($account) && $queueId === 'switch-queue-1' && $agentIds === ['switch-user-1'])
-            ->andReturn($this->snapshot(['agents' => ['switch-user-1']]));
+            ->andReturn($this->snapshot([
+                'agents' => ['switch-user-1'],
+                'announce' => 'switch-media-1',
+                'max_priority' => 10,
+                'announcements' => [
+                    'interval' => 30,
+                    'position_announcements_enabled' => true,
+                    'wait_time_announcements_enabled' => false,
+                    'media' => [
+                        'in_the_queue' => 'switch-media-1',
+                        'increase_in_call_volume' => 'switch-media-1',
+                        'the_estimated_wait_time_is' => 'switch-media-1',
+                        'you_are_at_position' => 'switch-media-1',
+                    ],
+                ],
+            ]));
 
         $response = $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/queues", [
-            ...$this->payload(), 'music_on_hold_media_id' => $media->id, 'agent_ids' => [$agent->id],
+            ...$this->payload(),
+            'music_on_hold_media_id' => $media->id,
+            'announce_media_id' => $media->id,
+            'announcement_in_the_queue_media_id' => $media->id,
+            'announcement_increase_in_call_volume_media_id' => $media->id,
+            'announcement_estimated_wait_time_media_id' => $media->id,
+            'announcement_position_media_id' => $media->id,
+            'agent_ids' => [$agent->id],
         ]);
 
         $response->assertCreated()->assertJsonPath('data.name', 'Support')
             ->assertJsonPath('data.agents.0.agent.id', $agent->id)
             ->assertJsonPath('data.music_on_hold_media.id', $media->id)
+            ->assertJsonPath('data.announce_media.id', $media->id)
+            ->assertJsonPath('data.max_priority', 10)
+            ->assertJsonPath('data.announcements.media.you_are_at_position.id', $media->id)
             ->assertJsonMissingPath('data.queue_id')->assertJsonMissingPath('data.switch_json');
         $this->assertDatabaseHas('switch_queues', ['id' => $response->json('data.id'), 'switch_resource_id' => 'switch-queue-1']);
         $this->assertDatabaseHas('switch_queue_agents', ['switch_user_resource_id' => 'switch-user-1']);
@@ -66,6 +108,56 @@ class QueueControllerTest extends TestCase
         $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/queues")
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $queue->id)
             ->assertJsonMissingPath('data.0.switch_resource_id');
+    }
+
+    public function test_update_rejects_create_only_priority_and_partial_custom_announcement_media(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $queue = SwitchQueue::factory()->for($account)->create();
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/queues/{$queue->id}", [
+            ...$this->payload(),
+            'max_priority' => 20,
+            'announcement_in_the_queue_media_id' => fake()->uuid(),
+            'cdr_url' => 'https://cdr.example.test/events',
+            'recording_url' => 'https://recordings.example.test/audio',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['max_priority', 'announcement_media', 'cdr_url', 'recording_url']);
+    }
+
+    public function test_update_preserves_hidden_delivery_urls_and_create_only_priority(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $queue = SwitchQueue::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-queue-1',
+            'switch_json' => [
+                'max_priority' => 25,
+                'cdr_url' => 'https://cdr.example.test/events',
+                'recording_url' => 'https://recordings.example.test/audio',
+            ],
+        ]);
+        $payload = $this->payload();
+        unset($payload['max_priority']);
+        $snapshot = $this->snapshot([
+            'max_priority' => 25,
+            'cdr_url' => 'https://cdr.example.test/events',
+            'recording_url' => 'https://recordings.example.test/audio',
+            'agents' => [],
+        ]);
+        $gateway = $this->mock(SwitchQueueGateway::class);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-queue-1'
+                && $data['switch_max_priority'] === 25
+                && $data['switch_cdr_url'] === 'https://cdr.example.test/events'
+                && $data['switch_recording_url'] === 'https://recordings.example.test/audio',
+        )->andReturn($snapshot);
+        $gateway->shouldReceive('replaceRoster')->once()->andReturn($snapshot);
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/queues/{$queue->id}", $payload)
+            ->assertOk()
+            ->assertJsonPath('data.max_priority', 25)
+            ->assertJsonMissingPath('data.cdr_url')
+            ->assertJsonMissingPath('data.recording_url');
     }
 
     public function test_operator_requests_live_status_with_a_public_agent_id(): void
@@ -106,7 +198,13 @@ class QueueControllerTest extends TestCase
             'connection_timeout' => 3600, 'max_queue_size' => 20,
             'ring_simultaneously' => 1, 'enter_when_empty' => true,
             'record_caller' => false, 'caller_exit_key' => '#',
-            'music_on_hold_media_id' => null, 'agent_ids' => [],
+            'music_on_hold_media_id' => null, 'announce_media_id' => null,
+            'max_priority' => 10, 'announcements_enabled' => true, 'announcement_interval' => 30,
+            'position_announcements_enabled' => true, 'wait_time_announcements_enabled' => false,
+            'announcement_in_the_queue_media_id' => null,
+            'announcement_increase_in_call_volume_media_id' => null,
+            'announcement_estimated_wait_time_media_id' => null,
+            'announcement_position_media_id' => null, 'agent_ids' => [],
         ];
     }
 

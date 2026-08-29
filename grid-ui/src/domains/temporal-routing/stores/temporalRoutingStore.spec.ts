@@ -117,4 +117,30 @@ describe('temporal routing store', () => {
     expect(temporalRoutingApi.controlRule).toHaveBeenCalledWith('account-1', rule.id, 'disable')
     expect(store.ruleDetail).toEqual(forced)
   })
+  it('keeps server validation inline instead of duplicating it as a global alert', async () => {
+    vi.mocked(temporalRoutingApi.createRule).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: { message: 'Invalid input.', errors: { name: ['Enter a rule name.'] } },
+      },
+    })
+    const store = useTemporalRoutingStore()
+
+    expect(
+      await store.saveRule('account-1', {
+        name: '',
+        cycle: 'weekly',
+        interval: 1,
+        start_date: null,
+        time_window_start: null,
+        time_window_stop: null,
+        days: [],
+        weekdays: [],
+        month: null,
+        ordinal: null,
+      }),
+    ).toBe(false)
+    expect(store.fieldErrors).toEqual({ name: ['Enter a rule name.'] })
+    expect(store.mutationError).toBeNull()
+  })
 })

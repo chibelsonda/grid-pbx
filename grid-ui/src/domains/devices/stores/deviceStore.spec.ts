@@ -5,7 +5,13 @@ import {
   type DevicePage,
   type DeviceProvisioningCommand,
 } from '../api/deviceApi'
-import type { Device, DeviceInput, DeviceOptions } from '../types/device'
+import type {
+  Device,
+  DeviceInput,
+  DeviceOptions,
+  DeviceProvisioningEnrollment,
+  DeviceProvisioningEnrollmentMutation,
+} from '../types/device'
 import { useDeviceStore } from './deviceStore'
 import { legacyDeviceSchemaCompatibility } from '../deviceForm'
 
@@ -23,6 +29,18 @@ vi.mock('../api/deviceApi', () => ({
           deviceId: string,
           command: DeviceProvisioningCommand,
         ) => Promise<{ message: string; command: DeviceProvisioningCommand }>
+      >(),
+    provisioningEnrollment:
+      vi.fn<
+        (accountId: string, deviceId: string) => Promise<DeviceProvisioningEnrollment>
+      >(),
+    enrollProvisioning:
+      vi.fn<
+        (accountId: string, deviceId: string) => Promise<DeviceProvisioningEnrollmentMutation>
+      >(),
+    detachProvisioning:
+      vi.fn<
+        (accountId: string, deviceId: string) => Promise<DeviceProvisioningEnrollmentMutation>
       >(),
     options: vi.fn<(accountId: string) => Promise<DeviceOptions>>(),
   },
@@ -45,6 +63,18 @@ const device: Device = {
   },
   sync_status: 'healthy',
   last_synced_at: '2026-08-28T06:30:00Z',
+}
+
+const disabledEnrollment: DeviceProvisioningEnrollment = {
+  status: 'not_enrolled',
+  provider: 'yealink-rps',
+  eligible: true,
+  adapter_available: false,
+  can_enroll: false,
+  can_detach: false,
+  reason: 'Manufacturer provisioning enrollment is disabled.',
+  enrolled_at: null,
+  detached_at: null,
 }
 
 describe('device store', () => {
@@ -194,6 +224,41 @@ describe('device store', () => {
     expect(deviceApi.syncProvisioning).toHaveBeenCalledWith('account-1', 'device-1', 'sync')
     expect(succeeded).toBe(true)
     expect(store.operationMessage).toContain('synchronization')
+    expect(store.mutationLoading).toBe(false)
+  })
+
+  it('loads secure manufacturer provisioning enrollment state', async () => {
+    vi.mocked(deviceApi.provisioningEnrollment).mockResolvedValue(disabledEnrollment)
+    const store = useDeviceStore()
+
+    await store.loadProvisioningEnrollment('account-1', 'device-1')
+
+    expect(deviceApi.provisioningEnrollment).toHaveBeenCalledWith('account-1', 'device-1')
+    expect(store.provisioningEnrollment).toEqual(disabledEnrollment)
+    expect(store.provisioningEnrollmentLoading).toBe(false)
+  })
+
+  it('updates local enrollment state only after a confirmed API mutation succeeds', async () => {
+    const enrolled: DeviceProvisioningEnrollment = {
+      ...disabledEnrollment,
+      status: 'enrolled',
+      adapter_available: true,
+      can_detach: true,
+      reason: null,
+      enrolled_at: '2026-08-29T05:00:00Z',
+    }
+    vi.mocked(deviceApi.enrollProvisioning).mockResolvedValue({
+      message: 'Device enrolled for manufacturer provisioning.',
+      enrollment: enrolled,
+    })
+    const store = useDeviceStore()
+
+    const succeeded = await store.enrollProvisioning('account-1', 'device-1')
+
+    expect(deviceApi.enrollProvisioning).toHaveBeenCalledWith('account-1', 'device-1')
+    expect(succeeded).toBe(true)
+    expect(store.provisioningEnrollment).toEqual(enrolled)
+    expect(store.operationMessage).toBe('Device enrolled for manufacturer provisioning.')
     expect(store.mutationLoading).toBe(false)
   })
 })

@@ -33,6 +33,7 @@ class VoicemailBoxControllerTest extends TestCase
             'timezone' => 'Asia/Manila',
             'notification_emails' => ['alice@example.com'],
             'transcribe' => true,
+            'require_pin' => true,
             'switch_json' => [
                 'pin' => '[REDACTED]',
                 'check_if_owner' => false,
@@ -40,6 +41,14 @@ class VoicemailBoxControllerTest extends TestCase
                 'oldest_message_first' => true,
                 'is_voicemail_ff_rw_enabled' => true,
                 'seek_duration_ms' => 15000,
+                'notify' => ['callback' => [
+                    'disabled' => false,
+                    'number' => '+15559876543',
+                    'attempts' => 3,
+                    'interval_s' => 300,
+                    'timeout_s' => 30,
+                    'schedule' => [60, 300, 900],
+                ]],
             ],
         ]);
         SwitchVoicemailBox::factory()->for($account)->create(['mailbox' => '2001']);
@@ -61,11 +70,13 @@ class VoicemailBoxControllerTest extends TestCase
             ->assertJsonPath('data.timezone', 'Asia/Manila')
             ->assertJsonPath('data.notification_emails.0', 'alice@example.com')
             ->assertJsonPath('data.transcribe', true)
+            ->assertJsonPath('data.pin_configured', true)
             ->assertJsonPath('data.configuration.check_if_owner', false)
             ->assertJsonPath('data.configuration.media_extension', 'wav')
             ->assertJsonPath('data.configuration.oldest_message_first', true)
             ->assertJsonPath('data.configuration.is_voicemail_ff_rw_enabled', true)
             ->assertJsonPath('data.configuration.seek_duration_ms', 15000)
+            ->assertJsonPath('data.configuration.notify_callback.number', '+15559876543')
             ->assertJsonPath('data.message_counts.total', 1)
             ->assertJsonPath('data.message_counts.new', 1)
             ->assertJsonMissingPath('data.switch_json')
@@ -88,7 +99,9 @@ class VoicemailBoxControllerTest extends TestCase
                 && $payload['include_message_on_notify'] === false
                 && $payload['media_extension'] === 'wav'
                 && $payload['is_voicemail_ff_rw_enabled'] === true
-                && $payload['seek_duration_ms'] === 15000)
+                && $payload['seek_duration_ms'] === 15000
+                && $payload['flags'] === []
+                && $payload['notify_callback']['number'] === '+15559876543')
             ->andReturn([
                 'id' => 'switch-vmbox-1',
                 'owner_id' => 'switch-user-1',
@@ -113,6 +126,14 @@ class VoicemailBoxControllerTest extends TestCase
                 'skip_instructions' => true,
                 'is_voicemail_ff_rw_enabled' => true,
                 'seek_duration_ms' => 15000,
+                'notify' => ['callback' => [
+                    'disabled' => false,
+                    'number' => '+15559876543',
+                    'attempts' => 3,
+                    'interval_s' => 300,
+                    'timeout_s' => 30,
+                    'schedule' => [60, 300, 900],
+                ]],
             ]);
 
         $response = $this->actingAs($user)->postJson(
@@ -129,6 +150,7 @@ class VoicemailBoxControllerTest extends TestCase
             ->assertJsonPath('data.assigned_extension.id', $extension->id)
             ->assertJsonPath('data.configuration.media_extension', 'wav')
             ->assertJsonPath('data.configuration.seek_duration_ms', 15000)
+            ->assertJsonPath('data.configuration.notify_callback.number', '+15559876543')
             ->assertDontSee('123456');
         $mailbox = SwitchVoicemailBox::query()->where('switch_resource_id', 'switch-vmbox-1')->firstOrFail();
         $this->assertSame('[REDACTED]', $mailbox->switch_json['pin']);
@@ -141,11 +163,44 @@ class VoicemailBoxControllerTest extends TestCase
         $this->assertStringNotContainsString('123456', json_encode($audit->metadata, JSON_THROW_ON_ERROR));
     }
 
+    public function test_it_returns_safe_mailbox_form_options(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $account->update(['timezone' => 'Asia/Manila']);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Alice Operator',
+            'extension' => '1001',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/voicemail-boxes/options")
+            ->assertOk()
+            ->assertJsonPath('data.account_defaults.timezone', 'Asia/Manila')
+            ->assertJsonPath('data.extensions.0.id', $extension->id)
+            ->assertJsonPath('data.extensions.0.extension', '1001')
+            ->assertJsonPath('data.capabilities.voicemail_transcription.schema_supported', true)
+            ->assertJsonPath('data.capabilities.voicemail_transcription.runtime_available', null)
+            ->assertJsonFragment(['Europe/London']);
+    }
+
+    public function test_create_requires_a_pin_when_pin_protection_is_enabled(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchVoicemailBoxGateway::class)->shouldNotReceive('create');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/voicemail-boxes", $this->payload(['pin' => null]))
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('pin');
+    }
+
     public function test_it_updates_and_unassigns_a_mailbox_without_overwriting_the_pin(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $mailbox = SwitchVoicemailBox::factory()->for($account)->create([
             'switch_resource_id' => 'switch-vmbox-1',
+            'require_pin' => true,
+            'switch_json' => ['flags' => ['external-managed']],
         ]);
         $this->mock(SwitchVoicemailBoxGateway::class)
             ->shouldReceive('update')
@@ -155,7 +210,9 @@ class VoicemailBoxControllerTest extends TestCase
                 && $payload['owner_switch_resource_id'] === null
                 && $payload['pin'] === null
                 && $payload['media_extension'] === 'wav'
-                && $payload['seek_duration_ms'] === 15000)
+                && $payload['seek_duration_ms'] === 15000
+                && $payload['flags'] === ['external-managed']
+                && $payload['notify_callback'] === null)
             ->andReturn([
                 'id' => 'switch-vmbox-1',
                 'name' => 'Shared voicemail',
@@ -177,11 +234,30 @@ class VoicemailBoxControllerTest extends TestCase
                     'notification_emails' => [],
                     'transcribe' => false,
                     'require_pin' => false,
+                    'pin' => null,
+                    'notify_callback' => null,
                 ]),
             )
             ->assertOk()
             ->assertJsonPath('data.name', 'Shared voicemail')
             ->assertJsonPath('data.assigned_extension', null);
+    }
+
+    public function test_update_requires_a_pin_when_enabling_pin_protection(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $mailbox = SwitchVoicemailBox::factory()->for($account)->create([
+            'require_pin' => false,
+        ]);
+        $this->mock(SwitchVoicemailBoxGateway::class)->shouldNotReceive('update');
+
+        $this->actingAs($user)
+            ->putJson(
+                "/api/v1/accounts/{$account->id}/voicemail-boxes/{$mailbox->id}",
+                $this->payload(['pin' => null]),
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('pin');
     }
 
     public function test_it_deletes_upstream_then_soft_deletes_the_projection(): void
@@ -216,6 +292,16 @@ class VoicemailBoxControllerTest extends TestCase
                 'pin' => '12',
                 'media_extension' => 'ogg',
                 'seek_duration_ms' => 300001,
+                'save_after_notify' => true,
+                'delete_after_notify' => true,
+                'notify_callback' => [
+                    'disabled' => false,
+                    'number' => null,
+                    'attempts' => 101,
+                    'interval_s' => 604801,
+                    'timeout_s' => 3601,
+                    'schedule' => [-1],
+                ],
             ]))
             ->assertUnprocessable()
             ->assertJsonValidationErrors([
@@ -224,6 +310,12 @@ class VoicemailBoxControllerTest extends TestCase
                 'pin',
                 'media_extension',
                 'seek_duration_ms',
+                'delete_after_notify',
+                'notify_callback.number',
+                'notify_callback.attempts',
+                'notify_callback.interval_s',
+                'notify_callback.timeout_s',
+                'notify_callback.schedule.0',
             ]);
 
         [$readOnly, $readOnlyAccount] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
@@ -267,7 +359,7 @@ class VoicemailBoxControllerTest extends TestCase
             'notification_emails' => ['alice@example.com'],
             'transcribe' => true,
             'require_pin' => true,
-            'pin' => null,
+            'pin' => '123456',
             'check_if_owner' => false,
             'delete_after_notify' => true,
             'include_message_on_notify' => false,
@@ -281,6 +373,14 @@ class VoicemailBoxControllerTest extends TestCase
             'skip_instructions' => true,
             'is_voicemail_ff_rw_enabled' => true,
             'seek_duration_ms' => 15000,
+            'notify_callback' => [
+                'disabled' => false,
+                'number' => '+15559876543',
+                'attempts' => 3,
+                'interval_s' => 300,
+                'timeout_s' => 30,
+                'schedule' => [60, 300, 900],
+            ],
         ], $overrides);
     }
 

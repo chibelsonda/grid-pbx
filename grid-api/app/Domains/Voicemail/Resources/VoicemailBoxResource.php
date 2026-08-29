@@ -20,6 +20,7 @@ class VoicemailBoxResource extends JsonResource
             'notification_emails' => $this->notification_emails ?? [],
             'transcribe' => $this->transcribe,
             'require_pin' => $this->require_pin,
+            'pin_configured' => $this->pinConfigured(),
             'is_setup' => $this->is_setup,
             'configuration' => [
                 'check_if_owner' => $this->safeBoolean('check_if_owner', true),
@@ -35,6 +36,7 @@ class VoicemailBoxResource extends JsonResource
                 'skip_instructions' => $this->safeBoolean('skip_instructions', false),
                 'is_voicemail_ff_rw_enabled' => $this->safeBoolean('is_voicemail_ff_rw_enabled', false),
                 'seek_duration_ms' => $this->safeInteger('seek_duration_ms', 10000),
+                'notify_callback' => $this->safeNotificationCallback(),
             ],
             'message_counts' => [
                 'total' => (int) $this->messages_count,
@@ -74,5 +76,27 @@ class VoicemailBoxResource extends JsonResource
         $value = $this->switch_json['media_extension'] ?? null;
 
         return in_array($value, ['mp3', 'mp4', 'wav'], true) ? $value : 'mp3';
+    }
+
+    /** @return array<string, mixed>|null */
+    private function safeNotificationCallback(): ?array
+    {
+        $callback = $this->switch_json['notify']['callback'] ?? null;
+
+        if (! is_array($callback)) {
+            return null;
+        }
+
+        return [
+            'disabled' => is_bool($callback['disabled'] ?? null) ? $callback['disabled'] : false,
+            'number' => is_string($callback['number'] ?? null) ? $callback['number'] : null,
+            'attempts' => is_int($callback['attempts'] ?? null) ? $callback['attempts'] : null,
+            'interval_s' => is_int($callback['interval_s'] ?? null) ? $callback['interval_s'] : null,
+            'timeout_s' => is_int($callback['timeout_s'] ?? null) ? $callback['timeout_s'] : null,
+            'schedule' => array_values(array_filter(
+                is_array($callback['schedule'] ?? null) ? $callback['schedule'] : [],
+                static fn (mixed $interval): bool => is_int($interval) && $interval >= 0,
+            )),
+        ];
     }
 }

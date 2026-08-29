@@ -13,7 +13,10 @@ class QueueService
      */
     public function paginate(SwitchAccount $account, array $filters, int $perPage): LengthAwarePaginator
     {
-        return $account->queues()->withCount('agents')->with('musicOnHoldMedia:media_id,id,name')
+        return $account->queues()->withCount('agents')->with([
+            'musicOnHoldMedia:media_id,id,name',
+            'switchAccount.media:media_id,switch_account_id,id,switch_resource_id,name',
+        ])
             ->when($filters['search'] ?? null, fn ($query, string $search) => $query->where('name', 'like', "%{$search}%"))
             ->when($filters['strategy'] ?? null, fn ($query, string $strategy) => $query->where('strategy', $strategy))
             ->orderBy('name')->orderBy('queue_id')->paginate($perPage)->withQueryString();
@@ -23,6 +26,7 @@ class QueueService
     {
         return $account->queues()->where('id', $id)->with([
             'musicOnHoldMedia:media_id,id,name',
+            'switchAccount.media:media_id,switch_account_id,id,switch_resource_id,name',
             'agents.extension:extension_id,id,display_name,extension',
         ])->firstOrFail();
     }

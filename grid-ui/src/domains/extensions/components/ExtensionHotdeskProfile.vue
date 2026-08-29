@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { KeyIcon } from '@heroicons/vue/24/outline'
+import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { ExtensionHotdeskInput } from '../types/extension'
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     fieldErrors: Record<string, string[]>
     pinConfigured?: boolean
@@ -34,7 +35,11 @@ function keepConfiguredPin(): void {
           Let this user sign in to compatible shared devices by dial-pad ID.
         </p>
       </div>
-      <ToggleSwitch v-model="hotdesk.enabled" label="Enabled" />
+      <ToggleSwitch
+        v-model="hotdesk.enabled"
+        label="Enabled"
+        :invalid="Boolean(fieldErrors['hotdesk.enabled'])"
+      />
     </header>
 
     <div v-if="hotdesk.enabled" class="grid gap-4 p-5 sm:grid-cols-2">
@@ -48,11 +53,7 @@ function keepConfiguredPin(): void {
           placeholder="1001"
           class="field-control"
           :aria-invalid="Boolean(fieldErrors['hotdesk.id'])"
-          :class="
-            fieldErrors['hotdesk.id']
-              ? '!border-red-400 focus:!border-red-500 focus:!ring-red-100'
-              : ''
-          "
+          :class="validationControlClass(fieldErrors['hotdesk.id'])"
         />
         <span v-if="fieldErrors['hotdesk.id']" class="text-[10px] text-danger">{{
           fieldErrors['hotdesk.id'][0]
@@ -68,6 +69,8 @@ function keepConfiguredPin(): void {
         label="Keep logged in elsewhere"
         description="Allow this user to stay signed in on multiple shared devices"
         class="rounded-md border border-slate-200 px-3 py-2.5"
+        :class="validationControlClass(fieldErrors['hotdesk.keep_logged_in_elsewhere'])"
+        :invalid="Boolean(fieldErrors['hotdesk.keep_logged_in_elsewhere'])"
       />
 
       <ToggleSwitch
@@ -75,6 +78,8 @@ function keepConfiguredPin(): void {
         label="Require a PIN"
         description="Ask for the PIN before changing this user's hotdesk state"
         class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
+        :class="validationControlClass(fieldErrors['hotdesk.require_pin'])"
+        :invalid="Boolean(fieldErrors['hotdesk.require_pin'])"
       />
 
       <label v-if="hotdesk.require_pin" class="grid gap-2 sm:col-span-2">
@@ -93,11 +98,7 @@ function keepConfiguredPin(): void {
           placeholder="4–15 digits"
           class="field-control"
           :aria-invalid="Boolean(fieldErrors['hotdesk.pin'])"
-          :class="
-            fieldErrors['hotdesk.pin']
-              ? '!border-red-400 focus:!border-red-500 focus:!ring-red-100'
-              : ''
-          "
+          :class="validationControlClass(fieldErrors['hotdesk.pin'])"
         />
         <span v-if="fieldErrors['hotdesk.pin']" class="text-[10px] text-danger">{{
           fieldErrors['hotdesk.pin'][0]
@@ -107,6 +108,7 @@ function keepConfiguredPin(): void {
       <div
         v-if="editing && pinConfigured"
         class="flex flex-wrap items-center justify-between gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-3 text-xs sm:col-span-2"
+        :class="validationControlClass(fieldErrors['hotdesk.clear_pin'])"
       >
         <div>
           <p class="font-semibold text-slate-600">

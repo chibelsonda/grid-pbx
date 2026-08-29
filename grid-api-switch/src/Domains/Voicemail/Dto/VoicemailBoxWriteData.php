@@ -35,7 +35,14 @@ final readonly class VoicemailBoxWriteData
         $data = [
             'name' => $this->name,
             'mailbox' => $this->mailbox,
-            'owner_id' => $this->ownerId,
+        ];
+
+        if ($this->ownerId !== null) {
+            $data['owner_id'] = $this->ownerId;
+        }
+
+        $data = [
+            ...$data,
             'notify_email_addresses' => $this->notificationEmails,
             'transcribe' => $this->transcribe,
             'require_pin' => $this->requirePin,

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { LockClosedIcon } from '@heroicons/vue/24/outline'
+import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { ExtensionCredentialsInput } from '../types/extension'
 
 const props = withDefaults(
@@ -95,9 +96,7 @@ function keepCredentials(): void {
           placeholder="alice.operator"
           class="field-control"
           :aria-invalid="Boolean(fieldErrors.username)"
-          :class="
-            fieldErrors.username ? '!border-red-400 focus:!border-red-500 focus:!ring-red-100' : ''
-          "
+          :class="validationControlClass(fieldErrors.username)"
           @input="onUsernameInput"
         />
         <span v-if="fieldErrors.username" class="text-[10px] text-danger">
@@ -124,11 +123,7 @@ function keepCredentials(): void {
             autocomplete="new-password"
             class="field-control"
             :aria-invalid="Boolean(fieldErrors.password)"
-            :class="
-              fieldErrors.password
-                ? '!border-red-400 focus:!border-red-500 focus:!ring-red-100'
-                : ''
-            "
+            :class="validationControlClass(fieldErrors.password)"
           />
           <span v-if="fieldErrors.password" class="text-[10px] text-danger">
             {{ fieldErrors.password[0] }}
@@ -144,11 +139,7 @@ function keepCredentials(): void {
             autocomplete="new-password"
             class="field-control"
             :aria-invalid="Boolean(fieldErrors.password_confirmation)"
-            :class="
-              fieldErrors.password_confirmation
-                ? '!border-red-400 focus:!border-red-500 focus:!ring-red-100'
-                : ''
-            "
+            :class="validationControlClass(fieldErrors.password_confirmation)"
           />
           <span v-if="fieldErrors.password_confirmation" class="text-[10px] text-danger">
             {{ fieldErrors.password_confirmation[0] }}
@@ -157,7 +148,7 @@ function keepCredentials(): void {
 
         <div
           class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
-          :class="fieldErrors.require_password_update ? '!border-red-400' : ''"
+          :class="validationControlClass(fieldErrors.require_password_update)"
         >
           <ToggleSwitch
             v-model="credentials.require_password_update"

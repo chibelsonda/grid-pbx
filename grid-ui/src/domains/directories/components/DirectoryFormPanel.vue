@@ -3,7 +3,11 @@ import { computed, ref } from 'vue'
 import { BookOpenIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
-import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useDirectoryForm } from '../composables/useDirectoryForm'
 import type { Directory, DirectoryInput, DirectoryOptions } from '../types/directory'
 
@@ -17,11 +21,26 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; save: [input: DirectoryInput]; remove: [] }>()
 const confirmDelete = ref(false)
+const sortOptions: ListboxOptionValue[] = [
+  { value: 'last_name', label: 'Last name' },
+  { value: 'first_name', label: 'First name' },
+]
 const { form, validate, validationErrors } = useDirectoryForm(props.record)
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 
 function fieldError(field: string): string | null {
-  return errors.value[field]?.[0] ?? null
+  const direct = errors.value[field]?.[0]
+  if (direct) return direct
+
+  return (
+    Object.entries(errors.value).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
+}
+
+function setSortBy(value: ListboxValue): void {
+  if (value === 'first_name' || value === 'last_name') form.sort_by = value
 }
 
 function submit(): void {
@@ -63,9 +82,11 @@ function submit(): void {
             ><span class="text-xs font-semibold text-slate-600">Name</span
             ><input
               v-model="form.name"
+              aria-label="Name"
               required
               maxlength="128"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500"
+              class="field-control"
+              :class="validationControlClass(fieldError('name'))"
               :aria-invalid="Boolean(fieldError('name'))"
             /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
               fieldError('name')
@@ -73,12 +94,13 @@ function submit(): void {
           >
           <label class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Sort names by</span
-            ><FormSelect
-              v-model="form.sort_by"
-              class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-              :aria-invalid="Boolean(fieldError('sort_by'))"
-              ><option value="last_name">Last name</option>
-              <option value="first_name">First name</option></FormSelect
+            ><FormListbox
+              :model-value="form.sort_by"
+              :options="sortOptions"
+              aria-label="Sort names by"
+              :invalid="Boolean(fieldError('sort_by'))"
+              @update:model-value="setSortBy"
+            />
             ><span v-if="fieldError('sort_by')" class="text-[10px] text-danger">{{
               fieldError('sort_by')
             }}</span></label
@@ -86,17 +108,21 @@ function submit(): void {
           <ToggleSwitch
             v-model="form.confirm_match"
             label="Confirm a single match"
-            class="self-end pb-2"
+            class="self-end rounded-md border border-slate-200 p-3"
+            :class="validationControlClass(fieldError('confirm_match'))"
+            :invalid="Boolean(fieldError('confirm_match'))"
           />
           <label class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Minimum digits</span
             ><input
               v-model.number="form.min_dtmf"
+              aria-label="Minimum digits"
               type="number"
               min="1"
               max="20"
               required
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+              class="field-control"
+              :class="validationControlClass(fieldError('min_dtmf'))"
               :aria-invalid="Boolean(fieldError('min_dtmf'))"
             /><span v-if="fieldError('min_dtmf')" class="text-[10px] text-danger">{{
               fieldError('min_dtmf')
@@ -107,11 +133,13 @@ function submit(): void {
               >Maximum digits <span class="font-normal text-slate-400">(0 = unlimited)</span></span
             ><input
               v-model.number="form.max_dtmf"
+              aria-label="Maximum digits"
               type="number"
               min="0"
               max="20"
               required
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
+              class="field-control"
+              :class="validationControlClass(fieldError('max_dtmf'))"
               :aria-invalid="Boolean(fieldError('max_dtmf'))"
             /><span v-if="fieldError('max_dtmf')" class="text-[10px] text-danger">{{
               fieldError('max_dtmf')
@@ -119,26 +147,6 @@ function submit(): void {
           >
         </div>
       </article>
-
-      <DisclosureCard title="Advanced integration settings">
-        <label class="grid gap-2">
-          <span class="text-xs font-semibold text-slate-600">Directory flags</span>
-          <textarea
-            v-model="form.flags"
-            rows="4"
-            placeholder="One external-application flag per line"
-            class="rounded-md border border-slate-200 p-3 font-mono text-xs leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-            :aria-invalid="Boolean(fieldError('flags') || fieldError('flags.0'))"
-          />
-          <span class="text-[10px] leading-4 text-slate-400">
-            Optional metadata used by Switch integrations. Maximum 20 unique flags, 64 characters
-            each.
-          </span>
-          <span v-if="fieldError('flags') || fieldError('flags.0')" class="text-[10px] text-danger">
-            {{ fieldError('flags') ?? fieldError('flags.0') }}
-          </span>
-        </label>
-      </DisclosureCard>
 
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-100 px-5 py-4">
@@ -152,6 +160,7 @@ function submit(): void {
             v-for="option in options.extensions"
             :key="option.id"
             class="flex cursor-pointer items-center gap-3 rounded-md border border-slate-100 px-4 py-3 hover:bg-slate-50"
+            :class="validationControlClass(fieldError('member_ids'))"
             ><input
               v-model="form.member_ids"
               type="checkbox"
@@ -190,7 +199,7 @@ function submit(): void {
         ><button
           v-if="canManage"
           type="submit"
-          :disabled="saving || !form.name.trim()"
+          :disabled="saving"
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"
         >
           {{ saving ? 'Saving…' : 'Save directory' }}

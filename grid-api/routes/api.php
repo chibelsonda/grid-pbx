@@ -10,6 +10,7 @@ use App\Domains\Conferences\Controllers\ConferenceSyncController;
 use App\Domains\Devices\Controllers\DeviceController;
 use App\Domains\Devices\Controllers\DeviceHotdeskController;
 use App\Domains\Devices\Controllers\DeviceProvisioningController;
+use App\Domains\Devices\Controllers\DeviceProvisioningEnrollmentController;
 use App\Domains\Directories\Controllers\DirectoryController;
 use App\Domains\Directories\Controllers\DirectorySyncController;
 use App\Domains\Extensions\Controllers\ExtensionController;
@@ -65,6 +66,7 @@ Route::prefix('v1')->group(function (): void {
 
         Route::prefix('accounts/{account}')->group(function (): void {
             Route::get('/extensions', ExtensionController::class);
+            Route::get('/extensions/options', [ExtensionController::class, 'options']);
             Route::post('/extensions', [ExtensionController::class, 'store']);
             Route::get('/extensions/{extension}', ExtensionDetailController::class);
             Route::put('/extensions/{extension}', [ExtensionController::class, 'update']);
@@ -82,6 +84,9 @@ Route::prefix('v1')->group(function (): void {
             Route::put('/devices/{device}/hotdesk-users/{extension}', [DeviceHotdeskController::class, 'store']);
             Route::delete('/devices/{device}/hotdesk-users/{extension}', [DeviceHotdeskController::class, 'destroy']);
             Route::post('/devices/{device}/provisioning-sync', DeviceProvisioningController::class);
+            Route::get('/devices/{device}/provisioning-enrollment', [DeviceProvisioningEnrollmentController::class, 'show']);
+            Route::post('/devices/{device}/provisioning-enrollment', [DeviceProvisioningEnrollmentController::class, 'store']);
+            Route::delete('/devices/{device}/provisioning-enrollment', [DeviceProvisioningEnrollmentController::class, 'destroy']);
             Route::get('/line-keys', [LineKeyController::class, 'index']);
             Route::get('/devices/{device}/line-keys/preview', [LineKeyController::class, 'preview']);
             Route::put('/devices/{device}/line-keys', [LineKeyController::class, 'update']);
@@ -196,6 +201,7 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/sync/phone-numbers', [PhoneNumberSyncController::class, 'store']);
             Route::get('/sync/phone-numbers/{run}', [PhoneNumberSyncController::class, 'show']);
             Route::get('/voicemail-boxes', [VoicemailBoxController::class, 'index']);
+            Route::get('/voicemail-boxes/options', [VoicemailBoxController::class, 'options']);
             Route::post('/voicemail-boxes', [VoicemailBoxController::class, 'store']);
             Route::get('/voicemail-boxes/{voicemailBox}', [VoicemailBoxController::class, 'show']);
             Route::put('/voicemail-boxes/{voicemailBox}', [VoicemailBoxController::class, 'update']);

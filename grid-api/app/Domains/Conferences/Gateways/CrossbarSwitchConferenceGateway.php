@@ -50,6 +50,10 @@ class CrossbarSwitchConferenceGateway implements SwitchConferenceGateway
             moderatorControls: $data['moderator_controls'] ?? null, playName: (bool) $data['play_name'],
             playWelcome: (bool) $data['play_welcome'], requireModerator: (bool) $data['require_moderator'],
             waitForModerator: (bool) $data['wait_for_moderator'],
+            maxMembersMediaId: $data['switch_max_members_media_reference'] ?? null,
+            clearMaxMembersMedia: (bool) ($data['clear_switch_max_members_media'] ?? false),
+            playEntryTone: $data['switch_play_entry_tone'] ?? null,
+            playExitTone: $data['switch_play_exit_tone'] ?? null,
         );
     }
 }

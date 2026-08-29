@@ -47,8 +47,9 @@ export const useTemporalRoutingStore = defineStore('temporal-routing', {
       this.fieldErrors = {}
     },
     capture(error: unknown, fallback: string): void {
-      this.mutationError = errorMessage(error, fallback)
       this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+      this.mutationError =
+        Object.keys(this.fieldErrors).length > 0 ? null : errorMessage(error, fallback)
     },
     async load(accountId: string): Promise<void> {
       this.loading = true

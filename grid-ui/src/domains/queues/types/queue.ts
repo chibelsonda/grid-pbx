@@ -18,6 +18,20 @@ export type Queue = {
   record_caller: boolean
   caller_exit_key: string
   music_on_hold_media: { id: string; name: string } | null
+  announce_media: { id: string; name: string } | null
+  max_priority: number | null
+  announcements: {
+    enabled: boolean
+    interval: number
+    position_announcements_enabled: boolean
+    wait_time_announcements_enabled: boolean
+    media: {
+      in_the_queue: { id: string; name: string } | null
+      increase_in_call_volume: { id: string; name: string } | null
+      the_estimated_wait_time_is: { id: string; name: string } | null
+      you_are_at_position: { id: string; name: string } | null
+    }
+  }
   agents?: QueueAgent[]
   sync_status: 'healthy' | 'syncing' | 'stale' | 'error'
   last_synced_at: string | null
@@ -35,6 +49,16 @@ export type QueueInput = {
   record_caller: boolean
   caller_exit_key: string
   music_on_hold_media_id: string | null
+  announce_media_id: string | null
+  max_priority: number | null
+  announcements_enabled: boolean
+  announcement_interval: number
+  position_announcements_enabled: boolean
+  wait_time_announcements_enabled: boolean
+  announcement_in_the_queue_media_id: string | null
+  announcement_increase_in_call_volume_media_id: string | null
+  announcement_estimated_wait_time_media_id: string | null
+  announcement_position_media_id: string | null
   agent_ids: string[]
 }
 

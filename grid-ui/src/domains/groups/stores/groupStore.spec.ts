@@ -31,4 +31,26 @@ describe('group store', () => {
     const input: GroupInput = { name: 'Support', music_on_hold_media_id: null, members: [{ type: 'user', id: 'public-user', weight: 1 }] }
     expect(await store.save('account-1', input)).toBe(true); expect(groupApi.create).toHaveBeenCalledWith('account-1', input); expect(store.detail).toEqual(record)
   })
+  it('keeps API validation errors inline without a duplicate mutation alert', async () => {
+    vi.mocked(groupApi.create).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          message: 'The given data was invalid.',
+          errors: { name: ['Enter a group name.'] },
+        },
+      },
+    })
+    const store = useGroupStore()
+
+    expect(
+      await store.save('account-1', {
+        name: '',
+        music_on_hold_media_id: null,
+        members: [],
+      }),
+    ).toBe(false)
+    expect(store.fieldErrors.name).toEqual(['Enter a group name.'])
+    expect(store.mutationError).toBeNull()
+  })
 })

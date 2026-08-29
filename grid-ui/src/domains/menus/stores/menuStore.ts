@@ -18,8 +18,8 @@ export const useMenuStore = defineStore('menus', {
     reset(): void { this.records = []; this.detail = null; this.options = { ...emptyOptions }; this.total = 0; this.error = null; this.clearMutationError() },
     clearMutationError(): void { this.mutationError = null; this.fieldErrors = {} },
     capture(error: unknown, fallback: string): void {
-      this.mutationError = message(error, fallback)
       this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+      this.mutationError = Object.keys(this.fieldErrors).length > 0 ? null : message(error, fallback)
     },
     async load(accountId: string, page = 1): Promise<void> {
       this.loading = true; this.error = null

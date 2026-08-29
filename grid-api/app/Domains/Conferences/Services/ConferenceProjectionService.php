@@ -54,7 +54,7 @@ class ConferenceProjectionService
             }
         }
 
-        return $conference->load(['owner', 'numbers']);
+        return $conference->load(['owner', 'numbers', 'switchAccount.media']);
     }
 
     /** @return list<string> */
@@ -63,5 +63,8 @@ class ConferenceProjectionService
         return is_array($value) ? array_values(array_unique(array_filter($value, fn ($item) => is_string($item) && $item !== ''))) : [];
     }
 
-    private function stringValue(mixed $value): ?string { return is_string($value) && $value !== '' ? $value : null; }
+    private function stringValue(mixed $value): ?string
+    {
+        return is_string($value) && $value !== '' ? $value : null;
+    }
 }

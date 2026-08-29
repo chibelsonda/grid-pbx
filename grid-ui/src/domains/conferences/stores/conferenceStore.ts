@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import { conferenceApi } from '../api/conferenceApi'
 import type { Conference, ConferenceInput, ConferenceOptions } from '../types/conference'
 
-const emptyOptions: ConferenceOptions = { owners: [] }
+const emptyOptions: ConferenceOptions = { owners: [], media: [] }
 function message(error: unknown, fallback: string): string { return axios.isAxiosError(error) ? (error.response?.data?.message ?? fallback) : fallback }
 
 export const useConferenceStore = defineStore('conferences', {
@@ -15,7 +15,10 @@ export const useConferenceStore = defineStore('conferences', {
   actions: {
     reset(): void { this.records = []; this.detail = null; this.options = { ...emptyOptions }; this.total = 0; this.error = null; this.clearMutationError() },
     clearMutationError(): void { this.mutationError = null; this.fieldErrors = {} },
-    capture(error: unknown, fallback: string): void { this.mutationError = message(error, fallback); this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {} },
+    capture(error: unknown, fallback: string): void {
+      this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
+      this.mutationError = Object.keys(this.fieldErrors).length > 0 ? null : message(error, fallback)
+    },
     async load(accountId: string, page = 1): Promise<void> {
       this.loading = true; this.error = null
       try { const response = await conferenceApi.list(accountId, this.search, this.status, page); this.records = response.data; this.page = response.meta.current_page; this.lastPage = response.meta.last_page; this.total = response.meta.total }

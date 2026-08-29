@@ -37,12 +37,13 @@ final class TemporalResourceClientTest extends TestCase
         ]));
 
         $rules = iterator_to_array($client->allDetails('account-1'), false);
-        $client->create('account-1', new TemporalRuleWriteData(name: 'Weekend', cycle: 'weekly', weekdays: ['saturday', 'sunday']));
+        $client->create('account-1', new TemporalRuleWriteData(name: 'Weekend', cycle: 'weekly', weekdays: ['saturday', 'sunday'], flags: ['external']));
         $body = json_decode((string) $this->history[2]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(['monday', 'wednesday'], $rules[0]->weekdays);
         self::assertSame(32400, $rules[0]->timeWindowStart);
         self::assertSame(['saturday', 'sunday'], $body['data']['wdays']);
+        self::assertSame(['external'], $body['data']['flags']);
     }
 
     public function test_rule_set_client_preserves_ordered_rule_membership(): void
@@ -50,11 +51,12 @@ final class TemporalResourceClientTest extends TestCase
         $client = new TemporalRuleSetResourceClient($this->switchWithResponses([
             $this->response(['data' => ['id' => 'set-1', 'name' => 'Office schedule', 'temporal_rules' => ['rule-2', 'rule-1']]]),
         ]));
-        $set = $client->create('account-1', new TemporalRuleSetWriteData('Office schedule', ['rule-2', 'rule-1']));
+        $set = $client->create('account-1', new TemporalRuleSetWriteData('Office schedule', ['rule-2', 'rule-1'], ['external']));
         $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(['rule-2', 'rule-1'], $set->temporalRuleIds);
         self::assertSame(['rule-2', 'rule-1'], $body['data']['temporal_rules']);
+        self::assertSame(['external'], $body['data']['flags']);
     }
 
     public function test_rule_client_uses_nullable_patch_for_operational_overrides(): void

@@ -14,8 +14,8 @@ vi.mock('../api/queueApi', () => ({ queueApi: {
   syncStatus: vi.fn<() => Promise<QueueSyncRun>>(),
 } }))
 
-const record: Queue = { id: 'public-queue', name: 'Support', strategy: 'round_robin', agent_count: 1, agent_ring_timeout: 15, agent_wrapup_time: 0, connection_timeout: 3600, max_queue_size: 0, ring_simultaneously: 1, enter_when_empty: true, record_caller: false, caller_exit_key: '#', music_on_hold_media: null, agents: [], sync_status: 'healthy', last_synced_at: null }
-const input: QueueInput = { name: 'Support', strategy: 'round_robin', agent_ring_timeout: 15, agent_wrapup_time: 0, connection_timeout: 3600, max_queue_size: 0, ring_simultaneously: 1, enter_when_empty: true, record_caller: false, caller_exit_key: '#', music_on_hold_media_id: null, agent_ids: ['public-agent'] }
+const record: Queue = { id: 'public-queue', name: 'Support', strategy: 'round_robin', agent_count: 1, agent_ring_timeout: 15, agent_wrapup_time: 0, connection_timeout: 3600, max_queue_size: 0, ring_simultaneously: 1, enter_when_empty: true, record_caller: false, caller_exit_key: '#', music_on_hold_media: null, announce_media: null, max_priority: null, announcements: { enabled: false, interval: 30, position_announcements_enabled: false, wait_time_announcements_enabled: false, media: { in_the_queue: null, increase_in_call_volume: null, the_estimated_wait_time_is: null, you_are_at_position: null } }, agents: [], sync_status: 'healthy', last_synced_at: null }
+const input: QueueInput = { name: 'Support', strategy: 'round_robin', agent_ring_timeout: 15, agent_wrapup_time: 0, connection_timeout: 3600, max_queue_size: 0, ring_simultaneously: 1, enter_when_empty: true, record_caller: false, caller_exit_key: '#', music_on_hold_media_id: null, announce_media_id: null, max_priority: null, announcements_enabled: false, announcement_interval: 30, position_announcements_enabled: false, wait_time_announcements_enabled: false, announcement_in_the_queue_media_id: null, announcement_increase_in_call_volume_media_id: null, announcement_estimated_wait_time_media_id: null, announcement_position_media_id: null, agent_ids: ['public-agent'] }
 
 describe('queue store', () => {
   beforeEach(() => { setActivePinia(createPinia()); vi.clearAllMocks() })
@@ -30,5 +30,13 @@ describe('queue store', () => {
     vi.mocked(queueApi.list).mockResolvedValue({ data: [record], links: { first: null, last: null, prev: null, next: null }, meta: { current_page: 1, from: 1, last_page: 1, per_page: 25, to: 1, total: 1 } }); vi.mocked(queueApi.agents).mockResolvedValue([])
     const store = useQueueStore(); await store.prepare('account-1')
     expect(await store.save('account-1', input)).toBe(true); expect(queueApi.create).toHaveBeenCalledWith('account-1', input)
+  })
+  it('keeps API validation errors inline without a duplicate mutation alert', async () => {
+    vi.mocked(queueApi.create).mockRejectedValue({ isAxiosError: true, response: { data: { message: 'Invalid.', errors: { name: ['Enter a queue name.'] } } } })
+    const store = useQueueStore()
+
+    expect(await store.save('account-1', { ...input, name: '' })).toBe(false)
+    expect(store.fieldErrors.name).toEqual(['Enter a queue name.'])
+    expect(store.mutationError).toBeNull()
   })
 })

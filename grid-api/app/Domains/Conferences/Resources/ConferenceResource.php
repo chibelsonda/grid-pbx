@@ -32,9 +32,40 @@ class ConferenceResource extends JsonResource
             'moderator_controls' => $this->moderator_controls, 'play_name' => $this->play_name,
             'play_welcome' => $this->play_welcome, 'require_moderator' => $this->require_moderator,
             'wait_for_moderator' => $this->wait_for_moderator,
+            'max_members_media' => $this->mediaResource($this->switch_json['max_members_media'] ?? null),
+            'entry_tone' => $this->toneResource($this->switch_json['play_entry_tone'] ?? null),
+            'exit_tone' => $this->toneResource($this->switch_json['play_exit_tone'] ?? null),
             'runtime' => ['members' => $this->active_members, 'moderators' => $this->active_moderators, 'duration_seconds' => $this->duration_seconds, 'is_locked' => $this->is_locked],
             'last_synced_at' => $this->last_synced_at?->toIso8601String(), 'sync_status' => $this->sync_status?->value,
             'created_at' => $this->created_at?->toIso8601String(), 'updated_at' => $this->updated_at?->toIso8601String(),
         ];
+    }
+
+    /** @return array{id: string, name: string}|null */
+    private function mediaResource(mixed $reference): ?array
+    {
+        if (! is_string($reference) || $reference === '' || ! $this->relationLoaded('switchAccount') || ! $this->switchAccount->relationLoaded('media')) {
+            return null;
+        }
+
+        $media = $this->switchAccount->media->firstWhere('switch_resource_id', $reference);
+
+        return $media === null ? null : ['id' => $media->id, 'name' => $media->name];
+    }
+
+    /** @return array{mode: string, media: array{id: string, name: string}|null} */
+    private function toneResource(mixed $tone): array
+    {
+        if (is_bool($tone)) {
+            return ['mode' => $tone ? 'enabled' : 'disabled', 'media' => null];
+        }
+
+        if (is_string($tone) && $tone !== '') {
+            $media = $this->mediaResource($tone);
+
+            return ['mode' => $media === null ? 'current_custom' : 'media', 'media' => $media];
+        }
+
+        return ['mode' => 'enabled', 'media' => null];
     }
 }

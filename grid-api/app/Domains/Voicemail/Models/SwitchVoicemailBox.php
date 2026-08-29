@@ -69,6 +69,13 @@ class SwitchVoicemailBox extends Model
             ->where('type', 'unavailable');
     }
 
+    public function pinConfigured(): bool
+    {
+        $value = $this->switch_json['pin_configured'] ?? null;
+
+        return is_bool($value) ? $value : $this->require_pin;
+    }
+
     /** @return array<string, string> */
     protected function casts(): array
     {

@@ -47,8 +47,13 @@ class TemporalRuleMutationService
     public function update(SwitchAccount $account, SwitchTemporalRule $rule, User $actor, array $data, ?string $ip = null): SwitchTemporalRule
     {
         $previous = $this->writeData($rule);
+        $update = $data;
+        if ($rule->enabled !== null) {
+            $update['enabled'] = $rule->enabled;
+        }
+        $update['flags'] = $this->flags($rule->switch_json);
         try {
-            $snapshot = $this->gateway->update($account, $rule->switch_resource_id, $data);
+            $snapshot = $this->gateway->update($account, $rule->switch_resource_id, $update);
 
             return DB::transaction(function () use ($account, $actor, $ip, $snapshot) {
                 $updated = $this->projection->project($account, $snapshot);
@@ -67,7 +72,7 @@ class TemporalRuleMutationService
 
     public function delete(SwitchAccount $account, SwitchTemporalRule $rule, User $actor, ?string $ip = null): void
     {
-        if ($rule->ruleSetMemberships()->exists()) {
+        if ($rule->ruleSetMemberships()->whereHas('ruleSet')->exists()) {
             throw ValidationException::withMessages(['rule' => ['Remove this rule from every rule set before deleting it.']]);
         }
         foreach ($account->callflows()->get() as $callflow) {
@@ -85,7 +90,17 @@ class TemporalRuleMutationService
     /** @return array<string, mixed> */
     private function writeData(SwitchTemporalRule $rule): array
     {
-        return ['name' => $rule->name, 'cycle' => $rule->cycle, 'interval' => $rule->interval, 'start_date' => $rule->start_date?->format('Y-m-d'), 'time_window_start' => $rule->time_window_start, 'time_window_stop' => $rule->time_window_stop, 'enabled' => $rule->enabled, 'days' => $rule->days ?? [], 'weekdays' => $rule->weekdays ?? [], 'month' => $rule->month, 'ordinal' => $rule->ordinal];
+        return ['name' => $rule->name, 'cycle' => $rule->cycle, 'interval' => $rule->interval, 'start_date' => $rule->start_date?->format('Y-m-d'), 'time_window_start' => $rule->time_window_start, 'time_window_stop' => $rule->time_window_stop, 'enabled' => $rule->enabled, 'days' => $rule->days ?? [], 'weekdays' => $rule->weekdays ?? [], 'month' => $rule->month, 'ordinal' => $rule->ordinal, 'flags' => $this->flags($rule->switch_json)];
+    }
+
+    /** @param array<string, mixed>|null $snapshot @return list<string> */
+    private function flags(?array $snapshot): array
+    {
+        $flags = $snapshot['flags'] ?? [];
+
+        return is_array($flags)
+            ? array_values(array_filter($flags, static fn (mixed $flag): bool => is_string($flag)))
+            : [];
     }
 
     private function containsRule(mixed $node, string $id): bool

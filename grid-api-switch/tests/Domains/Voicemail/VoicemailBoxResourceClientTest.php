@@ -8,6 +8,7 @@ use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxAdvancedData;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailMessageFolder;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailNotificationCallbackData;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 use GridPbx\Switch\SwitchClient;
@@ -48,6 +49,15 @@ final class VoicemailBoxResourceClientTest extends TestCase
             'skip_instructions' => true,
             'is_voicemail_ff_rw_enabled' => true,
             'seek_duration_ms' => 15000,
+            'flags' => ['external-managed'],
+            'notify' => ['callback' => [
+                'disabled' => false,
+                'number' => '+15559876543',
+                'attempts' => 3,
+                'interval_s' => 300,
+                'timeout_s' => 30,
+                'schedule' => [60, 300, 900],
+            ]],
         ]])]);
 
         $snapshot = $client->create('account-1', new VoicemailBoxWriteData(
@@ -73,6 +83,14 @@ final class VoicemailBoxResourceClientTest extends TestCase
                 skipInstructions: true,
                 fastForwardRewindEnabled: true,
                 seekDurationMilliseconds: 15000,
+                flags: ['external-managed'],
+                notificationCallback: new VoicemailNotificationCallbackData(
+                    number: '+15559876543',
+                    attempts: 3,
+                    intervalSeconds: 300,
+                    timeoutSeconds: 30,
+                    schedule: [60, 300, 900],
+                ),
             ),
         ));
 
@@ -82,6 +100,8 @@ final class VoicemailBoxResourceClientTest extends TestCase
         self::assertSame('wav', $snapshot->mediaExtension);
         self::assertTrue($snapshot->fastForwardRewindEnabled);
         self::assertSame(15000, $snapshot->seekDurationMilliseconds);
+        self::assertSame(['external-managed'], $snapshot->flags);
+        self::assertSame('+15559876543', $snapshot->notificationCallback?->number);
         self::assertSame('PUT', $this->history[0]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/vmboxes', $this->history[0]['request']->getUri()->getPath());
         self::assertSame([
@@ -107,6 +127,15 @@ final class VoicemailBoxResourceClientTest extends TestCase
                 'skip_instructions' => true,
                 'is_voicemail_ff_rw_enabled' => true,
                 'seek_duration_ms' => 15000,
+                'flags' => ['external-managed'],
+                'notify' => ['callback' => [
+                    'disabled' => false,
+                    'number' => '+15559876543',
+                    'attempts' => 3,
+                    'interval_s' => 300,
+                    'timeout_s' => 30,
+                    'schedule' => [60, 300, 900],
+                ]],
             ],
         ], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
     }
@@ -122,14 +151,21 @@ final class VoicemailBoxResourceClientTest extends TestCase
         $client->update('account-1', 'vmbox-1', new VoicemailBoxWriteData(
             name: 'Shared voicemail',
             mailbox: '1002',
+            advanced: new VoicemailBoxAdvancedData(flags: ['external-managed']),
         ));
+
+        $data = json_decode(
+            (string) $this->history[0]['request']->getBody(),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        )['data'];
 
         self::assertSame('POST', $this->history[0]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/vmboxes/vmbox-1', $this->history[0]['request']->getUri()->getPath());
-        self::assertArrayNotHasKey(
-            'pin',
-            json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR)['data'],
-        );
+        self::assertArrayNotHasKey('pin', $data);
+        self::assertArrayNotHasKey('notify', $data);
+        self::assertArrayNotHasKey('owner_id', $data);
+        self::assertSame(['external-managed'], $data['flags']);
     }
 
     public function test_it_deletes_a_voicemail_box(): void

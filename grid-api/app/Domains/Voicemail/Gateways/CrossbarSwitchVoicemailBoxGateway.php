@@ -6,6 +6,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxAdvancedData;
 use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
+use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailNotificationCallbackData;
 use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 
 class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
@@ -57,7 +58,26 @@ class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
                 skipInstructions: $voicemailBox['skip_instructions'],
                 fastForwardRewindEnabled: $voicemailBox['is_voicemail_ff_rw_enabled'],
                 seekDurationMilliseconds: $voicemailBox['seek_duration_ms'],
+                flags: $voicemailBox['flags'],
+                notificationCallback: $this->notificationCallback($voicemailBox['notify_callback']),
             ),
+        );
+    }
+
+    /** @param array<string, mixed>|null $callback */
+    private function notificationCallback(?array $callback): ?VoicemailNotificationCallbackData
+    {
+        if ($callback === null) {
+            return null;
+        }
+
+        return new VoicemailNotificationCallbackData(
+            disabled: $callback['disabled'],
+            number: $callback['number'] ?? null,
+            attempts: $callback['attempts'] ?? null,
+            intervalSeconds: $callback['interval_s'] ?? null,
+            timeoutSeconds: $callback['timeout_s'] ?? null,
+            schedule: $callback['schedule'] ?? [],
         );
     }
 }

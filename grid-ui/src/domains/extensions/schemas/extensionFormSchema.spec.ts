@@ -42,8 +42,6 @@ describe('extension form schemas', () => {
           enabled: false,
           name: null,
           device_type: null,
-          make: null,
-          model: null,
           mac_address: null,
           sip_username: null,
           sip_password: null,
@@ -65,8 +63,6 @@ describe('extension form schemas', () => {
         enabled: true,
         name: null,
         device_type: 'sip_device',
-        make: null,
-        model: null,
         mac_address: 'invalid',
         sip_username: null,
         sip_password: 'short',
@@ -96,6 +92,34 @@ describe('extension form schemas', () => {
     expect(result.success).toBe(false)
   })
 
+  it('rejects full-editor device types and hidden starter credentials', () => {
+    const unsupportedType = extensionCreateSchema.safeParse({
+      ...validInput(),
+      device: {
+        enabled: true,
+        name: 'Mobile forwarding',
+        device_type: 'cellphone',
+        mac_address: null,
+        sip_username: null,
+        sip_password: null,
+      },
+    })
+    const disabledCredentials = extensionCreateSchema.safeParse({
+      ...validInput(),
+      device: {
+        enabled: false,
+        name: null,
+        device_type: null,
+        mac_address: null,
+        sip_username: 'alice-1001',
+        sip_password: 'a-long-random-secret',
+      },
+    })
+
+    expect(unsupportedType.success).toBe(false)
+    expect(disabledCredentials.success).toBe(false)
+  })
+
   it('requires and confirms a password when creating or changing a login username', () => {
     const missingCreatePassword = extensionCreateSchema.safeParse({
       ...validInput(),
@@ -105,8 +129,6 @@ describe('extension form schemas', () => {
         enabled: false,
         name: null,
         device_type: null,
-        make: null,
-        model: null,
         mac_address: null,
         sip_username: null,
         sip_password: null,
@@ -171,8 +193,6 @@ describe('extension form schemas', () => {
         enabled: false,
         name: null,
         device_type: null,
-        make: null,
-        model: null,
         mac_address: null,
         sip_username: null,
         sip_password: null,

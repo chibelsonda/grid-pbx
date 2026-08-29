@@ -21,12 +21,12 @@ class CrossbarSwitchTemporalRuleSetGateway implements SwitchTemporalRuleSetGatew
 
     public function create(SwitchAccount $account, array $data): array
     {
-        return $this->sets->create($account->switch_account_id, new TemporalRuleSetWriteData((string) $data['name'], $data['switch_rule_ids']))->toArray();
+        return $this->sets->create($account->switch_account_id, new TemporalRuleSetWriteData((string) $data['name'], $data['switch_rule_ids'], array_values($data['flags'] ?? [])))->toArray();
     }
 
     public function update(SwitchAccount $account, string $resourceId, array $data): array
     {
-        return $this->sets->update($account->switch_account_id, $resourceId, new TemporalRuleSetWriteData((string) $data['name'], $data['switch_rule_ids']))->toArray();
+        return $this->sets->update($account->switch_account_id, $resourceId, new TemporalRuleSetWriteData((string) $data['name'], $data['switch_rule_ids'], array_values($data['flags'] ?? [])))->toArray();
     }
 
     public function delete(SwitchAccount $account, string $resourceId): void

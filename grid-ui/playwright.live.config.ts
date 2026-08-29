@@ -26,7 +26,8 @@ export default defineConfig({
   projects: [
     {
       name: 'gridpbx-live',
-      testMatch: /gridpbx-(device-parity|device-fields|extension-hotdesk)\.spec\.ts/,
+      testMatch:
+        /gridpbx-(conference-form|device-parity|device-fields|directory-form|extension-hotdesk|group-form|menu-form|provisioning-walkthrough|queue-form|temporal-routing)\.spec\.ts/,
       use: {
         baseURL: gridUiUrl,
         storageState: '.playwright/.auth/gridpbx.json',

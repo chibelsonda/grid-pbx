@@ -10,10 +10,12 @@ use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Gateways\CrossbarSwitchCallflowGateway;
 use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
 use App\Domains\Conferences\Gateways\CrossbarSwitchConferenceGateway;
+use App\Domains\Devices\Contracts\ManufacturerProvisioningEnrollmentGateway;
 use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Devices\Contracts\SwitchProvisioningCatalogGateway;
 use App\Domains\Devices\Gateways\CrossbarSwitchDeviceGateway;
 use App\Domains\Devices\Gateways\ProvisionerSwitchProvisioningCatalogGateway;
+use App\Domains\Devices\Gateways\UnavailableManufacturerProvisioningEnrollmentGateway;
 use App\Domains\Devices\Gateways\UnavailableSwitchProvisioningCatalogGateway;
 use App\Domains\Devices\Services\DeviceMetaflowPolicy;
 use App\Domains\Directories\Contracts\SwitchDirectoryGateway;
@@ -97,6 +99,10 @@ class SwitchServiceProvider extends ServiceProvider
         $this->app->bind(SwitchBlacklistGateway::class, CrossbarSwitchBlacklistGateway::class);
         $this->app->bind(SwitchCallDetailRecordGateway::class, CrossbarSwitchCallDetailRecordGateway::class);
         $this->app->bind(SwitchDeviceGateway::class, CrossbarSwitchDeviceGateway::class);
+        $this->app->singleton(
+            ManufacturerProvisioningEnrollmentGateway::class,
+            UnavailableManufacturerProvisioningEnrollmentGateway::class,
+        );
         $this->app->singleton(SwitchProvisioningCatalogGateway::class, function ($app) {
             $baseUrl = trim((string) config('switch.provisioner_url'));
 

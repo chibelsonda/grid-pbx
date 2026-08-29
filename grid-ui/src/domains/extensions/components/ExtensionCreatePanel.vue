@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
+import { RadioGroup, RadioGroupOption } from '@headlessui/vue'
 import {
   ArrowPathRoundedSquareIcon,
   DevicePhoneMobileIcon,
@@ -7,15 +8,23 @@ import {
   UserIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
-import { deviceTypes } from '@/domains/devices/deviceForm'
 import {
   defaultExtensionCredentialsInput,
   defaultExtensionHotdeskInput,
   defaultExtensionUserConfiguration,
 } from '../extensionForm'
+import { useExtensionFormOptions } from '../composables/useExtensionFormOptions'
 import { extensionCreateSchema } from '../schemas/extensionFormSchema'
-import type { ExtensionCreate } from '../types/extension'
+import type {
+  ExtensionCreate,
+  ExtensionCredentialsInput,
+  ExtensionHotdeskInput,
+  ExtensionFormOptions,
+  ExtensionUserConfiguration,
+} from '../types/extension'
 import ExtensionCredentialsProfile from './ExtensionCredentialsProfile.vue'
 import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
@@ -24,20 +33,20 @@ const props = defineProps<{
   saving: boolean
   error: string | null
   fieldErrors: Record<string, string[]>
+  options: ExtensionFormOptions
 }>()
 const emit = defineEmits<{ close: []; save: [input: ExtensionCreate] }>()
 const userConfiguration = reactive(defaultExtensionUserConfiguration())
 const credentials = reactive(defaultExtensionCredentialsInput())
 const hotdesk = reactive(defaultExtensionHotdeskInput())
 const clientErrors = ref<FormErrors>({})
-const validationError = ref<string | null>(null)
 const displayErrors = computed(() => ({ ...props.fieldErrors, ...clientErrors.value }))
 const form = reactive({
   firstName: '',
   lastName: '',
   extension: '',
   email: '',
-  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || '',
+  timezone: null as string | null,
   isEnabled: true,
   voicemailEnabled: true,
   notificationEmails: '',
@@ -47,16 +56,66 @@ const form = reactive({
   deviceEnabled: false,
   deviceName: '',
   deviceType: 'sip_device',
-  make: '',
-  model: '',
   macAddress: '',
   sipUsername: '',
   sipPassword: '',
 })
+const {
+  timezoneOptions,
+  languageOptions,
+  presenceOptions,
+  starterDeviceTypes,
+  provisionableTypes,
+  sipCredentialTypes,
+} = useExtensionFormOptions(
+  () => props.options,
+  () => ({
+    timezone: form.timezone,
+    language: userConfiguration.language,
+    presenceId: userConfiguration.presence_id,
+  }),
+  () => form.extension,
+)
+const starterDeviceIsProvisionable = computed(() => provisionableTypes.value.has(form.deviceType))
+const starterDeviceSupportsSip = computed(() => sipCredentialTypes.value.has(form.deviceType))
+
+watch(
+  () => form.deviceType,
+  () => {
+    if (!starterDeviceIsProvisionable.value) form.macAddress = ''
+    if (!starterDeviceSupportsSip.value) {
+      form.sipUsername = ''
+      form.sipPassword = ''
+    }
+  },
+)
 
 function nullable(value: string): string | null {
   const trimmed = value.trim()
   return trimmed ? trimmed : null
+}
+
+function fieldError(field: string): string | null {
+  const direct = displayErrors.value[field]?.[0]
+  if (direct) return direct
+
+  return (
+    Object.entries(displayErrors.value).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
+}
+
+function updateCredentials(value: ExtensionCredentialsInput): void {
+  Object.assign(credentials, value)
+}
+
+function updateUserConfiguration(value: ExtensionUserConfiguration): void {
+  Object.assign(userConfiguration, value)
+}
+
+function updateHotdesk(value: ExtensionHotdeskInput): void {
+  Object.assign(hotdesk, value)
 }
 
 function submit(): void {
@@ -70,7 +129,7 @@ function submit(): void {
     require_password_update: credentials.require_password_update,
     clear_credentials: false,
     email: nullable(form.email),
-    timezone: nullable(form.timezone),
+    timezone: form.timezone,
     is_enabled: form.isEnabled,
     ...userConfiguration,
     hotdesk: {
@@ -93,24 +152,20 @@ function submit(): void {
       enabled: form.deviceEnabled,
       name: form.deviceEnabled ? nullable(form.deviceName) : null,
       device_type: form.deviceEnabled ? nullable(form.deviceType) : null,
-      make: nullable(form.make),
-      model: nullable(form.model),
-      mac_address: nullable(form.macAddress),
-      sip_username: nullable(form.sipUsername),
-      sip_password: nullable(form.sipPassword),
+      mac_address: starterDeviceIsProvisionable.value ? nullable(form.macAddress) : null,
+      sip_username: starterDeviceSupportsSip.value ? nullable(form.sipUsername) : null,
+      sip_password: starterDeviceSupportsSip.value ? nullable(form.sipPassword) : null,
     },
   }
   const validation = validateForm(extensionCreateSchema, input)
 
   if (!validation.success) {
     clientErrors.value = validation.errors
-    validationError.value = 'Check the highlighted fields and try again.'
 
     return
   }
 
   clientErrors.value = {}
-  validationError.value = null
   emit('save', validation.data)
 }
 </script>
@@ -125,10 +180,10 @@ function submit(): void {
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div
-        v-if="validationError || error"
+        v-if="error"
         class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
       >
-        {{ validationError ?? error }}
+        {{ error }}
       </div>
 
       <article class="card-surface overflow-hidden">
@@ -148,7 +203,9 @@ function submit(): void {
               v-model="form.firstName"
               required
               maxlength="128"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="field-control"
+              :class="validationControlClass(fieldError('first_name'))"
+              :aria-invalid="Boolean(fieldError('first_name'))"
             />
             <span v-if="displayErrors.first_name" class="text-[10px] text-danger">{{
               displayErrors.first_name[0]
@@ -160,7 +217,9 @@ function submit(): void {
               v-model="form.lastName"
               required
               maxlength="128"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="field-control"
+              :class="validationControlClass(fieldError('last_name'))"
+              :aria-invalid="Boolean(fieldError('last_name'))"
             />
             <span v-if="displayErrors.last_name" class="text-[10px] text-danger">{{
               displayErrors.last_name[0]
@@ -173,7 +232,9 @@ function submit(): void {
               required
               inputmode="numeric"
               pattern="[0-9]{2,15}"
-              class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="field-control font-mono"
+              :class="validationControlClass(fieldError('extension'))"
+              :aria-invalid="Boolean(fieldError('extension'))"
             />
             <span v-if="displayErrors.extension" class="text-[10px] text-danger">{{
               displayErrors.extension[0]
@@ -185,7 +246,9 @@ function submit(): void {
               v-model="form.email"
               type="email"
               maxlength="254"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="field-control"
+              :class="validationControlClass(fieldError('email'))"
+              :aria-invalid="Boolean(fieldError('email'))"
             />
             <span v-if="displayErrors.email" class="text-[10px] text-danger">{{
               displayErrors.email[0]
@@ -193,10 +256,11 @@ function submit(): void {
           </label>
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Timezone</span>
-            <input
+            <FormListbox
               v-model="form.timezone"
-              placeholder="Asia/Manila"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              :options="timezoneOptions"
+              :invalid="Boolean(fieldError('timezone'))"
+              aria-label="Timezone"
             />
             <span v-if="displayErrors.timezone" class="text-[10px] text-danger">{{
               displayErrors.timezone[0]
@@ -210,11 +274,25 @@ function submit(): void {
         </div>
       </article>
 
-      <ExtensionCredentialsProfile v-model="credentials" :field-errors="displayErrors" />
+      <ExtensionCredentialsProfile
+        :model-value="credentials"
+        :field-errors="displayErrors"
+        @update:model-value="updateCredentials"
+      />
 
-      <ExtensionUserOptions v-model="userConfiguration" :field-errors="displayErrors" />
+      <ExtensionUserOptions
+        :model-value="userConfiguration"
+        :field-errors="displayErrors"
+        :language-options="languageOptions"
+        :presence-options="presenceOptions"
+        @update:model-value="updateUserConfiguration"
+      />
 
-      <ExtensionHotdeskProfile v-model="hotdesk" :field-errors="displayErrors" />
+      <ExtensionHotdeskProfile
+        :model-value="hotdesk"
+        :field-errors="displayErrors"
+        @update:model-value="updateHotdesk"
+      />
 
       <article class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
@@ -235,13 +313,15 @@ function submit(): void {
             <input
               v-model="form.notificationEmails"
               placeholder="alice@example.com, team@example.com"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="field-control"
+              :class="validationControlClass(fieldError('voicemail.notification_emails'))"
+              :aria-invalid="Boolean(fieldError('voicemail.notification_emails'))"
             />
             <span class="text-[10px] text-slate-400">Separate multiple addresses with commas.</span>
             <span
-              v-if="displayErrors['voicemail.notification_emails']"
+              v-if="fieldError('voicemail.notification_emails')"
               class="text-[10px] text-danger"
-              >{{ displayErrors['voicemail.notification_emails'][0] }}</span
+              >{{ fieldError('voicemail.notification_emails') }}</span
             >
           </label>
           <ToggleSwitch v-model="form.transcribe" label="Enable transcription" />
@@ -255,10 +335,12 @@ function submit(): void {
               inputmode="numeric"
               pattern="[0-9]{4,6}"
               autocomplete="new-password"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              class="field-control"
+              :class="validationControlClass(fieldError('voicemail.pin'))"
+              :aria-invalid="Boolean(fieldError('voicemail.pin'))"
             />
-            <span v-if="displayErrors['voicemail.pin']" class="text-[10px] text-danger">{{
-              displayErrors['voicemail.pin'][0]
+            <span v-if="fieldError('voicemail.pin')" class="text-[10px] text-danger">{{
+              fieldError('voicemail.pin')
             }}</span>
           </label>
         </div>
@@ -280,65 +362,103 @@ function submit(): void {
         <div v-if="form.deviceEnabled" class="grid gap-4 p-5 sm:grid-cols-2">
           <label class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Device name</span>
-            <input v-model="form.deviceName" class="field-control" />
-            <span v-if="displayErrors['device.name']" class="text-[10px] text-danger">{{
-              displayErrors['device.name'][0]
+            <input
+              v-model="form.deviceName"
+              class="field-control"
+              :class="validationControlClass(fieldError('device.name'))"
+              :aria-invalid="Boolean(fieldError('device.name'))"
+            />
+            <span v-if="fieldError('device.name')" class="text-[10px] text-danger">{{
+              fieldError('device.name')
             }}</span>
           </label>
-          <label class="grid gap-2">
+          <label class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Type</span>
-            <FormSelect
+            <RadioGroup
               v-model="form.deviceType"
-              class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
+              class="grid gap-2 sm:grid-cols-2"
+              :class="validationControlClass(fieldError('device.device_type'))"
+              aria-label="Initial device type"
             >
-              <option
-                v-for="deviceType in deviceTypes"
+              <RadioGroupOption
+                v-for="deviceType in starterDeviceTypes"
                 :key="deviceType.value"
+                v-slot="{ checked }"
                 :value="deviceType.value"
+                as="template"
               >
-                {{ deviceType.label }}
-              </option>
-            </FormSelect>
-            <span v-if="displayErrors['device.device_type']" class="text-[10px] text-danger">{{
-              displayErrors['device.device_type'][0]
+                <button
+                  type="button"
+                  :aria-label="deviceType.label"
+                  class="flex min-w-0 items-center gap-3 rounded-md border p-3 text-left transition"
+                  :class="
+                    checked
+                      ? 'border-brand-500 bg-brand-50'
+                      : 'border-slate-300 bg-white hover:border-slate-400'
+                  "
+                >
+                  <span
+                    class="grid size-8 shrink-0 place-items-center rounded-md bg-slate-100 text-slate-600"
+                  >
+                    <component :is="deviceType.icon" class="size-4" />
+                  </span>
+                  <span class="min-w-0">
+                    <span class="block text-xs font-semibold text-slate-700">{{
+                      deviceType.label
+                    }}</span>
+                    <span class="block truncate text-[10px] text-slate-500">{{
+                      deviceType.description
+                    }}</span>
+                  </span>
+                </button>
+              </RadioGroupOption>
+            </RadioGroup>
+            <span v-if="fieldError('device.device_type')" class="text-[10px] text-danger">{{
+              fieldError('device.device_type')
             }}</span>
           </label>
-          <label class="grid gap-2">
+          <label v-if="starterDeviceIsProvisionable" class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">MAC address</span>
             <input
               v-model="form.macAddress"
               placeholder="00:11:22:33:44:55"
               class="field-control font-mono"
+              :class="validationControlClass(fieldError('device.mac_address'))"
+              :aria-invalid="Boolean(fieldError('device.mac_address'))"
             />
-            <span v-if="displayErrors['device.mac_address']" class="text-[10px] text-danger">{{
-              displayErrors['device.mac_address'][0]
+            <span v-if="fieldError('device.mac_address')" class="text-[10px] text-danger">{{
+              fieldError('device.mac_address')
             }}</span>
           </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Make</span>
-            <input v-model="form.make" class="field-control" />
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Model</span>
-            <input v-model="form.model" class="field-control" />
-          </label>
-          <label class="grid gap-2">
+          <p class="text-[10px] leading-4 text-slate-500 sm:col-span-2">
+            Brand, family, model, line keys, and advanced endpoint settings are configured from the
+            full Device editor after creation.
+          </p>
+          <label v-if="starterDeviceSupportsSip" class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">SIP username</span>
-            <input v-model="form.sipUsername" autocomplete="off" class="field-control" />
-            <span v-if="displayErrors['device.sip_username']" class="text-[10px] text-danger">{{
-              displayErrors['device.sip_username'][0]
+            <input
+              v-model="form.sipUsername"
+              autocomplete="off"
+              class="field-control"
+              :class="validationControlClass(fieldError('device.sip_username'))"
+              :aria-invalid="Boolean(fieldError('device.sip_username'))"
+            />
+            <span v-if="fieldError('device.sip_username')" class="text-[10px] text-danger">{{
+              fieldError('device.sip_username')
             }}</span>
           </label>
-          <label class="grid gap-2">
+          <label v-if="starterDeviceSupportsSip" class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">SIP password</span>
             <input
               v-model="form.sipPassword"
               type="password"
               autocomplete="new-password"
               class="field-control"
+              :class="validationControlClass(fieldError('device.sip_password'))"
+              :aria-invalid="Boolean(fieldError('device.sip_password'))"
             />
-            <span v-if="displayErrors['device.sip_password']" class="text-[10px] text-danger">{{
-              displayErrors['device.sip_password'][0]
+            <span v-if="fieldError('device.sip_password')" class="text-[10px] text-danger">{{
+              fieldError('device.sip_password')
             }}</span>
           </label>
         </div>

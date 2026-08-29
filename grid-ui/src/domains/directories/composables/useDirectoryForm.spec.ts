@@ -30,7 +30,6 @@ describe('useDirectoryForm', () => {
   it('hydrates and validates the editable Switch contract', () => {
     const { form, validate } = useDirectoryForm(record)
 
-    expect(form.flags).toBe('public-directory\nvoice')
     expect(validate()).toEqual({
       success: true,
       data: {
@@ -39,26 +38,24 @@ describe('useDirectoryForm', () => {
         min_dtmf: 3,
         max_dtmf: 0,
         sort_by: 'last_name',
-        flags: ['public-directory', 'voice'],
         member_ids: ['fa28d177-5378-43bf-9a66-b3e636b04fd7'],
       },
       errors: {},
     })
   })
 
-  it('reports invalid DTMF, duplicate flags, and invalid public member ids', () => {
+  it('reports invalid DTMF and invalid public member ids', () => {
     const { form, validate } = useDirectoryForm(null)
     form.name = 'People'
     form.min_dtmf = 0
     form.max_dtmf = 21
-    form.flags = 'duplicate\nduplicate'
     form.member_ids = ['switch-user-1']
 
     const result = validate()
 
     expect(result.success).toBe(false)
     expect(Object.keys(result.errors)).toEqual(
-      expect.arrayContaining(['min_dtmf', 'max_dtmf', 'flags', 'member_ids.0']),
+      expect.arrayContaining(['min_dtmf', 'max_dtmf', 'member_ids.0']),
     )
   })
 })

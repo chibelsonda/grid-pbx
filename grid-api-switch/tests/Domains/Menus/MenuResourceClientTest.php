@@ -33,7 +33,7 @@ final class MenuResourceClientTest extends TestCase
                 'media' => ['greeting' => 'media-1', 'invalid_media' => false, 'transfer_media' => true, 'exit_media' => 'media-2'],
             ]]),
             $this->response(['data' => [
-                'id' => 'menu-2', 'name' => 'Support', 'media' => [],
+                'id' => 'menu-2', 'name' => 'Support', 'media' => [], 'flags' => [],
             ]]),
         ]);
         $client = new MenuResourceClient($switch);
@@ -47,7 +47,41 @@ final class MenuResourceClientTest extends TestCase
         self::assertFalse($menus[0]->invalidMedia);
         self::assertSame('menu-2', $created->id);
         self::assertArrayNotHasKey('greeting', $body['data']['media']);
+        self::assertSame([], $body['data']['flags']);
         self::assertSame('/v2/accounts/account-1/menus', $this->history[2]['request']->getUri()->getPath());
+    }
+
+    public function test_update_preserves_a_write_only_record_pin_without_exposing_it_to_callers(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'id' => 'menu-1',
+                'name' => 'Main menu',
+                'record_pin' => '4826',
+                'flags' => ['external-managed'],
+                'media' => [],
+            ]]),
+            $this->response(['data' => [
+                'id' => 'menu-1',
+                'name' => 'Updated menu',
+                'record_pin' => '4826',
+                'flags' => ['external-managed'],
+                'media' => [],
+            ]]),
+        ]);
+        $client = new MenuResourceClient($switch);
+
+        $updated = $client->update('account-1', 'menu-1', new MenuWriteData(
+            name: 'Updated menu',
+            flags: ['external-managed'],
+        ));
+        $body = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('GET', $this->history[0]['request']->getMethod());
+        self::assertSame('POST', $this->history[1]['request']->getMethod());
+        self::assertSame('4826', $body['data']['record_pin']);
+        self::assertSame(['external-managed'], $body['data']['flags']);
+        self::assertSame(['external-managed'], $updated->flags);
     }
 
     /** @param list<Response> $responses */

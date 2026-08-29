@@ -4,6 +4,8 @@ import type {
   DeviceHotdeskMemberships,
   DeviceInput,
   DeviceOptions,
+  DeviceProvisioningEnrollment,
+  DeviceProvisioningEnrollmentMutation,
   SyncState,
 } from '../types/device'
 
@@ -65,6 +67,38 @@ export const deviceApi = {
     >(
       `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-sync`,
       { command },
+    )
+
+    return unwrapApiData(response)
+  },
+  async provisioningEnrollment(
+    accountId: string,
+    deviceId: string,
+  ): Promise<DeviceProvisioningEnrollment> {
+    const response = await http.get<ApiResponse<DeviceProvisioningEnrollment>>(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-enrollment`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async enrollProvisioning(
+    accountId: string,
+    deviceId: string,
+  ): Promise<DeviceProvisioningEnrollmentMutation> {
+    const response = await http.post<ApiResponse<DeviceProvisioningEnrollmentMutation>>(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-enrollment`,
+      { confirmed: true },
+    )
+
+    return unwrapApiData(response)
+  },
+  async detachProvisioning(
+    accountId: string,
+    deviceId: string,
+  ): Promise<DeviceProvisioningEnrollmentMutation> {
+    const response = await http.delete<ApiResponse<DeviceProvisioningEnrollmentMutation>>(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-enrollment`,
+      { data: { confirmed: true } },
     )
 
     return unwrapApiData(response)

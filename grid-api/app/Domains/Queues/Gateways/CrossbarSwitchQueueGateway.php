@@ -5,6 +5,7 @@ namespace App\Domains\Queues\Gateways;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Contracts\SwitchQueueGateway;
 use Generator;
+use GridPbx\Switch\Domains\Queues\Dto\QueueAnnouncementsWriteData;
 use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
 
@@ -51,6 +52,21 @@ class CrossbarSwitchQueueGateway implements SwitchQueueGateway
             ringSimultaneously: (int) $data['ring_simultaneously'], enterWhenEmpty: (bool) $data['enter_when_empty'],
             recordCaller: (bool) $data['record_caller'], callerExitKey: (string) $data['caller_exit_key'],
             musicOnHoldMediaId: $data['switch_music_on_hold_reference'] ?? null,
+            announceMediaId: $data['switch_announce_media_reference'] ?? null,
+            maxPriority: $data['switch_max_priority'] ?? null,
+            announcements: is_array($data['switch_announcements'] ?? null)
+                ? new QueueAnnouncementsWriteData(
+                    interval: (int) $data['switch_announcements']['interval'],
+                    positionAnnouncementsEnabled: (bool) $data['switch_announcements']['position_announcements_enabled'],
+                    waitTimeAnnouncementsEnabled: (bool) $data['switch_announcements']['wait_time_announcements_enabled'],
+                    inTheQueueMediaId: $data['switch_announcements']['media']['in_the_queue'] ?? null,
+                    increaseInCallVolumeMediaId: $data['switch_announcements']['media']['increase_in_call_volume'] ?? null,
+                    estimatedWaitTimeMediaId: $data['switch_announcements']['media']['the_estimated_wait_time_is'] ?? null,
+                    positionMediaId: $data['switch_announcements']['media']['you_are_at_position'] ?? null,
+                )
+                : null,
+            cdrUrl: $data['switch_cdr_url'] ?? null,
+            recordingUrl: $data['switch_recording_url'] ?? null,
         );
     }
 }

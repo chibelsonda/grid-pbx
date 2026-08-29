@@ -1,6 +1,5 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
 import type {
-  ExtensionOption,
   SyncState,
   VoicemailBox,
   VoicemailBoxInput,
@@ -8,6 +7,7 @@ import type {
   VoicemailMessageBulkResult,
   VoicemailMessageFolder,
   VoicemailGreeting,
+  VoicemailFormOptions,
 } from '../types/voicemail'
 
 export type VoicemailBoxPage = {
@@ -34,6 +34,13 @@ export type VoicemailMessagePage = {
 }
 
 export const voicemailApi = {
+  async options(accountId: string): Promise<VoicemailFormOptions> {
+    const response = await http.get<ApiResponse<VoicemailFormOptions>>(
+      `/api/v1/accounts/${accountId}/voicemail-boxes/options`,
+    )
+
+    return unwrapApiData(response)
+  },
   async list(accountId: string, search = '', page = 1): Promise<VoicemailBoxPage> {
     const response = await http.get<VoicemailBoxPage>(
       `/api/v1/accounts/${accountId}/voicemail-boxes`,
@@ -71,14 +78,6 @@ export const voicemailApi = {
   },
   async remove(accountId: string, voicemailBoxId: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/voicemail-boxes/${voicemailBoxId}`)
-  },
-  async extensionOptions(accountId: string): Promise<ExtensionOption[]> {
-    const response = await http.get<{ data: ExtensionOption[] }>(
-      `/api/v1/accounts/${accountId}/extensions`,
-      { params: { per_page: 100 } },
-    )
-
-    return unwrapApiData(response)
   },
   async messages(
     accountId: string,

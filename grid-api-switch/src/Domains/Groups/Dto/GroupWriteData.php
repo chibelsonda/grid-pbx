@@ -8,11 +8,15 @@ use InvalidArgumentException;
 
 final readonly class GroupWriteData
 {
-    /** @param list<GroupEndpointWriteData> $endpoints */
+    /**
+     * @param list<GroupEndpointWriteData> $endpoints
+     * @param list<string> $flags
+     */
     public function __construct(
         public string $name,
         public array $endpoints,
         public ?string $musicOnHoldMediaId = null,
+        public array $flags = [],
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch group name is required.');
@@ -21,6 +25,12 @@ final readonly class GroupWriteData
         foreach ($this->endpoints as $endpoint) {
             if (! $endpoint instanceof GroupEndpointWriteData) {
                 throw new InvalidArgumentException('Switch group endpoints must be typed endpoint data.');
+            }
+        }
+
+        foreach ($this->flags as $flag) {
+            if (! is_string($flag) || $flag === '') {
+                throw new InvalidArgumentException('Switch group flags must contain non-empty strings.');
             }
         }
     }
@@ -43,6 +53,7 @@ final readonly class GroupWriteData
             'music_on_hold' => $this->musicOnHoldMediaId === null
                 ? []
                 : ['media_id' => $this->musicOnHoldMediaId],
+            'flags' => array_values($this->flags),
         ];
     }
 }

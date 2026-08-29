@@ -37,6 +37,10 @@ final readonly class ConferenceWriteData
         public bool $playWelcome = true,
         public bool $requireModerator = false,
         public bool $waitForModerator = false,
+        public ?string $maxMembersMediaId = null,
+        public bool $clearMaxMembersMedia = false,
+        public bool|string|null $playEntryTone = null,
+        public bool|string|null $playExitTone = null,
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch conference name is required.');
@@ -65,6 +69,12 @@ final readonly class ConferenceWriteData
         if ($this->maxParticipants !== null && $this->maxParticipants < 1) {
             throw new InvalidArgumentException('Switch conference maximum participants must be greater than zero.');
         }
+
+        foreach ([$this->playEntryTone, $this->playExitTone] as $tone) {
+            if (is_string($tone) && trim($tone) === '') {
+                throw new InvalidArgumentException('Switch conference custom tone references must not be empty.');
+            }
+        }
     }
 
     /** @return array<string, mixed> */
@@ -90,7 +100,7 @@ final readonly class ConferenceWriteData
             $moderator['pins'] = $this->moderatorPin === null ? [] : [$this->moderatorPin];
         }
 
-        return array_filter([
+        $data = array_filter([
             'name' => $this->name,
             'owner_id' => $this->ownerId,
             'conference_numbers' => array_values(array_unique($this->conferenceNumbers)),
@@ -105,6 +115,15 @@ final readonly class ConferenceWriteData
             'play_welcome' => $this->playWelcome,
             'require_moderator' => $this->requireModerator,
             'wait_for_moderator' => $this->waitForModerator,
+            'max_members_media' => $this->maxMembersMediaId,
+            'play_entry_tone' => $this->playEntryTone,
+            'play_exit_tone' => $this->playExitTone,
         ], static fn (mixed $value): bool => $value !== null && $value !== '');
+
+        if ($this->clearMaxMembersMedia) {
+            $data['max_members_media'] = null;
+        }
+
+        return $data;
     }
 }

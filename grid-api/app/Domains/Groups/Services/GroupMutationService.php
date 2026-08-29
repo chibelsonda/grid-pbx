@@ -109,7 +109,21 @@ class GroupMutationService
             throw ValidationException::withMessages(['music_on_hold_media_id' => ['The selected media is unavailable for this account.']]);
         }
 
-        return [...$data, 'resolved_members' => $resolvedMembers, 'switch_music_on_hold_media_id' => $media?->switch_resource_id];
+        return [
+            ...$data,
+            'resolved_members' => $resolvedMembers,
+            'switch_music_on_hold_media_id' => $media?->switch_resource_id,
+            'switch_flags' => $group === null ? [] : $this->stringList($group->switch_json['flags'] ?? null),
+        ];
+    }
+
+    /** @return list<string> */
+    private function stringList(mixed $value): array
+    {
+        return array_values(array_filter(
+            is_array($value) ? $value : [],
+            static fn (mixed $item): bool => is_string($item) && $item !== '',
+        ));
     }
 
     private function containsNestedGroup(SwitchGroup $candidate, string $targetKey, array $seen = []): bool

@@ -13,5 +13,4 @@ Deployment
 
 
 
-
-Next: add secure provisioning enrollment state and confirmed enroll/detach controls, while keeping the actual manufacturer ZTP adapter disabled until the client provides its provisioner URL, authentication, and provider contract.
+Next: connect the real client provisioner URL, authentication, and manufacturer provider contract, then implement and live-test the actual enroll/detach adapter.

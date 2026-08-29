@@ -1,11 +1,18 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, ref } from 'vue'
 import { ClockIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
+import { useTemporalRuleForm } from '../composables/useTemporalRuleForm'
 import TemporalEffectiveStatus from './TemporalEffectiveStatus.vue'
 import type {
   TemporalControlAction,
+  TemporalCycle,
   TemporalRule,
   TemporalRuleInput,
   Weekday,
@@ -25,6 +32,8 @@ const emit = defineEmits<{
   control: [action: TemporalControlAction]
 }>()
 const confirmDelete = ref(false)
+const { daysText, form, validate, validationErrors } = useTemporalRuleForm(props.record)
+const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const weekdays: Array<{ value: Weekday; label: string }> = [
   { value: 'monday', label: 'Mon' },
   { value: 'tuesday', label: 'Tue' },
@@ -34,21 +43,56 @@ const weekdays: Array<{ value: Weekday; label: string }> = [
   { value: 'saturday', label: 'Sat' },
   { value: 'sunday', label: 'Sun' },
 ]
-const form = reactive<TemporalRuleInput>({
-  name: props.record?.name ?? '',
-  cycle: props.record?.cycle ?? 'weekly',
-  interval: props.record?.interval ?? 1,
-  start_date: props.record?.start_date ?? null,
-  time_window_start: props.record?.time_window_start ?? 32400,
-  time_window_stop: props.record?.time_window_stop ?? 61200,
-  enabled: props.record?.enabled ?? null,
-  days: [...(props.record?.days ?? [])],
-  weekdays: [
-    ...(props.record?.weekdays ?? ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']),
-  ],
-  month: props.record?.month ?? null,
-  ordinal: props.record?.ordinal ?? null,
-})
+const cycleOptions: ListboxOptionValue[] = [
+  { value: 'date', label: 'Specific date' },
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'yearly', label: 'Yearly' },
+]
+const ordinalOptions: ListboxOptionValue[] = [
+  { value: null, label: 'No ordinal' },
+  { value: 'every', label: 'Every matching weekday' },
+  { value: 'first', label: 'First' },
+  { value: 'second', label: 'Second' },
+  { value: 'third', label: 'Third' },
+  { value: 'fourth', label: 'Fourth' },
+  { value: 'fifth', label: 'Fifth' },
+  { value: 'last', label: 'Last' },
+]
+
+function fieldError(field: string): string | null {
+  const direct = errors.value[field]?.[0]
+  if (direct) return direct
+
+  return (
+    Object.entries(errors.value).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
+}
+
+function submit(): void {
+  if (!props.canManage) return
+  const result = validate()
+
+  if (result.success) emit('save', result.data)
+}
+
+function setCycle(value: ListboxValue): void {
+  if (['date', 'daily', 'weekly', 'monthly', 'yearly'].includes(String(value))) {
+    form.cycle = value as TemporalCycle
+  }
+}
+
+function setOrdinal(value: ListboxValue): void {
+  if (
+    value === null ||
+    ['every', 'first', 'second', 'third', 'fourth', 'fifth', 'last'].includes(String(value))
+  ) {
+    form.ordinal = value as TemporalRuleInput['ordinal']
+  }
+}
 </script>
 
 <template>
@@ -61,25 +105,23 @@ const form = reactive<TemporalRuleInput>({
     width="medium"
     @close="emit('close')"
   >
-    <form
-      class="grid gap-5"
-      @submit.prevent="
-        canManage && emit('save', { ...form, days: [...form.days], weekdays: [...form.weekdays] })
-      "
-    >
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
+      <div
+        v-if="error && Object.keys(fieldErrors).length === 0"
+        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+      >
         {{ error }}
       </div>
-      <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">
+      <fieldset :disabled="!canManage || saving" class="grid gap-5 disabled:opacity-75">
         <article class="card-surface overflow-hidden">
-          <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
             <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"
               ><ClockIcon class="size-5"
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Schedule rule</h2>
-              <p class="text-[10px] text-slate-400">
-                Times are seconds after midnight in the routing timezone.
+              <p class="text-[10px] text-slate-500">
+                Times are seconds after midnight in the account routing timezone.
               </p>
             </div>
           </header>
@@ -88,101 +130,171 @@ const form = reactive<TemporalRuleInput>({
               ><span class="text-xs font-semibold text-slate-600">Name</span
               ><input
                 v-model="form.name"
-                required
+                aria-label="Name"
                 maxlength="128"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-                :aria-invalid="Boolean(fieldErrors.name)"
-              /><span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
-                fieldErrors.name[0]
+                class="field-control"
+                :class="validationControlClass(fieldError('name'))"
+                :aria-invalid="Boolean(fieldError('name'))"
+              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
+                fieldError('name')
               }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Cycle</span
-              ><FormSelect
-                v-model="form.cycle"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-                ><option value="date">Specific date</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly</option>
-                <option value="yearly">Yearly</option></FormSelect
-              ></label
+              ><FormListbox
+                :model-value="form.cycle"
+                :options="cycleOptions"
+                aria-label="Cycle"
+                :invalid="Boolean(fieldError('cycle'))"
+                :disabled="!canManage"
+                @update:model-value="setCycle"
+              /><span v-if="fieldError('cycle')" class="text-[10px] text-danger">{{
+                fieldError('cycle')
+              }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Every</span>
               <div class="flex items-center gap-2">
                 <input
                   v-model.number="form.interval"
+                  aria-label="Interval"
                   type="number"
                   min="1"
-                  max="365"
-                  class="h-10 min-w-0 flex-1 rounded-md border border-slate-200 px-3 text-xs"
-                /><span class="text-xs text-slate-400">cycle(s)</span>
-              </div></label
+                  class="field-control min-w-0 flex-1"
+                  :class="validationControlClass(fieldError('interval'))"
+                  :aria-invalid="Boolean(fieldError('interval'))"
+                /><span class="text-xs text-slate-500">cycle(s)</span>
+              </div>
+              <span v-if="fieldError('interval')" class="text-[10px] text-danger">{{
+                fieldError('interval')
+              }}</span></label
             >
-            <label class="grid gap-2"
+            <label class="grid gap-2 sm:col-span-2"
               ><span class="text-xs font-semibold text-slate-600">Start date</span
               ><input
                 v-model="form.start_date"
+                aria-label="Start date"
                 type="date"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('start_date'))"
+                :aria-invalid="Boolean(fieldError('start_date'))"
+              /><span v-if="fieldError('start_date')" class="text-[10px] text-danger">{{
+                fieldError('start_date')
+              }}</span
+              ><span class="text-[10px] text-slate-500"
+                >Optional recurrence anchor; required only when your routing design needs a fixed
+                start.</span
+              ></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Window start (seconds)</span
               ><input
                 v-model.number="form.time_window_start"
+                aria-label="Window start"
                 type="number"
                 min="0"
                 max="86400"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('time_window_start'))"
+                :aria-invalid="Boolean(fieldError('time_window_start'))"
+              /><span v-if="fieldError('time_window_start')" class="text-[10px] text-danger">{{
+                fieldError('time_window_start')
+              }}</span></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Window stop (seconds)</span
               ><input
                 v-model.number="form.time_window_stop"
+                aria-label="Window stop"
                 type="number"
                 min="0"
                 max="86400"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
-            <div v-if="form.cycle === 'weekly'" class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Weekdays</span>
-              <div class="flex flex-wrap gap-2">
-                <label
-                  v-for="day in weekdays"
-                  :key="day.value"
-                  class="flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-xs"
-                  ><input
-                    v-model="form.weekdays"
-                    type="checkbox"
-                    :value="day.value"
-                    class="accent-brand-500"
-                  />{{ day.label }}</label
-                >
-              </div>
-            </div>
+                class="field-control"
+                :class="validationControlClass(fieldError('time_window_stop'))"
+                :aria-invalid="Boolean(fieldError('time_window_stop'))"
+              /><span v-if="fieldError('time_window_stop')" class="text-[10px] text-danger">{{
+                fieldError('time_window_stop')
+              }}</span></label
+            >
+
             <label v-if="['monthly', 'yearly'].includes(form.cycle)" class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Days of month</span
               ><input
-                :value="form.days.join(',')"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-                placeholder="1,15,31"
-                @input="
-                  form.days = ($event.target as HTMLInputElement).value
-                    .split(',')
-                    .map(Number)
-                    .filter((day) => day >= 1 && day <= 31)
-                "
-            /></label>
+                v-model="daysText"
+                aria-label="Days of month"
+                class="field-control"
+                :class="validationControlClass(fieldError('days'))"
+                :aria-invalid="Boolean(fieldError('days'))"
+                placeholder="1, 15, 31"
+              /><span v-if="fieldError('days')" class="text-[10px] text-danger">{{
+                fieldError('days')
+              }}</span
+              ><span class="text-[10px] text-slate-500"
+                >Comma- or space-separated values.</span
+              ></label
+            >
             <label v-if="form.cycle === 'yearly'" class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Month</span
               ><input
                 v-model.number="form.month"
+                aria-label="Month"
                 type="number"
                 min="1"
                 max="12"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('month'))"
+                :aria-invalid="Boolean(fieldError('month'))"
+                placeholder="1–12"
+              /><span v-if="fieldError('month')" class="text-[10px] text-danger">{{
+                fieldError('month')
+              }}</span></label
+            >
+            <label v-if="['monthly', 'yearly'].includes(form.cycle)" class="grid gap-2"
+              ><span class="text-xs font-semibold text-slate-600">Ordinal</span
+              ><FormListbox
+                :model-value="form.ordinal"
+                :options="ordinalOptions"
+                aria-label="Ordinal"
+                :invalid="Boolean(fieldError('ordinal'))"
+                :disabled="!canManage"
+                @update:model-value="setOrdinal"
+              /><span v-if="fieldError('ordinal')" class="text-[10px] text-danger">{{
+                fieldError('ordinal')
+              }}</span></label
+            >
+
+            <div
+              v-if="['weekly', 'monthly', 'yearly'].includes(form.cycle)"
+              class="grid gap-2 sm:col-span-2"
+            >
+              <span class="text-xs font-semibold text-slate-600">Weekdays</span>
+              <div
+                class="flex flex-wrap gap-2 rounded-md border border-slate-300 p-2"
+                :class="validationControlClass(fieldError('weekdays'))"
+                :aria-invalid="Boolean(fieldError('weekdays'))"
+              >
+                <label
+                  v-for="day in weekdays"
+                  :key="day.value"
+                  class="flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700"
+                  ><input
+                    v-model="form.weekdays"
+                    type="checkbox"
+                    :value="day.value"
+                    class="size-4 accent-brand-500"
+                  />{{ day.label }}</label
+                >
+              </div>
+              <span v-if="fieldError('weekdays')" class="text-[10px] text-danger">{{
+                fieldError('weekdays')
+              }}</span>
+              <span
+                v-if="['monthly', 'yearly'].includes(form.cycle)"
+                class="text-[10px] text-slate-500"
+                >Use weekdays with an ordinal for patterns such as “last Friday.” Day numbers and
+                ordinal weekdays map directly to the Switch schema.</span
+              >
+            </div>
           </div>
         </article>
       </fieldset>
@@ -206,14 +318,14 @@ const form = reactive<TemporalRuleInput>({
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
         <button
           type="button"
-          class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
+          class="h-10 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-600"
           @click="emit('close')"
         >
           {{ canManage ? 'Cancel' : 'Close' }}</button
         ><button
           v-if="canManage"
           type="submit"
-          :disabled="saving || !form.name.trim()"
+          :disabled="saving"
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"
         >
           {{ saving ? 'Saving…' : 'Save rule' }}

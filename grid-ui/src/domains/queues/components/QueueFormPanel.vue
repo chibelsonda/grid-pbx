@@ -1,8 +1,14 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { QueueListIcon, TrashIcon, UsersIcon } from '@heroicons/vue/24/outline'
+import { computed, ref } from 'vue'
+import { MegaphoneIcon, QueueListIcon, TrashIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
+import { useQueueForm } from '../composables/useQueueForm'
 import type { Queue, QueueInput, QueueOptions } from '../types/queue'
 
 const props = defineProps<{
@@ -15,23 +21,61 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; save: [input: QueueInput]; remove: [] }>()
 const confirmDelete = ref(false)
-const form = reactive<QueueInput>({
-  name: props.record?.name ?? '',
-  strategy: props.record?.strategy ?? 'round_robin',
-  agent_ring_timeout: props.record?.agent_ring_timeout ?? 15,
-  agent_wrapup_time: props.record?.agent_wrapup_time ?? 0,
-  connection_timeout: props.record?.connection_timeout ?? 3600,
-  max_queue_size: props.record?.max_queue_size ?? 0,
-  ring_simultaneously: props.record?.ring_simultaneously ?? 1,
-  enter_when_empty: props.record?.enter_when_empty ?? true,
-  record_caller: props.record?.record_caller ?? false,
-  caller_exit_key: props.record?.caller_exit_key ?? '#',
-  music_on_hold_media_id: props.record?.music_on_hold_media?.id ?? null,
-  agent_ids:
-    props.record?.agents?.flatMap((membership) =>
-      membership.agent ? [membership.agent.id] : [],
-    ) ?? [],
-})
+const { form, validate, validationErrors } = useQueueForm(props.record)
+const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const strategyOptions: ListboxOptionValue[] = [
+  { value: 'round_robin', label: 'Round robin' },
+  { value: 'most_idle', label: 'Most idle' },
+]
+const exitKeyOptions: ListboxOptionValue[] = ['#', '*', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(
+  (value) => ({ value, label: value }),
+)
+const mediaOptions = computed<ListboxOptionValue[]>(() => [
+  { value: null, label: 'Switch default' },
+  ...props.options.media.map(({ id, label, detail }) => ({ value: id, label, description: detail })),
+])
+
+type MediaField =
+  | 'music_on_hold_media_id'
+  | 'announce_media_id'
+  | 'announcement_in_the_queue_media_id'
+  | 'announcement_increase_in_call_volume_media_id'
+  | 'announcement_estimated_wait_time_media_id'
+  | 'announcement_position_media_id'
+const announcementPromptFields: Array<{ field: MediaField; label: string }> = [
+  { field: 'announcement_position_media_id', label: 'You are at position' },
+  { field: 'announcement_in_the_queue_media_id', label: 'In the queue' },
+  { field: 'announcement_estimated_wait_time_media_id', label: 'Estimated wait time is' },
+  { field: 'announcement_increase_in_call_volume_media_id', label: 'Increase in call volume' },
+]
+
+function fieldError(field: string): string | null {
+  const direct = errors.value[field]?.[0]
+  if (direct) return direct
+
+  return Object.entries(errors.value).find(
+    ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+  )?.[1][0] ?? null
+}
+
+function setStrategy(value: ListboxValue): void {
+  if (value === 'round_robin' || value === 'most_idle') form.strategy = value
+}
+
+function setExitKey(value: ListboxValue): void {
+  if (typeof value === 'string') form.caller_exit_key = value
+}
+
+function setMedia(field: MediaField, value: ListboxValue): void {
+  if (value === null || typeof value === 'string') form[field] = value
+}
+
+function submit(): void {
+  if (!props.canManage) return
+  const result = validate()
+
+  if (result.success) emit('save', result.data)
+}
 </script>
 
 <template>
@@ -42,10 +86,7 @@ const form = reactive<QueueInput>({
     width="medium"
     @close="emit('close')"
   >
-    <form
-      class="grid gap-5"
-      @submit.prevent="canManage && emit('save', { ...form, agent_ids: [...form.agent_ids] })"
-    >
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -67,33 +108,39 @@ const form = reactive<QueueInput>({
               ><span class="text-xs font-semibold text-slate-600">Name</span
               ><input
                 v-model="form.name"
+                aria-label="Name"
                 required
                 maxlength="128"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-                :aria-invalid="Boolean(fieldErrors.name)"
-              /><span v-if="fieldErrors.name" class="text-[10px] text-danger">{{
-                fieldErrors.name[0]
+                class="field-control"
+                :class="validationControlClass(fieldError('name'))"
+                :aria-invalid="Boolean(fieldError('name'))"
+              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
+                fieldError('name')
               }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Strategy</span
-              ><FormSelect
-                v-model="form.strategy"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-                ><option value="round_robin">Round robin</option>
-                <option value="most_idle">Most idle</option></FormSelect
-              ></label
+              ><FormListbox
+                :model-value="form.strategy"
+                :options="strategyOptions"
+                aria-label="Queue strategy"
+                :invalid="Boolean(fieldError('strategy'))"
+                @update:model-value="setStrategy"
+              /><span v-if="fieldError('strategy')" class="text-[10px] text-danger">{{
+                fieldError('strategy')
+              }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Music on hold</span
-              ><FormSelect
-                v-model="form.music_on_hold_media_id"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-                ><option :value="null">Account default</option>
-                <option v-for="media in options.media" :key="media.id" :value="media.id">
-                  {{ media.label }}
-                </option></FormSelect
-              ></label
+              ><FormListbox
+                :model-value="form.music_on_hold_media_id"
+                :options="mediaOptions"
+                aria-label="Music on hold"
+                :invalid="Boolean(fieldError('music_on_hold_media_id'))"
+                @update:model-value="setMedia('music_on_hold_media_id', $event)"
+              /><span v-if="fieldError('music_on_hold_media_id')" class="text-[10px] text-danger">{{
+                fieldError('music_on_hold_media_id')
+              }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Agent ring timeout</span
@@ -102,8 +149,11 @@ const form = reactive<QueueInput>({
                 type="number"
                 min="1"
                 max="300"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('agent_ring_timeout'))"
+                :aria-invalid="Boolean(fieldError('agent_ring_timeout'))"
+              /><span v-if="fieldError('agent_ring_timeout')" class="text-[10px] text-danger">{{ fieldError('agent_ring_timeout') }}</span></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Wrap-up time</span
               ><input
@@ -111,8 +161,11 @@ const form = reactive<QueueInput>({
                 type="number"
                 min="0"
                 max="3600"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('agent_wrapup_time'))"
+                :aria-invalid="Boolean(fieldError('agent_wrapup_time'))"
+              /><span v-if="fieldError('agent_wrapup_time')" class="text-[10px] text-danger">{{ fieldError('agent_wrapup_time') }}</span></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Connection timeout</span
               ><input
@@ -120,8 +173,11 @@ const form = reactive<QueueInput>({
                 type="number"
                 min="0"
                 max="86400"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('connection_timeout'))"
+                :aria-invalid="Boolean(fieldError('connection_timeout'))"
+              /><span v-if="fieldError('connection_timeout')" class="text-[10px] text-danger">{{ fieldError('connection_timeout') }}</span></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600"
                 >Maximum callers
@@ -131,8 +187,11 @@ const form = reactive<QueueInput>({
                 type="number"
                 min="0"
                 max="10000"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('max_queue_size'))"
+                :aria-invalid="Boolean(fieldError('max_queue_size'))"
+              /><span v-if="fieldError('max_queue_size')" class="text-[10px] text-danger">{{ fieldError('max_queue_size') }}</span></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Agents rung together</span
               ><input
@@ -140,24 +199,132 @@ const form = reactive<QueueInput>({
                 type="number"
                 min="1"
                 max="100"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-            /></label>
+                class="field-control"
+                :class="validationControlClass(fieldError('ring_simultaneously'))"
+                :aria-invalid="Boolean(fieldError('ring_simultaneously'))"
+              /><span v-if="fieldError('ring_simultaneously')" class="text-[10px] text-danger">{{ fieldError('ring_simultaneously') }}</span></label
+            >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Caller exit key</span
-              ><FormSelect
-                v-model="form.caller_exit_key"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-                ><option
-                  v-for="key in ['#', '*', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']"
-                  :key="key"
-                  :value="key"
-                >
-                  {{ key }}
-                </option></FormSelect
-              ></label
+              ><FormListbox
+                :model-value="form.caller_exit_key"
+                :options="exitKeyOptions"
+                aria-label="Caller exit key"
+                :invalid="Boolean(fieldError('caller_exit_key'))"
+                @update:model-value="setExitKey"
+              /><span v-if="fieldError('caller_exit_key')" class="text-[10px] text-danger">{{
+                fieldError('caller_exit_key')
+              }}</span></label
             >
-            <ToggleSwitch v-model="form.enter_when_empty" label="Allow entry when empty" />
-            <ToggleSwitch v-model="form.record_caller" label="Record callers" />
+            <ToggleSwitch
+              v-model="form.enter_when_empty"
+              label="Allow entry when empty"
+              :class="validationControlClass(fieldError('enter_when_empty'))"
+              :invalid="Boolean(fieldError('enter_when_empty'))"
+            />
+            <ToggleSwitch
+              v-model="form.record_caller"
+              label="Record callers"
+              :class="validationControlClass(fieldError('record_caller'))"
+              :invalid="Boolean(fieldError('record_caller'))"
+            />
+            <label class="grid gap-2 sm:col-span-2"
+              ><span class="text-xs font-semibold text-slate-600">Maximum priority</span
+              ><input
+                v-model.number="form.max_priority"
+                type="number"
+                min="0"
+                max="255"
+                :disabled="Boolean(record)"
+                class="field-control disabled:bg-slate-50 disabled:text-slate-500"
+                :class="validationControlClass(fieldError('max_priority'))"
+                :aria-invalid="Boolean(fieldError('max_priority'))"
+                placeholder="Switch default"
+              /><span class="text-[10px] text-slate-500"
+                >Create-only in the connected Switch schema; existing queues retain their value.</span
+              ><span v-if="fieldError('max_priority')" class="text-[10px] text-danger">{{ fieldError('max_priority') }}</span></label
+            >
+          </div>
+        </article>
+        <article class="card-surface overflow-hidden">
+          <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+            <MegaphoneIcon class="size-5 text-brand-500" />
+            <div>
+              <h2 class="text-sm font-semibold text-slate-700">Caller announcements</h2>
+              <p class="text-[10px] text-slate-500">
+                Connection and periodic position or estimated-wait prompts.
+              </p>
+            </div>
+          </header>
+          <div class="grid gap-4 p-5 sm:grid-cols-2">
+            <label class="grid gap-2 sm:col-span-2"
+              ><span class="text-xs font-semibold text-slate-600">Connect announcement</span
+              ><FormListbox
+                :model-value="form.announce_media_id"
+                :options="mediaOptions"
+                aria-label="Connect announcement"
+                :invalid="Boolean(fieldError('announce_media_id'))"
+                @update:model-value="setMedia('announce_media_id', $event)"
+              /><span v-if="fieldError('announce_media_id')" class="text-[10px] text-danger">{{ fieldError('announce_media_id') }}</span></label
+            >
+            <ToggleSwitch
+              v-model="form.announcements_enabled"
+              label="Periodic announcements"
+              description="Enable position and estimated-wait announcements while callers wait"
+              class="sm:col-span-2 rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('announcements_enabled'))"
+              :invalid="Boolean(fieldError('announcements_enabled'))"
+            />
+            <template v-if="form.announcements_enabled">
+              <label class="grid gap-2 sm:col-span-2"
+                ><span class="text-xs font-semibold text-slate-600">Announcement interval (seconds)</span
+                ><input
+                  v-model.number="form.announcement_interval"
+                  type="number"
+                  min="15"
+                  max="86400"
+                  class="field-control"
+                  :class="validationControlClass(fieldError('announcement_interval'))"
+                  :aria-invalid="Boolean(fieldError('announcement_interval'))"
+                /><span v-if="fieldError('announcement_interval')" class="text-[10px] text-danger">{{ fieldError('announcement_interval') }}</span></label
+              >
+              <ToggleSwitch
+                v-model="form.position_announcements_enabled"
+                label="Announce queue position"
+                :class="validationControlClass(fieldError('position_announcements_enabled'))"
+                :invalid="Boolean(fieldError('position_announcements_enabled'))"
+              />
+              <ToggleSwitch
+                v-model="form.wait_time_announcements_enabled"
+                label="Announce estimated wait"
+                :class="validationControlClass(fieldError('wait_time_announcements_enabled'))"
+                :invalid="Boolean(fieldError('wait_time_announcements_enabled'))"
+              />
+              <div
+                class="grid gap-4 rounded-md border border-slate-200 p-4 sm:col-span-2 sm:grid-cols-2"
+                :class="validationControlClass(fieldError('announcement_media'))"
+              >
+                <div class="sm:col-span-2">
+                  <p class="text-xs font-semibold text-slate-600">Custom prompt set</p>
+                  <p class="mt-1 text-[10px] text-slate-500">
+                    Select all four prompts or leave all four on the Switch defaults.
+                  </p>
+                </div>
+                <label v-for="prompt in announcementPromptFields" :key="prompt.field" class="grid gap-2"
+                  ><span class="text-xs font-semibold text-slate-600">{{ prompt.label }}</span
+                  ><FormListbox
+                    :model-value="form[prompt.field]"
+                    :options="mediaOptions"
+                    :aria-label="prompt.label"
+                    :invalid="Boolean(fieldError(prompt.field) || fieldError('announcement_media'))"
+                    @update:model-value="setMedia(prompt.field, $event)"
+                  /></label
+                >
+                <p v-if="fieldError('announcement_media')" class="text-[10px] text-danger sm:col-span-2">
+                  {{ fieldError('announcement_media') }}
+                </p>
+              </div>
+            </template>
           </div>
         </article>
         <article class="card-surface overflow-hidden">
@@ -176,11 +343,13 @@ const form = reactive<QueueInput>({
               v-for="agent in options.agents"
               :key="agent.id"
               class="flex cursor-pointer items-center gap-3 rounded-md border border-slate-100 px-4 py-3 hover:bg-slate-50"
+              :class="validationControlClass(fieldError('agent_ids'))"
               ><input
                 v-model="form.agent_ids"
                 type="checkbox"
                 :value="agent.id"
                 class="size-4 accent-brand-500"
+                :aria-invalid="Boolean(fieldError('agent_ids'))"
               /><span
                 ><span class="block text-xs font-semibold text-slate-700">{{ agent.label }}</span
                 ><span class="text-[10px] text-slate-400">{{ agent.detail }}</span></span
@@ -188,6 +357,9 @@ const form = reactive<QueueInput>({
             >
             <p v-if="!options.agents.length" class="text-xs text-slate-400">
               No projected extensions can act as agents.
+            </p>
+            <p v-if="fieldError('agent_ids')" class="text-[10px] text-danger">
+              {{ fieldError('agent_ids') }}
             </p>
           </div>
         </article>
@@ -211,7 +383,7 @@ const form = reactive<QueueInput>({
         ><button
           v-if="canManage"
           type="submit"
-          :disabled="saving || !form.name.trim()"
+          :disabled="saving"
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"
         >
           {{ saving ? 'Saving…' : 'Save queue' }}

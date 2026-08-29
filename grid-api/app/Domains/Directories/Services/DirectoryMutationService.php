@@ -26,7 +26,7 @@ class DirectoryMutationService
         $resourceId = null;
 
         try {
-            $created = $this->gateway->create($account, $data);
+            $created = $this->gateway->create($account, [...$data, 'flags' => []]);
             $resourceId = $this->resourceId($created);
             $snapshot = $this->gateway->replaceMembers($account, $resourceId, $members);
 
@@ -57,9 +57,10 @@ class DirectoryMutationService
             ...$directory->only(['name', 'confirm_match', 'min_dtmf', 'max_dtmf', 'sort_by']),
             'flags' => $this->stringList($directory->switch_json['flags'] ?? null),
         ];
+        $next = [...$data, 'flags' => $previous['flags']];
 
         try {
-            $this->gateway->update($account, $directory->switch_resource_id, $data);
+            $this->gateway->update($account, $directory->switch_resource_id, $next);
             $snapshot = $this->gateway->replaceMembers($account, $directory->switch_resource_id, $members);
 
             return DB::transaction(function () use ($account, $actor, $ipAddress, $snapshot): SwitchDirectory {

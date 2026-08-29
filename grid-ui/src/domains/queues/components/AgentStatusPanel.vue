@@ -1,18 +1,46 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { computed } from 'vue'
 import { BoltIcon, UserCircleIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
+import { useAgentStatusForm } from '../composables/useAgentStatusForm'
 import type { Agent, AgentStatus, AgentStatusInput } from '../types/queue'
 
-defineProps<{
+const props = defineProps<{
   agent: Agent
   current: AgentStatus | null
   loading: boolean
   error: string | null
+  fieldErrors: Record<string, string[]>
   canManage: boolean
 }>()
 const emit = defineEmits<{ close: []; save: [input: AgentStatusInput] }>()
-const form = reactive<AgentStatusInput>({ status: 'login', pause_timeout: 300 })
+const { form, validate, validationErrors } = useAgentStatusForm()
+const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const statusOptions: ListboxOptionValue[] = [
+  { value: 'login', label: 'Log in' },
+  { value: 'logout', label: 'Log out' },
+  { value: 'pause', label: 'Pause' },
+  { value: 'resume', label: 'Resume' },
+  { value: 'end_wrapup', label: 'End wrap-up' },
+]
+
+function setStatus(value: ListboxValue): void {
+  if (value === 'login' || value === 'logout' || value === 'pause' || value === 'resume' || value === 'end_wrapup') {
+    form.status = value
+  }
+}
+
+function submit(): void {
+  if (!props.canManage) return
+  const result = validate()
+
+  if (result.success) emit('save', result.data)
+}
 </script>
 
 <template>
@@ -23,7 +51,7 @@ const form = reactive<AgentStatusInput>({ status: 'login', pause_timeout: 300 })
     width="medium"
     @close="emit('close')"
   >
-    <form class="grid gap-5" @submit.prevent="canManage && emit('save', { ...form })">
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -59,15 +87,13 @@ const form = reactive<AgentStatusInput>({ status: 'login', pause_timeout: 300 })
         <div class="grid gap-4 p-5">
           <label class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Action</span
-            ><FormSelect
-              v-model="form.status"
-              class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
-              ><option value="login">Log in</option>
-              <option value="logout">Log out</option>
-              <option value="pause">Pause</option>
-              <option value="resume">Resume</option>
-              <option value="end_wrapup">End wrap-up</option></FormSelect
-            ></label
+            ><FormListbox
+              :model-value="form.status"
+              :options="statusOptions"
+              aria-label="Agent status action"
+              :invalid="Boolean(errors.status)"
+              @update:model-value="setStatus"
+            /><span v-if="errors.status" class="text-[10px] text-danger">{{ errors.status[0] }}</span></label
           ><label v-if="form.status === 'pause'" class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Pause timeout (seconds)</span
             ><input
@@ -76,8 +102,11 @@ const form = reactive<AgentStatusInput>({ status: 'login', pause_timeout: 300 })
               min="0"
               max="86400"
               required
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs"
-          /></label>
+              class="field-control"
+              :class="validationControlClass(errors.pause_timeout)"
+              :aria-invalid="Boolean(errors.pause_timeout)"
+            /><span v-if="errors.pause_timeout" class="text-[10px] text-danger">{{ errors.pause_timeout[0] }}</span></label
+          >
         </div>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">

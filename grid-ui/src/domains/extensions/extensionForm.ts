@@ -4,7 +4,28 @@ import type {
   ExtensionHotdeskInput,
   ExtensionHotdeskProfile,
   ExtensionUserConfiguration,
+  ExtensionFormOptions,
 } from './types/extension'
+
+export function defaultExtensionFormOptions(): ExtensionFormOptions {
+  return {
+    account_defaults: { timezone: null },
+    timezones: [],
+    languages: [
+      { value: 'en-US', label: 'English (United States)' },
+      { value: 'fr-FR', label: 'French (France)' },
+      { value: 'de-DE', label: 'German (Germany)' },
+      { value: 'ru-RU', label: 'Russian (Russia)' },
+      { value: 'es-ES', label: 'Spanish (Spain)' },
+    ],
+    presence_ids: [],
+    starter_device: {
+      supported_types: ['sip_device', 'smartphone', 'softphone', 'fax', 'ata'],
+      provisionable_types: ['sip_device', 'fax', 'ata'],
+      sip_credential_types: ['sip_device', 'smartphone', 'softphone', 'fax', 'ata'],
+    },
+  }
+}
 
 export function defaultExtensionCredentialsInput(): ExtensionCredentialsInput {
   return {

@@ -67,6 +67,31 @@ class MenuControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_resource_id');
     }
 
+    public function test_update_preserves_external_flags_and_rejects_operator_flags(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-1',
+            'switch_json' => ['flags' => ['external-managed']],
+        ]);
+        $gateway = $this->mock(SwitchMenuGateway::class);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-menu-1'
+                && $data['switch_flags'] === ['external-managed'],
+        )->andReturn($this->snapshot(['name' => 'Updated menu', 'flags' => ['external-managed']]));
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}", [
+            ...$this->payload(),
+            'name' => 'Updated menu',
+        ])->assertOk()->assertJsonPath('data.name', 'Updated menu');
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}", [
+            ...$this->payload(),
+            'flags' => ['operator-managed'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('flags');
+    }
+
     /** @return array<string, mixed> */
     private function payload(): array
     {

@@ -1,6 +1,14 @@
 import { z } from 'zod'
 
 const nullableString = (maximum: number) => z.string().trim().max(maximum).nullable()
+const starterDeviceTypeSchema = z.enum([
+  'sip_device',
+  'smartphone',
+  'softphone',
+  'fax',
+  'ata',
+])
+const provisionableStarterDeviceTypes = new Set(['sip_device', 'fax', 'ata'])
 const notificationEmailsSchema = z
   .array(z.email().max(254))
   .max(10)
@@ -206,21 +214,8 @@ export const extensionCreateSchema = z
     device: z
       .object({
         enabled: z.boolean(),
-        name: nullableString(255),
-        device_type: z
-          .enum([
-            'sip_device',
-            'cellphone',
-            'smartphone',
-            'softphone',
-            'landline',
-            'fax',
-            'ata',
-            'sip_uri',
-          ])
-          .nullable(),
-        make: nullableString(255),
-        model: nullableString(255),
+        name: nullableString(128),
+        device_type: starterDeviceTypeSchema.nullable(),
         mac_address: z
           .string()
           .trim()
@@ -251,6 +246,33 @@ export const extensionCreateSchema = z
         code: 'custom',
         path: ['device', 'device_type'],
         message: 'Select a device type.',
+      })
+    }
+
+    if (
+      input.device.mac_address !== null &&
+      (!input.device.device_type || !provisionableStarterDeviceTypes.has(input.device.device_type))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['device', 'mac_address'],
+        message: 'A MAC address is only available for provisionable desk, fax, and ATA devices.',
+      })
+    }
+
+    if (!input.device.enabled && input.device.sip_username !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['device', 'sip_username'],
+        message: 'Enable the initial device before setting SIP credentials.',
+      })
+    }
+
+    if (!input.device.enabled && input.device.sip_password !== null) {
+      context.addIssue({
+        code: 'custom',
+        path: ['device', 'sip_password'],
+        message: 'Enable the initial device before setting SIP credentials.',
       })
     }
   })

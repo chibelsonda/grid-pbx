@@ -15,7 +15,9 @@ export const queueApi = {
     return unwrapApiData(await http.post<ApiResponse<Queue>>(`/api/v1/accounts/${accountId}/queues`, input))
   },
   async update(accountId: string, id: string, input: QueueInput): Promise<Queue> {
-    return unwrapApiData(await http.put<ApiResponse<Queue>>(`/api/v1/accounts/${accountId}/queues/${id}`, input))
+    const { max_priority: _createOnlyMaximumPriority, ...updateInput } = input
+
+    return unwrapApiData(await http.put<ApiResponse<Queue>>(`/api/v1/accounts/${accountId}/queues/${id}`, updateInput))
   },
   async remove(accountId: string, id: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/queues/${id}`)

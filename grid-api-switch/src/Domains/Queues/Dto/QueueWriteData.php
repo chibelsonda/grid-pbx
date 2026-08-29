@@ -20,6 +20,11 @@ final readonly class QueueWriteData
         public bool $recordCaller = false,
         public string $callerExitKey = '#',
         public ?string $musicOnHoldMediaId = null,
+        public ?string $announceMediaId = null,
+        public ?int $maxPriority = null,
+        public ?QueueAnnouncementsWriteData $announcements = null,
+        public ?string $cdrUrl = null,
+        public ?string $recordingUrl = null,
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch queue name is required.');
@@ -35,6 +40,10 @@ final readonly class QueueWriteData
 
         if (! in_array($this->callerExitKey, ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'], true)) {
             throw new InvalidArgumentException('Switch queue caller exit key is invalid.');
+        }
+
+        if ($this->maxPriority !== null && ($this->maxPriority < 0 || $this->maxPriority > 255)) {
+            throw new InvalidArgumentException('Switch queue maximum priority must be between 0 and 255.');
         }
     }
 
@@ -56,6 +65,26 @@ final readonly class QueueWriteData
 
         if ($this->musicOnHoldMediaId !== null) {
             $data['moh'] = $this->musicOnHoldMediaId;
+        }
+
+        if ($this->announceMediaId !== null) {
+            $data['announce'] = $this->announceMediaId;
+        }
+
+        if ($this->maxPriority !== null) {
+            $data['max_priority'] = $this->maxPriority;
+        }
+
+        if ($this->announcements !== null) {
+            $data['announcements'] = $this->announcements->toSwitchData();
+        }
+
+        if ($this->cdrUrl !== null) {
+            $data['cdr_url'] = $this->cdrUrl;
+        }
+
+        if ($this->recordingUrl !== null) {
+            $data['recording_url'] = $this->recordingUrl;
         }
 
         return $data;

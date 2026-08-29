@@ -47,6 +47,7 @@ class CrossbarSwitchMenuGateway implements SwitchMenuGateway
             invalidMedia: $data['switch_invalid_media'] ?? true,
             transferMedia: $data['switch_transfer_media'] ?? true,
             exitMedia: $data['switch_exit_media'] ?? true,
+            flags: $data['switch_flags'] ?? [],
         );
     }
 }

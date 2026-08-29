@@ -33,6 +33,7 @@ class SaveMenuRequest extends FormRequest
             'transfer_media_id' => ['nullable', 'uuid'],
             'exit_media_enabled' => ['required', 'boolean'],
             'exit_media_id' => ['nullable', 'uuid'],
+            'flags' => ['prohibited'],
         ];
     }
 }

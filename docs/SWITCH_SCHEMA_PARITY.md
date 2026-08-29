@@ -100,7 +100,7 @@ completion.
 | Blacklist | `blacklists.json` | account activation and number entries | Foundation | Pending | 4 |
 | CallDetailRecord | `cdrs.json` plus MODB CDR endpoints | interactions, recordings, retention | Foundation | Pending | 5 |
 | Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Pending | 3 |
-| Conference | `conferences.json` and conference action endpoints | users, role numbers, callflows, live participants | Foundation | Pending | 3 |
+| Conference | `conferences.json` and conference action endpoints | users, role numbers, callflows, live participants | Foundation | Form matrix complete below; actions pending | 3 |
 | Device | `devices.json` and referenced endpoint schemas | users, registrations, line keys, provisioner, numbers | Foundation | Complete below | 1 |
 | Directory | `directories.json` | users and destination callflows | Foundation | Complete below | 2 |
 | Fax | `faxbox.json`, `faxes.json`, and document endpoints | users, numbers, callflows, media | Foundation | Pending | 4 |
@@ -113,8 +113,8 @@ completion.
 | Recording | MODB recording documents and content endpoints; no single Crossbar CRUD schema | CDRs, storage policy, retention | Foundation | Pending | 5 |
 | Services | services, limits, service-plan, ledger, and quote endpoints | accounts, reseller hierarchy, billing provider | Foundation/read-only | Pending | 6 |
 | SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Pending | 6 |
-| TemporalRule | `temporal_rules.json` plus enable/disable/reset actions | callflows, rule sets, account timezone | Foundation | Pending | 3 |
-| TemporalRuleSet | `temporal_rules_sets.json` plus member rule actions | temporal rules and callflows | Foundation | Pending | 3 |
+| TemporalRule | `temporal_rules.json` plus enable/disable/reset actions | callflows, rule sets, account timezone | Foundation | Complete below | 3 |
+| TemporalRuleSet | `temporal_rules_sets.json` plus member rule actions | temporal rules and callflows | Foundation | Complete below | 3 |
 | User | `users.json` and user action endpoints | devices, voicemail, directories, groups, queues, callflows | Foundation | Complete below | 2 |
 | Voicemail | `vmboxes.json`, voicemail key schemas, message/greeting endpoints | users, media, callflows, notifications | Foundation | Complete below | 2 |
 
@@ -471,6 +471,16 @@ as `configuration`. Hotdesk IDs remain
 account-scoped Switch values, while primary keys and upstream resource IDs are
 not exposed.
 
+The Wave 2 form audit found presentation and contract work that is not visible
+in the field table alone. Shared invalid styling and inline-only field error
+placement are implemented for User/Extension. Timezone, language, and presence
+now use account-backed choices that preserve existing projected values. The
+Devices domain publishes the endpoint types and capabilities safe for the
+aggregate's intentionally small starter Device; full provisioner catalog and
+advanced configuration remain in the Device editor. The remaining work and
+intentional aggregate boundaries are recorded in
+[`SWITCH_FORM_AUDIT.md`](SWITCH_FORM_AUDIT.md#userextension-and-voicemail-audit-checkpoint-2026-08-29).
+
 ## 8. Voicemail field-level matrix
 
 GridPBX treats the mailbox document, unavailable greeting media, and mailbox
@@ -483,18 +493,18 @@ mailbox configuration below; it does not overwrite message or media state.
 | `owner_id` | Editable through a public Extension UUID; Switch IDs remain server-side | Implemented |
 | `timezone` | Editable; IANA timezone, 5–32 characters | Implemented |
 | `notify_email_addresses[]` | Editable; distinct validated addresses, maximum 10 | Implemented |
-| `transcribe` | Editable when an ASR provider is configured | Implemented |
+| `transcribe` | Editable schema field; UI reports runtime availability as unknown until Switch authentication capabilities are projected | Implemented with explicit capability caveat |
 | `require_pin` | Editable | Implemented |
 | `pin` | Write-only, 4–6 digits; omitted on edit preserves the current PIN | Implemented and redacted |
 | `is_setup` | Read-only mailbox setup status | Implemented |
 | `check_if_owner` | Editable, default `true` | Implemented |
-| `delete_after_notify` | Editable, default `false` | Implemented |
+| `delete_after_notify` | Editable, default `false`; mutually exclusive with `save_after_notify` in GridPBX | Implemented |
 | `include_message_on_notify` | Editable, default `true` | Implemented |
 | `include_transcription_on_notify` | Editable, default `true` | Implemented |
 | `media_extension` | Editable enum: `mp3`, `mp4`, or `wav` | Implemented |
 | `not_configurable` | Editable, default `false` | Implemented |
 | `oldest_message_first` | Editable, default `false` | Implemented |
-| `save_after_notify` | Editable; Switch precedence over `delete_after_notify` is preserved | Implemented |
+| `save_after_notify` | Editable; enabling it clears Delete and the API rejects contradictory input | Implemented |
 | `skip_envelope` | Editable beta Switch field | Implemented |
 | `skip_greeting`, `skip_instructions` | Editable playback controls | Implemented |
 | `is_voicemail_ff_rw_enabled` | Editable playback control | Implemented |
@@ -502,8 +512,8 @@ mailbox configuration below; it does not overwrite message or media state.
 | `media.unavailable` | Managed through the authenticated greeting upload/remove workflow | Implemented |
 | messages, folders, raw audio, and transcription | Managed through mailbox message workflows; audio is streamed | Implemented |
 | `announcement_only` | Hidden because the upstream schema marks it unsupported | Deliberately excluded |
-| `flags[]` | Conditional/admin allowlisted values | Pending |
-| `notify.callback` | Managed through a dedicated bounded callback workflow | Pending |
+| `flags[]` | External-application metadata preserved from `switch_json` during mailbox updates; not operator-editable | Implemented preservation boundary |
+| `notify.callback` | Dedicated bounded workflow for disabled state, number, attempts, interval, timeout, and schedule | Implemented |
 | voicemail key maps and account playback keys | Operational/account configuration, not mailbox CRUD | Pending administration workflow |
 
 The Vue create/edit form uses a domain-owned Zod schema and right-hand
@@ -511,7 +521,22 @@ slideover. Laravel repeats all trust-boundary validation. A typed
 `VoicemailBoxAdvancedData` DTO owns the Switch field mapping, while MySQL keeps
 the searchable mailbox fields normalized and stores the complete redacted
 response `data` object in `switch_json`. The API returns only the safe
-configuration subset and never exposes the PIN.
+configuration subset and never exposes the PIN. `notify.callback` is returned
+as typed safe configuration; the form never edits raw JSON.
+
+The Wave 2 form audit also identified incomplete UI acceptance behavior and
+conditional contracts. Shared invalid styling, inline-only field errors,
+account-backed timezone/assignment choices, and create-versus-edit PIN behavior
+are now implemented for Voicemail. The Switch schema accepts ASR fields, but
+the GridPBX session layer does not yet retain the authentication response's
+runtime transcription capability; the options endpoint therefore returns an
+explicit unknown state and the UI warns without discarding existing values.
+External flags are preserved rather than exposed, and the callback object is
+typed and bounded end-to-end. Runtime create/edit/clear acceptance remains
+documented in [`SWITCH_FORM_AUDIT.md`](SWITCH_FORM_AUDIT.md#voicemail-findings):
+the paused callback lifecycle and disposable cleanup passed against the
+connected Switch. Unassigned mailbox writes omit `owner_id` because the
+connected schema rejects an explicit `null`.
 
 ## 9. Directory field-level matrix
 
@@ -528,16 +553,18 @@ re-reads the Directory, with compensation if a multi-user update fails.
 | `min_dtmf` | Editable integer, minimum 1; UI safety cap 20 | Implemented |
 | `max_dtmf` | Editable integer, minimum 0; `0` means unlimited and UI safety cap is 20 | Implemented |
 | `sort_by` | Editable enum: `first_name` or `last_name` | Implemented |
-| `flags[]` | Editable advanced integration metadata; maximum 20 unique 64-character strings | Implemented |
+| `flags[]` | External-application metadata; initialized empty and preserved from `switch_json` on edit, never accepted from the operator form | Implemented preservation boundary |
 | `users[]` | Managed through public Extension UUIDs and resolved User/Callflow mappings | Implemented |
 
 The API never accepts Switch User or Callflow identifiers from the UI. It
 resolves each public Extension UUID inside the selected account, requires a
 projected destination Callflow, and patches only the User `directories`
-mapping. The complete redacted Directory response remains in `switch_json`;
-the API exposes safe flags and public member relationships only. The Vue
-slideover uses a domain composable and Zod before Laravel repeats validation at
-the trust boundary.
+mapping. The complete redacted Directory response remains in `switch_json`.
+Flags remain visible in the safe read projection for diagnostics, but Laravel
+prohibits operator flag input and the mutation service preserves existing
+values. The Vue slideover uses a domain composable, Zod, a non-clipping
+Headless UI sort listbox, shared invalid borders, and inline-only field errors
+before Laravel repeats validation at the trust boundary.
 
 ## 10. LineKey field-level matrix
 
@@ -568,7 +595,118 @@ Preview and mutation responses exclude SIP credentials and provisioning
 infrastructure, and the complete redacted Device response remains in
 `switch_json`.
 
-## 11. Next matrices
+## 11. Group and Menu field-level matrices
+
+### Group
+
+| Schema path | Treatment | Current status |
+| --- | --- | --- |
+| `name` | Required bounded editable name | Implemented |
+| `endpoints.<id>.type/weight` | Public User, Device, or Group UUIDs are resolved server-side; ordered weights are bounded 1–100 | Implemented |
+| `music_on_hold.media_id` | API-backed projected Media UUID; `null` inherits the account default | Implemented |
+| `flags[]` | External-application metadata initialized empty and preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+
+### Menu
+
+| Schema path | Treatment | Current status |
+| --- | --- | --- |
+| `name`, `timeout`, `interdigit_timeout`, `max_extension_length`, `retries` | Required schema-bounded controls with matching Zod and Laravel validation | Implemented |
+| `hunt`, `hunt_allow`, `hunt_deny` | Direct-extension dialing and bounded optional patterns | Implemented |
+| `allow_record_from_offnet`, `suppress_media` | Explicit boolean controls | Implemented |
+| `record_pin` | Write-only 3–6 digit value; blank edit securely preserves the Switch value without returning or persisting it | Implemented |
+| `media.greeting` | API-backed projected Media UUID | Implemented |
+| `media.invalid_media`, `transfer_media`, `exit_media` | Schema union represented as enabled/system-prompt boolean or projected Media UUID | Implemented |
+| `flags[]` | External-application metadata initialized empty and preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+
+The legacy Monster menu presents a smaller prompt workflow. GridPBX keeps the
+additional invalid, transfer, and exit prompt controls because they are typed
+by the connected schema and mapped without raw JSON editing. Both Group and
+Menu slideovers now use domain composables, Zod, Headless UI choices, shared
+invalid styling, and isolated authenticated visual acceptance.
+
+## 12. Queue and Agent field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name`, `strategy` | Required name and schema enum | Implemented |
+| `agent_ring_timeout`, `agent_wrapup_time`, `connection_timeout`, `max_queue_size`, `ring_simultaneously` | Schema minimums plus documented GridPBX safety caps | Implemented |
+| `enter_when_empty`, `record_caller`, `caller_exit_key` | Typed boolean and enum controls | Implemented |
+| `moh`, `announce` | API-backed public Media UUIDs resolved inside the account | Implemented |
+| `max_priority` | Create-only 0–255 virtual field; preserved from `switch_json` on edit | Implemented and live verified |
+| `announcements.interval` | 15–86400 second bounded virtual field | Implemented and live verified |
+| `announcements.position_announcements_enabled`, `wait_time_announcements_enabled` | Explicit periodic announcement switches | Implemented and live verified |
+| `announcements.media.*` | Four public Media choices accepted only as a complete schema-valid set | Implemented |
+| `cdr_url`, `recording_url` | Hidden pending outbound URL/SSRF allowlist policy; existing Switch values are preserved and never returned | Intentionally policy-gated |
+| queue roster | Public Extension UUIDs resolved to Switch User identifiers and replaced separately | Implemented |
+| live agent status | Login, logout, pause, resume, and end-wrapup commands with conditional pause timeout and audit logging | Implemented; no automated live mutation of real agents |
+
+The Queue additions remain virtual projections from the redacted response
+`data` object in `switch_json`; normalized MySQL columns are reserved for the
+existing searchable operational fields. An isolated authenticated lifecycle
+passed create, edit, clear, and cleanup against the connected Switch.
+
+## 13. Conference field-level matrix
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name`, `owner_id` | Required bounded name; public account Extension UUID resolved to a Switch User reference | Implemented |
+| `conference_numbers`, `member.numbers`, `moderator.numbers` | Present, unique digit lists; empty lists remain schema-valid | Implemented and live verified |
+| `member.pins`, `moderator.pins` | Write-only replacement or explicit clear; never returned or persisted in plaintext | Implemented |
+| `member.join_muted`, `member.join_deaf`, `member.play_entry_prompt` | Explicit member behavior controls | Implemented |
+| `moderator.join_muted`, `moderator.join_deaf` | Explicit moderator behavior controls | Implemented |
+| `max_participants`, `language` | Bounded capacity and prompt-language controls | Implemented |
+| `max_members_media` | Public account Media UUID resolved server-side; unresolved existing Switch media is preserved | Implemented |
+| `play_entry_tone`, `play_exit_tone` | Schema boolean/string union represented as standard, silent, projected Media, or opaque current-custom preservation | Implemented and live verified |
+| `play_name`, `play_welcome`, `require_moderator`, `wait_for_moderator` | Explicit room and moderator behavior controls | Implemented |
+| `profile_name`, `caller_controls`, `moderator_controls` | Bounded advanced profile references | Implemented |
+| `bridge_username`, `bridge_password`, `domain` | Infrastructure-owned values; not accepted from account operators | Intentionally hidden |
+| `flags[]` | External-application metadata; not operator-editable | Intentionally hidden/preserved by Switch partial update |
+| `focus` | Read-only media-server location | Intentionally read-only |
+| `controls`, `profile` | Arbitrary nested Switch configuration; no raw JSON editor in the simplified UI | Intentionally advanced/opaque |
+| lock/unlock, participant mute/deaf/kick actions | Runtime conference operations require a separate audited command surface | Pending |
+
+The typed sound fields are read from the redacted response `data` stored in
+`switch_json`; no JSON-derived Conference column was added to MySQL. The
+isolated authenticated lifecycle passed visual validation, create, edit, and
+cleanup against the connected Switch.
+
+## 14. Temporal Rule and Rule Set field-level matrix
+
+### Temporal Rule
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name`, `cycle` | Upstream-required name and cycle enum | Implemented |
+| `interval` | Optional upstream field; API/UI default 1, integer minimum 1, no invented maximum | Implemented |
+| `start_date` | Optional public `YYYY-MM-DD`, converted server-side to/from Gregorian seconds | Implemented |
+| `time_window_start`, `time_window_stop` | Optional integer seconds, 0–86400 | Implemented |
+| `days[]` | Optional unique day-of-month values, 1–31; invalid text is reported rather than filtered | Implemented |
+| `wdays[]` | Optional weekday enum; legacy `wensday` reads normalize to `wednesday` | Implemented |
+| `month` | Optional month integer, 1–12, shown for yearly cycles | Implemented |
+| `ordinal` | Optional enum `every`, `first`–`fifth`, or `last`, shown for monthly/yearly patterns | Implemented |
+| `enabled` | Operational override only; prohibited in CRUD and changed through confirmed audited `true`/`false`/`null` PATCH commands | Implemented and live verified |
+| `flags[]` | External-application metadata preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+| effective status | GridPBX schedule projection evaluated in the account timezone and kept distinct from the manual override | Implemented |
+
+### Temporal Rule Set
+
+| Schema path or operation | Treatment | Current status |
+| --- | --- | --- |
+| `name` | Required bounded editable name | Implemented |
+| `temporal_rules[]` | Non-empty ordered membership; public Rule UUIDs resolve to account-scoped Switch identifiers | Implemented and live verified |
+| `flags[]` | External-application metadata preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+| enable/disable/reset | Confirmed command applies to every resolved member under a lock with partial-failure compensation | Implemented and live verified |
+| Callflow and membership lifecycle | Delete is rejected while the Rule Set is referenced by temporal routing; successful deletion removes membership rows so member Rules can be removed safely | Implemented and live verified |
+
+Both right-side panels use domain composables, Zod, Headless UI where an
+interactive primitive adds value, shared red invalid controls, and inline-only
+field errors. Ordinary edits preserve existing operational overrides, and no
+new JSON-derived MySQL columns were added; the complete redacted response
+`data` remains in `switch_json`. The isolated lifecycle passed create, edit,
+override preservation, force/reset commands, ordered Rule Set creation, and
+cleanup against the connected Switch.
+
+## 15. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 

@@ -4,6 +4,7 @@ import type {
   ExtensionCreate,
   ExtensionDeletionPreview,
   ExtensionDetail,
+  ExtensionFormOptions,
   ExtensionRecoveryOperation,
   ExtensionUpdate,
   SyncRun,
@@ -23,6 +24,13 @@ export type ExtensionPage = {
 }
 
 export const extensionApi = {
+  async options(accountId: string): Promise<ExtensionFormOptions> {
+    const response = await http.get<ApiResponse<ExtensionFormOptions>>(
+      `/api/v1/accounts/${accountId}/extensions/options`,
+    )
+
+    return unwrapApiData(response)
+  },
   async list(accountId: string, search = '', page = 1): Promise<ExtensionPage> {
     const response = await http.get<ExtensionPage>(`/api/v1/accounts/${accountId}/extensions`, {
       params: { search: search || undefined, page, per_page: 25 },

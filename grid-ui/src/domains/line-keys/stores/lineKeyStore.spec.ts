@@ -75,4 +75,45 @@ describe('line key store', () => {
     expect(store.preview).toEqual(preview)
     expect(store.preview?.capability.apply_available).toBe(false)
   })
+
+  it('keeps API validation errors inline without a duplicate mutation alert', async () => {
+    const preview: LineKeyPreview = {
+      device,
+      capability: {
+        preview_available: true,
+        apply_available: true,
+        reason: null,
+        model: {
+          matched: false,
+          max_keys: null,
+          max_expansion_modules: null,
+          keys_per_expansion_module: null,
+          total_keys: null,
+          supported_key_types: ['speed_dial'],
+          value_sources: [],
+          manufacturer_provider: null,
+        },
+      },
+      value_choices: [],
+      payload_preview: { provision: { combo_keys: {}, feature_keys: {} } },
+    }
+    vi.mocked(lineKeyApi.update).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          message: 'Invalid data.',
+          errors: { 'line_keys.0.value': ['Enter a supported value.'] },
+        },
+      },
+    })
+    const store = useLineKeyStore()
+    store.preview = preview
+
+    await store.save('account-1', device.line_keys)
+
+    expect(store.fieldErrors).toEqual({
+      'line_keys.0.value': ['Enter a supported value.'],
+    })
+    expect(store.mutationError).toBeNull()
+  })
 })

@@ -1,6 +1,20 @@
 export type ProjectionStatus = 'healthy' | 'syncing' | 'stale' | 'error'
 export type SyncRunStatus = 'queued' | 'running' | 'succeeded' | 'failed'
 
+export type ExtensionFormChoice = { value: string; label: string }
+
+export type ExtensionFormOptions = {
+  account_defaults: { timezone: string | null }
+  timezones: string[]
+  languages: ExtensionFormChoice[]
+  presence_ids: ExtensionFormChoice[]
+  starter_device: {
+    supported_types: string[]
+    provisionable_types: string[]
+    sip_credential_types: string[]
+  }
+}
+
 export type Extension = {
   id: string
   display_name: string
@@ -123,8 +137,6 @@ export type ExtensionCreate = ExtensionUserConfiguration & {
     enabled: boolean
     name: string | null
     device_type: string | null
-    make: string | null
-    model: string | null
     mac_address: string | null
     sip_username: string | null
     sip_password: string | null

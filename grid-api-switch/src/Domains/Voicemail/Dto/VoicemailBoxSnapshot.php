@@ -51,6 +51,11 @@ final readonly class VoicemailBoxSnapshot extends EntitySnapshot
 
     public int $seekDurationMilliseconds;
 
+    /** @var list<string> */
+    public array $flags;
+
+    public ?VoicemailNotificationCallbackData $notificationCallback;
+
     /** @param array<string, mixed> $data */
     public function __construct(array $data)
     {
@@ -84,5 +89,10 @@ final readonly class VoicemailBoxSnapshot extends EntitySnapshot
         $this->seekDurationMilliseconds = is_int($data['seek_duration_ms'] ?? null)
             ? $data['seek_duration_ms']
             : 10000;
+        $this->flags = $this->stringList($data['flags'] ?? []);
+        $callback = $data['notify']['callback'] ?? null;
+        $this->notificationCallback = is_array($callback)
+            ? VoicemailNotificationCallbackData::fromSwitchData($callback)
+            : null;
     }
 }

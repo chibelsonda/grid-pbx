@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { voicemailApi, type VoicemailBoxPage, type VoicemailMessagePage } from '../api/voicemailApi'
 import type {
-  ExtensionOption,
   VoicemailBox,
   VoicemailBoxInput,
   VoicemailMessage,
   VoicemailMessageBulkResult,
   VoicemailMessageFolder,
   VoicemailGreeting,
+  VoicemailFormOptions,
 } from '../types/voicemail'
 import { useVoicemailStore } from './voicemailStore'
 import { defaultVoicemailBoxConfiguration } from '../voicemailForm'
@@ -27,7 +27,7 @@ vi.mock('../api/voicemailApi', () => ({
         ) => Promise<VoicemailBox>
       >(),
     remove: vi.fn<(accountId: string, voicemailBoxId: string) => Promise<void>>(),
-    extensionOptions: vi.fn<(accountId: string) => Promise<ExtensionOption[]>>(),
+    options: vi.fn<(accountId: string) => Promise<VoicemailFormOptions>>(),
     messages:
       vi.fn<
         (
@@ -77,6 +77,7 @@ const voicemailBox: VoicemailBox = {
   notification_emails: ['ops@example.com'],
   transcribe: true,
   require_pin: true,
+  pin_configured: true,
   is_setup: false,
   configuration: defaultVoicemailBoxConfiguration(),
   message_counts: { total: 2, new: 1, saved: 1, deleted: 0 },
@@ -105,6 +106,28 @@ describe('voicemail store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+  })
+
+  it('loads safe mailbox form choices from the domain options endpoint', async () => {
+    const options: VoicemailFormOptions = {
+      account_defaults: { timezone: 'Asia/Manila' },
+      timezones: ['Asia/Manila'],
+      extensions: [{ id: 'extension-1', display_name: 'Alice', extension: '1001' }],
+      capabilities: {
+        voicemail_transcription: {
+          schema_supported: true,
+          runtime_available: null,
+          default_enabled: null,
+        },
+      },
+    }
+    vi.mocked(voicemailApi.options).mockResolvedValue(options)
+    const store = useVoicemailStore()
+
+    await store.loadFormOptions('account-1')
+
+    expect(voicemailApi.options).toHaveBeenCalledWith('account-1')
+    expect(store.formOptions).toEqual(options)
   })
 
   it('hydrates an account-scoped voicemail page and sync metadata', async () => {
@@ -155,6 +178,35 @@ describe('voicemail store', () => {
     expect(created).toEqual(voicemailBox)
     expect(store.detail).toEqual(voicemailBox)
     expect(store.records).toEqual([voicemailBox])
+  })
+
+  it('keeps API validation failures inline instead of duplicating a mutation alert', async () => {
+    vi.mocked(voicemailApi.create).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: {
+          message: 'The given data was invalid.',
+          errors: { mailbox: ['Use 1–30 digits.'] },
+        },
+      },
+    })
+    const store = useVoicemailStore()
+    const input: VoicemailBoxInput = {
+      name: 'Reception voicemail',
+      mailbox: 'invalid',
+      assigned_extension_id: null,
+      timezone: null,
+      notification_emails: [],
+      transcribe: false,
+      require_pin: false,
+      pin: null,
+      ...defaultVoicemailBoxConfiguration(),
+    }
+
+    await store.create('account-1', input)
+
+    expect(store.fieldErrors).toEqual({ mailbox: ['Use 1–30 digits.'] })
+    expect(store.mutationError).toBeNull()
   })
 
   it('loads projected message metadata with account, mailbox, and folder scope', async () => {

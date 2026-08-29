@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   CheckCircleIcon,
@@ -13,12 +13,15 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import { validationControlClass } from '@/shared/forms/validationStyles'
 import { validateForm } from '@/shared/forms/zod'
-import { voicemailBoxFormSchema } from '../schemas/voicemailBoxFormSchema'
+import { voicemailBoxFormSchemaFor } from '../schemas/voicemailBoxFormSchema'
+import { useVoicemailFormOptions } from '../composables/useVoicemailFormOptions'
 import { useVoicemailStore } from '../stores/voicemailStore'
 import type { VoicemailBoxInput } from '../types/voicemail'
 import {
   defaultVoicemailBoxConfiguration,
+  defaultVoicemailNotificationCallback,
   hydrateVoicemailBoxConfiguration,
 } from '../voicemailForm'
 
@@ -32,17 +35,26 @@ const voicemailBoxId = computed(() =>
 )
 const title = computed(() => (isEditing.value ? 'Edit voicemail box' : 'Add voicemail box'))
 const canManage = computed(() => accounts.selected?.permissions.can_manage_voicemail ?? false)
+const pinConfigured = computed(() => voicemail.detail?.pin_configured ?? false)
 const form = reactive({
   name: '',
   mailbox: '',
-  assigned_extension_id: '',
-  timezone: '',
+  assigned_extension_id: null as string | null,
+  timezone: null as string | null,
   notification_emails: '',
   transcribe: false,
   require_pin: false,
   pin: '',
 })
 const configuration = reactive(defaultVoicemailBoxConfiguration())
+const callbackConfigured = ref(false)
+const callbackSchedule = ref('')
+const notificationCallback = reactive(defaultVoicemailNotificationCallback())
+const { timezoneOptions, extensionOptions } = useVoicemailFormOptions(
+  () => voicemail.formOptions,
+  () => form.timezone,
+  () => form.assigned_extension_id,
+)
 
 watch(
   [() => accounts.selectedId, voicemailBoxId],
@@ -50,20 +62,26 @@ watch(
     voicemail.mutationError = null
     voicemail.fieldErrors = {}
     if (!accountId) return
-    await voicemail.loadExtensionOptions(accountId)
+    await voicemail.loadFormOptions(accountId)
     if (!selectedId) return
     await voicemail.loadDetail(accountId, selectedId)
     const record = voicemail.detail
     if (!record) return
     form.name = record.name ?? ''
     form.mailbox = record.mailbox ?? ''
-    form.assigned_extension_id = record.assigned_extension?.id ?? ''
-    form.timezone = record.timezone ?? ''
+    form.assigned_extension_id = record.assigned_extension?.id ?? null
+    form.timezone = record.timezone
     form.notification_emails = record.notification_emails.join('\n')
     form.transcribe = record.transcribe
     form.require_pin = record.require_pin
     form.pin = ''
     Object.assign(configuration, hydrateVoicemailBoxConfiguration(record.configuration))
+    callbackConfigured.value = record.configuration.notify_callback !== null
+    Object.assign(
+      notificationCallback,
+      record.configuration.notify_callback ?? defaultVoicemailNotificationCallback(),
+    )
+    callbackSchedule.value = notificationCallback.schedule.join('\n')
   },
   { immediate: true },
 )
@@ -74,7 +92,14 @@ function nullable(value: string): string | null {
 }
 
 function fieldError(field: string): string | null {
-  return voicemail.fieldErrors[field]?.[0] ?? null
+  const direct = voicemail.fieldErrors[field]?.[0]
+  if (direct) return direct
+
+  return (
+    Object.entries(voicemail.fieldErrors).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
 }
 
 function emails(): string[] {
@@ -83,6 +108,21 @@ function emails(): string[] {
     .map((email) => email.trim())
     .filter(Boolean)
 }
+
+function callbackScheduleIntervals(): number[] {
+  return callbackSchedule.value
+    .split(/[\s,]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .map(Number)
+}
+
+watch(
+  () => configuration.save_after_notify,
+  (saveAfterNotify) => {
+    if (saveAfterNotify) configuration.delete_after_notify = false
+  },
+)
 
 function close(): void {
   void router.push(
@@ -94,22 +134,32 @@ function close(): void {
 
 async function save(): Promise<void> {
   if (!accounts.selectedId) return
+  voicemail.mutationError = null
   const input: VoicemailBoxInput = {
     name: form.name.trim(),
     mailbox: form.mailbox.trim(),
-    assigned_extension_id: nullable(form.assigned_extension_id),
-    timezone: nullable(form.timezone),
+    assigned_extension_id: form.assigned_extension_id,
+    timezone: form.timezone,
     notification_emails: emails(),
     transcribe: form.transcribe,
     require_pin: form.require_pin,
     pin: nullable(form.pin),
     ...configuration,
+    notify_callback: callbackConfigured.value
+      ? {
+          ...notificationCallback,
+          number: nullable(notificationCallback.number ?? ''),
+          schedule: callbackScheduleIntervals(),
+        }
+      : null,
   }
-  const validation = validateForm(voicemailBoxFormSchema, input)
+  const validation = validateForm(
+    voicemailBoxFormSchemaFor(isEditing.value, pinConfigured.value),
+    input,
+  )
 
   if (!validation.success) {
     voicemail.fieldErrors = validation.errors
-    voicemail.mutationError = 'Check the highlighted fields and try again.'
 
     return
   }
@@ -186,7 +236,8 @@ async function save(): Promise<void> {
                 required
                 maxlength="128"
                 placeholder="Reception voicemail"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                class="field-control"
+                :class="validationControlClass(fieldError('name'))"
                 :aria-invalid="Boolean(fieldError('name'))"
               /><span v-if="fieldError('name')" class="text-[11px] text-danger">{{
                 fieldError('name')
@@ -201,7 +252,8 @@ async function save(): Promise<void> {
                 inputmode="numeric"
                 pattern="[0-9]+"
                 placeholder="1001"
-                class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+                class="field-control font-mono"
+                :class="validationControlClass(fieldError('mailbox'))"
                 :aria-invalid="Boolean(fieldError('mailbox'))"
               /><span v-if="fieldError('mailbox')" class="text-[11px] text-danger">{{
                 fieldError('mailbox')
@@ -209,21 +261,12 @@ async function save(): Promise<void> {
             >
             <label class="grid gap-2 sm:col-span-2"
               ><span class="text-xs font-semibold text-slate-600">Timezone</span
-              ><input
+              ><FormListbox
                 v-model="form.timezone"
-                maxlength="64"
-                list="common-timezones"
-                placeholder="Account default"
-                class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                :aria-invalid="Boolean(fieldError('timezone'))"
-              /><datalist id="common-timezones">
-                <option value="Asia/Tokyo" />
-                <option value="Asia/Manila" />
-                <option value="America/New_York" />
-                <option value="America/Chicago" />
-                <option value="America/Denver" />
-                <option value="America/Los_Angeles" />
-                <option value="Europe/London" /></datalist
+                :options="timezoneOptions"
+                :invalid="Boolean(fieldError('timezone'))"
+                aria-label="Timezone"
+              />
               ><span v-if="fieldError('timezone')" class="text-[11px] text-danger">{{
                 fieldError('timezone')
               }}</span></label
@@ -246,17 +289,12 @@ async function save(): Promise<void> {
                 v-model="form.notification_emails"
                 rows="6"
                 placeholder="support@example.com&#10;manager@example.com"
-                class="rounded-md border border-slate-200 p-3 text-xs leading-5 outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                :aria-invalid="
-                  Boolean(fieldError('notification_emails') || fieldError('notification_emails.0'))
-                "
-              /><span
-                v-if="fieldError('notification_emails') || fieldError('notification_emails.0')"
-                class="text-[11px] text-danger"
-                >{{
-                  fieldError('notification_emails') ?? fieldError('notification_emails.0')
-                }}</span
-              ></label
+                class="field-control min-h-32 py-3 leading-5"
+                :class="validationControlClass(fieldError('notification_emails'))"
+                :aria-invalid="Boolean(fieldError('notification_emails'))"
+              /><span v-if="fieldError('notification_emails')" class="text-[11px] text-danger">{{
+                fieldError('notification_emails')
+              }}</span></label
             >
           </div>
         </article>
@@ -283,25 +321,133 @@ async function save(): Promise<void> {
               label="Attach voicemail audio"
               description="Include the recording with email notifications"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('include_message_on_notify'))"
+              :invalid="Boolean(fieldError('include_message_on_notify'))"
             />
             <ToggleSwitch
               v-model="configuration.include_transcription_on_notify"
               label="Include transcription"
               description="Add ASR text to notification emails"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('include_transcription_on_notify'))"
+              :invalid="Boolean(fieldError('include_transcription_on_notify'))"
             />
             <ToggleSwitch
               v-model="configuration.save_after_notify"
               label="Save after notification"
               description="Move the message to Saved after notification"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('save_after_notify'))"
+              :invalid="Boolean(fieldError('save_after_notify'))"
             />
             <ToggleSwitch
               v-model="configuration.delete_after_notify"
               label="Delete after notification"
               description="Move the message to Deleted unless Save is enabled"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('delete_after_notify'))"
+              :invalid="Boolean(fieldError('delete_after_notify'))"
+              :disabled="configuration.save_after_notify"
             />
+          </div>
+        </DisclosureCard>
+
+        <DisclosureCard title="Callback notification">
+          <div class="grid gap-4">
+            <ToggleSwitch
+              v-model="callbackConfigured"
+              label="Configure callback notification"
+              description="Call a number when this mailbox receives a new message"
+              class="rounded-md border border-slate-200 p-3"
+            />
+            <template v-if="callbackConfigured">
+              <ToggleSwitch
+                v-model="notificationCallback.disabled"
+                label="Pause callback attempts"
+                description="Keep the callback configuration without placing calls"
+                class="rounded-md border border-slate-200 p-3"
+                :class="validationControlClass(fieldError('notify_callback.disabled'))"
+                :invalid="Boolean(fieldError('notify_callback.disabled'))"
+              />
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Callback number</span>
+                <input
+                  v-model="notificationCallback.number"
+                  maxlength="64"
+                  class="field-control font-mono"
+                  :class="validationControlClass(fieldError('notify_callback.number'))"
+                  :aria-invalid="Boolean(fieldError('notify_callback.number'))"
+                  placeholder="+15551234567"
+                />
+                <span v-if="fieldError('notify_callback.number')" class="text-[11px] text-danger">{{
+                  fieldError('notify_callback.number')
+                }}</span>
+              </label>
+              <div class="grid gap-4 sm:grid-cols-3">
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Attempts</span>
+                  <input
+                    v-model.number="notificationCallback.attempts"
+                    type="number"
+                    min="0"
+                    max="100"
+                    class="field-control"
+                    :class="validationControlClass(fieldError('notify_callback.attempts'))"
+                    :aria-invalid="Boolean(fieldError('notify_callback.attempts'))"
+                  />
+                </label>
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Retry interval</span>
+                  <div class="relative">
+                    <input
+                      v-model.number="notificationCallback.interval_s"
+                      type="number"
+                      min="0"
+                      max="604800"
+                      class="field-control pr-10"
+                      :class="validationControlClass(fieldError('notify_callback.interval_s'))"
+                      :aria-invalid="Boolean(fieldError('notify_callback.interval_s'))"
+                    />
+                    <span
+                      class="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-slate-500"
+                      >s</span
+                    >
+                  </div>
+                </label>
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Answer timeout</span>
+                  <div class="relative">
+                    <input
+                      v-model.number="notificationCallback.timeout_s"
+                      type="number"
+                      min="0"
+                      max="3600"
+                      class="field-control pr-10"
+                      :class="validationControlClass(fieldError('notify_callback.timeout_s'))"
+                      :aria-invalid="Boolean(fieldError('notify_callback.timeout_s'))"
+                    />
+                    <span
+                      class="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-slate-500"
+                      >s</span
+                    >
+                  </div>
+                </label>
+              </div>
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Callback schedule</span>
+                <textarea
+                  v-model="callbackSchedule"
+                  rows="3"
+                  class="field-control py-3 font-mono leading-5"
+                  :class="validationControlClass(fieldError('notify_callback.schedule'))"
+                  :aria-invalid="Boolean(fieldError('notify_callback.schedule'))"
+                  placeholder="60, 300, 900"
+                />
+                <span class="text-[10px] leading-4 text-slate-500">
+                  Optional callback intervals in seconds, separated by commas or new lines.
+                </span>
+              </label>
+            </template>
           </div>
         </DisclosureCard>
       </div>
@@ -315,20 +461,12 @@ async function save(): Promise<void> {
           <div class="p-5">
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Extension</span
-              ><FormSelect
+              ><FormListbox
                 v-model="form.assigned_extension_id"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500"
-                :aria-invalid="Boolean(fieldError('assigned_extension_id'))"
-              >
-                <option value="">Unassigned</option>
-                <option
-                  v-for="extension in voicemail.extensionOptions"
-                  :key="extension.id"
-                  :value="extension.id"
-                >
-                  {{ extension.display_name
-                  }}{{ extension.extension ? ` · ${extension.extension}` : '' }}
-                </option></FormSelect
+                :options="extensionOptions"
+                :invalid="Boolean(fieldError('assigned_extension_id'))"
+                aria-label="Assigned extension"
+              />
               ><span v-if="fieldError('assigned_extension_id')" class="text-[11px] text-danger">{{
                 fieldError('assigned_extension_id')
               }}</span></label
@@ -347,24 +485,43 @@ async function save(): Promise<void> {
               label="Transcribe messages"
               description="Uses the configured Switch ASR provider"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('transcribe'))"
+              :invalid="Boolean(fieldError('transcribe'))"
             />
+            <p
+              v-if="
+                voicemail.formOptions.capabilities.voicemail_transcription.runtime_available ===
+                null
+              "
+              class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-4 text-amber-800"
+            >
+              This Switch schema accepts transcription, but runtime ASR availability is not exposed
+              by the current GridPBX session contract. Saving this option does not guarantee that an
+              ASR provider is configured.
+            </p>
             <ToggleSwitch
               v-model="form.require_pin"
               label="Require PIN"
               description="Prompt when checking from owner devices"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('require_pin'))"
+              :invalid="Boolean(fieldError('require_pin'))"
             />
             <ToggleSwitch
               v-model="configuration.check_if_owner"
               label="Recognize owner devices"
               description="Prompt the owner to sign in when calling this mailbox"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('check_if_owner'))"
+              :invalid="Boolean(fieldError('check_if_owner'))"
             />
             <ToggleSwitch
               v-model="configuration.not_configurable"
               label="Lock mailbox configuration"
               description="Prevent the mailbox owner from changing settings by phone"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('not_configurable'))"
+              :invalid="Boolean(fieldError('not_configurable'))"
             />
           </div>
         </article>
@@ -375,26 +532,36 @@ async function save(): Promise<void> {
               v-model="configuration.oldest_message_first"
               label="Play oldest messages first"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('oldest_message_first'))"
+              :invalid="Boolean(fieldError('oldest_message_first'))"
             />
             <ToggleSwitch
               v-model="configuration.skip_envelope"
               label="Skip message envelope"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('skip_envelope'))"
+              :invalid="Boolean(fieldError('skip_envelope'))"
             />
             <ToggleSwitch
               v-model="configuration.skip_greeting"
               label="Skip unavailable greeting"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('skip_greeting'))"
+              :invalid="Boolean(fieldError('skip_greeting'))"
             />
             <ToggleSwitch
               v-model="configuration.skip_instructions"
               label="Skip recording instructions"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('skip_instructions'))"
+              :invalid="Boolean(fieldError('skip_instructions'))"
             />
             <ToggleSwitch
               v-model="configuration.is_voicemail_ff_rw_enabled"
               label="Enable fast-forward and rewind"
               class="rounded-md border border-slate-200 p-3"
+              :class="validationControlClass(fieldError('is_voicemail_ff_rw_enabled'))"
+              :invalid="Boolean(fieldError('is_voicemail_ff_rw_enabled'))"
             />
             <label v-if="configuration.is_voicemail_ff_rw_enabled" class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Seek duration</span>
@@ -406,6 +573,7 @@ async function save(): Promise<void> {
                   max="300000"
                   step="1000"
                   class="field-control pr-12"
+                  :class="validationControlClass(fieldError('seek_duration_ms'))"
                   :aria-invalid="Boolean(fieldError('seek_duration_ms'))"
                 />
                 <span class="absolute top-1/2 right-3 -translate-y-1/2 text-[10px] text-slate-400"
@@ -434,17 +602,23 @@ async function save(): Promise<void> {
               }}</span
               ><input
                 v-model="form.pin"
+                :required="form.require_pin && !pinConfigured"
                 type="password"
                 inputmode="numeric"
                 pattern="[0-9]{4,6}"
                 minlength="4"
                 maxlength="6"
                 autocomplete="new-password"
-                class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-brand-500"
+                class="field-control font-mono"
+                :class="validationControlClass(fieldError('pin'))"
                 :aria-invalid="Boolean(fieldError('pin'))"
               /><span class="text-[10px] leading-4 text-slate-400"
                 >{{
-                  isEditing ? 'Leave blank to keep the existing PIN.' : 'Use 4–6 digits.'
+                  isEditing && pinConfigured
+                    ? 'Leave blank to keep the existing PIN.'
+                    : form.require_pin
+                      ? 'Required when PIN protection is enabled. Use 4–6 digits.'
+                      : 'Optional. Use 4–6 digits.'
                 }}
                 GridPBX never returns or stores it unredacted.</span
               ><span v-if="fieldError('pin')" class="text-[11px] text-danger">{{

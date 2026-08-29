@@ -9,6 +9,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleGateway;
 use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleSetGateway;
 use App\Domains\TemporalRouting\Models\SwitchTemporalRule;
+use App\Domains\TemporalRouting\Models\SwitchTemporalRuleSet;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -25,6 +26,106 @@ class TemporalRoutingControllerTest extends TestCase
 
         $response->assertCreated()->assertJsonPath('data.name', 'Business hours')->assertJsonPath('data.weekdays.0', 'monday')->assertJsonPath('data.start_date', '2026-09-01')->assertJsonMissingPath('data.temporal_rule_id')->assertJsonMissingPath('data.switch_resource_id')->assertJsonMissingPath('data.switch_json');
         $this->assertDatabaseHas('switch_temporal_rules', ['id' => $response->json('data.id'), 'switch_resource_id' => 'switch-rule-1']);
+    }
+
+    public function test_crud_rejects_status_overrides_and_preserves_an_existing_override_during_edit(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+
+        $this->mock(SwitchTemporalRuleGateway::class)->shouldNotReceive('create');
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/temporal-rules", [...$this->rulePayload(), 'enabled' => true, 'flags' => ['external']])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['enabled', 'flags']);
+
+        $rule = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-rule-1',
+            'enabled' => false,
+            'switch_json' => ['flags' => ['external']],
+        ]);
+        $this->mock(SwitchTemporalRuleGateway::class)
+            ->shouldReceive('update')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $id, array $data): bool => $received->is($account)
+                && $id === 'switch-rule-1'
+                && $data['enabled'] === false
+                && $data['flags'] === ['external']
+                && $data['name'] === 'Updated hours')
+            ->andReturn([...$this->ruleSnapshot(), 'name' => 'Updated hours', 'enabled' => false, 'flags' => ['external']]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/temporal-rules/{$rule->id}", [...$this->rulePayload(), 'name' => 'Updated hours'])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Updated hours')
+            ->assertJsonPath('data.enabled', false)
+            ->assertJsonPath('data.effective_status.override', 'forced_inactive');
+    }
+
+    public function test_rule_schema_defaults_are_applied_when_optional_recurrence_fields_are_omitted(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchTemporalRuleGateway::class)
+            ->shouldReceive('create')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, array $data): bool => $received->is($account)
+                && $data['interval'] === 1
+                && $data['days'] === []
+                && $data['weekdays'] === [])
+            ->andReturn(['id' => 'switch-rule-1', 'name' => 'One day', 'cycle' => 'date']);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/temporal-rules", ['name' => 'One day', 'cycle' => 'date'])
+            ->assertCreated()
+            ->assertJsonPath('data.interval', 1);
+    }
+
+    public function test_rule_set_edit_preserves_external_flags(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $rule = SwitchTemporalRule::factory()->for($account)->create(['switch_resource_id' => 'switch-rule-1']);
+        $set = SwitchTemporalRuleSet::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-set-1',
+            'switch_json' => ['flags' => ['external']],
+        ]);
+        $set->rules()->create(['switch_temporal_rule_id' => $rule->getKey(), 'switch_rule_resource_id' => 'switch-rule-1', 'position' => 0]);
+        $this->mock(SwitchTemporalRuleSetGateway::class)
+            ->shouldReceive('update')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $id, array $data): bool => $received->is($account)
+                && $id === 'switch-set-1'
+                && $data['switch_rule_ids'] === ['switch-rule-1']
+                && $data['flags'] === ['external'])
+            ->andReturn(['id' => 'switch-set-1', 'name' => 'Updated schedule', 'temporal_rules' => ['switch-rule-1'], 'flags' => ['external']]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/temporal-rule-sets/{$set->id}", ['name' => 'Updated schedule', 'rule_ids' => [$rule->id]])
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Updated schedule');
+    }
+
+    public function test_deleting_a_rule_set_removes_memberships_before_the_member_rule_is_deleted(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $rule = SwitchTemporalRule::factory()->for($account)->create(['switch_resource_id' => 'switch-rule-1']);
+        $set = SwitchTemporalRuleSet::factory()->for($account)->create(['switch_resource_id' => 'switch-set-1']);
+        $membership = $set->rules()->create(['switch_temporal_rule_id' => $rule->getKey(), 'switch_rule_resource_id' => 'switch-rule-1', 'position' => 0]);
+        $this->mock(SwitchTemporalRuleSetGateway::class)
+            ->shouldReceive('delete')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $id): bool => $received->is($account) && $id === 'switch-set-1');
+        $this->mock(SwitchTemporalRuleGateway::class)
+            ->shouldReceive('delete')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $id): bool => $received->is($account) && $id === 'switch-rule-1');
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/temporal-rule-sets/{$set->id}")
+            ->assertNoContent();
+        $this->assertDatabaseMissing('switch_temporal_rule_set_rules', ['temporal_rule_set_rule_id' => $membership->getKey()]);
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/temporal-rules/{$rule->id}")
+            ->assertNoContent();
     }
 
     public function test_operator_creates_an_ordered_rule_set_using_public_rule_ids(): void
@@ -53,7 +154,7 @@ class TemporalRoutingControllerTest extends TestCase
 
     private function rulePayload(): array
     {
-        return ['name' => 'Business hours', 'cycle' => 'weekly', 'interval' => 1, 'start_date' => '2026-09-01', 'time_window_start' => 32400, 'time_window_stop' => 61200, 'enabled' => true, 'days' => [], 'weekdays' => ['monday', 'tuesday'], 'month' => null, 'ordinal' => null];
+        return ['name' => 'Business hours', 'cycle' => 'weekly', 'interval' => 1, 'start_date' => '2026-09-01', 'time_window_start' => 32400, 'time_window_stop' => 61200, 'days' => [], 'weekdays' => ['monday', 'tuesday'], 'month' => null, 'ordinal' => null];
     }
 
     private function ruleSnapshot(): array

@@ -11,6 +11,7 @@ use App\Domains\Extensions\Resources\ExtensionDetailResource;
 use App\Domains\Extensions\Resources\ExtensionResource;
 use App\Domains\Extensions\Services\ExtensionDeletionPreviewService;
 use App\Domains\Extensions\Services\ExtensionDeletionService;
+use App\Domains\Extensions\Services\ExtensionOptionsService;
 use App\Domains\Extensions\Services\ExtensionProvisioningService;
 use App\Domains\Extensions\Services\ExtensionService;
 use App\Domains\IdentityAccess\Models\User;
@@ -18,12 +19,26 @@ use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Http\Controllers\Controller;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
 
 class ExtensionController extends Controller
 {
+    public function options(
+        Request $request,
+        string $account,
+        SwitchAccountService $accounts,
+        ExtensionOptionsService $options,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+
+        return response()->json(['data' => $options->get($switchAccount)]);
+    }
+
     public function __invoke(
         ListExtensionsRequest $request,
         string $account,

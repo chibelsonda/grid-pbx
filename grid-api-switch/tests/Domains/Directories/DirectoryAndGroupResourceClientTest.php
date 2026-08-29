@@ -79,6 +79,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
                     'device-1' => ['type' => 'device', 'weight' => 2],
                 ],
                 'music_on_hold' => ['media_id' => 'media-1'],
+                'flags' => ['external-managed'],
             ]]),
         ]);
         $client = new GroupResourceClient($switch);
@@ -90,12 +91,15 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
                 new GroupEndpointWriteData('device-1', 'device', 2),
             ],
             musicOnHoldMediaId: 'media-1',
+            flags: ['external-managed'],
         ));
         $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
         self::assertSame(['user', 'device'], array_map(static fn ($endpoint): string => $endpoint->type, $group->endpoints));
         self::assertSame('media-1', $group->musicOnHoldMediaId);
+        self::assertSame(['external-managed'], $group->flags);
         self::assertSame(2, $body['data']['endpoints']['device-1']['weight']);
+        self::assertSame(['external-managed'], $body['data']['flags']);
     }
 
     public function test_user_client_patches_directory_mappings_without_replacing_user_profile(): void

@@ -65,7 +65,7 @@ class QueueProjectionService
             $queue->agents()->delete();
         }
 
-        return $queue->load(['agents.extension', 'musicOnHoldMedia']);
+        return $queue->load(['agents.extension', 'musicOnHoldMedia', 'switchAccount.media']);
     }
 
     private function stringValue(mixed $value): ?string

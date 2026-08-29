@@ -8,6 +8,7 @@ use InvalidArgumentException;
 
 final readonly class MenuWriteData
 {
+    /** @param list<string> $flags */
     public function __construct(
         public string $name,
         public int $timeout = 10000,
@@ -24,6 +25,7 @@ final readonly class MenuWriteData
         public string|bool|null $invalidMedia = true,
         public string|bool|null $transferMedia = true,
         public string|bool|null $exitMedia = true,
+        public array $flags = [],
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch menu name is required.');
@@ -40,6 +42,12 @@ final readonly class MenuWriteData
         if ($this->recordPin !== null && (strlen($this->recordPin) < 3 || strlen($this->recordPin) > 6 || ! ctype_digit($this->recordPin))) {
             throw new InvalidArgumentException('Switch menu record PIN must contain 3 to 6 digits.');
         }
+
+        foreach ($this->flags as $flag) {
+            if (! is_string($flag) || $flag === '') {
+                throw new InvalidArgumentException('Switch menu flags must contain non-empty strings.');
+            }
+        }
     }
 
     /** @return array<string, mixed> */
@@ -54,6 +62,7 @@ final readonly class MenuWriteData
             'hunt' => $this->hunt,
             'allow_record_from_offnet' => $this->allowRecordFromOffnet,
             'suppress_media' => $this->suppressMedia,
+            'flags' => array_values($this->flags),
             'media' => array_filter([
                 'greeting' => $this->greetingMediaId,
                 'invalid_media' => $this->invalidMedia,

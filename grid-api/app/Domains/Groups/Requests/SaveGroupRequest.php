@@ -18,6 +18,7 @@ class SaveGroupRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:128'],
             'music_on_hold_media_id' => ['nullable', 'uuid'],
+            'flags' => ['prohibited'],
             'members' => ['present', 'array'],
             'members.*.type' => ['required', Rule::in(['user', 'device', 'group'])],
             'members.*.id' => ['required', 'uuid', 'distinct'],

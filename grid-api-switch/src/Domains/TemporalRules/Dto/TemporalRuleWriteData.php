@@ -14,6 +14,7 @@ final readonly class TemporalRuleWriteData
 
     /** @param list<int> $days
      * @param list<string> $weekdays
+     * @param list<string> $flags
      */
     public function __construct(
         public string $name,
@@ -27,6 +28,7 @@ final readonly class TemporalRuleWriteData
         public array $weekdays = [],
         public ?int $month = null,
         public ?string $ordinal = null,
+        public array $flags = [],
     ) {
         if (trim($this->name) === '' || ! in_array($this->cycle, self::CYCLES, true)) {
             throw new InvalidArgumentException('Switch temporal rule name and cycle are required.');
@@ -41,6 +43,7 @@ final readonly class TemporalRuleWriteData
         }
         if (array_filter($this->days, static fn (mixed $day): bool => ! is_int($day) || $day < 1 || $day > 31)
             || array_filter($this->weekdays, static fn (mixed $day): bool => ! is_string($day) || ! in_array($day, self::WEEKDAYS, true))
+            || array_filter($this->flags, static fn (mixed $flag): bool => ! is_string($flag))
             || ($this->ordinal !== null && ! in_array($this->ordinal, self::ORDINALS, true))) {
             throw new InvalidArgumentException('Switch temporal rule recurrence values are invalid.');
         }
@@ -56,6 +59,7 @@ final readonly class TemporalRuleWriteData
             'days' => $this->days === [] ? null : array_values($this->days),
             'wdays' => $this->weekdays === [] ? null : array_values($this->weekdays),
             'month' => $this->month, 'ordinal' => $this->ordinal,
+            'flags' => $this->flags === [] ? null : array_values(array_unique($this->flags)),
         ], static fn (mixed $value): bool => $value !== null);
     }
 }

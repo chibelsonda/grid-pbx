@@ -67,6 +67,40 @@ class GroupControllerTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('members');
     }
 
+    public function test_update_preserves_external_switch_flags_and_rejects_operator_flags(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-group-1',
+            'switch_json' => ['flags' => ['external-managed']],
+        ]);
+        $gateway = $this->mock(SwitchGroupGateway::class);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-group-1'
+                && $data['switch_flags'] === ['external-managed'],
+        )->andReturn([
+            'id' => 'switch-group-1',
+            'name' => 'Updated support',
+            'endpoints' => [],
+            'music_on_hold' => [],
+            'flags' => ['external-managed'],
+        ]);
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/groups/{$group->id}", [
+            'name' => 'Updated support',
+            'music_on_hold_media_id' => null,
+            'members' => [],
+        ])->assertOk()->assertJsonPath('data.name', 'Updated support');
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/groups/{$group->id}", [
+            'name' => 'Rejected flags',
+            'music_on_hold_media_id' => null,
+            'members' => [],
+            'flags' => ['operator-managed'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('flags');
+    }
+
     public function test_accessible_user_lists_only_account_groups(): void
     {
         [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);

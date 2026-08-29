@@ -32,7 +32,7 @@ export type TemporalRule = {
 }
 export type TemporalRuleInput = Omit<
   TemporalRule,
-  'id' | 'effective_status' | 'sync_status' | 'last_synced_at'
+  'id' | 'enabled' | 'effective_status' | 'sync_status' | 'last_synced_at'
 >
 export type TemporalRuleSetMembership = {
   id: string

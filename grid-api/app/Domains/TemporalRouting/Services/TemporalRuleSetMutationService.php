@@ -48,7 +48,8 @@ class TemporalRuleSetMutationService
     public function update(SwitchAccount $account, SwitchTemporalRuleSet $set, User $actor, array $data, ?string $ip = null): SwitchTemporalRuleSet
     {
         $resolved = $this->resolve($account, $data);
-        $previous = ['name' => $set->name, 'switch_rule_ids' => $set->rules()->orderBy('position')->pluck('switch_rule_resource_id')->all()];
+        $resolved['flags'] = $this->flags($set->switch_json);
+        $previous = ['name' => $set->name, 'switch_rule_ids' => $set->rules()->orderBy('position')->pluck('switch_rule_resource_id')->all(), 'flags' => $this->flags($set->switch_json)];
         try {
             $snapshot = $this->gateway->update($account, $set->switch_resource_id, $resolved);
 
@@ -76,6 +77,7 @@ class TemporalRuleSetMutationService
         }
         $this->gateway->delete($account, $set->switch_resource_id);
         DB::transaction(function () use ($account, $actor, $set, $ip): void {
+            $set->rules()->delete();
             $set->delete();
             $this->audit->record($actor, $account, 'temporal_rule_set.deleted', 'succeeded', $set->switch_resource_id, [], $ip, 'temporal_rule_set');
         });
@@ -91,6 +93,16 @@ class TemporalRuleSetMutationService
         }
 
         return [...$data, 'switch_rule_ids' => array_map(fn ($id) => $rules[$id]->switch_resource_id, $ids)];
+    }
+
+    /** @param array<string, mixed>|null $snapshot @return list<string> */
+    private function flags(?array $snapshot): array
+    {
+        $flags = $snapshot['flags'] ?? [];
+
+        return is_array($flags)
+            ? array_values(array_filter($flags, static fn (mixed $flag): bool => is_string($flag)))
+            : [];
     }
 
     private function containsSet(mixed $node, string $id): bool
