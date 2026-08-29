@@ -7,6 +7,7 @@ import {
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import type { ExtensionRecoveryOperation } from '../types/extension'
 
 defineProps<{
@@ -139,15 +140,14 @@ function canRecover(operation: ExtensionRecoveryOperation): boolean {
             }}</span
             >.
           </p>
-          <label v-if="operation.recovery_action === 'resume'" class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600"
-              >Type <span class="font-mono text-red-700">{{ operation.extension }}</span> to resume
-              deletion</span
-            ><input
-              v-model="confirmations[operation.id]"
-              autocomplete="off"
-              class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-          /></label>
+          <FormInput
+            v-if="operation.recovery_action === 'resume'"
+            :model-value="confirmations[operation.id] ?? ''"
+            :label="`Type ${operation.extension} to resume deletion`"
+            autocomplete="off"
+            input-class="font-mono"
+            @update:model-value="confirmations[operation.id] = String($event)"
+          />
           <button
             type="button"
             :disabled="actionLoading || !canRecover(operation)"

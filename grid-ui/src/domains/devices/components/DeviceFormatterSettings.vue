@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { DeviceFormatter } from '../types/device'
 
 const props = defineProps<{ fieldErrors: Record<string, string[]> }>()
@@ -9,10 +9,6 @@ const formatters = defineModel<DeviceFormatter[]>({ required: true })
 
 function error(field: string): string | null {
   return props.fieldErrors[field]?.[0] ?? null
-}
-
-function invalidClass(field: string): string {
-  return validationControlClass(error(field))
 }
 
 function addFormatter(): void {
@@ -55,19 +51,14 @@ function addFormatter(): void {
     :key="index"
     class="grid gap-3 rounded-md border border-slate-100 p-3 sm:grid-cols-3"
   >
-    <label class="grid gap-1 sm:col-span-2">
-      <span class="text-[11px] font-semibold text-slate-500">Switch field</span>
-      <input
-        v-model="formatter.field"
-        class="field-control font-mono"
-        :class="invalidClass(`formatters.${index}.field`)"
-        :aria-invalid="Boolean(error(`formatters.${index}.field`))"
-        placeholder="request"
-      />
-      <span v-if="error(`formatters.${index}.field`)" class="text-[10px] text-danger">
-        {{ error(`formatters.${index}.field`) }}
-      </span>
-    </label>
+    <FormInput
+      v-model="formatter.field"
+      label="Switch field"
+      input-class="font-mono"
+      placeholder="request"
+      class="sm:col-span-2"
+      :error="error(`formatters.${index}.field`)"
+    />
     <label class="grid gap-1">
       <span class="text-[11px] font-semibold text-slate-500">Direction</span>
       <FormListbox
@@ -81,22 +72,29 @@ function addFormatter(): void {
         ]"
       />
     </label>
-    <label class="grid gap-1">
-      <span class="text-[11px] font-semibold text-slate-500">Match regex</span>
-      <input v-model="formatter.regex" class="field-control font-mono" placeholder="^(.*)$" />
-    </label>
-    <label class="grid gap-1">
-      <span class="text-[11px] font-semibold text-slate-500">Fixed value</span>
-      <input v-model="formatter.value" class="field-control" placeholder="Optional replacement" />
-    </label>
-    <label class="grid gap-1">
-      <span class="text-[11px] font-semibold text-slate-500">Prefix</span>
-      <input v-model="formatter.prefix" class="field-control" />
-    </label>
-    <label class="grid gap-1">
-      <span class="text-[11px] font-semibold text-slate-500">Suffix</span>
-      <input v-model="formatter.suffix" class="field-control" />
-    </label>
+    <FormInput
+      v-model="formatter.regex"
+      label="Match regex"
+      input-class="font-mono"
+      placeholder="^(.*)$"
+      :error="error(`formatters.${index}.regex`)"
+    />
+    <FormInput
+      v-model="formatter.value"
+      label="Fixed value"
+      placeholder="Optional replacement"
+      :error="error(`formatters.${index}.value`)"
+    />
+    <FormInput
+      v-model="formatter.prefix"
+      label="Prefix"
+      :error="error(`formatters.${index}.prefix`)"
+    />
+    <FormInput
+      v-model="formatter.suffix"
+      label="Suffix"
+      :error="error(`formatters.${index}.suffix`)"
+    />
     <div class="grid gap-2 sm:col-span-2 sm:grid-cols-2">
       <ToggleSwitch v-model="formatter.strip" label="Strip matched value" />
       <ToggleSwitch v-model="formatter.match_invite_format" label="Match INVITE format" />

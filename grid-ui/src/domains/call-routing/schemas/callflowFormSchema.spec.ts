@@ -6,6 +6,7 @@ const destinationId = '16f95ac5-243c-476a-b238-9f51108f82e1'
 const menuId = 'c48df137-8660-405d-bb64-eec23c394129'
 const temporalRuleSetId = 'd5149b3a-a4f9-4b68-b970-d1657886e92e'
 const temporalRuleId = '24af1546-200c-4431-8f96-e05aadd75569'
+const secondTemporalRuleId = 'c927fca2-86d3-4fe8-b1e7-e575c492ad0b'
 const phoneNumberId = '1078f5f7-a8c4-4296-abf8-610612cac312'
 
 function editor(mode: 'create' | 'update'): CallflowEditor {
@@ -33,9 +34,14 @@ function editor(mode: 'create' | 'update'): CallflowEditor {
       target: null,
       preserved_branch_count: 0,
     },
+    direct_temporal_routes: [],
     temporal_rule_sets: {
       [temporalRuleSetId]: [{ id: temporalRuleId, label: 'Weekdays', position: 0, resolved: true }],
     },
+    temporal_rules: [
+      { id: temporalRuleId, label: 'Weekdays', detail: 'Weekly recurrence' },
+      { id: secondTemporalRuleId, label: 'Holidays', detail: 'Yearly recurrence' },
+    ],
     destination_types: [
       { value: 'extension', label: 'Extension' },
       { value: 'menu', label: 'Menu / IVR' },
@@ -56,6 +62,7 @@ function editor(mode: 'create' | 'update'): CallflowEditor {
       temporal_rule_set: [
         { id: temporalRuleSetId, label: 'Office hours', detail: '1 schedule rule' },
       ],
+      temporal_rules: [],
     },
     phone_numbers: [
       {
@@ -247,5 +254,56 @@ describe('callflow form schema', () => {
     expect(invalid.error.flatten().fieldErrors.temporal_match_destination_id).toEqual([
       'Select an available schedule match destination.',
     ])
+  })
+
+  it('preserves the selected order for direct Temporal Rules', () => {
+    const schema = createCallflowFormSchema(editor('create'))
+    const result = schema.safeParse({
+      name: 'Direct business hours',
+      destination_type: 'temporal_rules',
+      destination_id: '',
+      temporal_rule_ids: [secondTemporalRuleId, temporalRuleId],
+      temporal_rule_routes: [
+        {
+          rule_id: secondTemporalRuleId,
+          destination_type: 'extension',
+          destination_id: destinationId,
+        },
+        {
+          rule_id: temporalRuleId,
+          destination_type: 'menu',
+          destination_id: menuId,
+        },
+      ],
+      manage_fallback: true,
+      fallback_enabled: false,
+      fallback_destination_type: 'extension',
+      fallback_destination_id: '',
+      manage_menu_branches: false,
+      menu_branches: [],
+      manage_temporal_match: true,
+      temporal_match_enabled: true,
+      temporal_match_destination_type: 'extension',
+      temporal_match_destination_id: destinationId,
+      phone_number_ids: [phoneNumberId],
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.destination_id).toBeNull()
+    expect(result.data.temporal_rule_ids).toEqual([secondTemporalRuleId, temporalRuleId])
+    expect(result.data.temporal_rule_routes).toEqual([
+      {
+        rule_id: secondTemporalRuleId,
+        destination_type: 'extension',
+        destination_id: destinationId,
+      },
+      {
+        rule_id: temporalRuleId,
+        destination_type: 'menu',
+        destination_id: menuId,
+      },
+    ])
+    expect(result.data.manage_temporal_match).toBe(false)
   })
 })

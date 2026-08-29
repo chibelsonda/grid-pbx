@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { LockClosedIcon } from '@heroicons/vue/24/outline'
-import { validationControlClass } from '@/shared/forms/validationStyles'
+import FormInput from '@/shared/components/FormInput.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import type { ExtensionCredentialsInput } from '../types/extension'
 
 const props = withDefaults(
@@ -87,68 +88,42 @@ function keepCredentials(): void {
     </div>
 
     <div v-else class="grid gap-4 p-5 sm:grid-cols-2">
-      <label class="grid gap-2 sm:col-span-2">
-        <span class="text-xs font-semibold text-slate-600">Login username</span>
-        <input
-          v-model="credentials.username"
-          maxlength="256"
-          autocomplete="username"
-          placeholder="alice.operator"
-          class="field-control"
-          :aria-invalid="Boolean(fieldErrors.username)"
-          :class="validationControlClass(fieldErrors.username)"
-          @input="onUsernameInput"
-        />
-        <span v-if="fieldErrors.username" class="text-[10px] text-danger">
-          {{ fieldErrors.username[0] }}
-        </span>
-        <span v-else class="text-[10px] text-slate-400">
-          Leave blank on creation when this person should not have a Switch portal login.
-        </span>
-      </label>
+      <FormInput
+        v-model="credentials.username"
+        label="Login username"
+        class="sm:col-span-2"
+        maxlength="256"
+        autocomplete="username"
+        placeholder="alice.operator"
+        description="Leave blank on creation when this person should not have a Switch portal login."
+        :error="fieldErrors.username"
+        @input="onUsernameInput"
+      />
 
       <template v-if="hasUsername">
-        <label class="grid gap-2">
-          <span class="text-xs font-semibold text-slate-600">
-            {{ editing ? 'New password' : 'Password' }}
-            <span v-if="editing && !needsNewPassword" class="font-normal text-slate-400">
-              (optional when unchanged)
-            </span>
-          </span>
-          <input
-            v-model="credentials.password"
-            type="password"
-            minlength="6"
-            maxlength="256"
-            autocomplete="new-password"
-            class="field-control"
-            :aria-invalid="Boolean(fieldErrors.password)"
-            :class="validationControlClass(fieldErrors.password)"
-          />
-          <span v-if="fieldErrors.password" class="text-[10px] text-danger">
-            {{ fieldErrors.password[0] }}
-          </span>
-        </label>
+        <FormInput
+          v-model="credentials.password"
+          :label="editing ? 'New password' : 'Password'"
+          type="password"
+          minlength="6"
+          maxlength="256"
+          autocomplete="new-password"
+          :description="editing && !needsNewPassword ? 'Optional when unchanged.' : null"
+          :error="fieldErrors.password"
+        />
 
-        <label class="grid gap-2">
-          <span class="text-xs font-semibold text-slate-600">Confirm password</span>
-          <input
-            v-model="credentials.password_confirmation"
-            type="password"
-            maxlength="256"
-            autocomplete="new-password"
-            class="field-control"
-            :aria-invalid="Boolean(fieldErrors.password_confirmation)"
-            :class="validationControlClass(fieldErrors.password_confirmation)"
-          />
-          <span v-if="fieldErrors.password_confirmation" class="text-[10px] text-danger">
-            {{ fieldErrors.password_confirmation[0] }}
-          </span>
-        </label>
+        <FormInput
+          v-model="credentials.password_confirmation"
+          label="Confirm password"
+          type="password"
+          maxlength="256"
+          autocomplete="new-password"
+          :error="fieldErrors.password_confirmation"
+        />
 
         <div
           class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
-          :class="validationControlClass(fieldErrors.require_password_update)"
+          :class="fieldErrors.require_password_update && 'border-danger'"
         >
           <ToggleSwitch
             v-model="credentials.require_password_update"

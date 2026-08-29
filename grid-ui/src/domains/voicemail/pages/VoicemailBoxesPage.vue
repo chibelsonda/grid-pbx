@@ -5,12 +5,12 @@ import {
   ChevronRightIcon,
   ChatBubbleLeftEllipsisIcon,
   LinkIcon,
-  MagnifyingGlassIcon,
   MicrophoneIcon,
   PlusIcon,
   SparklesIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import { useVoicemailStore } from '../stores/voicemailStore'
 
 const accounts = useAccountStore()
@@ -134,14 +134,11 @@ function loadFirstPage(): void {
 
       <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <form class="relative w-full max-w-sm" @submit.prevent="loadFirstPage">
-          <MagnifyingGlassIcon
-            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-          />
-          <input
+          <SearchInput
             v-model="voicemail.search"
-            type="search"
+            label="Search voicemail boxes"
             placeholder="Search mailbox, name, owner, timezone…"
-            class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
+            input-class="h-10 bg-white text-xs shadow-sm"
           />
         </form>
         <span

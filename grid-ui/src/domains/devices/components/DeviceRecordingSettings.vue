@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { DeviceConfiguration } from '../types/device'
 
 const props = defineProps<{ fieldErrors: Record<string, string[]> }>()
@@ -18,10 +18,6 @@ const networks = [
 
 function error(direction: string, network: string, field: string): string | null {
   return props.fieldErrors[`call_recording.${direction}.${network}.${field}`]?.[0] ?? null
-}
-
-function invalidClass(direction: string, network: string, field: string): string {
-  return validationControlClass(error(direction, network, field))
 }
 </script>
 
@@ -70,43 +66,25 @@ function invalidClass(direction: string, network: string, field: string): string
               >
             </label>
 
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Minimum duration</span>
-              <input
-                v-model.number="recording[direction.value][network.value].record_min_sec"
-                type="number"
-                min="0"
-                max="3600"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                :class="invalidClass(direction.value, network.value, 'record_min_sec')"
-                :aria-invalid="Boolean(error(direction.value, network.value, 'record_min_sec'))"
-                placeholder="Seconds"
-              />
-              <span
-                v-if="error(direction.value, network.value, 'record_min_sec')"
-                class="text-[10px] text-danger"
-                >{{ error(direction.value, network.value, 'record_min_sec') }}</span
-              >
-            </label>
+            <FormInput
+              v-model.number="recording[direction.value][network.value].record_min_sec"
+              label="Minimum duration"
+              type="number"
+              min="0"
+              max="3600"
+              placeholder="Seconds"
+              :error="error(direction.value, network.value, 'record_min_sec')"
+            />
 
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Time limit</span>
-              <input
-                v-model.number="recording[direction.value][network.value].time_limit"
-                type="number"
-                min="5"
-                max="10800"
-                class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                :class="invalidClass(direction.value, network.value, 'time_limit')"
-                :aria-invalid="Boolean(error(direction.value, network.value, 'time_limit'))"
-                placeholder="Seconds"
-              />
-              <span
-                v-if="error(direction.value, network.value, 'time_limit')"
-                class="text-[10px] text-danger"
-                >{{ error(direction.value, network.value, 'time_limit') }}</span
-              >
-            </label>
+            <FormInput
+              v-model.number="recording[direction.value][network.value].time_limit"
+              label="Time limit"
+              type="number"
+              min="5"
+              max="10800"
+              placeholder="Seconds"
+              :error="error(direction.value, network.value, 'time_limit')"
+            />
 
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Sample rate</span>

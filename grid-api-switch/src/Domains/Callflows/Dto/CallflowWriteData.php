@@ -43,11 +43,12 @@ final readonly class CallflowWriteData
      * @param  list<string>|null  $assignedPhoneNumbers
      * @param  list<string>  $knownPhoneNumbers
      * @param  list<CallflowBranchWriteData>  $branchOperations
+     * @param  list<string>  $destinationTemporalRuleIds
      */
     public function __construct(
         private array $current,
         public string $destinationModule,
-        public string $destinationResourceId,
+        public ?string $destinationResourceId,
         public ?string $name = null,
         private ?array $assignedPhoneNumbers = null,
         private array $knownPhoneNumbers = [],
@@ -55,14 +56,13 @@ final readonly class CallflowWriteData
         private ?string $fallbackModule = null,
         private ?string $fallbackResourceId = null,
         private array $branchOperations = [],
+        private array $destinationTemporalRuleIds = [],
     ) {
         if (! in_array($this->destinationModule, self::SUPPORTED_DESTINATION_MODULES, true)) {
             throw new InvalidArgumentException('Unsupported Switch callflow destination module.');
         }
 
-        if (trim($this->destinationResourceId) === '') {
-            throw new InvalidArgumentException('Switch callflow destination identifier is required.');
-        }
+        $this->assertDestinationConfiguration();
 
         if (! is_array($this->current['flow'] ?? null)) {
             throw new InvalidArgumentException('Switch callflow must contain a root flow node before it can be edited.');
@@ -137,11 +137,14 @@ final readonly class CallflowWriteData
                 : [];
 
         $flow['module'] = $this->destinationModule;
-        if ($this->destinationModule === 'temporal_route') {
-            unset($destinationData['id']);
+        if ($this->destinationTemporalRuleIds !== []) {
+            unset($destinationData['id'], $destinationData['rule_set']);
+            $destinationData['rules'] = array_values($this->destinationTemporalRuleIds);
+        } elseif ($this->destinationModule === 'temporal_route') {
+            unset($destinationData['id'], $destinationData['rules']);
             $destinationData['rule_set'] = $this->destinationResourceId;
         } else {
-            unset($destinationData['rule_set']);
+            unset($destinationData['rule_set'], $destinationData['rules']);
             $destinationData['id'] = $this->destinationResourceId;
         }
         $flow['data'] = $destinationData;
@@ -260,8 +263,40 @@ final readonly class CallflowWriteData
     {
         return match ($this->destinationModule) {
             'menu' => in_array($key, self::MENU_BRANCH_KEYS, true),
-            'temporal_route' => $key === 'rule_set',
+            'temporal_route' => $key === 'rule_set'
+                || in_array($key, $this->destinationTemporalRuleIds, true)
+                || array_key_exists(
+                    $key,
+                    is_array($this->current['flow']['children'] ?? null)
+                        ? $this->current['flow']['children']
+                        : [],
+                ),
             default => false,
         };
+    }
+
+    private function assertDestinationConfiguration(): void
+    {
+        if ($this->destinationTemporalRuleIds !== []) {
+            if ($this->destinationModule !== 'temporal_route' || $this->destinationResourceId !== null) {
+                throw new InvalidArgumentException('Direct temporal rules require a temporal-route destination without a rule-set identifier.');
+            }
+
+            foreach ($this->destinationTemporalRuleIds as $ruleId) {
+                if (! is_string($ruleId) || trim($ruleId) === '') {
+                    throw new InvalidArgumentException('Direct temporal-rule identifiers must be non-empty strings.');
+                }
+            }
+
+            if (count(array_unique($this->destinationTemporalRuleIds)) !== count($this->destinationTemporalRuleIds)) {
+                throw new InvalidArgumentException('Direct temporal rules must be unique.');
+            }
+
+            return;
+        }
+
+        if ($this->destinationResourceId === null || trim($this->destinationResourceId) === '') {
+            throw new InvalidArgumentException('Switch callflow destination identifier is required.');
+        }
     }
 }

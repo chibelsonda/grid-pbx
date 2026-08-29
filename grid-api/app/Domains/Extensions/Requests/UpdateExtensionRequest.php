@@ -4,10 +4,12 @@ namespace App\Domains\Extensions\Requests;
 
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Voicemail\Requests\SaveVoicemailBoxRequest;
 use App\Shared\Switch\MetaflowInputValidator;
 use App\Shared\Switch\MetaflowPolicy;
 use App\Shared\Validation\Rules\SafeSwitchRegex;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
@@ -134,21 +136,21 @@ class UpdateExtensionRequest extends FormRequest
             'call_restriction' => ['sometimes', 'array', 'max:100'],
             'call_restriction.*' => ['array:action'],
             'call_restriction.*.action' => ['required', Rule::in(['inherit', 'deny'])],
-            'call_recording' => ['sometimes', 'array:account,endpoint'],
+            'call_recording' => ['sometimes', 'array:any,inbound,outbound'],
             'media' => [
                 'sometimes',
                 'array:audio,video,bypass_media,encryption,fax_option,ignore_early_media,progress_timeout',
             ],
             'media.audio' => ['required_with:media', 'array:codecs'],
-            'media.audio.codecs' => ['required_with:media', 'array', 'max:'.count(self::AUDIO_CODECS)],
+            'media.audio.codecs' => ['present_with:media', 'array', 'max:'.count(self::AUDIO_CODECS)],
             'media.audio.codecs.*' => ['string', Rule::in(self::AUDIO_CODECS), 'distinct'],
             'media.video' => ['required_with:media', 'array:codecs'],
-            'media.video.codecs' => ['required_with:media', 'array', 'max:'.count(self::VIDEO_CODECS)],
+            'media.video.codecs' => ['present_with:media', 'array', 'max:'.count(self::VIDEO_CODECS)],
             'media.video.codecs.*' => ['string', Rule::in(self::VIDEO_CODECS), 'distinct'],
             'media.bypass_media' => ['required_with:media', Rule::in([true, false, 'auto'])],
             'media.encryption' => ['required_with:media', 'array:enforce_security,methods'],
             'media.encryption.enforce_security' => ['required_with:media', 'boolean'],
-            'media.encryption.methods' => ['required_with:media', 'array', 'max:2'],
+            'media.encryption.methods' => ['present_with:media', 'array', 'max:2'],
             'media.encryption.methods.*' => ['string', Rule::in(['srtp', 'zrtp']), 'distinct'],
             'media.fax_option' => ['required_with:media', 'boolean'],
             'media.ignore_early_media' => ['required_with:media', 'boolean'],
@@ -160,9 +162,9 @@ class UpdateExtensionRequest extends FormRequest
             'ringtones.internal' => ['nullable', 'string', 'max:256'],
             'ringtones.external' => ['nullable', 'string', 'max:256'],
             'dial_plan' => ['sometimes', 'array:system,rules'],
-            'dial_plan.system' => ['required_with:dial_plan', 'array', 'max:64'],
+            'dial_plan.system' => ['present_with:dial_plan', 'array', 'max:64'],
             'dial_plan.system.*' => ['string', 'min:1', 'max:255', 'distinct'],
-            'dial_plan.rules' => ['required_with:dial_plan', 'array', 'max:64'],
+            'dial_plan.rules' => ['present_with:dial_plan', 'array', 'max:64'],
             'dial_plan.rules.*' => ['array:pattern,description,prefix,suffix'],
             'dial_plan.rules.*.pattern' => ['required', 'string', 'max:512', new SafeSwitchRegex],
             'dial_plan.rules.*.description' => ['nullable', 'string', 'max:255'],
@@ -184,7 +186,7 @@ class UpdateExtensionRequest extends FormRequest
                 'sometimes',
                 'array:addresses,assistant,birthday,nicknames,note,role,sort_string,title',
             ],
-            'profile.addresses' => ['required_with:profile', 'array', 'max:20'],
+            'profile.addresses' => ['present_with:profile', 'array', 'max:20'],
             'profile.addresses.*' => ['array:address,types'],
             'profile.addresses.*.address' => ['required', 'string', 'max:512'],
             'profile.addresses.*.types' => ['required', 'array', 'max:7'],
@@ -195,7 +197,7 @@ class UpdateExtensionRequest extends FormRequest
             ],
             'profile.assistant' => ['nullable', 'string', 'max:255'],
             'profile.birthday' => ['nullable', 'string', 'max:64'],
-            'profile.nicknames' => ['required_with:profile', 'array', 'max:20'],
+            'profile.nicknames' => ['present_with:profile', 'array', 'max:20'],
             'profile.nicknames.*' => ['string', 'min:1', 'max:255', 'distinct'],
             'profile.note' => ['nullable', 'string', 'max:2000'],
             'profile.role' => ['nullable', 'string', 'max:255'],
@@ -212,7 +214,7 @@ class UpdateExtensionRequest extends FormRequest
             ],
             'metaflows.digit_timeout' => ['nullable', 'integer', 'min:0', 'max:60000'],
             'metaflows.listen_on' => ['nullable', Rule::in(['both', 'self', 'peer'])],
-            'metaflows.actions' => ['required_with:metaflows', 'array', 'max:50'],
+            'metaflows.actions' => ['present_with:metaflows', 'array', 'max:50'],
             'metaflows.actions.*' => ['array:trigger_type,trigger,module,data,children'],
             'metaflows.actions.*.trigger_type' => ['required', Rule::in(['number', 'pattern'])],
             'metaflows.actions.*.trigger' => ['required', 'string', 'max:255'],
@@ -239,37 +241,36 @@ class UpdateExtensionRequest extends FormRequest
                 Rule::prohibitedIf($this->boolean('hotdesk.clear_pin')),
             ],
             'hotdesk.clear_pin' => ['required', 'boolean'],
-            'voicemail' => ['required', 'array:enabled,notification_emails,transcribe,require_pin,pin'],
+            'voicemail' => ['required', 'array:enabled,input'],
             'voicemail.enabled' => ['required', 'boolean'],
-            'voicemail.notification_emails' => ['present', 'array', 'max:10'],
-            'voicemail.notification_emails.*' => ['email:rfc', 'max:254', 'distinct'],
-            'voicemail.transcribe' => ['required', 'boolean'],
-            'voicemail.require_pin' => ['required', 'boolean'],
-            'voicemail.pin' => ['nullable', 'string', 'regex:/^[0-9]{4,6}$/'],
+            'voicemail.input' => [
+                Rule::requiredIf($this->boolean('voicemail.enabled')),
+                Rule::prohibitedIf(! $this->boolean('voicemail.enabled')),
+                'nullable',
+                'array',
+            ],
         ];
 
-        foreach (['account', 'endpoint'] as $target) {
-            foreach (['any', 'inbound', 'outbound'] as $direction) {
-                $rules["call_recording.{$target}.{$direction}"] = ['required_with:call_recording', 'array:any,onnet,offnet'];
+        foreach (['any', 'inbound', 'outbound'] as $direction) {
+            $rules["call_recording.{$direction}"] = ['required_with:call_recording', 'array:any,onnet,offnet'];
 
-                foreach (['any', 'onnet', 'offnet'] as $network) {
-                    $path = "call_recording.{$target}.{$direction}.{$network}";
-                    $rules[$path] = [
-                        'required_with:call_recording',
-                        'array:enabled,format,record_min_sec,record_on_answer,record_on_bridge,record_sample_rate,time_limit',
-                    ];
-                    $rules["{$path}.enabled"] = ['required_with:call_recording', 'boolean'];
-                    $rules["{$path}.format"] = ['required_with:call_recording', Rule::in(['mp3', 'wav'])];
-                    $rules["{$path}.record_min_sec"] = ['nullable', 'integer', 'min:0', 'max:3600'];
-                    $rules["{$path}.record_on_answer"] = ['required_with:call_recording', 'boolean'];
-                    $rules["{$path}.record_on_bridge"] = ['required_with:call_recording', 'boolean'];
-                    $rules["{$path}.record_sample_rate"] = [
-                        'nullable',
-                        'integer',
-                        Rule::in([8000, 16000, 32000, 48000]),
-                    ];
-                    $rules["{$path}.time_limit"] = ['nullable', 'integer', 'min:5', 'max:10800'];
-                }
+            foreach (['any', 'onnet', 'offnet'] as $network) {
+                $path = "call_recording.{$direction}.{$network}";
+                $rules[$path] = [
+                    'required_with:call_recording',
+                    'array:enabled,format,record_min_sec,record_on_answer,record_on_bridge,record_sample_rate,time_limit',
+                ];
+                $rules["{$path}.enabled"] = ['required_with:call_recording', 'boolean'];
+                $rules["{$path}.format"] = ['required_with:call_recording', Rule::in(['mp3', 'wav'])];
+                $rules["{$path}.record_min_sec"] = ['nullable', 'integer', 'min:0', 'max:3600'];
+                $rules["{$path}.record_on_answer"] = ['required_with:call_recording', 'boolean'];
+                $rules["{$path}.record_on_bridge"] = ['required_with:call_recording', 'boolean'];
+                $rules["{$path}.record_sample_rate"] = [
+                    'nullable',
+                    'integer',
+                    Rule::in([8000, 16000, 32000, 48000]),
+                ];
+                $rules["{$path}.time_limit"] = ['nullable', 'integer', 'min:5', 'max:10800'];
             }
         }
 
@@ -280,6 +281,8 @@ class UpdateExtensionRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            $this->validateVoicemailInput($validator);
+
             $restrictions = $this->input('call_restriction', []);
 
             if (is_array($restrictions)) {
@@ -395,6 +398,54 @@ class UpdateExtensionRequest extends FormRequest
         }];
     }
 
+    private function validateVoicemailInput(Validator $validator): void
+    {
+        if (! $this->boolean('voicemail.enabled')) {
+            return;
+        }
+
+        $input = $this->input('voicemail.input');
+
+        if (! is_array($input)) {
+            return;
+        }
+
+        /** @var SaveVoicemailBoxRequest $voicemailRequest */
+        $voicemailRequest = SaveVoicemailBoxRequest::create($this->getUri(), 'PUT', $input);
+        $voicemailRequest->setContainer($this->container);
+        $voicemailRequest->setUserResolver($this->getUserResolver());
+        $voicemailRequest->setRouteResolver(function () {
+            $route = clone $this->route();
+            $route->setParameter('voicemailBox', $this->managedVoicemailPublicId());
+
+            return $route;
+        });
+        $voicemailRequest->replace($input);
+
+        $voicemailValidator = ValidatorFacade::make(
+            $input,
+            $this->container->call([$voicemailRequest, 'rules']),
+        );
+
+        foreach ($voicemailRequest->after() as $callback) {
+            $voicemailValidator->after($callback);
+        }
+
+        if ($voicemailValidator->fails()) {
+            foreach ($voicemailValidator->errors()->messages() as $path => $messages) {
+                foreach ($messages as $message) {
+                    $validator->errors()->add("voicemail.input.{$path}", $message);
+                }
+            }
+
+            return;
+        }
+
+        $voicemail = (array) $this->input('voicemail', []);
+        $voicemail['input'] = $voicemailValidator->validated();
+        $this->merge(['voicemail' => $voicemail]);
+    }
+
     private function accountInternalId(): ?string
     {
         return $this->accountModel()?->getKey();
@@ -435,6 +486,17 @@ class UpdateExtensionRequest extends FormRequest
         $pin = is_array($switchJson) ? data_get($switchJson, 'hotdesk.pin') : null;
 
         return is_string($pin) && $pin !== '';
+    }
+
+    private function managedVoicemailPublicId(): ?string
+    {
+        return SwitchExtension::query()
+            ->where('switch_account_id', $this->accountInternalId())
+            ->where('id', (string) $this->route('extension'))
+            ->first()
+            ?->voicemailBoxes()
+            ->where('is_managed', true)
+            ->value('id');
     }
 
     private function projectedUsername(): ?string

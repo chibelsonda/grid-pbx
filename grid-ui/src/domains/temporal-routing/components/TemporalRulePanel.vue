@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { ClockIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -126,19 +128,13 @@ function setOrdinal(value: ListboxValue): void {
             </div>
           </header>
           <div class="grid gap-4 p-5 sm:grid-cols-2">
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Name</span
-              ><input
-                v-model="form.name"
-                aria-label="Name"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span></label
-            >
+            <FormInput
+              v-model="form.name"
+              label="Name"
+              class="sm:col-span-2"
+              maxlength="128"
+              :error="fieldError('name')"
+            />
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Cycle</span
               ><FormListbox
@@ -152,103 +148,57 @@ function setOrdinal(value: ListboxValue): void {
                 fieldError('cycle')
               }}</span></label
             >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Every</span>
-              <div class="flex items-center gap-2">
-                <input
-                  v-model.number="form.interval"
-                  aria-label="Interval"
-                  type="number"
-                  min="1"
-                  class="field-control min-w-0 flex-1"
-                  :class="validationControlClass(fieldError('interval'))"
-                  :aria-invalid="Boolean(fieldError('interval'))"
-                /><span class="text-xs text-slate-500">cycle(s)</span>
-              </div>
-              <span v-if="fieldError('interval')" class="text-[10px] text-danger">{{
-                fieldError('interval')
-              }}</span></label
-            >
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Start date</span
-              ><input
-                v-model="form.start_date"
-                aria-label="Start date"
-                type="date"
-                class="field-control"
-                :class="validationControlClass(fieldError('start_date'))"
-                :aria-invalid="Boolean(fieldError('start_date'))"
-              /><span v-if="fieldError('start_date')" class="text-[10px] text-danger">{{
-                fieldError('start_date')
-              }}</span
-              ><span class="text-[10px] text-slate-500"
-                >Optional recurrence anchor; required only when your routing design needs a fixed
-                start.</span
-              ></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Window start (seconds)</span
-              ><input
-                v-model.number="form.time_window_start"
-                aria-label="Window start"
-                type="number"
-                min="0"
-                max="86400"
-                class="field-control"
-                :class="validationControlClass(fieldError('time_window_start'))"
-                :aria-invalid="Boolean(fieldError('time_window_start'))"
-              /><span v-if="fieldError('time_window_start')" class="text-[10px] text-danger">{{
-                fieldError('time_window_start')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Window stop (seconds)</span
-              ><input
-                v-model.number="form.time_window_stop"
-                aria-label="Window stop"
-                type="number"
-                min="0"
-                max="86400"
-                class="field-control"
-                :class="validationControlClass(fieldError('time_window_stop'))"
-                :aria-invalid="Boolean(fieldError('time_window_stop'))"
-              /><span v-if="fieldError('time_window_stop')" class="text-[10px] text-danger">{{
-                fieldError('time_window_stop')
-              }}</span></label
-            >
+            <FormInput
+              v-model.number="form.interval"
+              label="Every"
+              description="Cycle(s)"
+              type="number"
+              min="1"
+              :error="fieldError('interval')"
+            />
+            <FormInput
+              v-model="form.start_date"
+              label="Start date"
+              class="sm:col-span-2"
+              type="date"
+              description="Optional recurrence anchor; required only when your routing design needs a fixed start."
+              :error="fieldError('start_date')"
+            />
+            <FormInput
+              v-model.number="form.time_window_start"
+              label="Window start (seconds)"
+              type="number"
+              min="0"
+              max="86400"
+              :error="fieldError('time_window_start')"
+            />
+            <FormInput
+              v-model.number="form.time_window_stop"
+              label="Window stop (seconds)"
+              type="number"
+              min="0"
+              max="86400"
+              :error="fieldError('time_window_stop')"
+            />
 
-            <label v-if="['monthly', 'yearly'].includes(form.cycle)" class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Days of month</span
-              ><input
-                v-model="daysText"
-                aria-label="Days of month"
-                class="field-control"
-                :class="validationControlClass(fieldError('days'))"
-                :aria-invalid="Boolean(fieldError('days'))"
-                placeholder="1, 15, 31"
-              /><span v-if="fieldError('days')" class="text-[10px] text-danger">{{
-                fieldError('days')
-              }}</span
-              ><span class="text-[10px] text-slate-500"
-                >Comma- or space-separated values.</span
-              ></label
-            >
-            <label v-if="form.cycle === 'yearly'" class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Month</span
-              ><input
-                v-model.number="form.month"
-                aria-label="Month"
-                type="number"
-                min="1"
-                max="12"
-                class="field-control"
-                :class="validationControlClass(fieldError('month'))"
-                :aria-invalid="Boolean(fieldError('month'))"
-                placeholder="1–12"
-              /><span v-if="fieldError('month')" class="text-[10px] text-danger">{{
-                fieldError('month')
-              }}</span></label
-            >
+            <FormInput
+              v-if="['monthly', 'yearly'].includes(form.cycle)"
+              v-model="daysText"
+              label="Days of month"
+              placeholder="1, 15, 31"
+              description="Comma- or space-separated values."
+              :error="fieldError('days')"
+            />
+            <FormInput
+              v-if="form.cycle === 'yearly'"
+              v-model.number="form.month"
+              label="Month"
+              type="number"
+              min="1"
+              max="12"
+              placeholder="1–12"
+              :error="fieldError('month')"
+            />
             <label v-if="['monthly', 'yearly'].includes(form.cycle)" class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Ordinal</span
               ><FormListbox
@@ -273,17 +223,15 @@ function setOrdinal(value: ListboxValue): void {
                 :class="validationControlClass(fieldError('weekdays'))"
                 :aria-invalid="Boolean(fieldError('weekdays'))"
               >
-                <label
+                <FormCheckbox
                   v-for="day in weekdays"
                   :key="day.value"
-                  class="flex cursor-pointer items-center gap-2 rounded-md border border-slate-300 px-3 py-2 text-xs text-slate-700"
-                  ><input
-                    v-model="form.weekdays"
-                    type="checkbox"
-                    :value="day.value"
-                    class="size-4 accent-brand-500"
-                  />{{ day.label }}</label
-                >
+                  :model-value="form.weekdays"
+                  :value="day.value"
+                  :label="day.label"
+                  variant="compact"
+                  @update:model-value="form.weekdays = $event as Weekday[]"
+                />
               </div>
               <span v-if="fieldError('weekdays')" class="text-[10px] text-danger">{{
                 fieldError('weekdays')

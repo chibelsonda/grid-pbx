@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { DevicePhoneMobileIcon, LinkIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
+import FormTextarea from '@/shared/components/FormTextarea.vue'
 import { supportsDeviceNotifications, supportsProvisioning, usesForwarding } from '../deviceForm'
 import { normalizeMacAddress } from '../deviceInput'
 import type {
@@ -161,22 +163,15 @@ function setEnabled(value: boolean): void {
           <h2 class="text-sm font-semibold text-slate-700">Device identity</h2>
         </header>
         <div class="grid gap-5 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Device name</span>
-            <input
-              v-model="form.name"
-              maxlength="128"
-              placeholder="Reception Desk Phone"
-              class="field-control"
-              :class="{
-                'border-danger focus:border-danger focus:ring-red-100': fieldError('name'),
-              }"
-              :aria-invalid="Boolean(fieldError('name'))"
-            />
-            <span v-if="fieldError('name')" class="text-[11px] text-danger">
-              {{ fieldError('name') }}
-            </span>
-          </label>
+          <FormInput
+            v-model="form.name"
+            label="Device name"
+            maxlength="128"
+            placeholder="Reception Desk Phone"
+            required
+            class="sm:col-span-2"
+            :error="fieldError('name')"
+          />
           <ToggleSwitch
             :model-value="form.is_enabled"
             label="Enabled"
@@ -196,39 +191,25 @@ function setEnabled(value: boolean): void {
             class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
             @update:model-value="configuration.suppress_unregister_notifications = !$event"
           />
-          <label v-if="usesForwarding(form.device_type)" class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Destination number</span>
-            <input
-              v-model="configuration.call_forward.number"
-              :maxlength="schemaCompatibility.call_forward.number_max_length"
-              class="field-control"
-              :class="{
-                'border-danger focus:border-danger focus:ring-red-100':
-                  fieldError('call_forward.number'),
-              }"
-              :aria-invalid="Boolean(fieldError('call_forward.number'))"
-              placeholder="+15551234567"
-            />
-            <span v-if="fieldError('call_forward.number')" class="text-[11px] text-danger">
-              {{ fieldError('call_forward.number') }}
-            </span>
-          </label>
-          <label v-if="form.device_type === 'sip_uri'" class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">SIP URI</span>
-            <input
-              v-model="configuration.sip.route"
-              maxlength="2048"
-              class="field-control font-mono"
-              :class="{
-                'border-danger focus:border-danger focus:ring-red-100': fieldError('sip.route'),
-              }"
-              :aria-invalid="Boolean(fieldError('sip.route'))"
-              placeholder="sip:user@example.com"
-            />
-            <span v-if="fieldError('sip.route')" class="text-[11px] text-danger">
-              {{ fieldError('sip.route') }}
-            </span>
-          </label>
+          <FormInput
+            v-if="usesForwarding(form.device_type)"
+            v-model="configuration.call_forward.number"
+            label="Destination number"
+            :maxlength="schemaCompatibility.call_forward.number_max_length"
+            placeholder="+15551234567"
+            class="sm:col-span-2"
+            :error="fieldError('call_forward.number')"
+          />
+          <FormInput
+            v-if="form.device_type === 'sip_uri'"
+            v-model="configuration.sip.route"
+            label="SIP URI"
+            maxlength="2048"
+            input-class="font-mono"
+            placeholder="sip:user@example.com"
+            class="sm:col-span-2"
+            :error="fieldError('sip.route')"
+          />
         </div>
       </article>
 
@@ -278,99 +259,64 @@ function setEnabled(value: boolean): void {
               />
             </label>
           </template>
-          <label
+          <FormInput
             v-for="field in catalogAvailable ? [] : provisioningFields"
             :key="field.key"
-            class="grid gap-2"
-          >
-            <span class="text-xs font-semibold text-slate-600">{{ field.label }}</span>
-            <input
-              v-model="form[field.key]"
-              maxlength="255"
-              class="field-control"
-              :class="{
-                'border-danger focus:border-danger focus:ring-red-100': fieldError(field.error),
-              }"
-              :aria-invalid="Boolean(fieldError(field.error))"
-            />
-            <span v-if="fieldError(field.error)" class="text-[11px] text-danger">
-              {{ fieldError(field.error) }}
-            </span>
-          </label>
-          <label
+            v-model="form[field.key]"
+            :label="field.label"
+            maxlength="255"
+            :error="fieldError(field.error)"
+          />
+          <FormTextarea
             v-if="
               !catalogAvailable ||
               schemaCompatibility.provision.endpoint_model_types.includes('array')
             "
-            class="grid gap-2 sm:col-span-2"
-          >
-            <span class="text-xs font-semibold text-slate-600">
-              {{
-                schemaCompatibility.provision.endpoint_model_types.includes('array')
-                  ? 'Model identifiers'
-                  : 'Model'
-              }}
-            </span>
-            <textarea
-              v-model="modelIdentifiers"
-              :rows="schemaCompatibility.provision.endpoint_model_types.includes('array') ? 2 : 1"
-              maxlength="8192"
-              class="field-control py-2"
-              :class="{
-                'min-h-20': schemaCompatibility.provision.endpoint_model_types.includes('array'),
-                'border-danger focus:border-danger focus:ring-red-100': fieldError(
-                  'provision.endpoint_model',
-                ),
-              }"
-              :aria-invalid="Boolean(fieldError('provision.endpoint_model'))"
-              :placeholder="
-                schemaCompatibility.provision.endpoint_model_types.includes('array')
-                  ? 'One model identifier per line, in priority order'
-                  : ''
-              "
-            />
-            <span class="text-[10px] text-slate-400">
-              <template v-if="schemaCompatibility.provision.endpoint_model_types.includes('array')">
-                The connected Switch accepts one model or an ordered list.
-              </template>
-            </span>
-            <span v-if="fieldError('provision.endpoint_model')" class="text-[11px] text-danger">
-              {{ fieldError('provision.endpoint_model') }}
-            </span>
-          </label>
-          <label v-if="schemaCompatibility.provision.template_id" class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Provisioner template ID</span>
-            <input
-              v-model="configuration.provision.id"
-              maxlength="255"
-              class="field-control font-mono"
-              :class="{
-                'border-danger focus:border-danger focus:ring-red-100': fieldError('provision.id'),
-              }"
-              :aria-invalid="Boolean(fieldError('provision.id'))"
-              placeholder="Optional template identifier"
-            />
-            <span v-if="fieldError('provision.id')" class="text-[11px] text-danger">
-              {{ fieldError('provision.id') }}
-            </span>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">MAC address</span>
-            <input
-              v-model="form.mac_address"
-              maxlength="64"
-              class="field-control font-mono"
-              :class="{
-                'border-danger focus:border-danger focus:ring-red-100': fieldError('mac_address'),
-              }"
-              :aria-invalid="Boolean(fieldError('mac_address'))"
-              placeholder="00:11:22:33:44:55"
-              @blur="normalizeMac"
-            />
-            <span v-if="fieldError('mac_address')" class="text-[11px] text-danger">
-              {{ fieldError('mac_address') }}
-            </span>
-          </label>
+            v-model="modelIdentifiers"
+            :label="
+              schemaCompatibility.provision.endpoint_model_types.includes('array')
+                ? 'Model identifiers'
+                : 'Model'
+            "
+            :rows="schemaCompatibility.provision.endpoint_model_types.includes('array') ? 2 : 1"
+            maxlength="8192"
+            :size="
+              schemaCompatibility.provision.endpoint_model_types.includes('array')
+                ? 'medium'
+                : 'compact'
+            "
+            class="sm:col-span-2"
+            :description="
+              schemaCompatibility.provision.endpoint_model_types.includes('array')
+                ? 'The connected Switch accepts one model or an ordered list.'
+                : null
+            "
+            :error="fieldError('provision.endpoint_model')"
+            :placeholder="
+              schemaCompatibility.provision.endpoint_model_types.includes('array')
+                ? 'One model identifier per line, in priority order'
+                : ''
+            "
+          />
+          <FormInput
+            v-if="schemaCompatibility.provision.template_id"
+            v-model="configuration.provision.id"
+            label="Provisioner template ID"
+            maxlength="255"
+            input-class="font-mono"
+            placeholder="Optional template identifier"
+            class="sm:col-span-2"
+            :error="fieldError('provision.id')"
+          />
+          <FormInput
+            v-model="form.mac_address"
+            label="MAC address"
+            maxlength="64"
+            input-class="font-mono"
+            placeholder="00:11:22:33:44:55"
+            :error="fieldError('mac_address')"
+            @blur="normalizeMac"
+          />
         </div>
       </article>
     </div>
@@ -406,11 +352,3 @@ function setEnabled(value: boolean): void {
     </article>
   </div>
 </template>
-
-<style scoped>
-@reference "../../../assets/main.css";
-
-.field-control {
-  @apply h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
-}
-</style>

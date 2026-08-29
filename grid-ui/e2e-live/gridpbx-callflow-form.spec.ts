@@ -85,7 +85,9 @@ test('shows safe Menu key routes without offering the legacy hash branch', async
             target: null,
             preserved_branch_count: 0,
           },
+          direct_temporal_routes: [],
           temporal_rule_sets: {},
+          temporal_rules: [],
           destination_types: [
             { value: 'extension', label: 'Extension' },
             { value: 'menu', label: 'Menu / IVR' },
@@ -168,6 +170,7 @@ test('shows the ordered Rule Set and one schema-correct temporal match route', a
             target: null,
             preserved_branch_count: 0,
           },
+          direct_temporal_routes: [],
           temporal_rule_sets: {
             [ruleSetId]: [
               {
@@ -178,6 +181,7 @@ test('shows the ordered Rule Set and one schema-correct temporal match route', a
               },
             ],
           },
+          temporal_rules: [],
           destination_types: [
             { value: 'extension', label: 'Extension' },
             { value: 'temporal_rule_set', label: 'Business Hours / Schedule' },
@@ -218,6 +222,87 @@ test('shows the ordered Rule Set and one schema-correct temporal match route', a
   await expect(
     dialog.getByRole('button', { name: 'Schedule match destination', exact: true }),
   ).toBeVisible()
+  expect(issues).toEqual([])
+})
+
+test('orders direct Temporal Rules and configures one public match destination per rule', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const weekdayId = '24af1546-200c-4431-8f96-e05aadd75569'
+  const holidayId = 'c927fca2-86d3-4fe8-b1e7-e575c492ad0b'
+  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          mode: 'create',
+          editable: true,
+          blocked_reason: null,
+          fallback: { editable: true, blocked_reason: null, target: null },
+          menu_branches: {
+            editable: true,
+            blocked_reason: null,
+            branches: [],
+            legacy_hash_present: false,
+            unknown_branch_keys: [],
+          },
+          temporal_match: {
+            editable: true,
+            blocked_reason: null,
+            target: null,
+            preserved_branch_count: 0,
+          },
+          direct_temporal_routes: [],
+          temporal_rule_sets: {},
+          temporal_rules: [
+            { id: weekdayId, label: 'Weekdays', detail: 'Weekly recurrence' },
+            { id: holidayId, label: 'Holidays', detail: 'Yearly recurrence' },
+          ],
+          destination_types: [
+            { value: 'extension', label: 'Extension' },
+            { value: 'temporal_rules', label: 'Direct Temporal Rules' },
+          ],
+          destinations: {
+            extension: [
+              {
+                id: '16f95ac5-243c-476a-b238-9f51108f82e1',
+                label: 'Reception',
+                detail: '1000',
+              },
+            ],
+            temporal_rules: [],
+          },
+          phone_numbers: [],
+        },
+      }),
+    })
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Create route' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create call route' })
+  await dialog.getByRole('button', { name: 'Destination type' }).click()
+  await page.getByRole('option', { name: 'Direct Temporal Rules', exact: true }).click()
+
+  await expect(dialog.getByLabel('Route name')).toBeVisible()
+  await dialog.getByRole('checkbox', { name: 'Use Temporal Rule Weekdays' }).check()
+  await dialog.getByRole('checkbox', { name: 'Use Temporal Rule Holidays' }).check()
+  await expect(dialog.getByRole('heading', { name: 'Temporal Rule match routes' })).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Weekdays destination type' })).toBeVisible()
+  await expect(
+    dialog.getByRole('button', { name: 'Weekdays destination', exact: true }),
+  ).toBeVisible()
+  await expect(dialog.getByRole('button', { name: 'Holidays destination type' })).toBeVisible()
+  await expect(
+    dialog.getByRole('button', { name: 'Holidays destination', exact: true }),
+  ).toBeVisible()
+
+  await dialog.getByRole('button', { name: 'Move Holidays up' }).click()
+  const orderedRules = dialog.locator('ol li')
+  await expect(orderedRules.nth(0)).toContainText('Holidays')
+  await expect(orderedRules.nth(1)).toContainText('Weekdays')
   expect(issues).toEqual([])
 })
 
@@ -307,31 +392,32 @@ test('renders a recursive visual route map without exposing preserved Switch bra
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'View Visual diagram route' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Visual diagram route' })
-  await expect(dialog.getByRole('heading', { name: 'Visual route map' })).toBeVisible()
-  await expect(dialog.getByText('Schedule matches', { exact: true }).last()).toBeVisible()
-  await expect(dialog.getByText('Preserved branch 1', { exact: true }).last()).toBeVisible()
-  await expect(dialog.getByText('Reception', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('switch-rule-secret')).toHaveCount(0)
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await expect(workspace.getByRole('heading', { name: 'Visual route map' })).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(workspace.getByText('Schedule matches', { exact: true }).last()).toBeVisible()
+  await expect(workspace.getByText('Preserved branch 1', { exact: true }).last()).toBeVisible()
+  await expect(workspace.getByText('Reception', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('switch-rule-secret')).toHaveCount(0)
 
-  await dialog.getByRole('treeitem', { name: 'User: Reception' }).click()
-  const inspector = dialog.getByRole('region', { name: 'Selected node' })
+  await workspace.getByRole('treeitem', { name: 'User: Reception' }).click()
+  const inspector = workspace.getByRole('region', { name: 'Selected node' })
   await expect(inspector).toContainText('Root / Schedule matches')
   await expect(inspector).toContainText('user')
   await expect(inspector).toContainText('Reception')
   await expect(inspector).toContainText('Guided now')
 
-  const actionSearch = dialog.getByRole('searchbox', { name: 'Search callflow actions' })
+  const actionSearch = workspace.getByRole('searchbox', { name: 'Search callflow actions' })
   await actionSearch.fill('webhook')
-  await expect(dialog.getByText('Webhook', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('Capability required', { exact: true })).toBeVisible()
-  await expect(dialog.getByText('1 action', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('Webhook', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('Capability required', { exact: true })).toBeVisible()
+  await expect(workspace.getByText('1 action', { exact: true })).toBeVisible()
 
-  const map = dialog.getByRole('tree', { name: 'Callflow diagram' })
+  const map = workspace.getByRole('tree', { name: 'Callflow diagram' })
   const mapBox = await map.boundingBox()
-  const dialogBox = await dialog.boundingBox()
+  const workspaceBox = await workspace.boundingBox()
   expect(mapBox).not.toBeNull()
-  expect(dialogBox).not.toBeNull()
-  expect(mapBox!.x).toBeGreaterThanOrEqual(dialogBox!.x)
+  expect(workspaceBox).not.toBeNull()
+  expect(mapBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x)
   expect(issues).toEqual([])
 })

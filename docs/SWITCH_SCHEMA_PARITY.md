@@ -99,7 +99,7 @@ completion.
 | Account | `accounts.json` | hierarchy, limits, service plans, capabilities | Foundation | Safe projection matrix complete below; typed settings mutations pending | 6 |
 | Blacklist | `blacklists.json` | account activation and number entries | Foundation | Complete below | 4 |
 | CallDetailRecord | `cdrs.json` plus MODB CDR endpoints | interactions, recordings, retention | Foundation | Safe read/filter/relationship matrix complete below; retention remains policy-gated | 5 |
-| Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Selectable safe recursive diagram, node inspector, 73-module schema reference palette, root, entry-point, wildcard fallback, Menu keys, and Rule Set match/no-match routing complete; direct-rule and deeper recursive mutation editors pending | 3 |
+| Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Full-width main-page safe recursive workspace, node inspector, 73-module schema reference palette, root, entry-point, wildcard fallback, Menu keys, Rule Set routing, and ordered direct Temporal Rule match routes complete; drag-and-drop and deeper recursive mutation editors pending | 3 |
 | Conference | `conferences.json` and conference action endpoints | users, role numbers, callflows, live participants | Foundation | Form matrix complete below; actions pending | 3 |
 | Device | `devices.json` and referenced endpoint schemas | users, registrations, line keys, provisioner, numbers | Foundation | Complete below | 1 |
 | Directory | `directories.json` | users and destination callflows | Foundation | Complete below | 2 |
@@ -443,7 +443,7 @@ fields remain typed and validated at the User boundary.
 | `caller_id_options.outbound_privacy` | Editable | Implemented |
 | `directories.<directory_id>` | Managed through public Directory and Callflow relationships | Foundation; detailed Directory audit next |
 | `call_forward` | Editable through the current eight-field bounded leaf contract; destination accepts internal extensions and dialable public numbers | Implemented for managed edits |
-| `call_recording` | Editable with the complete account/endpoint, direction, and network matrix; storage URLs stay server-owned | Implemented for managed edits |
+| `call_recording` | Editable with the current User direction/network matrix; Account/Endpoint branches are Account-schema-only and storage URLs stay server-owned | Implemented for managed edits |
 | `call_restriction` | Editable from live Switch number classifications, including preserved projected legacy keys | Implemented for managed edits |
 | `dial_plan`, `formatters` | Guided bounded editors with safe-regex checks; no unrestricted JSON | Implemented for managed edits with retained-rule unknown metadata preservation |
 | `flags[]` | Values owned by external applications | Read-only count exposed; values preserved server-side and never accepted from Vue |
@@ -505,7 +505,7 @@ in the field table alone. Shared invalid styling and inline-only field error
 placement are implemented for User/Extension. Timezone, language, and presence
 now use account-backed choices that preserve existing projected values. The
 aggregate reuses the Device domain's complete Basic/Advanced editor in a wide
-relationship dialog. All eight endpoint types, the provisioner catalog,
+subview of the existing relationship drawer. All eight endpoint types, the provisioner catalog,
 conditional capabilities, Zod validation, payload mapping, Laravel validation,
 and Switch mutation translation remain owned by Devices rather than being
 duplicated in Extensions. The remaining work and intentional aggregate
@@ -554,6 +554,14 @@ the searchable mailbox fields normalized and stores the complete redacted
 response `data` object in `switch_json`. The API returns only the safe
 configuration subset and never exposes the PIN. `notify.callback` is returned
 as typed safe configuration; the form never edits raw JSON.
+
+Extension create and edit reuse the complete Voicemail field component inside
+the same right-hand aggregate drawer. The embedded flow derives the mailbox
+name, number, and owner relationship but delegates field validation and Switch
+mutation mapping to the Voicemail domain. Standalone and aggregate operations
+therefore cannot drift into separate Kazoo payload contracts. Isolated live
+verification covers aggregate create, full edit hydration, advanced
+callback/audio clearing, persistence reload, and cleanup.
 
 The Wave 2 form audit also identified incomplete UI acceptance behavior and
 conditional contracts. Shared invalid styling, inline-only field errors,

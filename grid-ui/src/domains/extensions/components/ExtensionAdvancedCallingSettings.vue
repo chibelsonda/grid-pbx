@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { ChevronDownIcon, PhoneArrowUpRightIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type {
   ExtensionCallerIdNumberOption,
   ExtensionRestrictionOption,
@@ -67,58 +67,42 @@ function setRestrictionAction(key: string, value: unknown): void {
     </header>
 
     <div class="grid gap-4 p-5 sm:grid-cols-2">
-      <label class="grid gap-2">
-        <span class="text-xs font-semibold text-slate-600">Internal caller-ID name</span>
-        <input
-          v-model="settings.caller_id.internal.name"
-          maxlength="35"
-          class="field-control"
-          :class="validationControlClass(error('caller_id.internal.name'))"
-          :aria-invalid="Boolean(error('caller_id.internal.name'))"
-        />
-        <span v-if="error('caller_id.internal.name')" class="text-[10px] text-danger">{{
-          error('caller_id.internal.name')
-        }}</span>
-      </label>
-      <label class="grid gap-2">
-        <span class="text-xs font-semibold text-slate-600">Internal caller-ID number</span>
-        <input
-          v-model="settings.caller_id.internal.number"
-          maxlength="35"
-          class="field-control"
-          :class="validationControlClass(error('caller_id.internal.number'))"
-          :aria-invalid="Boolean(error('caller_id.internal.number'))"
-        />
-        <span v-if="error('caller_id.internal.number')" class="text-[10px] text-danger">{{
-          error('caller_id.internal.number')
-        }}</span>
-      </label>
+      <FormInput
+        v-model="settings.caller_id.internal.name"
+        label="Internal caller-ID name"
+        maxlength="35"
+        :error="error('caller_id.internal.name')"
+      />
+      <FormInput
+        v-model="settings.caller_id.internal.number"
+        label="Internal caller-ID number"
+        maxlength="35"
+        :error="error('caller_id.internal.number')"
+      />
 
-      <template v-for="scope in (['external', 'emergency'] as const)" :key="scope">
-        <label class="grid gap-2">
-          <span class="text-xs font-semibold capitalize text-slate-600">{{ scope }} caller-ID name</span>
-          <input
-            v-model="settings.caller_id[scope].name"
-            maxlength="35"
-            class="field-control"
-            :class="validationControlClass(error(`caller_id.${scope}.name`))"
-            :aria-invalid="Boolean(error(`caller_id.${scope}.name`))"
-          />
-          <span v-if="error(`caller_id.${scope}.name`)" class="text-[10px] text-danger">{{
-            error(`caller_id.${scope}.name`)
-          }}</span>
-        </label>
+      <template v-for="scope in ['external', 'emergency'] as const" :key="scope">
+        <FormInput
+          v-model="settings.caller_id[scope].name"
+          :label="`${scope} caller-ID name`"
+          class="capitalize"
+          maxlength="35"
+          :error="error(`caller_id.${scope}.name`)"
+        />
         <div class="grid gap-2">
-          <span class="text-xs font-semibold capitalize text-slate-600">{{ scope }} caller-ID number</span>
+          <span class="text-xs font-semibold capitalize text-slate-600"
+            >{{ scope }} caller-ID number</span
+          >
           <FormListbox
             :model-value="settings.caller_id[scope].phone_number_id"
             :options="phoneOptions(scope === 'emergency')"
             :invalid="Boolean(error(`caller_id.${scope}.phone_number_id`))"
             @update:model-value="selectNumber(scope, $event)"
           />
-          <span v-if="error(`caller_id.${scope}.phone_number_id`)" class="text-[10px] text-danger">{{
-            error(`caller_id.${scope}.phone_number_id`)
-          }}</span>
+          <span
+            v-if="error(`caller_id.${scope}.phone_number_id`)"
+            class="text-[10px] text-danger"
+            >{{ error(`caller_id.${scope}.phone_number_id`) }}</span
+          >
           <div
             v-if="settings.caller_id[scope].preserve_number"
             class="rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] leading-4 text-amber-800"
@@ -139,21 +123,15 @@ function setRestrictionAction(key: string, value: unknown): void {
         description="Forward calls to another extension or public number"
         class="rounded-md border border-slate-200 p-3 sm:col-span-2"
       />
-      <label class="grid gap-2 sm:col-span-2">
-        <span class="text-xs font-semibold text-slate-600">Forwarding destination</span>
-        <input
-          v-model="settings.call_forward.number"
-          maxlength="35"
-          inputmode="tel"
-          class="field-control"
-          :disabled="!settings.call_forward.enabled"
-          :class="validationControlClass(error('call_forward.number'))"
-          :aria-invalid="Boolean(error('call_forward.number'))"
-        />
-        <span v-if="error('call_forward.number')" class="text-[10px] text-danger">{{
-          error('call_forward.number')
-        }}</span>
-      </label>
+      <FormInput
+        v-model="settings.call_forward.number"
+        label="Forwarding destination"
+        class="sm:col-span-2"
+        maxlength="35"
+        inputmode="tel"
+        :disabled="!settings.call_forward.enabled"
+        :error="error('call_forward.number')"
+      />
 
       <Disclosure v-slot="{ open }" as="div" class="sm:col-span-2">
         <DisclosureButton
@@ -163,12 +141,21 @@ function setRestrictionAction(key: string, value: unknown): void {
           <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
         </DisclosureButton>
         <DisclosurePanel class="grid gap-3 border-x border-b border-slate-200 p-4 sm:grid-cols-2">
-          <ToggleSwitch v-model="settings.call_forward.direct_calls_only" label="Direct calls only" />
+          <ToggleSwitch
+            v-model="settings.call_forward.direct_calls_only"
+            label="Direct calls only"
+          />
           <ToggleSwitch v-model="settings.call_forward.failover" label="Use as failover" />
-          <ToggleSwitch v-model="settings.call_forward.ignore_early_media" label="Ignore early media" />
+          <ToggleSwitch
+            v-model="settings.call_forward.ignore_early_media"
+            label="Ignore early media"
+          />
           <ToggleSwitch v-model="settings.call_forward.keep_caller_id" label="Keep caller ID" />
           <ToggleSwitch v-model="settings.call_forward.require_keypress" label="Require keypress" />
-          <ToggleSwitch v-model="settings.call_forward.substitute" label="Replace the user endpoint" />
+          <ToggleSwitch
+            v-model="settings.call_forward.substitute"
+            label="Replace the user endpoint"
+          />
         </DisclosurePanel>
       </Disclosure>
     </div>

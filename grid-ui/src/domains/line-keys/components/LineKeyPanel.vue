@@ -3,11 +3,11 @@ import { computed } from 'vue'
 import { PlusIcon, TrashIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useLineKeyForm } from '../composables/useLineKeyForm'
 import type { LineKeyInput, LineKeyPreview, LineKeyType } from '../types/lineKey'
 
@@ -345,24 +345,16 @@ function submit(): void {
                       fieldError(index, 'category')
                     }}</span></label
                   >
-                  <label class="grid gap-1"
-                    ><span class="text-[10px] font-semibold text-slate-500">Position</span
-                    ><span
-                      v-if="positionLocation(key.position)"
-                      class="text-[10px] text-slate-400"
-                      >{{ positionLocation(key.position) }}</span
-                    ><input
-                      v-model.number="key.position"
-                      type="number"
-                      min="0"
-                      :max="maximumPosition"
-                      class="h-9 rounded-md border border-slate-200 px-2 text-xs outline-none"
-                      :class="validationControlClass(fieldError(index, 'position'))"
-                      :aria-invalid="Boolean(fieldError(index, 'position'))"
-                    /><span v-if="fieldError(index, 'position')" class="text-[10px] text-danger">{{
-                      fieldError(index, 'position')
-                    }}</span></label
-                  >
+                  <FormInput
+                    v-model.number="key.position"
+                    label="Position"
+                    type="number"
+                    min="0"
+                    :max="maximumPosition"
+                    :description="positionLocation(key.position)"
+                    input-class="h-9 px-2"
+                    :error="fieldError(index, 'position')"
+                  />
                   <label class="grid gap-1"
                     ><span class="text-[10px] font-semibold text-slate-500">Type</span
                     ><FormListbox
@@ -390,39 +382,31 @@ function submit(): void {
                         >Account-scoped choices from the model's allowlisted value sources.</span
                       ></label
                     >
-                    <label class="grid gap-1"
-                      ><span class="text-[10px] font-semibold text-slate-500">Value</span
-                      ><input
-                        v-if="key.type === 'parking'"
-                        v-model.number="key.value"
-                        type="number"
-                        min="1"
-                        max="10"
-                        class="h-9 rounded-md border border-slate-200 px-2 text-xs outline-none"
-                        :class="validationControlClass(fieldError(index, 'value'))"
-                        :aria-invalid="Boolean(fieldError(index, 'value'))"
-                      /><input
-                        v-else
-                        v-model="key.value"
-                        maxlength="255"
-                        class="h-9 rounded-md border border-slate-200 px-2 text-xs outline-none"
-                        :class="validationControlClass(fieldError(index, 'value'))"
-                        :aria-invalid="Boolean(fieldError(index, 'value'))"
-                      /><span v-if="fieldError(index, 'value')" class="text-[10px] text-danger">{{
-                        fieldError(index, 'value')
-                      }}</span></label
-                    ><label class="grid gap-1"
-                      ><span class="text-[10px] font-semibold text-slate-500">Label</span
-                      ><input
-                        v-model="key.label"
-                        maxlength="255"
-                        class="h-9 rounded-md border border-slate-200 px-2 text-xs outline-none"
-                        :class="validationControlClass(fieldError(index, 'label'))"
-                        :aria-invalid="Boolean(fieldError(index, 'label'))"
-                      /><span v-if="fieldError(index, 'label')" class="text-[10px] text-danger">{{
-                        fieldError(index, 'label')
-                      }}</span></label
-                    >
+                    <FormInput
+                      v-if="key.type === 'parking'"
+                      v-model.number="key.value"
+                      label="Value"
+                      type="number"
+                      min="1"
+                      max="10"
+                      input-class="h-9 px-2"
+                      :error="fieldError(index, 'value')"
+                    />
+                    <FormInput
+                      v-else
+                      v-model="key.value"
+                      label="Value"
+                      maxlength="255"
+                      input-class="h-9 px-2"
+                      :error="fieldError(index, 'value')"
+                    />
+                    <FormInput
+                      v-model="key.label"
+                      label="Label"
+                      maxlength="255"
+                      input-class="h-9 px-2"
+                      :error="fieldError(index, 'label')"
+                    />
                   </div>
                   <button
                     v-if="canManage"

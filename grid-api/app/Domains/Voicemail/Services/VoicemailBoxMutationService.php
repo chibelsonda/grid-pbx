@@ -17,6 +17,7 @@ class VoicemailBoxMutationService
 {
     public function __construct(
         private readonly SwitchVoicemailBoxGateway $gateway,
+        private readonly VoicemailMutationDataFactory $mutationData,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly AuditService $audit,
     ) {}
@@ -29,7 +30,7 @@ class VoicemailBoxMutationService
         ?string $ipAddress = null,
     ): SwitchVoicemailBox {
         try {
-            $snapshot = $this->gateway->create($account, $this->mutationData($account, $data));
+            $snapshot = $this->gateway->create($account, $this->mutationData->make($account, $data));
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchVoicemailBox {
                 $voicemailBox = $this->project($account, $snapshot);
@@ -64,7 +65,7 @@ class VoicemailBoxMutationService
             $snapshot = $this->gateway->update(
                 $account,
                 $voicemailBox->switch_resource_id,
-                $this->mutationData($account, $data, $voicemailBox),
+                $this->mutationData->make($account, $data, existingVoicemailBox: $voicemailBox),
             );
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchVoicemailBox {
@@ -127,47 +128,6 @@ class VoicemailBoxMutationService
             );
             throw $exception;
         }
-    }
-
-    /** @param array<string, mixed> $data
-     * @return array<string, mixed>
-     */
-    private function mutationData(
-        SwitchAccount $account,
-        array $data,
-        ?SwitchVoicemailBox $existingVoicemailBox = null,
-    ): array {
-        $extension = isset($data['assigned_extension_id'])
-            ? $account->extensions()->where('id', $data['assigned_extension_id'])->firstOrFail()
-            : null;
-
-        return [
-            'name' => $data['name'],
-            'mailbox' => $data['mailbox'],
-            'owner_switch_resource_id' => $extension?->switch_resource_id,
-            'timezone' => $data['timezone'] ?? null,
-            'notification_emails' => array_values($data['notification_emails']),
-            'transcribe' => $data['transcribe'],
-            'require_pin' => $data['require_pin'],
-            'pin' => $data['pin'] ?? null,
-            'check_if_owner' => $data['check_if_owner'] ?? null,
-            'delete_after_notify' => $data['delete_after_notify'] ?? null,
-            'include_message_on_notify' => $data['include_message_on_notify'] ?? null,
-            'include_transcription_on_notify' => $data['include_transcription_on_notify'] ?? null,
-            'media_extension' => $data['media_extension'] ?? null,
-            'not_configurable' => $data['not_configurable'] ?? null,
-            'oldest_message_first' => $data['oldest_message_first'] ?? null,
-            'save_after_notify' => $data['save_after_notify'] ?? null,
-            'skip_envelope' => $data['skip_envelope'] ?? null,
-            'skip_greeting' => $data['skip_greeting'] ?? null,
-            'skip_instructions' => $data['skip_instructions'] ?? null,
-            'is_voicemail_ff_rw_enabled' => $data['is_voicemail_ff_rw_enabled'] ?? null,
-            'seek_duration_ms' => $data['seek_duration_ms'] ?? null,
-            'flags' => $this->stringList(
-                $existingVoicemailBox === null ? null : ($existingVoicemailBox->switch_json['flags'] ?? null),
-            ),
-            'notify_callback' => $data['notify_callback'],
-        ];
     }
 
     /** @param array<string, mixed> $snapshot */

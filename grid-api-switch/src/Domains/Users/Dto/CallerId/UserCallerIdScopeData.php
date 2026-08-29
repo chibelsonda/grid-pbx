@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Users\Dto\CallerId;
 
+use stdClass;
+
 final readonly class UserCallerIdScopeData
 {
     /** @param array<string, mixed> $preservedOptions */
@@ -13,12 +15,14 @@ final readonly class UserCallerIdScopeData
         public array $preservedOptions = [],
     ) {}
 
-    /** @return array<string, mixed> */
-    public function toSwitchData(): array
+    /** @return array<string, mixed>|stdClass */
+    public function toSwitchData(): array|stdClass
     {
-        return array_merge($this->preservedOptions, [
+        $data = array_merge($this->preservedOptions, array_filter([
             'name' => $this->name,
             'number' => $this->number,
-        ]);
+        ], static fn (?string $value): bool => $value !== null));
+
+        return $data === [] ? new stdClass : $data;
     }
 }

@@ -10,6 +10,7 @@ import {
   extensionUpdateSchema,
   extensionUpdateSchemaFor,
 } from './extensionFormSchema'
+import { defaultVoicemailBoxConfiguration } from '@/domains/voicemail/voicemailForm'
 
 function validInput() {
   return {
@@ -28,10 +29,17 @@ function validInput() {
     hotdesk: defaultExtensionHotdeskInput(),
     voicemail: {
       enabled: true,
-      notification_emails: ['alice@example.test'],
-      transcribe: false,
-      require_pin: true,
-      pin: '1234',
+      input: {
+        name: '(1001) Alice Operator',
+        mailbox: '1001',
+        assigned_extension_id: null,
+        timezone: 'Asia/Manila',
+        notification_emails: ['alice@example.test'],
+        transcribe: false,
+        require_pin: true,
+        pin: '1234',
+        ...defaultVoicemailBoxConfiguration(),
+      },
     },
   }
 }
@@ -59,7 +67,10 @@ describe('extension form schemas', () => {
     expect(
       extensionUpdateSchema.safeParse({
         ...validUpdateInput(),
-        voicemail: { ...input.voicemail, pin: null },
+        voicemail: {
+          ...validUpdateInput().voicemail,
+          input: { ...validUpdateInput().voicemail.input!, pin: null },
+        },
       }).success,
     ).toBe(true)
   })
@@ -90,11 +101,10 @@ describe('extension form schemas', () => {
     )
   })
 
-  it('rejects invalid identity, mailbox, and missing initial-device configuration', () => {
+  it('rejects invalid identity and missing initial-device configuration', () => {
     const result = extensionCreateSchema.safeParse({
       ...validInput(),
       extension: '1A',
-      voicemail: { ...validInput().voicemail, pin: null },
       device: {
         enabled: true,
         input: null,
@@ -105,7 +115,7 @@ describe('extension form schemas', () => {
     if (result.success) return
 
     expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
-      expect.arrayContaining(['extension', 'voicemail.pin', 'device.input']),
+      expect.arrayContaining(['extension', 'device.input']),
     )
   })
 

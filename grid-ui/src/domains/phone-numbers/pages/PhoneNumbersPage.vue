@@ -6,10 +6,10 @@ import {
   ChevronRightIcon,
   HashtagIcon,
   LinkIcon,
-  MagnifyingGlassIcon,
   MapPinIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import PhoneNumberDetailPanel from '../components/PhoneNumberDetailPanel.vue'
 import { usePhoneNumberStore } from '../stores/phoneNumberStore'
 
@@ -136,15 +136,7 @@ function humanize(value: string | null): string {
       class="mb-4 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_180px_auto]"
       @submit.prevent="search"
     >
-      <label class="relative"
-        ><span class="sr-only">Search phone numbers</span
-        ><MagnifyingGlassIcon
-          class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" /><input
-          v-model="phoneNumbers.filters.search"
-          type="search"
-          placeholder="Search number, carrier, CNAM, route…"
-          class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
-      /></label>
+      <SearchInput v-model="phoneNumbers.filters.search" label="Search phone numbers" placeholder="Search number, carrier, CNAM, route…" input-class="h-10 bg-white text-xs shadow-sm" />
       <FormSelect
         v-model="phoneNumbers.filters.state"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none"

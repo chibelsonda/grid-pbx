@@ -191,11 +191,12 @@ class CallflowControllerTest extends TestCase
                 SwitchAccount $account,
                 string $name,
                 string $destinationModule,
-                string $destinationResourceId,
+                ?string $destinationResourceId,
                 array $phoneNumbers,
                 ?string $fallbackModule = null,
                 ?string $fallbackResourceId = null,
                 array $menuBranches = [],
+                array $destinationTemporalRuleIds = [],
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -204,7 +205,7 @@ class CallflowControllerTest extends TestCase
                 SwitchAccount $account,
                 string $resourceId,
                 string $destinationModule,
-                string $destinationResourceId,
+                ?string $destinationResourceId,
                 ?string $name,
                 array $assignedPhoneNumbers,
                 array $knownPhoneNumbers,
@@ -212,6 +213,7 @@ class CallflowControllerTest extends TestCase
                 ?string $fallbackModule = null,
                 ?string $fallbackResourceId = null,
                 array $menuBranchOperations = [],
+                array $destinationTemporalRuleIds = [],
             ): array {
                 $this->received = compact(
                     'resourceId',
@@ -735,6 +737,196 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.flow.children.rule_set.branch.label', 'Schedule matches');
     }
 
+    public function test_it_creates_reorders_and_clears_direct_temporal_rule_routes_with_public_ids(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $weekday = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-rule-weekday',
+            'name' => 'Weekday',
+        ]);
+        $holiday = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-rule-holiday',
+            'name' => 'Holiday',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+        ]);
+        $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-mailbox-closed',
+            'name' => 'Closed mailbox',
+        ]);
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550000903',
+            'assigned_callflow_id' => null,
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')->once()->withArgs(fn (
+            SwitchAccount $received,
+            string $name,
+            string $module,
+            ?string $resourceId,
+            array $numbers,
+            ?string $fallbackModule,
+            ?string $fallbackResourceId,
+            array $branches,
+            array $ruleIds,
+        ): bool => $received->is($account)
+            && $name === 'Direct schedule'
+            && $module === 'temporal_route'
+            && $resourceId === null
+            && $numbers === ['+15550000903']
+            && $fallbackModule === null
+            && $fallbackResourceId === null
+            && $ruleIds === ['switch-rule-holiday', 'switch-rule-weekday']
+            && $branches === [
+                [
+                    'key' => 'switch-rule-holiday',
+                    'module' => 'voicemail',
+                    'resource_id' => 'switch-mailbox-closed',
+                ],
+                [
+                    'key' => 'switch-rule-weekday',
+                    'module' => 'user',
+                    'resource_id' => 'switch-user-reception',
+                ],
+            ])
+            ->andReturn([
+                'id' => 'switch-callflow-direct-temporal',
+                'name' => 'Direct schedule',
+                'numbers' => ['+15550000903'],
+                'flow' => [
+                    'module' => 'temporal_route',
+                    'data' => ['rules' => ['switch-rule-holiday', 'switch-rule-weekday']],
+                    'children' => [
+                        'switch-rule-holiday' => [
+                            'module' => 'voicemail',
+                            'data' => ['id' => 'switch-mailbox-closed'],
+                            'children' => [],
+                        ],
+                        'switch-rule-weekday' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'switch-user-reception'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+        $gateway->shouldReceive('updateDestination')->once()->withArgs(fn (
+            SwitchAccount $received,
+            string $callflowResourceId,
+            string $module,
+            ?string $resourceId,
+            ?string $name,
+            array $assignedNumbers,
+            array $knownNumbers,
+            bool $replaceFallback,
+            ?string $fallbackModule,
+            ?string $fallbackResourceId,
+            array $branches,
+            array $ruleIds,
+        ): bool => $received->is($account)
+            && $callflowResourceId === 'switch-callflow-direct-temporal'
+            && $module === 'temporal_route'
+            && $resourceId === null
+            && $name === 'Direct schedule'
+            && $assignedNumbers === ['+15550000903']
+            && $knownNumbers === ['+15550000903']
+            && ! $replaceFallback
+            && $fallbackModule === null
+            && $fallbackResourceId === null
+            && $ruleIds === ['switch-rule-weekday']
+            && $branches === [
+                [
+                    'key' => 'switch-rule-holiday',
+                    'module' => null,
+                    'resource_id' => null,
+                ],
+                [
+                    'key' => 'switch-rule-weekday',
+                    'module' => 'voicemail',
+                    'resource_id' => 'switch-mailbox-closed',
+                ],
+            ])
+            ->andReturn([
+                'id' => 'switch-callflow-direct-temporal',
+                'name' => 'Direct schedule',
+                'numbers' => ['+15550000903'],
+                'flow' => [
+                    'module' => 'temporal_route',
+                    'data' => ['rules' => ['switch-rule-weekday']],
+                    'children' => [
+                        'switch-rule-weekday' => [
+                            'module' => 'voicemail',
+                            'data' => ['id' => 'switch-mailbox-closed'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $createdResponse = $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Direct schedule',
+                'destination_type' => 'temporal_rules',
+                'destination_id' => null,
+                'temporal_rule_ids' => [$holiday->id, $weekday->id],
+                'temporal_rule_routes' => [
+                    [
+                        'rule_id' => $holiday->id,
+                        'destination_type' => 'voicemail',
+                        'destination_id' => $voicemail->id,
+                    ],
+                    [
+                        'rule_id' => $weekday->id,
+                        'destination_type' => 'extension',
+                        'destination_id' => $extension->id,
+                    ],
+                ],
+                'phone_number_ids' => [$phoneNumber->id],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.flow.temporal_rules.0.id', $holiday->id)
+            ->assertJsonPath('data.flow.temporal_rules.1.id', $weekday->id)
+            ->assertJsonPath('data.flow.children.preserved_1.target.id', $voicemail->id)
+            ->assertJsonPath('data.flow.children.preserved_2.target.id', $extension->id);
+        $this->assertStringNotContainsString('switch-rule-holiday', $createdResponse->getContent());
+        $this->assertStringNotContainsString('switch-rule-weekday', $createdResponse->getContent());
+
+        $callflow = $account->callflows()
+            ->where('switch_resource_id', 'switch-callflow-direct-temporal')
+            ->firstOrFail();
+        $editorResponse = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.direct_temporal_routes.0.rule_id', $holiday->id)
+            ->assertJsonPath('data.direct_temporal_routes.0.target.id', $voicemail->id)
+            ->assertJsonPath('data.direct_temporal_routes.1.rule_id', $weekday->id)
+            ->assertJsonPath('data.direct_temporal_routes.1.target.id', $extension->id);
+        $this->assertStringNotContainsString('switch-rule-holiday', $editorResponse->getContent());
+        $this->assertStringNotContainsString('switch-rule-weekday', $editorResponse->getContent());
+
+        $updatedResponse = $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
+                'name' => 'Direct schedule',
+                'destination_type' => 'temporal_rules',
+                'destination_id' => null,
+                'temporal_rule_ids' => [$weekday->id],
+                'temporal_rule_routes' => [[
+                    'rule_id' => $weekday->id,
+                    'destination_type' => 'voicemail',
+                    'destination_id' => $voicemail->id,
+                ]],
+                'phone_number_ids' => [$phoneNumber->id],
+            ])
+            ->assertOk()
+            ->assertJsonCount(1, 'data.flow.temporal_rules')
+            ->assertJsonPath('data.flow.temporal_rules.0.id', $weekday->id)
+            ->assertJsonPath('data.flow.children.preserved_1.target.id', $voicemail->id);
+        $this->assertStringNotContainsString('switch-rule-holiday', $updatedResponse->getContent());
+        $this->assertStringNotContainsString('switch-rule-weekday', $updatedResponse->getContent());
+    }
+
     public function test_it_clears_the_rule_set_match_branch_and_preserves_legacy_temporal_children(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -872,11 +1064,12 @@ class CallflowControllerTest extends TestCase
                 SwitchAccount $account,
                 string $name,
                 string $destinationModule,
-                string $destinationResourceId,
+                ?string $destinationResourceId,
                 array $phoneNumbers,
                 ?string $fallbackModule = null,
                 ?string $fallbackResourceId = null,
                 array $menuBranches = [],
+                array $destinationTemporalRuleIds = [],
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -885,7 +1078,7 @@ class CallflowControllerTest extends TestCase
                 SwitchAccount $account,
                 string $resourceId,
                 string $destinationModule,
-                string $destinationResourceId,
+                ?string $destinationResourceId,
                 ?string $name,
                 array $assignedPhoneNumbers,
                 array $knownPhoneNumbers,
@@ -893,6 +1086,7 @@ class CallflowControllerTest extends TestCase
                 ?string $fallbackModule = null,
                 ?string $fallbackResourceId = null,
                 array $menuBranchOperations = [],
+                array $destinationTemporalRuleIds = [],
             ): array {
                 throw new \LogicException('Conflicting assignments must be rejected before Switch is called.');
             }
@@ -942,11 +1136,12 @@ class CallflowControllerTest extends TestCase
                 SwitchAccount $account,
                 string $name,
                 string $destinationModule,
-                string $destinationResourceId,
+                ?string $destinationResourceId,
                 array $phoneNumbers,
                 ?string $fallbackModule = null,
                 ?string $fallbackResourceId = null,
                 array $menuBranches = [],
+                array $destinationTemporalRuleIds = [],
             ): array {
                 $this->received = compact(
                     'name',
@@ -983,7 +1178,7 @@ class CallflowControllerTest extends TestCase
                 SwitchAccount $account,
                 string $resourceId,
                 string $destinationModule,
-                string $destinationResourceId,
+                ?string $destinationResourceId,
                 ?string $name,
                 array $assignedPhoneNumbers,
                 array $knownPhoneNumbers,
@@ -991,6 +1186,7 @@ class CallflowControllerTest extends TestCase
                 ?string $fallbackModule = null,
                 ?string $fallbackResourceId = null,
                 array $menuBranchOperations = [],
+                array $destinationTemporalRuleIds = [],
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -1065,12 +1261,12 @@ class CallflowControllerTest extends TestCase
         {
             public ?string $deletedResourceId = null;
 
-            public function create(SwitchAccount $account, string $name, string $destinationModule, string $destinationResourceId, array $phoneNumbers, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranches = []): array
+            public function create(SwitchAccount $account, string $name, string $destinationModule, ?string $destinationResourceId, array $phoneNumbers, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranches = [], array $destinationTemporalRuleIds = []): array
             {
                 throw new \LogicException('Not used by this test.');
             }
 
-            public function updateDestination(SwitchAccount $account, string $resourceId, string $destinationModule, string $destinationResourceId, ?string $name, array $assignedPhoneNumbers, array $knownPhoneNumbers, bool $replaceFallback = false, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranchOperations = []): array
+            public function updateDestination(SwitchAccount $account, string $resourceId, string $destinationModule, ?string $destinationResourceId, ?string $name, array $assignedPhoneNumbers, array $knownPhoneNumbers, bool $replaceFallback = false, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranchOperations = [], array $destinationTemporalRuleIds = []): array
             {
                 throw new \LogicException('Not used by this test.');
             }

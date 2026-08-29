@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { ArrowDownIcon, ArrowUpIcon, CalendarDaysIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useTemporalRuleSetForm } from '../composables/useTemporalRuleSetForm'
 import TemporalEffectiveStatus from './TemporalEffectiveStatus.vue'
@@ -84,19 +86,12 @@ function submit(): void {
             </div>
           </header>
           <div class="grid gap-5 p-5">
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Name</span
-              ><input
-                v-model="form.name"
-                aria-label="Name"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span></label
-            >
+            <FormInput
+              v-model="form.name"
+              label="Name"
+              maxlength="128"
+              :error="fieldError('name')"
+            />
 
             <div class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Available schedule rules</span>
@@ -105,20 +100,15 @@ function submit(): void {
                 :class="validationControlClass(fieldError('rule_ids'))"
                 :aria-invalid="Boolean(fieldError('rule_ids'))"
               >
-                <label
+                <FormCheckbox
                   v-for="rule in options.rules"
                   :key="rule.id"
-                  class="flex cursor-pointer items-center gap-3 rounded-md border border-slate-300 px-4 py-3 hover:bg-slate-50"
-                  ><input
-                    v-model="form.rule_ids"
-                    type="checkbox"
-                    :value="rule.id"
-                    class="size-4 accent-brand-500"
-                  /><span
-                    ><span class="block text-xs font-semibold text-slate-700">{{ rule.label }}</span
-                    ><span class="text-[10px] text-slate-500">{{ rule.detail }}</span></span
-                  ></label
-                >
+                  :model-value="form.rule_ids"
+                  :value="rule.id"
+                  :label="rule.label"
+                  :description="rule.detail"
+                  @update:model-value="form.rule_ids = $event as string[]"
+                />
                 <p v-if="!options.rules.length" class="p-2 text-xs text-slate-500">
                   Create at least one temporal rule first.
                 </p>

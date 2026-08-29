@@ -2,11 +2,11 @@
 import { computed } from 'vue'
 import { BoltIcon, UserCircleIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useAgentStatusForm } from '../composables/useAgentStatusForm'
 import type { Agent, AgentStatus, AgentStatusInput } from '../types/queue'
 
@@ -30,7 +30,13 @@ const statusOptions: ListboxOptionValue[] = [
 ]
 
 function setStatus(value: ListboxValue): void {
-  if (value === 'login' || value === 'logout' || value === 'pause' || value === 'resume' || value === 'end_wrapup') {
+  if (
+    value === 'login' ||
+    value === 'logout' ||
+    value === 'pause' ||
+    value === 'resume' ||
+    value === 'end_wrapup'
+  ) {
     form.status = value
   }
 }
@@ -93,20 +99,20 @@ function submit(): void {
               aria-label="Agent status action"
               :invalid="Boolean(errors.status)"
               @update:model-value="setStatus"
-            /><span v-if="errors.status" class="text-[10px] text-danger">{{ errors.status[0] }}</span></label
-          ><label v-if="form.status === 'pause'" class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Pause timeout (seconds)</span
-            ><input
-              v-model.number="form.pause_timeout"
-              type="number"
-              min="0"
-              max="86400"
-              required
-              class="field-control"
-              :class="validationControlClass(errors.pause_timeout)"
-              :aria-invalid="Boolean(errors.pause_timeout)"
-            /><span v-if="errors.pause_timeout" class="text-[10px] text-danger">{{ errors.pause_timeout[0] }}</span></label
-          >
+            /><span v-if="errors.status" class="text-[10px] text-danger">{{
+              errors.status[0]
+            }}</span></label
+          ><FormInput
+            v-if="form.status === 'pause'"
+            :model-value="form.pause_timeout ?? null"
+            label="Pause timeout (seconds)"
+            type="number"
+            min="0"
+            max="86400"
+            required
+            :error="errors.pause_timeout"
+            @update:model-value="form.pause_timeout = Number($event)"
+          />
         </div>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">

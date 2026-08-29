@@ -46,7 +46,10 @@ final readonly class UserMediaData
         $data['bypass_media'] = $this->bypassMedia;
         $data['fax_option'] = $this->faxOption;
         $data['ignore_early_media'] = $this->ignoreEarlyMedia;
-        $data['progress_timeout'] = $this->progressTimeout;
+
+        if ($this->progressTimeout !== null) {
+            $data['progress_timeout'] = $this->progressTimeout;
+        }
 
         return $data;
     }

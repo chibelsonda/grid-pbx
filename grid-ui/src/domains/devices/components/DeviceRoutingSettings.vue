@@ -2,9 +2,10 @@
 import { computed } from 'vue'
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { ChevronDownIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import FormTextarea from '@/shared/components/FormTextarea.vue'
 import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type {
   DeviceConfiguration,
   DeviceMetaflowResources,
@@ -54,10 +55,6 @@ const generalFlags = useDelimitedStringList(
 
 function error(field: string): string | null {
   return props.fieldErrors[field]?.[0] ?? null
-}
-
-function invalidClass(field: string): string {
-  return validationControlClass(error(field))
 }
 
 function addHeader(direction: 'in' | 'out'): void {
@@ -114,30 +111,22 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               {{ error('music_on_hold.media_id') }}
             </span>
           </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Static outbound flags</span>
-            <textarea
-              v-model="staticFlags"
-              rows="2"
-              class="field-control min-h-20 py-2"
-              :class="invalidClass('outbound_flags.static')"
-              :aria-invalid="Boolean(error('outbound_flags.static'))"
-              placeholder="fax, trusted"
-            />
-            <span class="text-[10px] text-slate-400">Separate flags with commas or new lines.</span>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Dynamic outbound flags</span>
-            <textarea
-              v-model="dynamicFlags"
-              rows="2"
-              class="field-control min-h-20 py-2"
-              :class="invalidClass('outbound_flags.dynamic')"
-              :aria-invalid="Boolean(error('outbound_flags.dynamic'))"
-              placeholder="Optional runtime flags"
-            />
-            <span class="text-[10px] text-slate-400">Resolved by the Switch at call time.</span>
-          </label>
+          <FormTextarea
+            v-model="staticFlags"
+            label="Static outbound flags"
+            rows="2"
+            placeholder="fax, trusted"
+            description="Separate flags with commas or new lines."
+            :error="error('outbound_flags.static')"
+          />
+          <FormTextarea
+            v-model="dynamicFlags"
+            label="Dynamic outbound flags"
+            rows="2"
+            placeholder="Optional runtime flags"
+            description="Resolved by the Switch at call time."
+            :error="error('outbound_flags.dynamic')"
+          />
         </DisclosurePanel>
       </div>
     </Disclosure>
@@ -151,20 +140,14 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
           <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
         </DisclosureButton>
         <DisclosurePanel class="grid gap-5 border-t border-slate-100 p-4">
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Application flags</span>
-            <textarea
-              v-model="generalFlags"
-              rows="2"
-              class="field-control min-h-20 py-2"
-              :class="invalidClass('flags')"
-              :aria-invalid="Boolean(error('flags'))"
-              placeholder="crm_managed, priority_endpoint"
-            />
-            <span class="text-[10px] text-slate-400">
-              Flags consumed by external applications; separate with commas or new lines.
-            </span>
-          </label>
+          <FormTextarea
+            v-model="generalFlags"
+            label="Application flags"
+            rows="2"
+            placeholder="crm_managed, priority_endpoint"
+            description="Flags consumed by external applications; separate with commas or new lines."
+            :error="error('flags')"
+          />
           <DeviceFormatterSettings v-model="configuration.formatters" :field-errors="fieldErrors" />
         </DisclosurePanel>
       </div>
@@ -187,17 +170,16 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
           <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
         </DisclosureButton>
         <DisclosurePanel class="grid gap-4 border-t border-slate-100 p-4 sm:grid-cols-3">
-          <label v-for="field in provisioningEventFields" :key="field.key" class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">{{ field.label }}</span>
-            <input
-              v-model="configuration.provision[field.key]"
-              maxlength="255"
-              class="field-control font-mono"
-              :class="invalidClass(`provision.${field.key}`)"
-              :aria-invalid="Boolean(error(`provision.${field.key}`))"
-              placeholder="Switch default"
-            />
-          </label>
+          <FormInput
+            v-for="field in provisioningEventFields"
+            :key="field.key"
+            v-model="configuration.provision[field.key]"
+            :label="field.label"
+            maxlength="255"
+            input-class="font-mono"
+            placeholder="Switch default"
+            :error="error(`provision.${field.key}`)"
+          />
           <p class="text-[10px] leading-4 text-slate-400 sm:col-span-3">
             These optional event names configure how this provisioned endpoint reacts to Switch
             check-sync requests. Reload and reboot commands remain explicit actions on the detail
@@ -241,23 +223,22 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               :key="`${direction}-${index}`"
               class="grid grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)_auto] gap-2"
             >
-              <input
+              <FormInput
                 v-model="header.name"
+                label="Header name"
                 maxlength="128"
-                class="field-control font-mono"
-                :class="invalidClass(`sip.custom_sip_headers.${direction}.${index}.name`)"
-                :aria-invalid="Boolean(error(`sip.custom_sip_headers.${direction}.${index}.name`))"
+                input-class="font-mono"
                 placeholder="X-Header"
                 :aria-label="`${direction} SIP header name`"
+                :error="error(`sip.custom_sip_headers.${direction}.${index}.name`)"
               />
-              <input
+              <FormInput
                 v-model="header.value"
+                label="Header value"
                 maxlength="1024"
-                class="field-control"
-                :class="invalidClass(`sip.custom_sip_headers.${direction}.${index}.value`)"
-                :aria-invalid="Boolean(error(`sip.custom_sip_headers.${direction}.${index}.value`))"
                 placeholder="Value"
                 :aria-label="`${direction} SIP header value`"
+                :error="error(`sip.custom_sip_headers.${direction}.${index}.value`)"
               />
               <button
                 type="button"
@@ -285,16 +266,12 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
           <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
         </DisclosureButton>
         <DisclosurePanel class="grid gap-4 border-t border-slate-100 p-4">
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">System dial plans</span>
-            <input
-              v-model="systemDialPlans"
-              class="field-control"
-              :class="invalidClass('dial_plan.system')"
-              :aria-invalid="Boolean(error('dial_plan.system'))"
-              placeholder="System plan names, comma separated"
-            />
-          </label>
+          <FormInput
+            v-model="systemDialPlans"
+            label="System dial plans"
+            placeholder="System plan names, comma separated"
+            :error="error('dial_plan.system')"
+          />
           <div class="flex items-center justify-between">
             <p class="text-[10px] text-slate-400">Regex rules modify locally dialed numbers.</p>
             <button
@@ -310,29 +287,34 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
             :key="index"
             class="grid gap-2 rounded-md border border-slate-100 p-3 sm:grid-cols-2"
           >
-            <label class="grid gap-1 sm:col-span-2">
-              <span class="text-[11px] font-semibold text-slate-500">Regex pattern</span>
-              <input
-                v-model="rule.pattern"
-                maxlength="512"
-                class="field-control font-mono"
-                :class="invalidClass(`dial_plan.rules.${index}.pattern`)"
-                :aria-invalid="Boolean(error(`dial_plan.rules.${index}.pattern`))"
-                placeholder="^([2-9][0-9]{6})$"
-              />
-            </label>
-            <label class="grid gap-1 sm:col-span-2">
-              <span class="text-[11px] font-semibold text-slate-500">Description</span>
-              <input v-model="rule.description" maxlength="255" class="field-control" />
-            </label>
-            <label class="grid gap-1">
-              <span class="text-[11px] font-semibold text-slate-500">Prefix</span>
-              <input v-model="rule.prefix" maxlength="64" class="field-control" />
-            </label>
-            <label class="grid gap-1">
-              <span class="text-[11px] font-semibold text-slate-500">Suffix</span>
-              <input v-model="rule.suffix" maxlength="64" class="field-control" />
-            </label>
+            <FormInput
+              v-model="rule.pattern"
+              label="Regex pattern"
+              maxlength="512"
+              input-class="font-mono"
+              placeholder="^([2-9][0-9]{6})$"
+              class="sm:col-span-2"
+              :error="error(`dial_plan.rules.${index}.pattern`)"
+            />
+            <FormInput
+              v-model="rule.description"
+              label="Description"
+              maxlength="255"
+              class="sm:col-span-2"
+              :error="error(`dial_plan.rules.${index}.description`)"
+            />
+            <FormInput
+              v-model="rule.prefix"
+              label="Prefix"
+              maxlength="64"
+              :error="error(`dial_plan.rules.${index}.prefix`)"
+            />
+            <FormInput
+              v-model="rule.suffix"
+              label="Suffix"
+              maxlength="64"
+              :error="error(`dial_plan.rules.${index}.suffix`)"
+            />
             <button
               type="button"
               class="inline-flex items-center justify-center gap-1 rounded-md border border-red-100 px-3 py-2 text-[11px] font-semibold text-danger hover:bg-red-50 sm:col-span-2"
@@ -367,18 +349,14 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
               "
             />
           </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Digit timeout (ms)</span>
-            <input
-              v-model.number="configuration.metaflows.digit_timeout"
-              type="number"
-              min="0"
-              max="60000"
-              class="field-control"
-              :class="invalidClass('metaflows.digit_timeout')"
-              :aria-invalid="Boolean(error('metaflows.digit_timeout'))"
-            />
-          </label>
+          <FormInput
+            v-model.number="configuration.metaflows.digit_timeout"
+            label="Digit timeout (ms)"
+            type="number"
+            min="0"
+            max="60000"
+            :error="error('metaflows.digit_timeout')"
+          />
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Listen on</span>
             <FormListbox

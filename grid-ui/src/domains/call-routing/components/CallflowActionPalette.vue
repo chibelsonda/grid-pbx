@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
-import { ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
+import { ChevronDownIcon } from '@heroicons/vue/20/solid'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import { callflowActionCatalog } from '../catalog/callflowActionCatalog'
 
 const search = ref('')
@@ -44,18 +45,7 @@ const statusClass = {
       <p class="mt-0.5 text-[10px] text-slate-500">
         Switch modules available now or planned for the visual editor
       </p>
-      <label class="relative mt-3 block">
-        <span class="sr-only">Search callflow actions</span>
-        <MagnifyingGlassIcon
-          class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500"
-        />
-        <input
-          v-model="search"
-          type="search"
-          placeholder="Search actions…"
-          class="h-9 w-full rounded-md border border-slate-300 bg-white pr-3 pl-9 text-xs text-slate-700 placeholder:text-slate-500 focus:border-brand-500 focus:ring-2 focus:ring-brand-100 focus:outline-none"
-        />
-      </label>
+      <SearchInput v-model="search" label="Search callflow actions" class="mt-3" placeholder="Search actions…" input-class="h-9 bg-white text-xs" />
       <p class="mt-2 text-[10px] font-medium text-slate-500" aria-live="polite">
         {{ resultCount }} {{ resultCount === 1 ? 'action' : 'actions' }}
       </p>

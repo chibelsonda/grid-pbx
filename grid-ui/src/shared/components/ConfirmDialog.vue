@@ -9,6 +9,7 @@ import {
   TransitionRoot,
 } from '@headlessui/vue'
 import { ExclamationTriangleIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -92,23 +93,19 @@ watch(
                   </DialogDescription>
                 </div>
               </div>
-              <label v-if="confirmationText" class="mt-5 grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">
-                  Enter <strong>{{ confirmationText }}</strong> to confirm
-                </span>
-                <input
-                  v-model="typedConfirmation"
-                  aria-label="Confirmation text"
-                  autocomplete="off"
-                  class="field-control"
-                  :class="
-                    typedConfirmation && !confirmationMatches
-                      ? '!border-red-400 ring-2 ring-red-100'
-                      : ''
-                  "
-                  :aria-invalid="typedConfirmation && !confirmationMatches ? 'true' : undefined"
-                />
-              </label>
+              <FormInput
+                v-if="confirmationText"
+                v-model="typedConfirmation"
+                class="mt-5"
+                :label="`Enter ${confirmationText} to confirm`"
+                :error="
+                  typedConfirmation && !confirmationMatches
+                    ? `Enter ${confirmationText} exactly.`
+                    : null
+                "
+                aria-label="Confirmation text"
+                autocomplete="off"
+              />
               <div class="mt-6 flex justify-end gap-3">
                 <button
                   type="button"

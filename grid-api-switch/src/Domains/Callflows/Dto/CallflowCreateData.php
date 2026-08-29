@@ -41,15 +41,17 @@ final readonly class CallflowCreateData
     /**
      * @param  list<string>  $phoneNumbers
      * @param  list<CallflowBranchWriteData>  $branchRoutes
+     * @param  list<string>  $destinationTemporalRuleIds
      */
     public function __construct(
         public string $name,
         public string $destinationModule,
-        public string $destinationResourceId,
+        public ?string $destinationResourceId,
         public array $phoneNumbers,
         public ?string $fallbackModule = null,
         public ?string $fallbackResourceId = null,
         public array $branchRoutes = [],
+        public array $destinationTemporalRuleIds = [],
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch callflow name is required.');
@@ -59,9 +61,7 @@ final readonly class CallflowCreateData
             throw new InvalidArgumentException('Unsupported Switch callflow destination module.');
         }
 
-        if (trim($this->destinationResourceId) === '') {
-            throw new InvalidArgumentException('Switch callflow destination identifier is required.');
-        }
+        $this->assertDestinationConfiguration();
 
         if ($this->phoneNumbers === []) {
             throw new InvalidArgumentException('A guided Switch callflow requires at least one phone number.');
@@ -129,7 +129,7 @@ final readonly class CallflowCreateData
             'numbers' => array_values(array_unique($this->phoneNumbers)),
             'flow' => [
                 'module' => $this->destinationModule,
-                'data' => $this->destinationData($this->destinationModule, $this->destinationResourceId),
+                'data' => $this->rootDestinationData(),
                 'children' => (object) $children,
             ],
         ];
@@ -141,11 +141,47 @@ final readonly class CallflowCreateData
         return $module === 'temporal_route' ? ['rule_set' => $resourceId] : ['id' => $resourceId];
     }
 
+    /** @return array<string, mixed> */
+    private function rootDestinationData(): array
+    {
+        if ($this->destinationTemporalRuleIds !== []) {
+            return ['rules' => array_values($this->destinationTemporalRuleIds)];
+        }
+
+        return $this->destinationData($this->destinationModule, (string) $this->destinationResourceId);
+    }
+
+    private function assertDestinationConfiguration(): void
+    {
+        if ($this->destinationTemporalRuleIds !== []) {
+            if ($this->destinationModule !== 'temporal_route' || $this->destinationResourceId !== null) {
+                throw new InvalidArgumentException('Direct temporal rules require a temporal-route destination without a rule-set identifier.');
+            }
+
+            foreach ($this->destinationTemporalRuleIds as $ruleId) {
+                if (! is_string($ruleId) || trim($ruleId) === '') {
+                    throw new InvalidArgumentException('Direct temporal-rule identifiers must be non-empty strings.');
+                }
+            }
+
+            if (count(array_unique($this->destinationTemporalRuleIds)) !== count($this->destinationTemporalRuleIds)) {
+                throw new InvalidArgumentException('Direct temporal rules must be unique.');
+            }
+
+            return;
+        }
+
+        if ($this->destinationResourceId === null || trim($this->destinationResourceId) === '') {
+            throw new InvalidArgumentException('Switch callflow destination identifier is required.');
+        }
+    }
+
     private function supportsBranchKey(string $key): bool
     {
         return match ($this->destinationModule) {
             'menu' => in_array($key, self::MENU_BRANCH_KEYS, true),
-            'temporal_route' => $key === 'rule_set',
+            'temporal_route' => $key === 'rule_set'
+                || in_array($key, $this->destinationTemporalRuleIds, true),
             default => false,
         };
     }

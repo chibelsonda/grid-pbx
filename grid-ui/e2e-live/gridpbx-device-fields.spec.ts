@@ -53,9 +53,10 @@ async function expectNoClientValidationErrors(page: Page): Promise<void> {
     controls.map((control) => ({
       ariaLabel: control.getAttribute('aria-label'),
       placeholder: control.getAttribute('placeholder'),
-      value: control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement
-        ? control.value
-        : control.textContent?.trim(),
+      value:
+        control instanceof HTMLInputElement || control instanceof HTMLTextAreaElement
+          ? control.value
+          : control.textContent?.trim(),
     })),
   )
 
@@ -104,9 +105,11 @@ async function cleanupExistingDeviceFieldFixtures(page: Page): Promise<void> {
   const search = 'E2E advanced device'
   const results = page.waitForResponse((response) => {
     const url = new URL(response.url())
-    return response.request().method() === 'GET'
-      && /\/api\/v1\/accounts\/[^/]+\/devices$/.test(url.pathname)
-      && url.searchParams.get('search') === search
+    return (
+      response.request().method() === 'GET' &&
+      /\/api\/v1\/accounts\/[^/]+\/devices$/.test(url.pathname) &&
+      url.searchParams.get('search') === search
+    )
   })
   await page.getByPlaceholder('Search name, model, MAC, extension…').fill(search)
   await page.getByPlaceholder('Search name, model, MAC, extension…').press('Enter')
@@ -121,9 +124,11 @@ async function cleanupExistingDeviceFieldFixtures(page: Page): Promise<void> {
   await page.getByPlaceholder('Search name, description, language…').fill('E2E device hold')
   const mediaResults = page.waitForResponse((response) => {
     const url = new URL(response.url())
-    return response.request().method() === 'GET'
-      && /\/api\/v1\/accounts\/[^/]+\/media$/.test(url.pathname)
-      && url.searchParams.get('search') === 'E2E device hold'
+    return (
+      response.request().method() === 'GET' &&
+      /\/api\/v1\/accounts\/[^/]+\/media$/.test(url.pathname) &&
+      url.searchParams.get('search') === 'E2E device hold'
+    )
   })
   await page.getByRole('button', { name: 'Apply filters' }).click()
   const media = ((await (await mediaResults).json()).data ?? []) as Array<{ name: string }>
@@ -145,7 +150,7 @@ test('creates, edits, and clears Device outbound flags and music on hold', async
     await page.goto('/media')
     await expect(page.getByRole('heading', { name: 'Media & Music on Hold' })).toBeVisible()
     await page.getByRole('button', { name: 'Upload media' }).click()
-    await page.getByLabel('Name', { exact: true }).fill(mediaName)
+    await page.getByLabel('Media name', { exact: true }).fill(mediaName)
     await page.getByLabel('Audio file').setInputFiles({
       name: 'silence.wav',
       mimeType: 'audio/wav',
@@ -184,10 +189,7 @@ test('creates, edits, and clears Device outbound flags and music on hold', async
     expect(createResponse.status()).toBe(201)
     const created = (await createResponse.json()) as DeviceMutationBody
     deviceId = created.data.id
-    expect(created.data.configuration.outbound_flags.static).toEqual([
-      'e2e-alpha',
-      'e2e-beta',
-    ])
+    expect(created.data.configuration.outbound_flags.static).toEqual(['e2e-alpha', 'e2e-beta'])
     expect(created.data.configuration.music_on_hold).toEqual({
       media_id: mediaId,
       media_name: mediaName,

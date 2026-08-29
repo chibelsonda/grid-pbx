@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { metaflowDefinition, metaflowModuleOptions, newMetaflowNode } from '../catalog'
 import type { MetaflowChild, MetaflowExtensionOption, MetaflowModule, MetaflowNode } from '../types'
 
@@ -47,8 +47,7 @@ function setData(field: string, value: ListboxValue): void {
   node.value = { ...node.value, data: { ...node.value.data, [field]: value } }
 }
 
-function setInputData(field: string, event: Event, numeric = false): void {
-  const value = (event.target as HTMLInputElement).value
+function setInputData(field: string, value: string | number, numeric = false): void {
   setData(field, numeric ? (value === '' ? null : Number(value)) : value)
 }
 
@@ -106,17 +105,16 @@ function removeChild(index: number): void {
 
 <template>
   <div class="grid gap-3 rounded-md border border-slate-200 bg-white p-3 sm:grid-cols-2">
-    <label v-if="showKey" class="grid gap-1 sm:col-span-2">
-      <span class="text-[11px] font-semibold text-slate-500">Branch key</span>
-      <input
-        v-model="branchKey"
-        maxlength="64"
-        class="field-control font-mono"
-        :class="validationControlClass(error('key'))"
-        :aria-invalid="Boolean(error('key'))"
-        placeholder="success"
-      />
-    </label>
+    <FormInput
+      v-if="showKey"
+      v-model="branchKey"
+      class="sm:col-span-2"
+      label="Branch key"
+      maxlength="64"
+      input-class="font-mono"
+      :error="error('key')"
+      placeholder="success"
+    />
 
     <label class="grid gap-1 sm:col-span-2">
       <span class="text-[11px] font-semibold text-slate-500">Action</span>
@@ -137,8 +135,12 @@ function removeChild(index: number): void {
         class="rounded-md border border-slate-200 px-3 py-2.5"
         @update:model-value="setData(field.key, $event)"
       />
-      <label v-else class="grid gap-1">
-        <span class="text-[11px] font-semibold text-slate-500">{{ field.label }}</span>
+      <div v-else class="grid gap-1">
+        <span
+          v-if="field.type === 'select' || field.type === 'resource'"
+          class="text-[11px] font-semibold text-slate-500"
+          >{{ field.label }}</span
+        >
         <FormListbox
           v-if="field.type === 'select' || field.type === 'resource'"
           :model-value="node.data[field.key] ?? null"
@@ -150,28 +152,26 @@ function removeChild(index: number): void {
           :aria-label="field.label"
           @update:model-value="setData(field.key, $event)"
         />
-        <input
+        <FormInput
           v-else-if="field.type === 'number'"
-          :value="node.data[field.key] ?? ''"
+          :model-value="(node.data[field.key] as string | number | null) ?? null"
+          :label="field.label"
           type="number"
           :min="field.min"
           :max="field.max"
           step="any"
-          class="field-control"
-          :class="validationControlClass(error(`data.${field.key}`))"
-          :aria-invalid="Boolean(error(`data.${field.key}`))"
-          @input="setInputData(field.key, $event, true)"
+          :error="error(`data.${field.key}`)"
+          @update:model-value="setInputData(field.key, $event, true)"
         />
-        <input
+        <FormInput
           v-else
-          :value="node.data[field.key] ?? ''"
+          :model-value="(node.data[field.key] as string | number | null) ?? null"
+          :label="field.label"
           maxlength="2048"
-          class="field-control"
-          :class="validationControlClass(error(`data.${field.key}`))"
-          :aria-invalid="Boolean(error(`data.${field.key}`))"
-          @input="setInputData(field.key, $event)"
+          :error="error(`data.${field.key}`)"
+          @update:model-value="setInputData(field.key, $event)"
         />
-      </label>
+      </div>
     </template>
 
     <section class="grid gap-3 border-l-2 border-brand-100 pl-3 sm:col-span-2">

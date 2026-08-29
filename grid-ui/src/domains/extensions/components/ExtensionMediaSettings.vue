@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { ChevronDownIcon, MusicalNoteIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import OrderedStringPriority from '@/shared/components/OrderedStringPriority.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { endpointAudioCodecs, endpointVideoCodecs } from '@/shared/switch/endpointMedia'
 import type { ExtensionUpdate } from '../types/extension'
 
@@ -30,11 +30,6 @@ function toggleEncryptionMethod(method: 'srtp' | 'zrtp'): void {
   settings.value.media.encryption.methods = methods.includes(method)
     ? methods.filter((value) => value !== method)
     : [...methods, method]
-}
-
-function setProgressTimeout(event: Event): void {
-  const value = (event.target as HTMLInputElement).value
-  settings.value.media.progress_timeout = value === '' ? null : Number(value)
 }
 </script>
 
@@ -127,14 +122,11 @@ function setProgressTimeout(event: Event): void {
               v-model="settings.media.encryption.enforce_security"
               label="Require media encryption"
             />
-            <div
-              v-if="settings.media.encryption.enforce_security"
-              class="grid gap-2 sm:col-span-2"
-            >
+            <div v-if="settings.media.encryption.enforce_security" class="grid gap-2 sm:col-span-2">
               <span class="text-xs font-semibold text-slate-600">Encryption methods</span>
               <div class="flex flex-wrap gap-2">
                 <button
-                  v-for="method in (['srtp', 'zrtp'] as const)"
+                  v-for="method in ['srtp', 'zrtp'] as const"
                   :key="method"
                   type="button"
                   :aria-pressed="settings.media.encryption.methods.includes(method)"
@@ -151,44 +143,28 @@ function setProgressTimeout(event: Event): void {
               </div>
             </div>
             <ToggleSwitch v-model="settings.media.fax_option" label="Enable T.38 fax" />
-            <ToggleSwitch
-              v-model="settings.media.ignore_early_media"
-              label="Ignore early media"
+            <ToggleSwitch v-model="settings.media.ignore_early_media" label="Ignore early media" />
+            <FormInput
+              v-model.number="settings.media.progress_timeout"
+              label="Progress timeout (seconds)"
+              class="sm:col-span-2"
+              type="number"
+              min="0"
+              max="3600"
+              :error="error('media.progress_timeout')"
             />
-            <label class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Progress timeout (seconds)</span>
-              <input
-                :value="settings.media.progress_timeout ?? ''"
-                type="number"
-                min="0"
-                max="3600"
-                class="field-control"
-                :class="validationControlClass(error('media.progress_timeout'))"
-                :aria-invalid="Boolean(error('media.progress_timeout'))"
-                @input="setProgressTimeout"
-              />
-              <span v-if="error('media.progress_timeout')" class="text-[10px] text-danger">{{
-                error('media.progress_timeout')
-              }}</span>
-            </label>
           </div>
 
           <div class="grid gap-4 border-t border-slate-200 pt-5 sm:grid-cols-2">
-            <label v-for="field in (['internal', 'external'] as const)" :key="field" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600 capitalize">
-                {{ field }} ringtone header
-              </span>
-              <input
-                v-model="settings.ringtones[field]"
-                maxlength="256"
-                class="field-control"
-                :class="validationControlClass(error(`ringtones.${field}`))"
-                :aria-invalid="Boolean(error(`ringtones.${field}`))"
-              />
-              <span v-if="error(`ringtones.${field}`)" class="text-[10px] text-danger">{{
-                error(`ringtones.${field}`)
-              }}</span>
-            </label>
+            <FormInput
+              v-for="field in ['internal', 'external'] as const"
+              :key="field"
+              v-model="settings.ringtones[field]"
+              :label="`${field} ringtone header`"
+              class="capitalize"
+              maxlength="256"
+              :error="error(`ringtones.${field}`)"
+            />
           </div>
         </DisclosurePanel>
       </Disclosure>

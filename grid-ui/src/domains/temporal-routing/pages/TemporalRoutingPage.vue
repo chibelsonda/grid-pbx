@@ -6,10 +6,10 @@ import {
   CalendarDaysIcon,
   ChevronRightIcon,
   ClockIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import TemporalRulePanel from '../components/TemporalRulePanel.vue'
 import TemporalRuleSetPanel from '../components/TemporalRuleSetPanel.vue'
 import { useTemporalRoutingStore } from '../stores/temporalRoutingStore'
@@ -195,14 +195,7 @@ function statusLabel(status: TemporalEffectiveStatus): string {
         class="mb-4 flex gap-3"
         @submit.prevent="accounts.selectedId && temporal.load(accounts.selectedId)"
       >
-        <label class="relative min-w-0 flex-1"
-          ><MagnifyingGlassIcon
-            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" /><input
-            v-model="temporal.search"
-            type="search"
-            placeholder="Search schedules…"
-            class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm"
-        /></label>
+        <SearchInput v-model="temporal.search" label="Search schedules" class="min-w-0 flex-1" placeholder="Search schedules…" input-class="h-10 bg-white text-xs shadow-sm" />
         <button
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
         >

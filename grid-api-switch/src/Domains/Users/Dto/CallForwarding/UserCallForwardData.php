@@ -22,7 +22,7 @@ final readonly class UserCallForwardData
     /** @return array<string, mixed> */
     public function toSwitchData(): array
     {
-        return array_merge($this->preservedOptions, [
+        return array_merge($this->preservedOptions, array_filter([
             'enabled' => $this->enabled,
             'number' => $this->number,
             'direct_calls_only' => $this->directCallsOnly,
@@ -31,6 +31,6 @@ final readonly class UserCallForwardData
             'keep_caller_id' => $this->keepCallerId,
             'require_keypress' => $this->requireKeypress,
             'substitute' => $this->substitute,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null));
     }
 }

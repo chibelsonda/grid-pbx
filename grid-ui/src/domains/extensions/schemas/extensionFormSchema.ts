@@ -3,28 +3,37 @@ import { endpointAudioCodecs, endpointVideoCodecs } from '@/shared/switch/endpoi
 import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
 import { metaflowSettingsSchema } from '@/shared/switch/metaflows/schema'
 import type { DeviceInput } from '@/domains/devices/types/device'
+import { voicemailBoxFormSchemaFor } from '@/domains/voicemail/schemas/voicemailBoxFormSchema'
 
 const nullableString = (maximum: number) => z.string().trim().max(maximum).nullable()
 const nullableInteger = (minimum: number, maximum: number) =>
   z.number().int().min(minimum).max(maximum).nullable()
 const uniqueValues = (values: string[]) => new Set(values).size === values.length
-const notificationEmailsSchema = z
-  .array(z.email().max(254))
-  .max(10)
-  .refine((emails) => new Set(emails).size === emails.length, 'Use each notification email once.')
+function voicemailAggregateSchema(editing: boolean, pinConfigured = false) {
+  return z
+    .object({
+      enabled: z.boolean(),
+      input: voicemailBoxFormSchemaFor(editing, pinConfigured).nullable(),
+    })
+    .strict()
+    .superRefine((input, context) => {
+      if (input.enabled && input.input === null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['input'],
+          message: 'Configure the managed mailbox before saving the extension.',
+        })
+      }
 
-const voicemailSchema = z
-  .object({
-    enabled: z.boolean(),
-    notification_emails: notificationEmailsSchema,
-    transcribe: z.boolean(),
-    require_pin: z.boolean(),
-    pin: z
-      .string()
-      .regex(/^\d{4,6}$/, 'Use a 4–6 digit mailbox PIN.')
-      .nullable(),
-  })
-  .strict()
+      if (!input.enabled && input.input !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['input'],
+          message: 'Enable voicemail before configuring its mailbox.',
+        })
+      }
+    })
+}
 
 const hotdeskSchema = z
   .object({
@@ -70,7 +79,6 @@ const userFields = {
     .object({ outbound_privacy: z.enum(['full', 'name', 'number', 'none']) })
     .strict(),
   hotdesk: hotdeskSchema,
-  voicemail: voicemailSchema,
 }
 
 const recordingParametersSchema = z
@@ -153,9 +161,7 @@ const advancedCallingFields = {
       z.object({ action: z.enum(['inherit', 'deny']) }).strict(),
     )
     .refine((value) => Object.keys(value).length <= 100, 'Use no more than 100 restrictions.'),
-  call_recording: z
-    .object({ account: recordingRulesSchema, endpoint: recordingRulesSchema })
-    .strict(),
+  call_recording: recordingRulesSchema,
   media: z
     .object({
       audio: z
@@ -418,22 +424,10 @@ function validateHotdesk(
   }
 }
 
-function requireNewMailboxPin(
-  input: { voicemail: { enabled: boolean; require_pin: boolean; pin: string | null } },
-  context: z.RefinementCtx,
-): void {
-  if (input.voicemail.enabled && input.voicemail.require_pin && input.voicemail.pin === null) {
-    context.addIssue({
-      code: 'custom',
-      path: ['voicemail', 'pin'],
-      message: 'Enter a mailbox PIN when PIN protection is enabled.',
-    })
-  }
-}
-
 export const extensionCreateSchema = z
   .object({
     ...userFields,
+    voicemail: voicemailAggregateSchema(false),
     device: z
       .object({
         enabled: z.boolean(),
@@ -444,7 +438,6 @@ export const extensionCreateSchema = z
   .strict()
   .superRefine((input, context) => {
     validateCredentials(input, context, null)
-    requireNewMailboxPin(input, context)
     validateHotdesk(input, context, true)
 
     if (input.device.enabled && input.device.input === null) {
@@ -464,10 +457,14 @@ export const extensionCreateSchema = z
     }
   })
 
-export function extensionUpdateSchemaFor(currentUsername: string | null) {
+export function extensionUpdateSchemaFor(
+  currentUsername: string | null,
+  voicemailPinConfigured = false,
+) {
   return z
     .object({
       ...userFields,
+      voicemail: voicemailAggregateSchema(true, voicemailPinConfigured),
       ...advancedCallingFields,
       metaflows: metaflowSettingsSchema.optional(),
     })
@@ -479,7 +476,12 @@ export function extensionUpdateSchemaFor(currentUsername: string | null) {
 }
 
 export const extensionUpdateSchema = z
-  .object({ ...userFields, ...advancedCallingFields, metaflows: metaflowSettingsSchema.optional() })
+  .object({
+    ...userFields,
+    voicemail: voicemailAggregateSchema(true, true),
+    ...advancedCallingFields,
+    metaflows: metaflowSettingsSchema.optional(),
+  })
   .strict()
   .superRefine((input, context) => {
     validateCredentials(input, context)

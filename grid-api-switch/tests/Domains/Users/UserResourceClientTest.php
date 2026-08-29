@@ -75,7 +75,7 @@ final class UserResourceClientTest extends TestCase
                 actions: ['international' => 'deny'],
                 preservedOptions: ['international' => ['future_option' => true]],
             ),
-            callRecording: new UserCallRecordingData($rules, $rules),
+            callRecording: new UserCallRecordingData($rules),
             media: new UserMediaData(
                 audioCodecs: ['OPUS', 'PCMU'],
                 videoCodecs: ['H264'],
@@ -139,7 +139,7 @@ final class UserResourceClientTest extends TestCase
         self::assertTrue($data['call_restriction']['international']['future_option']);
         self::assertSame(
             'https://recordings.example.test/user',
-            $data['call_recording']['endpoint']['outbound']['offnet']['url'],
+            $data['call_recording']['outbound']['offnet']['url'],
         );
         self::assertSame(['OPUS', 'PCMU'], $data['media']['audio']['codecs']);
         self::assertTrue($data['media']['audio']['future_audio_option']);
@@ -158,6 +158,59 @@ final class UserResourceClientTest extends TestCase
         self::assertTrue($data['pronounced_name']['future_name_option']);
         self::assertTrue($data['verified']);
         self::assertSame(['externally-managed'], $data['flags']);
+    }
+
+    public function test_it_omits_an_empty_call_forward_number_for_switch_schema_compatibility(): void
+    {
+        $data = (new UserCallForwardData(enabled: false))->toSwitchData();
+
+        self::assertArrayNotHasKey('number', $data);
+        self::assertFalse($data['enabled']);
+    }
+
+    public function test_it_omits_nullable_recording_parameters_for_switch_schema_compatibility(): void
+    {
+        $data = (new UserRecordingParametersData(
+            enabled: false,
+            format: 'mp3',
+        ))->toSwitchData();
+
+        self::assertArrayNotHasKey('record_min_sec', $data);
+        self::assertArrayNotHasKey('record_sample_rate', $data);
+        self::assertArrayNotHasKey('time_limit', $data);
+    }
+
+    public function test_it_serializes_an_empty_caller_id_scope_as_a_json_object(): void
+    {
+        $data = (new UserCallerIdScopeData)->toSwitchData();
+
+        self::assertSame('{}', json_encode($data, JSON_THROW_ON_ERROR));
+    }
+
+    public function test_it_omits_an_empty_media_progress_timeout_for_switch_schema_compatibility(): void
+    {
+        $data = (new UserMediaData(
+            audioCodecs: [],
+            videoCodecs: [],
+            bypassMedia: false,
+            enforceEncryption: false,
+            encryptionMethods: [],
+            faxOption: false,
+            ignoreEarlyMedia: false,
+            progressTimeout: null,
+        ))->toSwitchData();
+
+        self::assertArrayNotHasKey('progress_timeout', $data);
+    }
+
+    public function test_it_serializes_empty_metaflow_maps_as_json_objects(): void
+    {
+        $data = (new UserMetaflowsData(
+            preservedOptions: ['numbers' => [], 'patterns' => []],
+        ))->toSwitchData();
+
+        self::assertSame('{}', json_encode($data['numbers'], JSON_THROW_ON_ERROR));
+        self::assertSame('{}', json_encode($data['patterns'], JSON_THROW_ON_ERROR));
     }
 
     public function test_it_creates_a_user_with_a_bounded_extension_payload(): void

@@ -16,6 +16,7 @@ import {
   UserIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
 import ExtensionDeletionPreviewPanel from '../components/ExtensionDeletionPreviewPanel.vue'
 import ExtensionEditPanel from '../components/ExtensionEditPanel.vue'
 import { useExtensionStore } from '../stores/extensionStore'
@@ -25,6 +26,7 @@ const route = useRoute()
 const router = useRouter()
 const accounts = useAccountStore()
 const extensions = useExtensionStore()
+const voicemail = useVoicemailStore()
 const extensionId = computed(() => String(route.params.extensionId))
 const extension = computed(() => extensions.detail)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_extensions ?? false)
@@ -44,6 +46,7 @@ watch(
     if (accountId && selectedExtensionId) {
       void extensions.loadDetail(accountId, selectedExtensionId)
       void extensions.loadOptions(accountId)
+      void voicemail.loadFormOptions(accountId)
     }
   },
   { immediate: true },
@@ -62,9 +65,23 @@ function humanize(value: string): string {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
 }
 
-function openEditPanel(): void {
+async function openEditPanel(): Promise<void> {
+  if (!accounts.selectedId || !extension.value) return
   extensions.mutationError = null
   extensions.fieldErrors = {}
+  voicemail.detail = null
+  voicemail.detailError = null
+  const managedVoicemail = extension.value.voicemail_boxes.find((box) => box.is_managed)
+
+  if (managedVoicemail) {
+    await voicemail.loadDetail(accounts.selectedId, managedVoicemail.id)
+    if (!voicemail.detail) {
+      extensions.mutationError = voicemail.detailError ?? 'Unable to load the managed mailbox.'
+
+      return
+    }
+  }
+
   editPanelOpen.value = true
 }
 
@@ -427,6 +444,8 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
     :error="extensions.mutationError"
     :field-errors="extensions.fieldErrors"
     :options="extensions.formOptions"
+    :voicemail-box="voicemail.detail"
+    :voicemail-options="voicemail.formOptions"
     @close="editPanelOpen = false"
     @save="updateExtension"
   />

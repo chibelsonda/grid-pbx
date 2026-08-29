@@ -5,12 +5,12 @@ import {
   ArrowPathIcon,
   ChevronRightIcon,
   ClockIcon,
-  MagnifyingGlassIcon,
   MicrophoneIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
+import FormInput from '@/shared/components/FormInput.vue'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import RecordingDetailPanel from '../components/RecordingDetailPanel.vue'
 import { useRecordingFilters } from '../composables/useRecordingFilters'
 import { useRecordingStore } from '../stores/recordingStore'
@@ -139,16 +139,12 @@ function formatDuration(seconds: number): string {
         <div>
           <label class="relative block">
             <span class="sr-only">Search recordings</span>
-            <MagnifyingGlassIcon
-              class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-500"
-            />
-            <input
+            <SearchInput
               v-model="recordings.filters.search"
-              type="search"
+              label="Search recordings"
               placeholder="Search caller, callee, call, or name…"
-              :aria-invalid="Boolean(fieldError('search'))"
-              class="h-10 w-full rounded-md border border-slate-300 bg-white pr-3 pl-9 text-xs text-slate-700 shadow-sm outline-none focus:border-brand-500"
-              :class="validationControlClass(fieldError('search'))"
+              input-class="h-10 bg-white text-xs shadow-sm"
+              :error="fieldError('search')"
             />
           </label>
           <p v-if="fieldError('search')" class="mt-1 text-[10px] text-danger">
@@ -182,62 +178,34 @@ function formatDuration(seconds: number): string {
 
       <DisclosureCard title="Advanced filters">
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
-            Start date
-            <input
-              v-model="recordings.filters.started_from"
-              type="date"
-              :aria-invalid="Boolean(fieldError('started_from'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('started_from'))"
-            />
-            <span v-if="fieldError('started_from')" class="normal-case text-danger">{{
-              fieldError('started_from')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
-            End date
-            <input
-              v-model="recordings.filters.started_to"
-              type="date"
-              :aria-invalid="Boolean(fieldError('started_to'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('started_to'))"
-            />
-            <span v-if="fieldError('started_to')" class="normal-case text-danger">{{
-              fieldError('started_to')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
-            Minimum seconds
-            <input
-              v-model="recordings.filters.duration_min"
-              type="number"
-              min="0"
-              max="86400"
-              :aria-invalid="Boolean(fieldError('duration_min'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('duration_min'))"
-            />
-            <span v-if="fieldError('duration_min')" class="normal-case text-danger">{{
-              fieldError('duration_min')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
-            Maximum seconds
-            <input
-              v-model="recordings.filters.duration_max"
-              type="number"
-              min="0"
-              max="86400"
-              :aria-invalid="Boolean(fieldError('duration_max'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('duration_max'))"
-            />
-            <span v-if="fieldError('duration_max')" class="normal-case text-danger">{{
-              fieldError('duration_max')
-            }}</span>
-          </label>
+          <FormInput
+            v-model="recordings.filters.started_from"
+            label="Start date"
+            type="date"
+            :error="fieldError('started_from')"
+          />
+          <FormInput
+            v-model="recordings.filters.started_to"
+            label="End date"
+            type="date"
+            :error="fieldError('started_to')"
+          />
+          <FormInput
+            v-model="recordings.filters.duration_min"
+            label="Minimum seconds"
+            type="number"
+            min="0"
+            max="86400"
+            :error="fieldError('duration_min')"
+          />
+          <FormInput
+            v-model="recordings.filters.duration_max"
+            label="Maximum seconds"
+            type="number"
+            min="0"
+            max="86400"
+            :error="fieldError('duration_max')"
+          />
         </div>
         <div class="mt-4 flex justify-end">
           <button

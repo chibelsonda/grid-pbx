@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { Bars3BottomLeftIcon, MusicalNoteIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -32,11 +33,7 @@ const mediaOptions = computed<ListboxOptionValue[]>(() => [
   })),
 ])
 
-type MediaIdField =
-  | 'greeting_media_id'
-  | 'invalid_media_id'
-  | 'transfer_media_id'
-  | 'exit_media_id'
+type MediaIdField = 'greeting_media_id' | 'invalid_media_id' | 'transfer_media_id' | 'exit_media_id'
 
 function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
@@ -82,96 +79,58 @@ function submit(): void {
             </div>
           </header>
           <div class="grid gap-4 p-5 sm:grid-cols-2">
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Name</span
-              ><input
-                v-model="form.name"
-                aria-label="Name"
-                required
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Initial digit timeout (ms)</span
-              ><input
-                v-model.number="form.timeout"
-                type="number"
-                min="1"
-                max="60000"
-                class="field-control"
-                :class="validationControlClass(fieldError('timeout'))"
-                :aria-invalid="Boolean(fieldError('timeout'))"
-              /><span v-if="fieldError('timeout')" class="text-[10px] text-danger">{{
-                fieldError('timeout')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Interdigit timeout (ms)</span
-              ><input
-                v-model.number="form.interdigit_timeout"
-                type="number"
-                min="1"
-                max="10000"
-                class="field-control"
-                :class="validationControlClass(fieldError('interdigit_timeout'))"
-                :aria-invalid="Boolean(fieldError('interdigit_timeout'))"
-              /><span v-if="fieldError('interdigit_timeout')" class="text-[10px] text-danger">{{
-                fieldError('interdigit_timeout')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Maximum digits</span
-              ><input
-                v-model.number="form.max_extension_length"
-                type="number"
-                min="1"
-                max="6"
-                class="field-control"
-                :class="validationControlClass(fieldError('max_extension_length'))"
-                :aria-invalid="Boolean(fieldError('max_extension_length'))"
-              /><span v-if="fieldError('max_extension_length')" class="text-[10px] text-danger">{{
-                fieldError('max_extension_length')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Retries</span
-              ><input
-                v-model.number="form.retries"
-                type="number"
-                min="1"
-                max="10"
-                class="field-control"
-                :class="validationControlClass(fieldError('retries'))"
-                :aria-invalid="Boolean(fieldError('retries'))"
-              /><span v-if="fieldError('retries')" class="text-[10px] text-danger">{{
-                fieldError('retries')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Recording PIN</span
-              ><input
-                v-model="form.record_pin"
-                inputmode="numeric"
-                minlength="3"
-                maxlength="6"
-                class="field-control"
-                :class="validationControlClass(fieldError('record_pin'))"
-                :aria-invalid="Boolean(fieldError('record_pin'))"
-                :placeholder="
-                  record?.record_pin_configured ? 'Configured — enter to replace' : 'Optional'
-                "
-              /><span class="text-[10px] text-slate-400"
-                >Write-only; the current PIN is never returned.</span
-              ><span v-if="fieldError('record_pin')" class="text-[10px] text-danger">{{
-                fieldError('record_pin')
-              }}</span
-              ></label
-            >
+            <FormInput
+              v-model="form.name"
+              label="Name"
+              class="sm:col-span-2"
+              required
+              maxlength="128"
+              :error="fieldError('name')"
+            />
+            <FormInput
+              v-model.number="form.timeout"
+              label="Initial digit timeout (ms)"
+              type="number"
+              min="1"
+              max="60000"
+              :error="fieldError('timeout')"
+            />
+            <FormInput
+              v-model.number="form.interdigit_timeout"
+              label="Interdigit timeout (ms)"
+              type="number"
+              min="1"
+              max="10000"
+              :error="fieldError('interdigit_timeout')"
+            />
+            <FormInput
+              v-model.number="form.max_extension_length"
+              label="Maximum digits"
+              type="number"
+              min="1"
+              max="6"
+              :error="fieldError('max_extension_length')"
+            />
+            <FormInput
+              v-model.number="form.retries"
+              label="Retries"
+              type="number"
+              min="1"
+              max="10"
+              :error="fieldError('retries')"
+            />
+            <FormInput
+              v-model="form.record_pin"
+              label="Recording PIN"
+              inputmode="numeric"
+              minlength="3"
+              maxlength="6"
+              :placeholder="
+                record?.record_pin_configured ? 'Configured — enter to replace' : 'Optional'
+              "
+              description="Write-only; the current PIN is never returned."
+              :error="fieldError('record_pin')"
+            />
             <div class="grid gap-3 pt-6">
               <ToggleSwitch
                 v-model="form.hunt"
@@ -192,32 +151,20 @@ function submit(): void {
                 :invalid="Boolean(fieldError('suppress_media'))"
               />
             </div>
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Allowed extension pattern</span
-              ><input
-                v-model="form.hunt_allow"
-                maxlength="256"
-                class="field-control"
-                :class="validationControlClass(fieldError('hunt_allow'))"
-                :aria-invalid="Boolean(fieldError('hunt_allow'))"
-                placeholder="Optional regular expression"
-              /><span v-if="fieldError('hunt_allow')" class="text-[10px] text-danger">{{
-                fieldError('hunt_allow')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Denied extension pattern</span
-              ><input
-                v-model="form.hunt_deny"
-                maxlength="256"
-                class="field-control"
-                :class="validationControlClass(fieldError('hunt_deny'))"
-                :aria-invalid="Boolean(fieldError('hunt_deny'))"
-                placeholder="Optional regular expression"
-              /><span v-if="fieldError('hunt_deny')" class="text-[10px] text-danger">{{
-                fieldError('hunt_deny')
-              }}</span></label
-            >
+            <FormInput
+              v-model="form.hunt_allow"
+              label="Allowed extension pattern"
+              maxlength="256"
+              placeholder="Optional regular expression"
+              :error="fieldError('hunt_allow')"
+            />
+            <FormInput
+              v-model="form.hunt_deny"
+              label="Denied extension pattern"
+              maxlength="256"
+              placeholder="Optional regular expression"
+              :error="fieldError('hunt_deny')"
+            />
           </div>
         </article>
         <article class="card-surface overflow-hidden">

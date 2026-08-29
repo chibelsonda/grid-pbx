@@ -4,13 +4,14 @@ import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   UserGroupIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useDeviceStore } from '@/domains/devices/stores/deviceStore'
+import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import { useExtensionStore } from '../stores/extensionStore'
 import ExtensionCreatePanel from '../components/ExtensionCreatePanel.vue'
 import ExtensionRecoveryPanel from '../components/ExtensionRecoveryPanel.vue'
@@ -19,6 +20,7 @@ import type { ExtensionCreate, ExtensionRecoveryOperation } from '../types/exten
 const router = useRouter()
 const accounts = useAccountStore()
 const devices = useDeviceStore()
+const voicemail = useVoicemailStore()
 const extensions = useExtensionStore()
 const creating = ref(false)
 const recoveryOpen = ref(false)
@@ -36,6 +38,7 @@ watch(
       void extensions.load(accountId, 1)
       void extensions.loadOptions(accountId)
       void devices.loadOptions(accountId)
+      void voicemail.loadFormOptions(accountId)
     }
   },
   { immediate: true },
@@ -132,14 +135,11 @@ function recoverOperation(
     <template v-else>
       <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <form class="relative w-full max-w-sm" @submit.prevent="search">
-          <MagnifyingGlassIcon
-            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-          />
-          <input
+          <SearchInput
             v-model="extensions.search"
-            type="search"
+            label="Search extensions"
             placeholder="Search name, extension, username…"
-            class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
+            input-class="h-10 bg-white text-xs shadow-sm"
           />
         </form>
         <div class="sm:ml-auto">
@@ -284,6 +284,7 @@ function recoverOperation(
       device_schema: devices.schemaCompatibility,
       restrictions: devices.restrictionOptions,
     }"
+    :voicemail-options="voicemail.formOptions"
     @close="creating = false"
     @save="createExtension"
   />

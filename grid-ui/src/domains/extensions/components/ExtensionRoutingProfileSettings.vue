@@ -1,24 +1,14 @@
 <script setup lang="ts">
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
-import {
-  ChevronDownIcon,
-  IdentificationIcon,
-  PlusIcon,
-  TrashIcon,
-} from '@heroicons/vue/24/outline'
+import { ChevronDownIcon, IdentificationIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import FormTextarea from '@/shared/components/FormTextarea.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
-import { validationControlClass } from '@/shared/forms/validationStyles'
-import type {
-  ExtensionProfileAddressType,
-  ExtensionUpdate,
-} from '../types/extension'
+import type { ExtensionProfileAddressType, ExtensionUpdate } from '../types/extension'
 
-type Model = Pick<
-  ExtensionUpdate,
-  'dial_plan' | 'formatters' | 'profile' | 'pronounced_name'
->
+type Model = Pick<ExtensionUpdate, 'dial_plan' | 'formatters' | 'profile' | 'pronounced_name'>
 
 const props = defineProps<{
   fieldErrors: Record<string, string[]>
@@ -54,7 +44,12 @@ function error(path: string): string | null {
 }
 
 function addDialPlanRule(): void {
-  settings.value.dial_plan.rules.push({ pattern: '', description: null, prefix: null, suffix: null })
+  settings.value.dial_plan.rules.push({
+    pattern: '',
+    description: null,
+    prefix: null,
+    suffix: null,
+  })
 }
 
 function addFormatter(): void {
@@ -113,19 +108,12 @@ function selectPronouncedName(value: unknown): void {
             <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
           </DisclosureButton>
           <DisclosurePanel class="grid gap-4 border-t border-slate-200 p-4">
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">System dial plans</span>
-              <input
-                v-model="systemDialPlans"
-                class="field-control"
-                :class="validationControlClass(error('dial_plan.system'))"
-                :aria-invalid="Boolean(error('dial_plan.system'))"
-                placeholder="System plan names, comma separated"
-              />
-              <span v-if="error('dial_plan.system')" class="text-[10px] text-danger">{{
-                error('dial_plan.system')
-              }}</span>
-            </label>
+            <FormInput
+              v-model="systemDialPlans"
+              label="System dial plans"
+              placeholder="System plan names, comma separated"
+              :error="error('dial_plan.system')"
+            />
             <div class="flex items-center justify-between gap-3">
               <p class="text-[10px] text-slate-500">Rules modify locally dialed numbers.</p>
               <button
@@ -141,41 +129,30 @@ function selectPronouncedName(value: unknown): void {
               :key="index"
               class="grid gap-3 rounded-md border border-slate-200 p-4 sm:grid-cols-2"
             >
-              <label class="grid gap-2 sm:col-span-2">
-                <span class="text-xs font-semibold text-slate-600">Regex pattern</span>
-                <input
-                  v-model="rule.pattern"
-                  maxlength="512"
-                  class="field-control font-mono"
-                  :class="validationControlClass(error(`dial_plan.rules.${index}.pattern`))"
-                  :aria-invalid="Boolean(error(`dial_plan.rules.${index}.pattern`))"
-                />
-                <span
-                  v-if="error(`dial_plan.rules.${index}.pattern`)"
-                  class="text-[10px] text-danger"
-                  >{{ error(`dial_plan.rules.${index}.pattern`) }}</span
-                >
-              </label>
-              <label class="grid gap-2 sm:col-span-2">
-                <span class="text-xs font-semibold text-slate-600">Description</span>
-                <input
-                  v-model="rule.description"
-                  maxlength="255"
-                  class="field-control"
-                  :class="validationControlClass(error(`dial_plan.rules.${index}.description`))"
-                  :aria-invalid="Boolean(error(`dial_plan.rules.${index}.description`))"
-                />
-              </label>
-              <label v-for="key in ['prefix', 'suffix'] as const" :key="key" class="grid gap-2">
-                <span class="text-xs font-semibold capitalize text-slate-600">{{ key }}</span>
-                <input
-                  v-model="rule[key]"
-                  maxlength="64"
-                  class="field-control"
-                  :class="validationControlClass(error(`dial_plan.rules.${index}.${key}`))"
-                  :aria-invalid="Boolean(error(`dial_plan.rules.${index}.${key}`))"
-                />
-              </label>
+              <FormInput
+                v-model="rule.pattern"
+                label="Regex pattern"
+                class="sm:col-span-2"
+                maxlength="512"
+                input-class="font-mono"
+                :error="error(`dial_plan.rules.${index}.pattern`)"
+              />
+              <FormInput
+                v-model="rule.description"
+                label="Description"
+                class="sm:col-span-2"
+                maxlength="255"
+                :error="error(`dial_plan.rules.${index}.description`)"
+              />
+              <FormInput
+                v-for="key in ['prefix', 'suffix'] as const"
+                :key="key"
+                v-model="rule[key]"
+                :label="key"
+                class="capitalize"
+                maxlength="64"
+                :error="error(`dial_plan.rules.${index}.${key}`)"
+              />
               <button
                 type="button"
                 class="inline-flex items-center justify-center gap-1 rounded-md border border-red-200 px-3 py-2 text-[11px] font-semibold text-danger hover:bg-red-50 sm:col-span-2"
@@ -214,16 +191,14 @@ function selectPronouncedName(value: unknown): void {
               :key="index"
               class="grid gap-3 rounded-md border border-slate-200 p-4 sm:grid-cols-3"
             >
-              <label class="grid gap-2 sm:col-span-2">
-                <span class="text-xs font-semibold text-slate-600">Switch field</span>
-                <input
-                  v-model="formatter.field"
-                  maxlength="128"
-                  class="field-control font-mono"
-                  :class="validationControlClass(error(`formatters.${index}.field`))"
-                  :aria-invalid="Boolean(error(`formatters.${index}.field`))"
-                />
-              </label>
+              <FormInput
+                v-model="formatter.field"
+                label="Switch field"
+                class="sm:col-span-2"
+                maxlength="128"
+                input-class="font-mono"
+                :error="error(`formatters.${index}.field`)"
+              />
               <label class="grid gap-2">
                 <span class="text-xs font-semibold text-slate-600">Direction</span>
                 <FormListbox
@@ -237,7 +212,7 @@ function selectPronouncedName(value: unknown): void {
                   ]"
                 />
               </label>
-              <label
+              <FormInput
                 v-for="control in [
                   { key: 'regex', label: 'Match regex', maximum: 2048 },
                   { key: 'value', label: 'Fixed value', maximum: 1024 },
@@ -245,23 +220,14 @@ function selectPronouncedName(value: unknown): void {
                   { key: 'suffix', label: 'Suffix', maximum: 1024 },
                 ] as const"
                 :key="control.key"
-                class="grid gap-2"
-              >
-                <span class="text-xs font-semibold text-slate-600">{{ control.label }}</span>
-                <input
-                  v-model="formatter[control.key]"
-                  :maxlength="control.maximum"
-                  class="field-control"
-                  :class="validationControlClass(error(`formatters.${index}.${control.key}`))"
-                  :aria-invalid="Boolean(error(`formatters.${index}.${control.key}`))"
-                />
-              </label>
+                v-model="formatter[control.key]"
+                :label="control.label"
+                :maxlength="control.maximum"
+                :error="error(`formatters.${index}.${control.key}`)"
+              />
               <div class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
                 <ToggleSwitch v-model="formatter.strip" label="Strip matched value" />
-                <ToggleSwitch
-                  v-model="formatter.match_invite_format"
-                  label="Match INVITE format"
-                />
+                <ToggleSwitch v-model="formatter.match_invite_format" label="Match INVITE format" />
               </div>
               <button
                 type="button"
@@ -284,7 +250,7 @@ function selectPronouncedName(value: unknown): void {
             <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
           </DisclosureButton>
           <DisclosurePanel class="grid gap-4 border-t border-slate-200 p-4 sm:grid-cols-2">
-            <label
+            <FormInput
               v-for="field in [
                 { key: 'title', label: 'Title', maximum: 255 },
                 { key: 'role', label: 'Profile role', maximum: 255 },
@@ -293,38 +259,26 @@ function selectPronouncedName(value: unknown): void {
                 { key: 'sort_string', label: 'Sort string', maximum: 255 },
               ] as const"
               :key="field.key"
-              class="grid gap-2"
-            >
-              <span class="text-xs font-semibold text-slate-600">{{ field.label }}</span>
-              <input
-                v-model="settings.profile[field.key]"
-                :maxlength="field.maximum"
-                class="field-control"
-                :class="validationControlClass(error(`profile.${field.key}`))"
-                :aria-invalid="Boolean(error(`profile.${field.key}`))"
-              />
-            </label>
-            <label class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Nicknames</span>
-              <input
-                v-model="nicknames"
-                class="field-control"
-                :class="validationControlClass(error('profile.nicknames'))"
-                :aria-invalid="Boolean(error('profile.nicknames'))"
-                placeholder="Comma separated"
-              />
-            </label>
-            <label class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Profile note</span>
-              <textarea
-                v-model="settings.profile.note"
-                maxlength="2000"
-                rows="3"
-                class="field-control h-auto py-3"
-                :class="validationControlClass(error('profile.note'))"
-                :aria-invalid="Boolean(error('profile.note'))"
-              />
-            </label>
+              v-model="settings.profile[field.key]"
+              :label="field.label"
+              :maxlength="field.maximum"
+              :error="error(`profile.${field.key}`)"
+            />
+            <FormInput
+              v-model="nicknames"
+              label="Nicknames"
+              class="sm:col-span-2"
+              placeholder="Comma separated"
+              :error="error('profile.nicknames')"
+            />
+            <FormTextarea
+              v-model="settings.profile.note"
+              label="Profile note"
+              class="sm:col-span-2"
+              maxlength="2000"
+              size="compact"
+              :error="error('profile.note')"
+            />
             <div class="grid gap-3 sm:col-span-2">
               <div class="flex items-center justify-between gap-3">
                 <span class="text-xs font-semibold text-slate-600">Addresses</span>
@@ -341,14 +295,12 @@ function selectPronouncedName(value: unknown): void {
                 :key="index"
                 class="grid gap-3 rounded-md border border-slate-200 p-4"
               >
-                <textarea
+                <FormTextarea
                   v-model="address.address"
+                  :label="`Profile address ${index + 1}`"
                   maxlength="512"
-                  rows="2"
-                  class="field-control h-auto py-3"
-                  :class="validationControlClass(error(`profile.addresses.${index}.address`))"
-                  :aria-invalid="Boolean(error(`profile.addresses.${index}.address`))"
-                  :aria-label="`Profile address ${index + 1}`"
+                  size="compact"
+                  :error="error(`profile.addresses.${index}.address`)"
                 />
                 <div class="flex flex-wrap gap-2">
                   <button
@@ -407,7 +359,9 @@ function selectPronouncedName(value: unknown): void {
         </div>
       </Disclosure>
 
-      <aside class="rounded-md border border-slate-200 bg-slate-50 p-4 text-[10px] leading-4 text-slate-600">
+      <aside
+        class="rounded-md border border-slate-200 bg-slate-50 p-4 text-[10px] leading-4 text-slate-600"
+      >
         <p class="font-semibold text-slate-700">Switch-managed policy</p>
         <p class="mt-1">
           Verified: {{ policy.verified ? 'yes' : 'no' }} · Privilege:

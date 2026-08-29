@@ -102,6 +102,17 @@ export type VoicemailBoxInput = VoicemailBoxConfiguration & {
   pin: string | null
 }
 
+export type VoicemailBoxBasicForm = {
+  name: string
+  mailbox: string
+  assigned_extension_id: string | null
+  timezone: string | null
+  notification_emails: string
+  transcribe: boolean
+  require_pin: boolean
+  pin: string
+}
+
 export type SyncState = {
   status: ProjectionStatus
   last_successful_at: string | null

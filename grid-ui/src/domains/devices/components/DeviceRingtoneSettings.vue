@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { MusicalNoteIcon, XMarkIcon } from '@heroicons/vue/24/outline'
-import { validationControlClass } from '@/shared/forms/validationStyles'
+import FormInput from '@/shared/components/FormInput.vue'
 import type { DeviceConfiguration } from '../types/device'
 
 const props = defineProps<{ fieldErrors: Record<string, string[]> }>()
@@ -24,17 +24,16 @@ function error(field: 'internal' | 'external'): string | null {
       </div>
     </div>
 
-    <label v-for="field in ringtoneFields" :key="field" class="grid gap-2">
-      <span class="text-xs font-semibold text-slate-600 capitalize">{{ field }} ringtone</span>
-      <span class="relative">
-        <input
-          v-model="ringtones[field]"
-          maxlength="256"
-          class="h-10 w-full rounded-md border border-slate-200 px-3 pr-10 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          :class="validationControlClass(error(field))"
-          :aria-invalid="Boolean(error(field))"
-          :placeholder="field === 'internal' ? 'Internal-ring' : 'External-ring'"
-        />
+    <FormInput
+      v-for="field in ringtoneFields"
+      :key="field"
+      v-model="ringtones[field]"
+      :label="`${field.charAt(0).toUpperCase()}${field.slice(1)} ringtone`"
+      maxlength="256"
+      :placeholder="field === 'internal' ? 'Internal-ring' : 'External-ring'"
+      :error="error(field)"
+    >
+      <template #trailing>
         <button
           v-if="ringtones[field]"
           type="button"
@@ -44,8 +43,7 @@ function error(field: 'internal' | 'external'): string | null {
         >
           <XMarkIcon class="size-4" />
         </button>
-      </span>
-      <span v-if="error(field)" class="text-[11px] text-danger">{{ error(field) }}</span>
-    </label>
+      </template>
+    </FormInput>
   </section>
 </template>

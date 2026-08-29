@@ -1,12 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  Tab,
-  TabGroup,
-  TabList,
-  TabPanel,
-  TabPanels,
-} from '@headlessui/vue'
+import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import {
   IdentificationIcon,
   MusicalNoteIcon,
@@ -16,9 +10,10 @@ import {
   Squares2X2Icon,
   VideoCameraIcon,
 } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import FormTextarea from '@/shared/components/FormTextarea.vue'
 import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import {
   audioCodecs,
   deviceAdvancedTabForError,
@@ -155,10 +150,6 @@ function error(field: string): string | null {
   return props.fieldErrors[field]?.[0] ?? null
 }
 
-function invalidClass(field: string): string {
-  return validationControlClass(error(field))
-}
-
 function callerIdOptions(scope: 'external' | 'emergency') {
   const current = configuration.value.caller_id[scope].number
   const projected = props.callerIdNumberOptions
@@ -226,20 +217,13 @@ function toggleEncryptionMethod(method: string): void {
         </TabPanel>
 
         <TabPanel v-if="deviceSupportsTab(deviceType, 'caller-id')" class="grid gap-5 outline-none">
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Presence ID</span>
-            <input
-              v-model="configuration.presence_id"
-              maxlength="255"
-              class="field-control"
-              :class="invalidClass('presence_id')"
-              :aria-invalid="Boolean(error('presence_id'))"
-              placeholder="Use the SIP username when empty"
-            />
-            <span v-if="error('presence_id')" class="text-[11px] text-danger">
-              {{ error('presence_id') }}
-            </span>
-          </label>
+          <FormInput
+            v-model="configuration.presence_id"
+            label="Presence ID"
+            maxlength="255"
+            placeholder="Use the SIP username when empty"
+            :error="error('presence_id')"
+          />
           <section
             v-for="scope in callerIdScopes"
             :key="scope"
@@ -248,83 +232,54 @@ function toggleEncryptionMethod(method: string): void {
             <h3 class="text-xs font-semibold capitalize text-slate-700 sm:col-span-2">
               {{ scope }} caller ID
             </h3>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Name</span>
-              <input
-                v-model="configuration.caller_id[scope].name"
-                maxlength="35"
-                class="field-control"
-                :class="invalidClass(`caller_id.${scope}.name`)"
-                :aria-invalid="Boolean(error(`caller_id.${scope}.name`))"
-              />
-              <span v-if="error(`caller_id.${scope}.name`)" class="text-[11px] text-danger">{{
-                error(`caller_id.${scope}.name`)
-              }}</span>
-            </label>
-            <label class="grid gap-2">
+            <FormInput
+              v-model="configuration.caller_id[scope].name"
+              label="Name"
+              maxlength="35"
+              :error="error(`caller_id.${scope}.name`)"
+            />
+            <label v-if="scope !== 'internal'" class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Number</span>
               <FormListbox
-                v-if="scope !== 'internal'"
                 v-model="configuration.caller_id[scope].number"
                 :invalid="Boolean(error(`caller_id.${scope}.number`))"
                 :options="callerIdOptions(scope)"
                 :aria-label="`${scope} caller ID number`"
               />
-              <input
-                v-else
-                v-model="configuration.caller_id.internal.number"
-                maxlength="35"
-                class="field-control"
-                :class="invalidClass('caller_id.internal.number')"
-                :aria-invalid="Boolean(error('caller_id.internal.number'))"
-              />
               <span v-if="error(`caller_id.${scope}.number`)" class="text-[11px] text-danger">{{
                 error(`caller_id.${scope}.number`)
               }}</span>
             </label>
+            <FormInput
+              v-else
+              v-model="configuration.caller_id.internal.number"
+              label="Number"
+              maxlength="35"
+              :error="error('caller_id.internal.number')"
+            />
           </section>
           <section class="grid gap-4 rounded-md border border-slate-100 p-4 sm:grid-cols-2">
             <h3 class="text-xs font-semibold text-slate-700 sm:col-span-2">Asserted identity</h3>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Name</span>
-              <input
-                v-model="configuration.caller_id.asserted.name"
-                maxlength="35"
-                class="field-control"
-                :class="invalidClass('caller_id.asserted.name')"
-                :aria-invalid="Boolean(error('caller_id.asserted.name'))"
-              />
-              <span v-if="error('caller_id.asserted.name')" class="text-[11px] text-danger">
-                {{ error('caller_id.asserted.name') }}
-              </span>
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Number</span>
-              <input
-                v-model="configuration.caller_id.asserted.number"
-                maxlength="35"
-                class="field-control"
-                :class="invalidClass('caller_id.asserted.number')"
-                :aria-invalid="Boolean(error('caller_id.asserted.number'))"
-              />
-              <span v-if="error('caller_id.asserted.number')" class="text-[11px] text-danger">
-                {{ error('caller_id.asserted.number') }}
-              </span>
-            </label>
-            <label class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Realm</span>
-              <input
-                v-model="configuration.caller_id.asserted.realm"
-                maxlength="253"
-                class="field-control"
-                :class="invalidClass('caller_id.asserted.realm')"
-                :aria-invalid="Boolean(error('caller_id.asserted.realm'))"
-                placeholder="Use the account realm when empty"
-              />
-              <span v-if="error('caller_id.asserted.realm')" class="text-[11px] text-danger">
-                {{ error('caller_id.asserted.realm') }}
-              </span>
-            </label>
+            <FormInput
+              v-model="configuration.caller_id.asserted.name"
+              label="Name"
+              maxlength="35"
+              :error="error('caller_id.asserted.name')"
+            />
+            <FormInput
+              v-model="configuration.caller_id.asserted.number"
+              label="Number"
+              maxlength="35"
+              :error="error('caller_id.asserted.number')"
+            />
+            <FormInput
+              v-model="configuration.caller_id.asserted.realm"
+              label="Realm"
+              maxlength="253"
+              placeholder="Use the account realm when empty"
+              class="sm:col-span-2"
+              :error="error('caller_id.asserted.realm')"
+            />
           </section>
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Outbound privacy</span>
@@ -374,223 +329,134 @@ function toggleEncryptionMethod(method: string): void {
               }}</span>
             </label>
             <template v-if="configuration.sip.method === 'password'">
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">SIP username</span>
-                <input
-                  v-model="configuration.sip.username"
-                  maxlength="32"
-                  autocomplete="off"
-                  class="field-control"
-                  :class="invalidClass('sip.username')"
-                  :aria-invalid="Boolean(error('sip.username'))"
-                  :placeholder="
-                    configuration.sip.username_configured ? 'Configured — enter to replace' : ''
-                  "
-                />
-                <span v-if="error('sip.username')" class="text-[11px] text-danger">{{
-                  error('sip.username')
-                }}</span>
-              </label>
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">{{
-                  isEditing ? 'New SIP password' : 'SIP password'
-                }}</span>
-                <input
-                  v-model="configuration.sip.password"
-                  type="password"
-                  minlength="12"
-                  maxlength="32"
-                  autocomplete="new-password"
-                  class="field-control"
-                  :class="invalidClass('sip.password')"
-                  :aria-invalid="Boolean(error('sip.password'))"
-                  :placeholder="isEditing ? 'Leave blank to keep current password' : ''"
-                />
-                <span v-if="error('sip.password')" class="text-[11px] text-danger">{{
-                  error('sip.password')
-                }}</span>
-              </label>
-            </template>
-            <label v-else class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Authorized IP address</span>
-              <input
-                v-model="configuration.sip.ip"
-                class="field-control font-mono"
-                :class="invalidClass('sip.ip')"
-                :aria-invalid="Boolean(error('sip.ip'))"
-                placeholder="203.0.113.10"
-              />
-              <span v-if="error('sip.ip')" class="text-[11px] text-danger">{{
-                error('sip.ip')
-              }}</span>
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Realm override</span>
-              <input
-                v-model="configuration.sip.realm"
-                maxlength="253"
-                class="field-control"
-                :class="invalidClass('sip.realm')"
-                :aria-invalid="Boolean(error('sip.realm'))"
-                placeholder="Use account realm"
-              />
-              <span v-if="error('sip.realm')" class="text-[11px] text-danger">{{
-                error('sip.realm')
-              }}</span>
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Registration period</span>
-              <input
-                v-model.number="configuration.sip.expire_seconds"
-                type="number"
-                min="30"
-                max="86400"
-                class="field-control"
-                :class="invalidClass('sip.expire_seconds')"
-                :aria-invalid="Boolean(error('sip.expire_seconds'))"
-              />
-              <span v-if="error('sip.expire_seconds')" class="text-[11px] text-danger">{{
-                error('sip.expire_seconds')
-              }}</span>
-            </label>
-            <label
-              v-if="configuration.sip.invite_format === 'route' || deviceType === 'sip_uri'"
-              class="grid gap-2 sm:col-span-2"
-            >
-              <span class="text-xs font-semibold text-slate-600">SIP route</span>
-              <input
-                v-model="configuration.sip.route"
-                maxlength="2048"
-                class="field-control font-mono"
-                :class="invalidClass('sip.route')"
-                :aria-invalid="Boolean(error('sip.route'))"
-                placeholder="sip:user@example.com"
-              />
-              <span v-if="error('sip.route')" class="text-[11px] text-danger">{{
-                error('sip.route')
-              }}</span>
-            </label>
-            <label
-              v-if="['npan', '1npan', 'e164'].includes(configuration.sip.invite_format)"
-              class="grid gap-2 sm:col-span-2"
-            >
-              <span class="text-xs font-semibold text-slate-600">Invite number</span>
-              <input
-                v-model="configuration.sip.number"
-                maxlength="64"
-                class="field-control"
-                :class="invalidClass('sip.number')"
-                :aria-invalid="Boolean(error('sip.number'))"
-                placeholder="Uses the dialed number when empty"
-              />
-              <span v-if="error('sip.number')" class="text-[11px] text-danger">{{
-                error('sip.number')
-              }}</span>
-            </label>
-            <label class="grid gap-2 sm:col-span-2">
-              <span class="text-xs font-semibold text-slate-600">Static inbound route</span>
-              <input
-                v-model="configuration.sip.static_route"
-                maxlength="2048"
-                class="field-control font-mono"
-                :class="invalidClass('sip.static_route')"
-                :aria-invalid="Boolean(error('sip.static_route'))"
-                placeholder="Optional"
-              />
-              <span v-if="error('sip.static_route')" class="text-[11px] text-danger">{{
-                error('sip.static_route')
-              }}</span>
-            </label>
-            <label v-if="schemaCompatibility.sip.custom_sip_interface" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Custom SIP interface</span>
-              <input
-                v-model="configuration.sip.custom_sip_interface"
-                maxlength="255"
-                class="field-control font-mono"
-                :class="invalidClass('sip.custom_sip_interface')"
-                :aria-invalid="Boolean(error('sip.custom_sip_interface'))"
-                placeholder="Optional interface name"
-              />
-              <span v-if="error('sip.custom_sip_interface')" class="text-[11px] text-danger">{{
-                error('sip.custom_sip_interface')
-              }}</span>
-            </label>
-            <label v-if="schemaCompatibility.sip.forward" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Forward IP</span>
-              <input
-                v-model="configuration.sip.forward"
-                maxlength="255"
-                class="field-control font-mono"
-                :class="invalidClass('sip.forward')"
-                :aria-invalid="Boolean(error('sip.forward'))"
-                placeholder="Optional forwarding host"
-              />
-              <span v-if="error('sip.forward')" class="text-[11px] text-danger">{{
-                error('sip.forward')
-              }}</span>
-            </label>
-            <label v-if="schemaCompatibility.sip.proxy" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">SIP proxy</span>
-              <input
-                v-model="configuration.sip.proxy"
-                maxlength="2048"
-                class="field-control font-mono"
-                :class="invalidClass('sip.proxy')"
-                :aria-invalid="Boolean(error('sip.proxy'))"
-                placeholder="Optional proxy address"
-              />
-              <span v-if="error('sip.proxy')" class="text-[11px] text-danger">{{
-                error('sip.proxy')
-              }}</span>
-            </label>
-            <label v-if="schemaCompatibility.sip.static_invite" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Static SIP To user</span>
-              <input
-                v-model="configuration.sip.static_invite"
-                maxlength="2048"
-                class="field-control font-mono"
-                :class="invalidClass('sip.static_invite')"
-                :aria-invalid="Boolean(error('sip.static_invite'))"
-                placeholder="Optional To user"
-              />
-              <span v-if="error('sip.static_invite')" class="text-[11px] text-danger">{{
-                error('sip.static_invite')
-              }}</span>
-            </label>
-            <label v-if="schemaCompatibility.sip.transport" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">SIP transport</span>
-              <input
-                v-model="configuration.sip.transport"
+              <FormInput
+                v-model="configuration.sip.username"
+                label="SIP username"
                 maxlength="32"
-                class="field-control font-mono"
-                :class="invalidClass('sip.transport')"
-                :aria-invalid="Boolean(error('sip.transport'))"
-                placeholder="udp, tcp, or tls"
+                autocomplete="off"
+                :placeholder="
+                  configuration.sip.username_configured ? 'Configured — enter to replace' : ''
+                "
+                :error="error('sip.username')"
               />
-              <span v-if="error('sip.transport')" class="text-[11px] text-danger">{{
-                error('sip.transport')
-              }}</span>
-            </label>
-            <label
+              <FormInput
+                v-model="configuration.sip.password"
+                :label="isEditing ? 'New SIP password' : 'SIP password'"
+                type="password"
+                minlength="12"
+                maxlength="32"
+                autocomplete="new-password"
+                :placeholder="isEditing ? 'Leave blank to keep current password' : ''"
+                :error="error('sip.password')"
+              />
+            </template>
+            <FormInput
+              v-else
+              v-model="configuration.sip.ip"
+              label="Authorized IP address"
+              input-class="font-mono"
+              placeholder="203.0.113.10"
+              class="sm:col-span-2"
+              :error="error('sip.ip')"
+            />
+            <FormInput
+              v-model="configuration.sip.realm"
+              label="Realm override"
+              maxlength="253"
+              placeholder="Use account realm"
+              :error="error('sip.realm')"
+            />
+            <FormInput
+              v-model.number="configuration.sip.expire_seconds"
+              label="Registration period"
+              type="number"
+              min="30"
+              max="86400"
+              :error="error('sip.expire_seconds')"
+            />
+            <FormInput
+              v-if="configuration.sip.invite_format === 'route' || deviceType === 'sip_uri'"
+              v-model="configuration.sip.route"
+              label="SIP route"
+              maxlength="2048"
+              input-class="font-mono"
+              placeholder="sip:user@example.com"
+              class="sm:col-span-2"
+              :error="error('sip.route')"
+            />
+            <FormInput
+              v-if="['npan', '1npan', 'e164'].includes(configuration.sip.invite_format)"
+              v-model="configuration.sip.number"
+              label="Invite number"
+              maxlength="64"
+              placeholder="Uses the dialed number when empty"
+              class="sm:col-span-2"
+              :error="error('sip.number')"
+            />
+            <FormInput
+              v-model="configuration.sip.static_route"
+              label="Static inbound route"
+              maxlength="2048"
+              input-class="font-mono"
+              placeholder="Optional"
+              class="sm:col-span-2"
+              :error="error('sip.static_route')"
+            />
+            <FormInput
+              v-if="schemaCompatibility.sip.custom_sip_interface"
+              v-model="configuration.sip.custom_sip_interface"
+              label="Custom SIP interface"
+              maxlength="255"
+              input-class="font-mono"
+              placeholder="Optional interface name"
+              :error="error('sip.custom_sip_interface')"
+            />
+            <FormInput
+              v-if="schemaCompatibility.sip.forward"
+              v-model="configuration.sip.forward"
+              label="Forward IP"
+              maxlength="255"
+              input-class="font-mono"
+              placeholder="Optional forwarding host"
+              :error="error('sip.forward')"
+            />
+            <FormInput
+              v-if="schemaCompatibility.sip.proxy"
+              v-model="configuration.sip.proxy"
+              label="SIP proxy"
+              maxlength="2048"
+              input-class="font-mono"
+              placeholder="Optional proxy address"
+              :error="error('sip.proxy')"
+            />
+            <FormInput
+              v-if="schemaCompatibility.sip.static_invite"
+              v-model="configuration.sip.static_invite"
+              label="Static SIP To user"
+              maxlength="2048"
+              input-class="font-mono"
+              placeholder="Optional To user"
+              :error="error('sip.static_invite')"
+            />
+            <FormInput
+              v-if="schemaCompatibility.sip.transport"
+              v-model="configuration.sip.transport"
+              label="SIP transport"
+              maxlength="32"
+              input-class="font-mono"
+              placeholder="udp, tcp, or tls"
+              :error="error('sip.transport')"
+            />
+            <FormTextarea
               v-if="supportsOutboundFlags(deviceType)"
-              class="grid gap-2 sm:col-span-2"
-            >
-              <span class="text-xs font-semibold text-slate-600">Outbound flags</span>
-              <textarea
-                v-model="staticOutboundFlags"
-                rows="2"
-                class="field-control min-h-20 py-2"
-                :class="invalidClass('outbound_flags.static')"
-                :aria-invalid="Boolean(error('outbound_flags.static'))"
-                placeholder="fax, trusted"
-              />
-              <span class="text-[10px] text-slate-500">
-                Separate Switch resource flags with commas or new lines.
-              </span>
-              <span v-if="error('outbound_flags.static')" class="text-[11px] text-danger">{{
-                error('outbound_flags.static')
-              }}</span>
-            </label>
+              v-model="staticOutboundFlags"
+              label="Outbound flags"
+              rows="2"
+              placeholder="fax, trusted"
+              description="Separate Switch resource flags with commas or new lines."
+              class="sm:col-span-2"
+              :error="error('outbound_flags.static')"
+            />
           </TabPanel>
         </template>
 
@@ -671,21 +537,14 @@ function toggleEncryptionMethod(method: string): void {
                 v-model="configuration.media.ignore_early_media"
                 label="Ignore early media"
               />
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Progress timeout (seconds)</span>
-                <input
-                  v-model.number="configuration.media.progress_timeout"
-                  type="number"
-                  min="0"
-                  max="3600"
-                  class="field-control"
-                  :class="invalidClass('media.progress_timeout')"
-                  :aria-invalid="Boolean(error('media.progress_timeout'))"
-                />
-                <span v-if="error('media.progress_timeout')" class="text-[11px] text-danger">{{
-                  error('media.progress_timeout')
-                }}</span>
-              </label>
+              <FormInput
+                v-model.number="configuration.media.progress_timeout"
+                label="Progress timeout (seconds)"
+                type="number"
+                min="0"
+                max="3600"
+                :error="error('media.progress_timeout')"
+              />
             </div>
           </TabPanel>
         </template>

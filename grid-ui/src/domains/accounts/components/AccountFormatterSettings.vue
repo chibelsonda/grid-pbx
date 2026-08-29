@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { AccountFormatter } from '../types/account'
 
 const props = defineProps<{ fieldErrors: Record<string, string[]> }>()
@@ -52,19 +52,14 @@ function addFormatter(): void {
     :key="index"
     class="grid gap-3 rounded-md border border-slate-200 p-4 sm:grid-cols-3"
   >
-    <label class="grid gap-2 sm:col-span-2">
-      <span class="text-xs font-semibold text-slate-600">Switch field</span>
-      <input
-        v-model="formatter.field"
-        class="field-control font-mono"
-        :class="validationControlClass(error(`formatters.${index}.field`))"
-        :aria-invalid="Boolean(error(`formatters.${index}.field`))"
-        placeholder="request"
-      />
-      <span v-if="error(`formatters.${index}.field`)" class="text-[10px] text-danger">
-        {{ error(`formatters.${index}.field`) }}
-      </span>
-    </label>
+    <FormInput
+      v-model="formatter.field"
+      label="Switch field"
+      class="sm:col-span-2"
+      input-class="font-mono"
+      placeholder="request"
+      :error="error(`formatters.${index}.field`)"
+    />
     <label class="grid gap-2">
       <span class="text-xs font-semibold text-slate-600">Direction</span>
       <FormListbox
@@ -81,7 +76,7 @@ function addFormatter(): void {
         {{ error(`formatters.${index}.direction`) }}
       </span>
     </label>
-    <label
+    <FormInput
       v-for="control in [
         { key: 'regex', label: 'Match regex', placeholder: '^(.*)$', mono: true },
         { key: 'value', label: 'Fixed value', placeholder: 'Optional replacement', mono: false },
@@ -89,23 +84,12 @@ function addFormatter(): void {
         { key: 'suffix', label: 'Suffix', placeholder: '', mono: false },
       ] as const"
       :key="control.key"
-      class="grid gap-2"
-    >
-      <span class="text-xs font-semibold text-slate-600">{{ control.label }}</span>
-      <input
-        v-model="formatter[control.key]"
-        class="field-control"
-        :class="[
-          control.mono && 'font-mono',
-          validationControlClass(error(`formatters.${index}.${control.key}`)),
-        ]"
-        :aria-invalid="Boolean(error(`formatters.${index}.${control.key}`))"
-        :placeholder="control.placeholder"
-      />
-      <span v-if="error(`formatters.${index}.${control.key}`)" class="text-[10px] text-danger">{{
-        error(`formatters.${index}.${control.key}`)
-      }}</span>
-    </label>
+      v-model="formatter[control.key]"
+      :label="control.label"
+      :input-class="control.mono ? 'font-mono' : ''"
+      :placeholder="control.placeholder"
+      :error="error(`formatters.${index}.${control.key}`)"
+    />
     <div class="grid gap-2 sm:col-span-2 sm:grid-cols-2">
       <ToggleSwitch v-model="formatter.strip" label="Strip matched value" />
       <ToggleSwitch v-model="formatter.match_invite_format" label="Match INVITE format" />

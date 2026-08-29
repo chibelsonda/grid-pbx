@@ -10,9 +10,12 @@ import {
 import DeviceDraftForm from '@/domains/devices/components/DeviceDraftForm.vue'
 import { defaultDeviceOptions, deviceTypes } from '@/domains/devices/deviceForm'
 import type { DeviceInput, DeviceOptions } from '@/domains/devices/types/device'
+import VoicemailDraftForm from '@/domains/voicemail/components/VoicemailDraftForm.vue'
+import type { VoicemailBoxInput, VoicemailFormOptions } from '@/domains/voicemail/types/voicemail'
+import { defaultVoicemailFormOptions } from '@/domains/voicemail/voicemailForm'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import {
   defaultExtensionCredentialsInput,
@@ -39,15 +42,18 @@ const props = withDefaults(
     fieldErrors: Record<string, string[]>
     options: ExtensionFormOptions
     deviceOptions?: DeviceOptions
+    voicemailOptions?: VoicemailFormOptions
   }>(),
-  { deviceOptions: defaultDeviceOptions },
+  { deviceOptions: defaultDeviceOptions, voicemailOptions: defaultVoicemailFormOptions },
 )
 const emit = defineEmits<{ close: []; save: [input: ExtensionCreate] }>()
 const userConfiguration = reactive(defaultExtensionUserConfiguration())
 const credentials = reactive(defaultExtensionCredentialsInput())
 const hotdesk = reactive(defaultExtensionHotdeskInput())
-const panelView = ref<'extension' | 'device'>('extension')
+const panelView = ref<'extension' | 'device' | 'voicemail'>('extension')
 const configuredDevice = ref<DeviceInput | null>(null)
+const configuredVoicemail = ref<VoicemailBoxInput | null>(null)
+const voicemailDraft = ref<InstanceType<typeof VoicemailDraftForm> | null>(null)
 const clientErrors = ref<FormErrors>({})
 const displayErrors = computed(() => ({ ...props.fieldErrors, ...clientErrors.value }))
 const form = reactive({
@@ -58,10 +64,6 @@ const form = reactive({
   timezone: null as string | null,
   isEnabled: true,
   voicemailEnabled: true,
-  notificationEmails: '',
-  transcribe: false,
-  requirePin: false,
-  pin: '',
   deviceEnabled: false,
 })
 const { timezoneOptions, languageOptions, presenceOptions } = useExtensionFormOptions(
@@ -76,24 +78,44 @@ const { timezoneOptions, languageOptions, presenceOptions } = useExtensionFormOp
 const configuredDeviceType = computed(() =>
   deviceTypes.find((type) => type.value === configuredDevice.value?.device_type),
 )
-const panelTitle = computed(() =>
-  panelView.value === 'device' ? 'Configure device' : 'Create extension',
-)
+const managedMailboxName = computed(() => {
+  const displayName = `${form.firstName} ${form.lastName}`.trim() || 'Managed voicemail'
+
+  return form.extension.trim() ? `(${form.extension.trim()}) ${displayName}` : displayName
+})
+const panelTitle = computed(() => {
+  if (panelView.value === 'device') return 'Configure device'
+  if (panelView.value === 'voicemail') return 'Configure voicemail'
+
+  return 'Create extension'
+})
 const panelEyebrow = computed(() =>
-  panelView.value === 'device'
-    ? 'GridPBX / People & Extensions / Create / Initial device'
-    : 'GridPBX / People & Extensions / Create',
+  panelView.value === 'extension'
+    ? 'GridPBX / People & Extensions / Create'
+    : `GridPBX / People & Extensions / Create / ${panelView.value === 'device' ? 'Initial device' : 'Voicemail'}`,
 )
-const panelDescription = computed(() =>
-  panelView.value === 'device'
-    ? 'Configure the optional endpoint without leaving the Extension workflow.'
-    : 'Provision a managed Switch user, optional mailbox and device, and a safe extension callflow.',
-)
+const panelDescription = computed(() => {
+  if (panelView.value === 'device') {
+    return 'Configure the optional endpoint without leaving the Extension workflow.'
+  }
+  if (panelView.value === 'voicemail') {
+    return 'Configure the managed mailbox without leaving the Extension workflow.'
+  }
+
+  return 'Provision a managed Switch user, optional mailbox and device, and a safe extension callflow.'
+})
 const deviceFieldErrors = computed<FormErrors>(() =>
   Object.fromEntries(
     Object.entries(displayErrors.value)
       .filter(([field]) => field.startsWith('device.input.'))
       .map(([field, messages]) => [field.slice('device.input.'.length), messages]),
+  ),
+)
+const voicemailFieldErrors = computed<FormErrors>(() =>
+  Object.fromEntries(
+    Object.entries(displayErrors.value)
+      .filter(([field]) => field.startsWith('voicemail.input.'))
+      .map(([field, messages]) => [field.slice('voicemail.input.'.length), messages]),
   ),
 )
 
@@ -102,6 +124,14 @@ watch(
   (enabled) => {
     if (enabled && configuredDevice.value === null) panelView.value = 'device'
     if (!enabled) configuredDevice.value = null
+  },
+)
+
+watch(
+  () => form.voicemailEnabled,
+  (enabled, previousEnabled) => {
+    if (enabled && previousEnabled === false) panelView.value = 'voicemail'
+    if (!enabled) configuredVoicemail.value = null
   },
 )
 
@@ -138,7 +168,15 @@ function configureDevice(input: DeviceInput): void {
   panelView.value = 'extension'
 }
 
+function configureVoicemail(input: VoicemailBoxInput): void {
+  configuredVoicemail.value = input
+  panelView.value = 'extension'
+}
+
 function submit(): void {
+  const currentVoicemail = form.voicemailEnabled
+    ? (voicemailDraft.value?.currentInput() ?? null)
+    : null
   const input: ExtensionCreate = {
     first_name: form.firstName.trim(),
     last_name: form.lastName.trim(),
@@ -160,13 +198,7 @@ function submit(): void {
     },
     voicemail: {
       enabled: form.voicemailEnabled,
-      notification_emails: form.notificationEmails
-        .split(',')
-        .map((email) => email.trim())
-        .filter(Boolean),
-      transcribe: form.transcribe,
-      require_pin: form.requirePin,
-      pin: form.requirePin ? nullable(form.pin) : null,
+      input: currentVoicemail,
     },
     device: {
       enabled: form.deviceEnabled,
@@ -181,6 +213,16 @@ function submit(): void {
     return
   }
 
+  if (form.voicemailEnabled) {
+    const validatedVoicemail = voicemailDraft.value?.validatedInput() ?? null
+    if (validatedVoicemail === null) {
+      panelView.value = 'voicemail'
+
+      return
+    }
+    validation.data.voicemail.input = validatedVoicemail
+  }
+
   clientErrors.value = {}
   emit('save', validation.data)
 }
@@ -191,7 +233,8 @@ function submit(): void {
     :title="panelTitle"
     :eyebrow="panelEyebrow"
     :description="panelDescription"
-    :width="panelView === 'device' ? 'wide' : 'medium'"
+    :width="panelView === 'extension' ? 'medium' : 'wide'"
+    :scroll-key="panelView"
     @close="emit('close')"
   >
     <form v-show="panelView === 'extension'" class="grid gap-5" novalidate @submit.prevent="submit">
@@ -213,63 +256,36 @@ function submit(): void {
           </div>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">First name</span>
-            <input
-              v-model="form.firstName"
-              required
-              maxlength="128"
-              class="field-control"
-              :class="validationControlClass(fieldError('first_name'))"
-              :aria-invalid="Boolean(fieldError('first_name'))"
-            />
-            <span v-if="displayErrors.first_name" class="text-[10px] text-danger">{{
-              displayErrors.first_name[0]
-            }}</span>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Last name</span>
-            <input
-              v-model="form.lastName"
-              required
-              maxlength="128"
-              class="field-control"
-              :class="validationControlClass(fieldError('last_name'))"
-              :aria-invalid="Boolean(fieldError('last_name'))"
-            />
-            <span v-if="displayErrors.last_name" class="text-[10px] text-danger">{{
-              displayErrors.last_name[0]
-            }}</span>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Extension number</span>
-            <input
-              v-model="form.extension"
-              required
-              inputmode="numeric"
-              pattern="[0-9]{2,15}"
-              class="field-control font-mono"
-              :class="validationControlClass(fieldError('extension'))"
-              :aria-invalid="Boolean(fieldError('extension'))"
-            />
-            <span v-if="displayErrors.extension" class="text-[10px] text-danger">{{
-              displayErrors.extension[0]
-            }}</span>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Email</span>
-            <input
-              v-model="form.email"
-              type="email"
-              maxlength="254"
-              class="field-control"
-              :class="validationControlClass(fieldError('email'))"
-              :aria-invalid="Boolean(fieldError('email'))"
-            />
-            <span v-if="displayErrors.email" class="text-[10px] text-danger">{{
-              displayErrors.email[0]
-            }}</span>
-          </label>
+          <FormInput
+            v-model="form.firstName"
+            label="First name"
+            required
+            maxlength="128"
+            :error="fieldError('first_name')"
+          />
+          <FormInput
+            v-model="form.lastName"
+            label="Last name"
+            required
+            maxlength="128"
+            :error="fieldError('last_name')"
+          />
+          <FormInput
+            v-model="form.extension"
+            label="Extension number"
+            required
+            inputmode="numeric"
+            pattern="[0-9]{2,15}"
+            input-class="font-mono"
+            :error="fieldError('extension')"
+          />
+          <FormInput
+            v-model="form.email"
+            label="Email"
+            type="email"
+            maxlength="254"
+            :error="fieldError('email')"
+          />
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Timezone</span>
             <FormListbox
@@ -323,42 +339,43 @@ function submit(): void {
           </div>
           <ToggleSwitch v-model="form.voicemailEnabled" label="Create" />
         </header>
-        <div v-if="form.voicemailEnabled" class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Notification emails</span>
-            <input
-              v-model="form.notificationEmails"
-              placeholder="alice@example.com, team@example.com"
-              class="field-control"
-              :class="validationControlClass(fieldError('voicemail.notification_emails'))"
-              :aria-invalid="Boolean(fieldError('voicemail.notification_emails'))"
-            />
-            <span class="text-[10px] text-slate-400">Separate multiple addresses with commas.</span>
+        <div v-if="form.voicemailEnabled" class="p-5">
+          <button
+            type="button"
+            class="flex w-full items-center gap-3 rounded-lg border p-4 text-left transition"
+            :class="
+              fieldError('voicemail.input')
+                ? 'border-red-400 bg-red-50/40 ring-2 ring-red-100'
+                : 'border-slate-200 bg-slate-50 hover:border-brand-300 hover:bg-brand-50/40'
+            "
+            :aria-invalid="Boolean(fieldError('voicemail.input'))"
+            @click="panelView = 'voicemail'"
+          >
             <span
-              v-if="fieldError('voicemail.notification_emails')"
-              class="text-[10px] text-danger"
-              >{{ fieldError('voicemail.notification_emails') }}</span
+              class="grid size-10 shrink-0 place-items-center rounded-md bg-white text-purple-600 shadow-sm"
             >
-          </label>
-          <ToggleSwitch v-model="form.transcribe" label="Enable transcription" />
-          <ToggleSwitch v-model="form.requirePin" label="Require mailbox PIN" />
-          <label v-if="form.requirePin" class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Mailbox PIN</span>
-            <input
-              v-model="form.pin"
-              required
-              type="password"
-              inputmode="numeric"
-              pattern="[0-9]{4,6}"
-              autocomplete="new-password"
-              class="field-control"
-              :class="validationControlClass(fieldError('voicemail.pin'))"
-              :aria-invalid="Boolean(fieldError('voicemail.pin'))"
-            />
-            <span v-if="fieldError('voicemail.pin')" class="text-[10px] text-danger">{{
-              fieldError('voicemail.pin')
-            }}</span>
-          </label>
+              <MicrophoneIcon class="size-5" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="block truncate text-xs font-semibold text-slate-700">
+                {{ managedMailboxName }}
+              </span>
+              <span class="mt-1 block text-[11px] leading-4 text-slate-500">
+                {{
+                  configuredVoicemail
+                    ? 'Mailbox settings configured'
+                    : 'Uses account defaults until you customize its Basic and Advanced settings.'
+                }}
+              </span>
+            </span>
+            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600">
+              <PencilSquareIcon class="size-4" />
+              {{ configuredVoicemail ? 'Edit' : 'Configure' }}
+            </span>
+          </button>
+          <p v-if="fieldError('voicemail.input')" class="mt-2 text-[11px] text-danger">
+            {{ fieldError('voicemail.input') }}
+          </p>
         </div>
       </article>
 
@@ -450,6 +467,19 @@ function submit(): void {
         :external-field-errors="deviceFieldErrors"
         @cancel="panelView = 'extension'"
         @configured="configureDevice"
+      />
+    </div>
+
+    <div v-show="panelView === 'voicemail'" data-testid="voicemail-subview">
+      <VoicemailDraftForm
+        ref="voicemailDraft"
+        :options="voicemailOptions"
+        :name="managedMailboxName"
+        :mailbox="form.extension.trim()"
+        :timezone="form.timezone"
+        :external-field-errors="voicemailFieldErrors"
+        @cancel="panelView = 'extension'"
+        @configured="configureVoicemail"
       />
     </div>
   </CrudSlideOver>

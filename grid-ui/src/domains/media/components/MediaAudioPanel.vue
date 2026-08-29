@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { ArrowUpTrayIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
+import FormFileInput from '@/shared/components/FormFileInput.vue'
 import { useMediaAudioForm } from '../composables/useMediaAudioForm'
 
 const props = defineProps<{
@@ -15,9 +15,6 @@ const emit = defineEmits<{ close: []; save: [audio: File] }>()
 const { audio, validate, validationErrors } = useMediaAudioForm()
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const audioError = computed(() => errors.value.audio?.[0] ?? null)
-function choose(event: Event): void {
-  audio.value = (event.target as HTMLInputElement).files?.[0] ?? null
-}
 function submit(): void {
   const result = validate()
   if (result.success) emit('save', result.data.audio)
@@ -44,16 +41,13 @@ function submit(): void {
         <p class="mt-1 text-xs leading-5 text-slate-500">
           The Switch replaces the binary. MySQL stores only the refreshed content metadata.
         </p>
-        <input
-          aria-label="Replacement audio file"
-          type="file"
+        <FormFileInput
+          v-model="audio"
+          label="Replacement audio file"
+          class="mt-5"
           accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
-          class="mt-5 w-full rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
-          :class="validationControlClass(audioError)"
-          :aria-invalid="Boolean(audioError)"
-          @change="choose"
+          :error="audioError"
         />
-        <span v-if="audioError" class="mt-2 block text-[10px] text-danger">{{ audioError }}</span>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
         <button

@@ -32,7 +32,7 @@ class CallflowMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchCallflow {
-        [$module, $resourceId] = $this->destination($account, null, $data);
+        [$module, $resourceId, $temporalRuleIds] = $this->destination($account, null, $data);
         [$fallbackModule, $fallbackResourceId] = $this->optionalDestination(
             $account,
             null,
@@ -41,6 +41,11 @@ class CallflowMutationService
         );
         $menuBranchOperations = $this->menuBranchOperations($account, null, $module, $data);
         $temporalBranchOperations = $this->temporalBranchOperations($account, null, $module, $data);
+        $directTemporalBranchOperations = $this->directTemporalBranchOperations(
+            $account,
+            null,
+            $data,
+        );
         [$assignedPhoneNumbers] = $this->phoneNumberSelection(
             $account,
             null,
@@ -56,7 +61,12 @@ class CallflowMutationService
                 $assignedPhoneNumbers,
                 $fallbackModule,
                 $fallbackResourceId,
-                [...$menuBranchOperations, ...$temporalBranchOperations],
+                [
+                    ...$menuBranchOperations,
+                    ...$temporalBranchOperations,
+                    ...$directTemporalBranchOperations,
+                ],
+                $temporalRuleIds,
             ));
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
@@ -88,7 +98,7 @@ class CallflowMutationService
             $this->editor->assertFallbackEditable($callflow);
         }
 
-        [$module, $resourceId] = $this->destination($account, $callflow, $data);
+        [$module, $resourceId, $temporalRuleIds] = $this->destination($account, $callflow, $data);
         [$fallbackModule, $fallbackResourceId] = $this->optionalDestination(
             $account,
             $callflow,
@@ -97,6 +107,11 @@ class CallflowMutationService
         );
         $menuBranchOperations = $this->menuBranchOperations($account, $callflow, $module, $data);
         $temporalBranchOperations = $this->temporalBranchOperations($account, $callflow, $module, $data);
+        $directTemporalBranchOperations = $this->directTemporalBranchOperations(
+            $account,
+            $callflow,
+            $data,
+        );
         [$assignedPhoneNumbers, $knownPhoneNumbers] = $this->phoneNumberSelection(
             $account,
             $callflow,
@@ -115,7 +130,12 @@ class CallflowMutationService
                 $replaceFallback,
                 $fallbackModule,
                 $fallbackResourceId,
-                [...$menuBranchOperations, ...$temporalBranchOperations],
+                [
+                    ...$menuBranchOperations,
+                    ...$temporalBranchOperations,
+                    ...$directTemporalBranchOperations,
+                ],
+                $temporalRuleIds,
             ));
 
             return DB::transaction(function () use ($account, $callflow, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
@@ -237,16 +257,40 @@ class CallflowMutationService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{string, string}
+     * @return array{string, ?string, list<string>}
      */
     private function destination(SwitchAccount $account, ?SwitchCallflow $callflow, array $data): array
     {
-        return $this->resolveDestination(
+        if (($data['destination_type'] ?? null) === 'temporal_rules') {
+            $ruleIds = is_array($data['temporal_rule_ids'] ?? null)
+                ? array_values($data['temporal_rule_ids'])
+                : [];
+            $rules = $account->temporalRules()->whereIn('id', $ruleIds)->get()->keyBy('id');
+
+            if ($ruleIds === [] || $rules->count() !== count($ruleIds)) {
+                throw ValidationException::withMessages([
+                    'temporal_rule_ids' => ['Select one or more available Temporal Rules.'],
+                ]);
+            }
+
+            return [
+                'temporal_route',
+                null,
+                array_map(
+                    fn (string $id): string => $rules->get($id)->switch_resource_id,
+                    $ruleIds,
+                ),
+            ];
+        }
+
+        [$module, $resourceId] = $this->resolveDestination(
             $account,
             $callflow,
             $data['destination_type'],
             $data['destination_id'],
         );
+
+        return [$module, $resourceId, []];
     }
 
     /** @return array{?string, ?string} */
@@ -438,6 +482,124 @@ class CallflowMutationService
     }
 
     /**
+     * @param  array<string, mixed>  $data
+     * @return list<array{key: string, module: ?string, resource_id: ?string}>
+     */
+    private function directTemporalBranchOperations(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+        array $data,
+    ): array {
+        $usesDirectTemporalRules = ($data['destination_type'] ?? null) === 'temporal_rules';
+        $currentTemporalRules = $callflow === null
+            ? []
+            : (is_array($callflow->flow_structure['temporal_rules'] ?? null)
+                ? $callflow->flow_structure['temporal_rules']
+                : []);
+
+        if (! $usesDirectTemporalRules && $currentTemporalRules === []) {
+            return [];
+        }
+
+        if ($callflow !== null) {
+            $this->editor->assertDirectTemporalRoutesEditable($account, $callflow);
+        }
+
+        if (! $usesDirectTemporalRules) {
+            $currentRuleIds = collect($currentTemporalRules)
+                ->pluck('id')
+                ->filter(fn (mixed $id): bool => is_string($id))
+                ->values()
+                ->all();
+            $currentRules = $account->temporalRules()
+                ->whereIn('id', $currentRuleIds)
+                ->get()
+                ->keyBy('id');
+
+            if ($currentRules->count() !== count($currentRuleIds)) {
+                throw ValidationException::withMessages([
+                    'temporal_rule_ids' => ['Synchronize every referenced Temporal Rule before changing this route.'],
+                ]);
+            }
+
+            return array_map(
+                fn (string $ruleId): array => [
+                    'key' => $currentRules->get($ruleId)->switch_resource_id,
+                    'module' => null,
+                    'resource_id' => null,
+                ],
+                $currentRuleIds,
+            );
+        }
+
+        $selectedIds = is_array($data['temporal_rule_ids'] ?? null)
+            ? array_values($data['temporal_rule_ids'])
+            : [];
+        $routes = collect(is_array($data['temporal_rule_routes'] ?? null)
+            ? $data['temporal_rule_routes']
+            : [])->keyBy('rule_id');
+
+        if ($routes->count() !== count($selectedIds)
+            || collect($selectedIds)->contains(fn (mixed $id): bool => ! $routes->has($id))) {
+            throw ValidationException::withMessages([
+                'temporal_rule_routes' => ['Configure exactly one match destination for each selected Temporal Rule.'],
+            ]);
+        }
+
+        $allRuleIds = array_values(array_unique([
+            ...$selectedIds,
+            ...collect($currentTemporalRules)
+                ->pluck('id')
+                ->filter(fn (mixed $id): bool => is_string($id))
+                ->values()
+                ->all(),
+        ]));
+        $rules = $account->temporalRules()->whereIn('id', $allRuleIds)->get()->keyBy('id');
+
+        if ($rules->count() !== count($allRuleIds)) {
+            throw ValidationException::withMessages([
+                'temporal_rule_ids' => ['Synchronize every referenced Temporal Rule before editing this route.'],
+            ]);
+        }
+
+        $operations = [];
+
+        foreach ($allRuleIds as $ruleId) {
+            $rule = $rules->get($ruleId);
+
+            if (! in_array($ruleId, $selectedIds, true)) {
+                $operations[] = [
+                    'key' => $rule->switch_resource_id,
+                    'module' => null,
+                    'resource_id' => null,
+                ];
+            }
+        }
+
+        foreach ($selectedIds as $ruleId) {
+            $selection = $routes->get($ruleId);
+
+            if (! is_array($selection)) {
+                continue;
+            }
+
+            [$module, $resourceId] = $this->resolveDestination(
+                $account,
+                $callflow,
+                $selection['destination_type'],
+                $selection['destination_id'],
+            );
+            $operations[] = [
+                'key' => $rules->get($ruleId)->switch_resource_id,
+                'module' => $module,
+                'resource_id' => $resourceId,
+            ];
+        }
+
+        return $operations;
+    }
+
+    /**
      * @param  list<string>  $selectedIds
      * @return array{list<string>, list<string>}
      */
@@ -543,7 +705,8 @@ class CallflowMutationService
             [
                 'callflow_id' => $callflow->id,
                 'destination_type' => $data['destination_type'],
-                'destination_id' => $data['destination_id'],
+                'destination_id' => $data['destination_id'] ?? null,
+                'temporal_rule_ids' => $data['temporal_rule_ids'] ?? [],
                 'name' => $data['name'],
                 'phone_number_ids' => $data['phone_number_ids'],
             ],

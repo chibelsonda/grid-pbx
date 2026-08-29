@@ -3,8 +3,9 @@ import { computed, ref } from 'vue'
 import { ShieldExclamationIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
+import FormTextarea from '@/shared/components/FormTextarea.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useBlacklistForm } from '../composables/useBlacklistForm'
 import type { Blacklist, BlacklistInput } from '../types/blacklist'
 
@@ -67,39 +68,28 @@ function submit(): void {
             </div>
           </header>
           <div class="grid gap-4 p-5">
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Name</span
-              ><input
-                v-model="form.name"
-                aria-label="Blacklist name"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Blocked caller numbers</span
-              ><textarea
-                v-model="form.numbersText"
-                aria-label="Blocked caller numbers"
-                rows="10"
-                class="field-control min-h-48 py-2 font-mono"
-                :class="validationControlClass(fieldError('numbers'))"
-                :aria-invalid="Boolean(fieldError('numbers'))"
-                placeholder="+15550001000&#10;+15550001001"
-              /><span class="text-[10px] text-slate-500"
-                >One E.164 number per line. {{ uniqueNumbers.length }} unique number{{
-                  uniqueNumbers.length === 1 ? '' : 's'
-                }}.</span
-              ><span v-if="invalidNumbers.length" class="text-[10px] text-danger"
-                >Use E.164 format for: {{ invalidNumbers.join(', ') }}</span
-              ><span v-else-if="fieldError('numbers')" class="text-[10px] text-danger">{{
-                fieldError('numbers')
-              }}</span></label
-            >
+            <FormInput
+              v-model="form.name"
+              label="Name"
+              aria-label="Blacklist name"
+              maxlength="128"
+              required
+              :error="fieldError('name')"
+            />
+            <FormTextarea
+              v-model="form.numbersText"
+              label="Blocked caller numbers"
+              rows="10"
+              size="large"
+              textarea-class="font-mono"
+              placeholder="+15550001000&#10;+15550001001"
+              :description="`One E.164 number per line. ${uniqueNumbers.length} unique number${uniqueNumbers.length === 1 ? '' : 's'}.`"
+              :error="
+                invalidNumbers.length
+                  ? `Use E.164 format for: ${invalidNumbers.join(', ')}`
+                  : fieldError('numbers')
+              "
+            />
             <ToggleSwitch
               v-model="form.should_block_anonymous"
               label="Block anonymous callers"

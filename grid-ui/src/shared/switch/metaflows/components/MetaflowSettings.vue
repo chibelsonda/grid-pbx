@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { newMetaflowNode } from '../catalog'
 import type { MetaflowAction, MetaflowChild, MetaflowExtensionOption, MetaflowNode } from '../types'
 import MetaflowNodeEditor from './MetaflowNodeEditor.vue'
@@ -38,10 +38,9 @@ function setTriggerType(index: number, value: ListboxValue): void {
   )
 }
 
-function setTrigger(index: number, event: Event): void {
-  const trigger = (event.target as HTMLInputElement).value
+function setTrigger(index: number, trigger: string | number): void {
   actions.value = actions.value.map((action, actionIndex) =>
-    actionIndex === index ? { ...action, trigger } : action,
+    actionIndex === index ? { ...action, trigger: String(trigger) } : action,
   )
 }
 
@@ -96,18 +95,15 @@ function removeAction(index: number): void {
           @update:model-value="setTriggerType(index, $event)"
         />
       </label>
-      <label class="grid gap-1">
-        <span class="text-[11px] font-semibold text-slate-500">Trigger</span>
-        <input
-          :value="action.trigger"
-          maxlength="255"
-          class="field-control font-mono"
-          :class="validationControlClass(error(index, 'trigger'))"
-          :aria-invalid="Boolean(error(index, 'trigger'))"
-          :placeholder="action.trigger_type === 'pattern' ? '^9([0-9]+)$' : '1'"
-          @input="setTrigger(index, $event)"
-        />
-      </label>
+      <FormInput
+        :model-value="action.trigger"
+        label="Trigger"
+        maxlength="255"
+        input-class="font-mono"
+        :error="error(index, 'trigger')"
+        :placeholder="action.trigger_type === 'pattern' ? '^9([0-9]+)$' : '1'"
+        @update:model-value="setTrigger(index, $event)"
+      />
       <MetaflowNodeEditor
         :model-value="action"
         :path="`metaflows.actions.${index}`"

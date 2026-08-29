@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { KeyIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { ExtensionHotdeskInput } from '../types/extension'
 
@@ -43,26 +44,16 @@ function keepConfiguredPin(): void {
     </header>
 
     <div v-if="hotdesk.enabled" class="grid gap-4 p-5 sm:grid-cols-2">
-      <label class="grid gap-2">
-        <span class="text-xs font-semibold text-slate-600">Hotdesk ID</span>
-        <input
-          v-model="hotdesk.id"
-          inputmode="tel"
-          maxlength="15"
-          autocomplete="off"
-          placeholder="1001"
-          class="field-control"
-          :aria-invalid="Boolean(fieldErrors['hotdesk.id'])"
-          :class="validationControlClass(fieldErrors['hotdesk.id'])"
-        />
-        <span v-if="fieldErrors['hotdesk.id']" class="text-[10px] text-danger">{{
-          fieldErrors['hotdesk.id'][0]
-        }}</span>
-        <span v-else class="text-[10px] text-slate-400">
-          Use 4–15 digits or the *, #, and + dial-pad characters. The ID must be unique in the
-          account.
-        </span>
-      </label>
+      <FormInput
+        v-model="hotdesk.id"
+        label="Hotdesk ID"
+        inputmode="tel"
+        maxlength="15"
+        autocomplete="off"
+        placeholder="1001"
+        description="Use 4–15 digits or the *, #, and + dial-pad characters. The ID must be unique in the account."
+        :error="fieldErrors['hotdesk.id']"
+      />
 
       <ToggleSwitch
         v-model="hotdesk.keep_logged_in_elsewhere"
@@ -82,28 +73,19 @@ function keepConfiguredPin(): void {
         :invalid="Boolean(fieldErrors['hotdesk.require_pin'])"
       />
 
-      <label v-if="hotdesk.require_pin" class="grid gap-2 sm:col-span-2">
-        <span class="text-xs font-semibold text-slate-600">
-          {{ editing ? 'New hotdesk PIN' : 'Hotdesk PIN' }}
-          <span v-if="editing && pinConfigured" class="font-normal text-slate-400">
-            (leave blank to keep the configured PIN)
-          </span>
-        </span>
-        <input
-          v-model="hotdesk.pin"
-          type="password"
-          inputmode="numeric"
-          maxlength="15"
-          autocomplete="new-password"
-          placeholder="4–15 digits"
-          class="field-control"
-          :aria-invalid="Boolean(fieldErrors['hotdesk.pin'])"
-          :class="validationControlClass(fieldErrors['hotdesk.pin'])"
-        />
-        <span v-if="fieldErrors['hotdesk.pin']" class="text-[10px] text-danger">{{
-          fieldErrors['hotdesk.pin'][0]
-        }}</span>
-      </label>
+      <FormInput
+        v-if="hotdesk.require_pin"
+        v-model="hotdesk.pin"
+        :label="editing ? 'New hotdesk PIN' : 'Hotdesk PIN'"
+        class="sm:col-span-2"
+        type="password"
+        inputmode="numeric"
+        maxlength="15"
+        autocomplete="new-password"
+        placeholder="4–15 digits"
+        :description="editing && pinConfigured ? 'Leave blank to keep the configured PIN.' : null"
+        :error="fieldErrors['hotdesk.pin']"
+      />
 
       <div
         v-if="editing && pinConfigured"

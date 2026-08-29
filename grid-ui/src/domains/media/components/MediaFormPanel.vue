@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import { MusicalNoteIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormFileInput from '@/shared/components/FormFileInput.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useMediaForm } from '../composables/useMediaForm'
 import type { Media, MediaCreate, MediaUpdate } from '../types/media'
 
@@ -24,10 +25,6 @@ const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value
 
 function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
-}
-
-function chooseAudio(event: Event): void {
-  form.audio = (event.target as HTMLInputElement).files?.[0] ?? null
 }
 
 function submit(): void {
@@ -66,49 +63,30 @@ function submit(): void {
           </div>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Name</span>
-            <input
-              v-model="form.name"
-              aria-label="Media name"
-              maxlength="128"
-              class="field-control"
-              :class="validationControlClass(fieldError('name'))"
-              :aria-invalid="Boolean(fieldError('name'))"
-            />
-            <span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-              fieldError('name')
-            }}</span>
-          </label>
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Description</span>
-            <input
-              v-model="form.description"
-              aria-label="Media description"
-              maxlength="128"
-              class="field-control"
-              :class="validationControlClass(fieldError('description'))"
-              :aria-invalid="Boolean(fieldError('description'))"
-            />
-            <span v-if="fieldError('description')" class="text-[10px] text-danger">{{
-              fieldError('description')
-            }}</span>
-          </label>
-          <label class="grid gap-2">
-            <span class="text-xs font-semibold text-slate-600">Language</span>
-            <input
-              v-model="form.language"
-              aria-label="Media language"
-              maxlength="35"
-              placeholder="en-us"
-              class="field-control"
-              :class="validationControlClass(fieldError('language'))"
-              :aria-invalid="Boolean(fieldError('language'))"
-            />
-            <span v-if="fieldError('language')" class="text-[10px] text-danger">{{
-              fieldError('language')
-            }}</span>
-          </label>
+          <FormInput
+            v-model="form.name"
+            label="Name"
+            aria-label="Media name"
+            class="sm:col-span-2"
+            maxlength="128"
+            :error="fieldError('name')"
+          />
+          <FormInput
+            v-model="form.description"
+            label="Description"
+            aria-label="Media description"
+            class="sm:col-span-2"
+            maxlength="128"
+            :error="fieldError('description')"
+          />
+          <FormInput
+            v-model="form.language"
+            label="Language"
+            aria-label="Media language"
+            maxlength="35"
+            placeholder="en-us"
+            :error="fieldError('language')"
+          />
           <div class="self-end pb-2">
             <ToggleSwitch
               v-model="form.streamable"
@@ -119,22 +97,16 @@ function submit(): void {
               fieldError('streamable')
             }}</span>
           </div>
-          <label v-if="mode === 'create'" class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Audio file</span>
-            <input
-              aria-label="Media audio file"
-              type="file"
-              accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
-              class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-xs text-slate-600 file:mr-4 file:rounded-md file:border-0 file:bg-brand-500 file:px-4 file:py-2 file:text-xs file:font-semibold file:text-white"
-              :class="validationControlClass(fieldError('audio'))"
-              :aria-invalid="Boolean(fieldError('audio'))"
-              @change="chooseAudio"
-            />
-            <span class="text-[10px] text-slate-500">MP3, WAV, or OGG; maximum 5 MB.</span>
-            <span v-if="fieldError('audio')" class="text-[10px] text-danger">{{
-              fieldError('audio')
-            }}</span>
-          </label>
+          <FormFileInput
+            v-if="mode === 'create'"
+            v-model="form.audio"
+            label="Audio file"
+            aria-label="Media audio file"
+            class="sm:col-span-2"
+            accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+            description="MP3, WAV, or OGG; maximum 5 MB."
+            :error="fieldError('audio')"
+          />
         </div>
       </article>
       <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">

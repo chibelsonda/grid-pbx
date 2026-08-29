@@ -370,6 +370,72 @@ final class CallflowResourceClientTest extends TestCase
     }
 
     /** @throws JsonException */
+    public function test_it_creates_and_reorders_a_direct_temporal_rule_route(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-direct-hours',
+            'flow' => ['module' => 'temporal_route', 'data' => ['rules' => ['rule-1', 'rule-2']], 'children' => []],
+        ]);
+
+        $client->create('account-1', new CallflowCreateData(
+            name: 'Direct office hours',
+            destinationModule: 'temporal_route',
+            destinationResourceId: null,
+            phoneNumbers: ['+15550000101'],
+            destinationTemporalRuleIds: ['rule-1', 'rule-2'],
+            branchRoutes: [
+                new CallflowBranchWriteData('rule-1', 'user', 'weekday-user'),
+                new CallflowBranchWriteData('rule-2', 'voicemail', 'holiday-mailbox'),
+            ],
+        ));
+
+        $created = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(['rules' => ['rule-1', 'rule-2']], $created['data']['flow']['data']);
+        self::assertSame('weekday-user', $created['data']['flow']['children']['rule-1']['data']['id']);
+        self::assertSame('holiday-mailbox', $created['data']['flow']['children']['rule-2']['data']['id']);
+
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-direct-hours',
+            'flow' => ['module' => 'temporal_route', 'data' => ['rules' => ['rule-2', 'rule-1']], 'children' => []],
+        ]);
+        $client->update('account-1', 'callflow-direct-hours', new CallflowWriteData(
+            current: [
+                'id' => 'callflow-direct-hours',
+                'flow' => [
+                    'module' => 'temporal_route',
+                    'data' => [
+                        'rule_set' => 'old-set',
+                        'timezone' => 'America/New_York',
+                    ],
+                    'children' => [
+                        '_' => ['module' => 'voicemail', 'data' => ['id' => 'closed'], 'children' => []],
+                        'rule-1' => ['module' => 'user', 'data' => ['id' => 'weekday-user'], 'children' => []],
+                        'rule-2' => ['module' => 'voicemail', 'data' => ['id' => 'holiday-mailbox'], 'children' => []],
+                        'vendor' => ['module' => 'custom', 'data' => ['preserve' => true], 'children' => []],
+                    ],
+                ],
+            ],
+            destinationModule: 'temporal_route',
+            destinationResourceId: null,
+            branchOperations: [
+                new CallflowBranchWriteData('rule-1', null, null),
+                new CallflowBranchWriteData('rule-2', 'user', 'holiday-user'),
+            ],
+            destinationTemporalRuleIds: ['rule-2'],
+        ));
+
+        $updated = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame(
+            ['timezone' => 'America/New_York', 'rules' => ['rule-2']],
+            $updated['data']['flow']['data'],
+        );
+        self::assertSame('closed', $updated['data']['flow']['children']['_']['data']['id']);
+        self::assertArrayNotHasKey('rule-1', $updated['data']['flow']['children']);
+        self::assertSame('holiday-user', $updated['data']['flow']['children']['rule-2']['data']['id']);
+        self::assertTrue($updated['data']['flow']['children']['vendor']['data']['preserve']);
+    }
+
+    /** @throws JsonException */
     public function test_it_replaces_and_clears_only_the_rule_set_match_branch(): void
     {
         $client = $this->clientWithResponse([
@@ -462,7 +528,7 @@ final class CallflowResourceClientTest extends TestCase
                     'id' => 'callflow-1',
                     '_rev' => '4-revision',
                     'name' => 'Alice Operator',
-                    'numbers' => ['1001', '+15550000100'],
+                    'numbers' => ['+1001', '+15550000100'],
                     'flow' => [
                         'module' => 'user',
                         'data' => ['id' => 'user-1', 'timeout' => 25],
@@ -489,13 +555,15 @@ final class CallflowResourceClientTest extends TestCase
             ),
         );
 
-        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $rawBody = (string) $this->history[0]['request']->getBody();
+        $body = json_decode($rawBody, true, flags: JSON_THROW_ON_ERROR);
         self::assertSame(['1010', '+15550000100'], $body['data']['numbers']);
         self::assertSame(25, $body['data']['flow']['data']['timeout']);
         self::assertSame('voicemail-2', $body['data']['flow']['children']['_']['data']['id']);
         self::assertTrue($body['data']['flow']['children']['busy']['data']['preserve']);
         self::assertArrayNotHasKey('_rev', $body['data']);
         self::assertArrayNotHasKey('pvt_account_id', $body['data']);
+        self::assertStringContainsString('"children":{}', $rawBody);
     }
 
     /** @param array<string, mixed> $responseData */

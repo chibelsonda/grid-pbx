@@ -2,11 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import {
   ChevronRightIcon,
-  MagnifyingGlassIcon,
   SquaresPlusIcon,
   WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import LineKeyPanel from '../components/LineKeyPanel.vue'
 import { useLineKeyStore } from '../stores/lineKeyStore'
 import type { LineKeyInput } from '../types/lineKey'
@@ -90,14 +90,7 @@ async function save(keys: LineKeyInput[]): Promise<void> {
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && lineKeys.load(accounts.selectedId)"
     >
-      <label class="relative min-w-0 flex-1"
-        ><MagnifyingGlassIcon
-          class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" /><input
-          v-model="lineKeys.search"
-          type="search"
-          placeholder="Search device, model, or key label…"
-          class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm" /></label
-      ><button
+      <SearchInput v-model="lineKeys.search" label="Search line keys" class="min-w-0 flex-1" placeholder="Search device, model, or key label…" input-class="h-10 bg-white text-xs shadow-sm" /><button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
       >
         Search

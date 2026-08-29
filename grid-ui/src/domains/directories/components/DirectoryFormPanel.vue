@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { BookOpenIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -78,20 +80,14 @@ function submit(): void {
           </div>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2"
-            ><span class="text-xs font-semibold text-slate-600">Name</span
-            ><input
-              v-model="form.name"
-              aria-label="Name"
-              required
-              maxlength="128"
-              class="field-control"
-              :class="validationControlClass(fieldError('name'))"
-              :aria-invalid="Boolean(fieldError('name'))"
-            /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-              fieldError('name')
-            }}</span></label
-          >
+          <FormInput
+            v-model="form.name"
+            label="Name"
+            class="sm:col-span-2"
+            required
+            maxlength="128"
+            :error="fieldError('name')"
+          />
           <label class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Sort names by</span
             ><FormListbox
@@ -112,39 +108,25 @@ function submit(): void {
             :class="validationControlClass(fieldError('confirm_match'))"
             :invalid="Boolean(fieldError('confirm_match'))"
           />
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Minimum digits</span
-            ><input
-              v-model.number="form.min_dtmf"
-              aria-label="Minimum digits"
-              type="number"
-              min="1"
-              max="20"
-              required
-              class="field-control"
-              :class="validationControlClass(fieldError('min_dtmf'))"
-              :aria-invalid="Boolean(fieldError('min_dtmf'))"
-            /><span v-if="fieldError('min_dtmf')" class="text-[10px] text-danger">{{
-              fieldError('min_dtmf')
-            }}</span></label
-          >
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600"
-              >Maximum digits <span class="font-normal text-slate-400">(0 = unlimited)</span></span
-            ><input
-              v-model.number="form.max_dtmf"
-              aria-label="Maximum digits"
-              type="number"
-              min="0"
-              max="20"
-              required
-              class="field-control"
-              :class="validationControlClass(fieldError('max_dtmf'))"
-              :aria-invalid="Boolean(fieldError('max_dtmf'))"
-            /><span v-if="fieldError('max_dtmf')" class="text-[10px] text-danger">{{
-              fieldError('max_dtmf')
-            }}</span></label
-          >
+          <FormInput
+            v-model.number="form.min_dtmf"
+            label="Minimum digits"
+            type="number"
+            min="1"
+            max="20"
+            required
+            :error="fieldError('min_dtmf')"
+          />
+          <FormInput
+            v-model.number="form.max_dtmf"
+            label="Maximum digits"
+            description="0 = unlimited"
+            type="number"
+            min="0"
+            max="20"
+            required
+            :error="fieldError('max_dtmf')"
+          />
         </div>
       </article>
 
@@ -156,22 +138,16 @@ function submit(): void {
           </p>
         </header>
         <div class="grid gap-2 p-5">
-          <label
+          <FormCheckbox
             v-for="option in options.extensions"
             :key="option.id"
-            class="flex cursor-pointer items-center gap-3 rounded-md border border-slate-100 px-4 py-3 hover:bg-slate-50"
-            :class="validationControlClass(fieldError('member_ids'))"
-            ><input
-              v-model="form.member_ids"
-              type="checkbox"
-              :value="option.id"
-              class="size-4 accent-brand-500"
-              :aria-invalid="Boolean(fieldError('member_ids'))"
-            /><span
-              ><span class="block text-xs font-semibold text-slate-700">{{ option.label }}</span
-              ><span class="text-[10px] text-slate-400">{{ option.detail }}</span></span
-            ></label
-          >
+            :model-value="form.member_ids"
+            :value="option.id"
+            :label="option.label"
+            :description="option.detail"
+            :error="fieldError('member_ids')"
+            @update:model-value="form.member_ids = $event as string[]"
+          />
           <p v-if="!options.extensions.length" class="text-xs text-slate-400">
             No eligible extensions are projected.
           </p>

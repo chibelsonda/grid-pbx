@@ -5,6 +5,7 @@ namespace App\Domains\Extensions\Gateways;
 use App\Domains\Devices\Contracts\SwitchDeviceGateway;
 use App\Domains\Extensions\Contracts\SwitchExtensionProvisioningGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
 use GridPbx\Switch\Domains\Accounts\AccountResource;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
@@ -35,14 +36,12 @@ use GridPbx\Switch\Domains\Users\Dto\Routing\UserFormattersData;
 use GridPbx\Switch\Domains\Users\Dto\UserAdvancedData;
 use GridPbx\Switch\Domains\Users\Dto\UserWriteData;
 use GridPbx\Switch\Domains\Users\UserResourceClient;
-use GridPbx\Switch\Domains\Voicemail\Dto\VoicemailBoxWriteData;
-use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 
 class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvisioningGateway
 {
     public function __construct(
         private readonly UserResourceClient $users,
-        private readonly VoicemailBoxResourceClient $voicemailBoxes,
+        private readonly SwitchVoicemailBoxGateway $voicemailBoxes,
         private readonly SwitchDeviceGateway $devices,
         private readonly CallflowResourceClient $callflows,
         private readonly AccountResourceClient $resources,
@@ -330,10 +329,7 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             return null;
         }
 
-        return new UserCallRecordingData(
-            account: $this->userRecordingRulesData($value['account'] ?? null),
-            endpoint: $this->userRecordingRulesData($value['endpoint'] ?? null),
-        );
+        return new UserCallRecordingData($this->userRecordingRulesData($value));
     }
 
     private function userRecordingRulesData(mixed $value): UserRecordingRulesData
@@ -426,39 +422,17 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
 
     public function createVoicemailBox(SwitchAccount $account, array $data): array
     {
-        return $this->voicemailBoxes->create($account->switch_account_id, new VoicemailBoxWriteData(
-            name: $data['name'],
-            mailbox: $data['mailbox'],
-            ownerId: $data['owner_id'],
-            timezone: $data['timezone'] ?? null,
-            notificationEmails: $data['notification_emails'],
-            transcribe: $data['transcribe'],
-            requirePin: $data['require_pin'],
-            pin: $data['pin'] ?? null,
-        ))->toArray();
+        return $this->voicemailBoxes->create($account, $data);
     }
 
     public function deleteVoicemailBox(SwitchAccount $account, string $resourceId): void
     {
-        $this->voicemailBoxes->delete($account->switch_account_id, $resourceId);
+        $this->voicemailBoxes->delete($account, $resourceId);
     }
 
     public function updateVoicemailBox(SwitchAccount $account, string $resourceId, array $data): array
     {
-        return $this->voicemailBoxes->update(
-            $account->switch_account_id,
-            $resourceId,
-            new VoicemailBoxWriteData(
-                name: $data['name'],
-                mailbox: $data['mailbox'],
-                ownerId: $data['owner_id'],
-                timezone: $data['timezone'] ?? null,
-                notificationEmails: $data['notification_emails'],
-                transcribe: $data['transcribe'],
-                requirePin: $data['require_pin'],
-                pin: $data['pin'] ?? null,
-            ),
-        )->toArray();
+        return $this->voicemailBoxes->update($account, $resourceId, $data);
     }
 
     public function createDevice(SwitchAccount $account, array $data): array

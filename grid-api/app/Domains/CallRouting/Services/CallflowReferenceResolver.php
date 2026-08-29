@@ -39,8 +39,30 @@ class CallflowReferenceResolver
     private function resolveNode(array $node, array $targets): array
     {
         $module = is_string($node['module'] ?? null) ? $node['module'] : 'unknown';
-        $targetType = $this->targetType($module);
         $data = is_array($node['data'] ?? null) ? $node['data'] : [];
+        $directTemporalRuleIds = $module === 'temporal_route' && is_array($data['rules'] ?? null)
+            ? array_values(array_filter($data['rules'], fn (mixed $id): bool => is_string($id) && $id !== ''))
+            : [];
+        $directTemporalRules = array_map(
+            fn (string $id, int $position): array => ($rule = $targets['temporal_rule'][$id] ?? null) === null
+                ? [
+                    'id' => null,
+                    'label' => 'Unresolved Temporal Rule',
+                    'position' => $position,
+                    'resolved' => false,
+                ]
+                : [
+                    'id' => $rule['id'],
+                    'label' => $rule['label'],
+                    'position' => $position,
+                    'resolved' => true,
+                ],
+            $directTemporalRuleIds,
+            array_keys($directTemporalRuleIds),
+        );
+        $targetType = $module === 'temporal_route' && $directTemporalRuleIds !== []
+            ? null
+            : $this->targetType($module);
         $resourceId = match ($module) {
             'temporal_route' => is_string($data['rule_set'] ?? null) ? $data['rule_set'] : null,
             'faxbox' => is_string($data['id'] ?? null) ? $data['id'] : (is_string($data['faxbox_id'] ?? null) ? $data['faxbox_id'] : null),
@@ -65,10 +87,14 @@ class CallflowReferenceResolver
                 'label' => $target['label'],
             ],
             'reference_status' => match (true) {
+                $directTemporalRuleIds !== []
+                    && ! in_array(false, array_column($directTemporalRules, 'resolved'), true) => 'resolved',
+                $directTemporalRuleIds !== [] => 'unresolved',
                 $targetType === null => 'not_applicable',
                 $target !== null => 'resolved',
                 default => 'unresolved',
             },
+            'temporal_rules' => $directTemporalRules,
             'children' => $children,
         ];
     }
@@ -136,6 +162,9 @@ class CallflowReferenceResolver
             ])->all(),
             'temporal_rule_set' => $account->temporalRuleSets()->get()->mapWithKeys(fn ($set): array => [
                 $set->switch_resource_id => ['id' => $set->id, 'label' => $set->name],
+            ])->all(),
+            'temporal_rule' => $account->temporalRules()->get()->mapWithKeys(fn ($rule): array => [
+                $rule->switch_resource_id => ['id' => $rule->id, 'label' => $rule->name],
             ])->all(),
         ];
     }

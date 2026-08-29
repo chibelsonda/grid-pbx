@@ -5,10 +5,10 @@ import {
   BanknotesIcon,
   ChevronRightIcon,
   CircleStackIcon,
-  MagnifyingGlassIcon,
   ServerStackIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import ServiceDetailPanel from '../components/ServiceDetailPanel.vue'
 import { useServiceStore } from '../stores/serviceStore'
 const accounts = useAccountStore()
@@ -152,14 +152,7 @@ const amount = (value: number): string =>
           </article>
         </div>
         <div class="mb-4 grid gap-3 sm:grid-cols-[1fr_180px]">
-          <label class="relative"
-            ><MagnifyingGlassIcon
-              class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" /><input
-              v-model="search"
-              type="search"
-              placeholder="Search category or item…"
-              class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs" /></label
-          ><FormSelect
+          <SearchInput v-model="search" label="Search services" placeholder="Search category or item…" input-class="h-10 bg-white text-xs" /><FormSelect
             v-model="scope"
             class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
           >

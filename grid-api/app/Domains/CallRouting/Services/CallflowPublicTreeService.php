@@ -63,6 +63,9 @@ class CallflowPublicTreeService
                 ? $node['reference_status']
                 : 'not_applicable',
             'branch' => $branch,
+            'temporal_rules' => is_array($node['temporal_rules'] ?? null)
+                ? array_values($node['temporal_rules'])
+                : [],
             'children' => (object) $children,
         ];
     }

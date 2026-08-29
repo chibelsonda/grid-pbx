@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { BoltIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, { type ListboxOptionValue } from '@/shared/components/FormListbox.vue'
 import MetaflowSettings from '@/shared/switch/metaflows/components/MetaflowSettings.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { MetaflowResources } from '@/shared/switch/metaflows/types'
 import type { ExtensionMetaflows } from '../types/extension'
 
@@ -31,11 +31,6 @@ const listenOptions: ListboxOptionValue[] = [
 function error(field: string): string | null {
   return props.fieldErrors[field]?.[0] ?? null
 }
-
-function setDigitTimeout(event: Event): void {
-  const value = (event.target as HTMLInputElement).value
-  metaflows.value.digit_timeout = value === '' ? null : Number(value)
-}
 </script>
 
 <template>
@@ -60,20 +55,15 @@ function setDigitTimeout(event: Event): void {
             aria-label="User metaflow binding digit"
           />
         </label>
-        <label class="grid gap-2">
-          <span class="text-xs font-semibold text-slate-600">Digit timeout (ms)</span>
-          <input
-            :value="metaflows.digit_timeout ?? ''"
-            type="number"
-            min="0"
-            max="60000"
-            class="field-control"
-            :class="validationControlClass(error('metaflows.digit_timeout'))"
-            :aria-invalid="Boolean(error('metaflows.digit_timeout'))"
-            placeholder="Switch default"
-            @input="setDigitTimeout"
-          />
-        </label>
+        <FormInput
+          v-model.number="metaflows.digit_timeout"
+          label="Digit timeout (ms)"
+          type="number"
+          min="0"
+          max="60000"
+          placeholder="Switch default"
+          :error="error('metaflows.digit_timeout')"
+        />
         <label class="grid gap-2">
           <span class="text-xs font-semibold text-slate-600">Listen on</span>
           <FormListbox

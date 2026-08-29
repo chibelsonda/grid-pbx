@@ -7,6 +7,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { computed, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import type { ExtensionDeletionPreview } from '../types/extension'
 
 const props = defineProps<{
@@ -183,20 +184,14 @@ const confirmed = computed(
           </p>
         </header>
         <div class="grid gap-2 p-5">
-          <label for="extension-deletion-confirmation" class="text-xs font-semibold text-slate-600">
-            Type <span class="font-mono text-red-700">{{ preview.extension.extension }}</span> to
-            confirm
-          </label>
-          <input
+          <FormInput
             id="extension-deletion-confirmation"
             v-model="confirmation"
+            :label="`Type ${preview.extension.extension} to confirm`"
             autocomplete="off"
-            class="h-10 rounded-md border border-slate-200 px-3 font-mono text-xs outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-            :aria-invalid="Boolean(fieldErrors.confirmation)"
+            input-class="font-mono"
+            :error="fieldErrors.confirmation"
           />
-          <span v-if="fieldErrors.confirmation" class="text-[10px] text-danger">{{
-            fieldErrors.confirmation[0]
-          }}</span>
           <div
             v-if="deletionError"
             class="mt-2 rounded-md border border-red-100 bg-red-50 p-3 text-xs leading-5 text-danger"

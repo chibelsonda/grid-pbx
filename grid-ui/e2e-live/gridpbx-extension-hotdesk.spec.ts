@@ -13,6 +13,41 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
+type DisposableExtension = {
+  deleteUrl: string
+  number: string
+}
+
+async function deleteDisposableExtension(
+  page: Page,
+  extension: DisposableExtension,
+): Promise<void> {
+  const cleanup = await page.evaluate(async ({ deleteUrl, number }) => {
+    const token = decodeURIComponent(
+      document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+        ?.split('=')[1] ?? '',
+    )
+    const response = await fetch(deleteUrl, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'X-XSRF-TOKEN': token,
+      },
+      body: JSON.stringify({ confirmation: number }),
+    })
+
+    return { status: response.status, body: await response.text() }
+  }, extension)
+
+  if (cleanup.status !== 204) {
+    throw new Error(`Disposable Extension cleanup failed: ${cleanup.body}`)
+  }
+}
+
 test('shows and validates login credentials and hotdesk in the Extension slide-over', async ({
   page,
 }) => {
@@ -87,6 +122,226 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   ).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
   expect(issues).toEqual([])
+})
+
+test('creates an Extension with a Device, clears a Device option, and removes the aggregate', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const number = Date.now().toString().slice(-8)
+  const deviceName = `GridPBX aggregate device ${number}`
+  let created: DisposableExtension | null = null
+  let deviceId: string | null = null
+
+  try {
+    await page.goto('/extensions')
+    await expect(page.getByRole('heading', { name: 'People & Extensions' })).toBeVisible()
+    await page.getByRole('button', { name: 'Create extension' }).click()
+    await page.getByLabel('First name').fill('GridPBX')
+    await page.getByLabel('Last name').fill('Device Aggregate')
+    await page.getByLabel('Extension number').fill(number)
+
+    const voicemail = page.locator('article').filter({ hasText: 'Voicemail fallback' })
+    await voicemail.getByRole('switch', { name: 'Create' }).click()
+
+    const initialDevice = page.locator('article').filter({ hasText: 'Initial device' })
+    await initialDevice.getByRole('switch', { name: 'Create' }).click()
+    const deviceDrawer = page.getByRole('dialog', { name: 'Configure device' })
+    await expect(page.getByRole('heading', { name: 'Configure device' })).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(1)
+    await expect
+      .poll(() => page.getByTestId('slide-over-content').evaluate((element) => element.scrollTop))
+      .toBe(0)
+    await expect(deviceDrawer.getByRole('button', { name: 'VoIP phone' })).toBeVisible()
+    await deviceDrawer.getByPlaceholder('Reception Desk Phone').fill(deviceName)
+    await deviceDrawer.getByRole('tab', { name: 'Advanced' }).click()
+    await deviceDrawer.getByRole('tab', { name: 'Options' }).click()
+    await deviceDrawer.getByRole('switch', { name: 'Hide from contact list' }).click()
+    await deviceDrawer.getByRole('button', { name: 'Use this device' }).click()
+    await expect(initialDevice.getByText(deviceName, { exact: true })).toBeVisible()
+
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions$/.test(new URL(response.url()).pathname),
+    )
+    await page.getByRole('button', { name: 'Create extension', exact: true }).last().click()
+    const response = await createResponse
+    if (response.status() !== 201) {
+      throw new Error(`Disposable Extension + Device creation failed: ${await response.text()}`)
+    }
+
+    const responseUrl = new URL(response.url())
+    const result = (await response.json()) as {
+      data: { id: string; devices: Array<{ id: string; name: string | null }> }
+    }
+    deviceId = result.data.devices.find((device) => device.name === deviceName)?.id ?? null
+    created = {
+      deleteUrl: `${responseUrl.origin}${responseUrl.pathname}/${result.data.id}`,
+      number,
+    }
+
+    expect(deviceId).not.toBeNull()
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'GridPBX Device Aggregate' }),
+    ).toBeVisible()
+    const assignedDevices = page.locator('article').filter({ hasText: 'Assigned devices' })
+    await expect(assignedDevices.getByText(deviceName, { exact: true })).toBeVisible()
+
+    await page.goto(`/devices/${deviceId}/edit`)
+    await expect(page.getByRole('heading', { name: 'Edit device' })).toBeVisible()
+    const editDrawer = page.getByRole('dialog', { name: 'Edit device' })
+    await editDrawer.getByRole('tab', { name: 'Advanced' }).click()
+    await editDrawer.getByRole('tab', { name: 'Options' }).click()
+    const hideFromContacts = editDrawer.getByRole('switch', { name: 'Hide from contact list' })
+    await expect(hideFromContacts).toBeChecked()
+    await hideFromContacts.click()
+
+    const updateResponse = page.waitForResponse(
+      (update) =>
+        update.request().method() === 'PUT' &&
+        new URL(update.url()).pathname.endsWith(`/devices/${deviceId}`),
+    )
+    await editDrawer.getByRole('button', { name: 'Save changes' }).click()
+    expect((await updateResponse).status()).toBe(200)
+
+    await page.goto(`/devices/${deviceId}/edit`)
+    const verifyDrawer = page.getByRole('dialog', { name: 'Edit device' })
+    await verifyDrawer.getByRole('tab', { name: 'Advanced' }).click()
+    await verifyDrawer.getByRole('tab', { name: 'Options' }).click()
+    await expect(
+      verifyDrawer.getByRole('switch', { name: 'Hide from contact list' }),
+    ).not.toBeChecked()
+    expect(issues).toEqual([])
+  } finally {
+    if (created) await deleteDisposableExtension(page, created)
+  }
+})
+
+test('configures a full managed Voicemail subview and removes the disposable aggregate', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const number = Date.now().toString().slice(-8)
+  let created: DisposableExtension | null = null
+
+  try {
+    await page.goto('/extensions')
+    await expect(page.getByRole('heading', { name: 'People & Extensions' })).toBeVisible()
+    await page.getByRole('button', { name: 'Create extension' }).click()
+    await page.getByLabel('First name').fill('GridPBX')
+    await page.getByLabel('Last name').fill('Voicemail Aggregate')
+    await page.getByLabel('Extension number').fill(number)
+
+    const voicemailCard = page.locator('article').filter({ hasText: 'Voicemail fallback' })
+    await voicemailCard.getByRole('button', { name: /Configure/ }).click()
+    const voicemailDrawer = page.getByRole('dialog', { name: 'Configure voicemail' })
+    await expect(page.getByRole('heading', { name: 'Configure voicemail' })).toBeVisible()
+    await expect(page.getByRole('dialog')).toHaveCount(1)
+    await expect
+      .poll(() => page.getByTestId('slide-over-content').evaluate((element) => element.scrollTop))
+      .toBe(0)
+
+    await expect(voicemailDrawer.getByLabel('Mailbox name')).toHaveAttribute('readonly', '')
+    await expect(voicemailDrawer.getByLabel('Mailbox number')).toHaveValue(number)
+    await voicemailDrawer
+      .getByLabel('Notification email addresses')
+      .fill('voicemail-audit@example.test')
+    await voicemailDrawer.getByRole('button', { name: 'Advanced notification delivery' }).click()
+    await expect(
+      voicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }),
+    ).toBeVisible()
+    await voicemailDrawer.getByRole('button', { name: 'Callback notification' }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Configure callback notification' }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Pause callback attempts' }).click()
+    await voicemailDrawer.getByRole('button', { name: 'Use this mailbox' }).click()
+    await expect(page.getByRole('heading', { name: 'Configure voicemail' })).toHaveCount(0)
+    await expect(voicemailCard.getByText('Mailbox settings configured')).toBeVisible()
+
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions$/.test(new URL(response.url()).pathname),
+    )
+    await page.getByRole('button', { name: 'Create extension', exact: true }).last().click()
+    const response = await createResponse
+    if (response.status() !== 201) {
+      throw new Error(`Disposable Extension + Voicemail creation failed: ${await response.text()}`)
+    }
+
+    const responseUrl = new URL(response.url())
+    const result = (await response.json()) as {
+      data: { id: string; voicemail_boxes: Array<{ id: string; mailbox: string | null }> }
+    }
+    created = {
+      deleteUrl: `${responseUrl.origin}${responseUrl.pathname}/${result.data.id}`,
+      number,
+    }
+
+    expect(result.data.voicemail_boxes.some((mailbox) => mailbox.mailbox === number)).toBe(true)
+    await expect(
+      page.getByRole('heading', { level: 1, name: 'GridPBX Voicemail Aggregate' }),
+    ).toBeVisible()
+    const voicemailBoxes = page.locator('article').filter({ hasText: 'Voicemail boxes' })
+    await expect(voicemailBoxes.getByText(`Mailbox ${number}`, { exact: true })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Edit' }).click()
+    await expect(page.getByRole('heading', { name: 'Edit extension' })).toBeVisible()
+    const editVoicemailCard = page.locator('article').filter({ hasText: 'Voicemail fallback' })
+    await editVoicemailCard.getByRole('button', { name: 'Configure' }).click()
+    const editVoicemailDrawer = page.getByRole('dialog', { name: 'Configure voicemail' })
+    await expect(page.getByRole('dialog')).toHaveCount(1)
+    await expect
+      .poll(() => page.getByTestId('slide-over-content').evaluate((element) => element.scrollTop))
+      .toBe(0)
+    await expect(editVoicemailDrawer.getByLabel('Notification email addresses')).toHaveValue(
+      'voicemail-audit@example.test',
+    )
+    await editVoicemailDrawer
+      .getByRole('button', { name: 'Advanced notification delivery' })
+      .click()
+    await expect(
+      editVoicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }),
+    ).toBeChecked()
+    await editVoicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }).click()
+    await editVoicemailDrawer.getByRole('button', { name: 'Callback notification' }).click()
+    await expect(
+      editVoicemailDrawer.getByRole('switch', { name: 'Configure callback notification' }),
+    ).toBeChecked()
+    await editVoicemailDrawer
+      .getByRole('switch', { name: 'Configure callback notification' })
+      .click()
+    await editVoicemailDrawer.getByRole('button', { name: 'Use this mailbox' }).click()
+
+    const updateResponse = page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === 'PUT' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions\/[^/]+$/.test(new URL(candidate.url()).pathname),
+    )
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    expect((await updateResponse).status()).toBe(200)
+
+    await page.getByRole('button', { name: 'Edit' }).click()
+    await page
+      .locator('article')
+      .filter({ hasText: 'Voicemail fallback' })
+      .getByRole('button', { name: 'Configure' })
+      .click()
+    const verifyVoicemailDrawer = page.getByRole('dialog', { name: 'Configure voicemail' })
+    await verifyVoicemailDrawer
+      .getByRole('button', { name: 'Advanced notification delivery' })
+      .click()
+    await expect(
+      verifyVoicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }),
+    ).not.toBeChecked()
+    await verifyVoicemailDrawer.getByRole('button', { name: 'Callback notification' }).click()
+    await expect(
+      verifyVoicemailDrawer.getByRole('switch', { name: 'Configure callback notification' }),
+    ).not.toBeChecked()
+    expect(issues).toEqual([])
+  } finally {
+    if (created) await deleteDisposableExtension(page, created)
+  }
 })
 
 test('shows schema-backed managed User calling fields without clipping or leaking storage URLs', async ({
@@ -226,31 +481,7 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     await expect(page.getByText('Switch-managed policy')).toBeVisible()
     expect(issues).toEqual([])
   } finally {
-    if (created) {
-      const cleanup = await page.evaluate(async ({ deleteUrl, number }) => {
-        const token = decodeURIComponent(
-          document.cookie
-            .split('; ')
-            .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
-            ?.split('=')[1] ?? '',
-        )
-        const response = await fetch(deleteUrl, {
-          method: 'DELETE',
-          credentials: 'include',
-          headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            'X-XSRF-TOKEN': token,
-          },
-          body: JSON.stringify({ confirmation: number }),
-        })
-
-        return { status: response.status, body: await response.text() }
-      }, created)
-      if (cleanup.status !== 204) {
-        throw new Error(`Disposable Extension cleanup failed: ${cleanup.body}`)
-      }
-    }
+    if (created) await deleteDisposableExtension(page, created)
   }
 })
 

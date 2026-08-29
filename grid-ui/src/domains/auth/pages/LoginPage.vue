@@ -2,6 +2,7 @@
 import { reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LockClosedIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import { useAuthStore } from '../stores/authStore'
 
 const auth = useAuthStore()
@@ -71,26 +72,24 @@ async function submit(): Promise<void> {
           {{ auth.error }}
         </div>
 
-        <label class="mt-7 block text-xs font-semibold text-slate-600"
-          >Email address
-          <input
-            v-model="credentials.email"
-            type="email"
-            autocomplete="username"
-            required
-            class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100"
-          />
-        </label>
-        <label class="mt-5 block text-xs font-semibold text-slate-600"
-          >Password
-          <input
-            v-model="credentials.password"
-            type="password"
-            autocomplete="current-password"
-            required
-            class="mt-2 h-11 w-full rounded-md border border-slate-200 px-3.5 text-sm outline-none transition focus:border-brand-500 focus:ring-3 focus:ring-brand-100"
-          />
-        </label>
+        <FormInput
+          v-model="credentials.email"
+          label="Email address"
+          class="mt-7"
+          type="email"
+          autocomplete="username"
+          required
+          input-class="h-11 px-3.5 text-sm"
+        />
+        <FormInput
+          v-model="credentials.password"
+          label="Password"
+          class="mt-5"
+          type="password"
+          autocomplete="current-password"
+          required
+          input-class="h-11 px-3.5 text-sm"
+        />
         <ToggleSwitch v-model="credentials.remember" label="Remember me" class="mt-5" />
 
         <button

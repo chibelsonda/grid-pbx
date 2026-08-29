@@ -7,7 +7,6 @@ import {
   EnvelopeIcon,
   KeyIcon,
   LinkIcon,
-  MagnifyingGlassIcon,
   MicrophoneIcon,
   PencilSquareIcon,
   SparklesIcon,
@@ -16,6 +15,10 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormFileInput from '@/shared/components/FormFileInput.vue'
+import FormInput from '@/shared/components/FormInput.vue'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import { voicemailApi } from '../api/voicemailApi'
 import { useVoicemailStore } from '../stores/voicemailStore'
 import type { VoicemailMessage, VoicemailMessageFolder } from '../types/voicemail'
@@ -94,8 +97,7 @@ function openGreetingPanel(): void {
   greetingPanelOpen.value = true
 }
 
-function selectGreetingAudio(event: Event): void {
-  const file = (event.target as HTMLInputElement).files?.[0] ?? null
+function selectGreetingAudio(file: File | null): void {
   const accepted = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg']
   greetingFileError.value = null
 
@@ -147,10 +149,9 @@ function formatBytes(value: number | null): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`
 }
 
-function toggleAllMessages(event: Event): void {
-  voicemail.selectedMessageIds = (event.target as HTMLInputElement).checked
-    ? voicemail.messages.map((message) => message.id)
-    : []
+function toggleAllMessages(selected: boolean | string[]): void {
+  voicemail.selectedMessageIds =
+    selected === true ? voicemail.messages.map((message) => message.id) : []
 }
 
 async function changeMessageFolder(
@@ -346,14 +347,11 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
                 </p>
               </div>
               <form class="relative sm:ml-auto sm:w-64" @submit.prevent="loadMessages(1)">
-                <MagnifyingGlassIcon
-                  class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-                />
-                <input
+                <SearchInput
                   v-model="voicemail.messageSearch"
-                  type="search"
+                  label="Search voicemail messages"
                   placeholder="Search caller or transcript…"
-                  class="h-9 w-full rounded-md border border-slate-200 pr-3 pl-9 text-[11px] outline-none focus:border-brand-500"
+                  input-class="h-9 text-[11px]"
                 />
               </form>
               <FormSelect
@@ -383,22 +381,17 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
               v-if="canManage && voicemail.messages.length > 0"
               class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3"
             >
-              <label
-                class="mr-2 inline-flex items-center gap-2 text-[10px] font-semibold text-slate-500"
-              >
-                <input
-                  type="checkbox"
-                  class="size-4 rounded border-slate-300 text-brand-600"
-                  :checked="allMessagesSelected"
-                  aria-label="Select all messages on this page"
-                  @change="toggleAllMessages"
-                />
-                {{
+              <FormCheckbox
+                class="mr-2"
+                :model-value="allMessagesSelected"
+                :label="
                   voicemail.selectedMessageIds.length
                     ? `${voicemail.selectedMessageIds.length} selected`
                     : 'Select page'
-                }}
-              </label>
+                "
+                variant="inline"
+                @update:model-value="toggleAllMessages"
+              />
               <button
                 type="button"
                 :disabled="
@@ -449,13 +442,14 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
                 class="grid gap-4 p-5"
               >
                 <div class="flex flex-wrap items-start gap-3">
-                  <input
+                  <FormCheckbox
                     v-if="canManage"
-                    v-model="voicemail.selectedMessageIds"
-                    type="checkbox"
+                    :model-value="voicemail.selectedMessageIds"
                     :value="message.id"
-                    :aria-label="`Select message from ${message.caller_id_name || message.caller_id_number || 'unknown caller'}`"
-                    class="mt-1 size-4 rounded border-slate-300 text-brand-600"
+                    :label="`Select message from ${message.caller_id_name || message.caller_id_number || 'unknown caller'}`"
+                    hide-label
+                    variant="inline"
+                    @update:model-value="voicemail.selectedMessageIds = $event as string[]"
                   />
                   <span
                     class="rounded-full px-2.5 py-1 text-[10px] font-bold"
@@ -697,26 +691,20 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
           </div>
         </header>
         <div class="grid gap-5 p-5">
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Display name</span
-            ><input
-              v-model="greetingName"
-              maxlength="128"
-              placeholder="Reception unavailable greeting"
-              class="h-10 rounded-md border border-slate-200 px-3 text-xs outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-          /></label>
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Audio file</span
-            ><input
-              required
-              type="file"
-              accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
-              class="block w-full rounded-md border border-slate-200 bg-white p-2 text-xs text-slate-600 file:mr-3 file:rounded file:border-0 file:bg-brand-50 file:px-3 file:py-2 file:text-[10px] file:font-semibold file:text-brand-600"
-              @change="selectGreetingAudio"
-            /><span v-if="greetingFileError" class="text-[11px] text-danger">{{
-              greetingFileError
-            }}</span></label
-          >
+          <FormInput
+            v-model="greetingName"
+            label="Display name"
+            maxlength="128"
+            placeholder="Reception unavailable greeting"
+          />
+          <FormFileInput
+            v-model="greetingAudio"
+            label="Audio file"
+            required
+            accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
+            :error="greetingFileError"
+            @change="selectGreetingAudio"
+          />
           <div
             class="rounded-md border border-blue-100 bg-blue-50 px-4 py-3 text-[11px] leading-5 text-blue-700"
           >

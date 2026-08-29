@@ -24,11 +24,12 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         SwitchAccount $account,
         string $name,
         string $destinationModule,
-        string $destinationResourceId,
+        ?string $destinationResourceId,
         array $phoneNumbers,
         ?string $fallbackModule = null,
         ?string $fallbackResourceId = null,
         array $branchRoutes = [],
+        array $destinationTemporalRuleIds = [],
     ): array {
         return $this->callflows->create(
             $account->switch_account_id,
@@ -40,6 +41,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 fallbackModule: $fallbackModule,
                 fallbackResourceId: $fallbackResourceId,
                 branchRoutes: $this->branchData($branchRoutes),
+                destinationTemporalRuleIds: $destinationTemporalRuleIds,
             ),
         )->toArray();
     }
@@ -48,7 +50,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         SwitchAccount $account,
         string $resourceId,
         string $destinationModule,
-        string $destinationResourceId,
+        ?string $destinationResourceId,
         ?string $name,
         array $assignedPhoneNumbers,
         array $knownPhoneNumbers,
@@ -56,6 +58,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         ?string $fallbackModule = null,
         ?string $fallbackResourceId = null,
         array $branchOperations = [],
+        array $destinationTemporalRuleIds = [],
     ): array {
         $current = $this->resources->find(
             $account->switch_account_id,
@@ -81,6 +84,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 fallbackModule: $fallbackModule,
                 fallbackResourceId: $fallbackResourceId,
                 branchOperations: $this->branchData($branchOperations),
+                destinationTemporalRuleIds: $destinationTemporalRuleIds,
             ),
         )->toArray();
     }

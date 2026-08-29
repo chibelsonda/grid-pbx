@@ -19,7 +19,15 @@ final readonly class UserMetaflowsData
     /** @return array<string, mixed>|stdClass */
     public function toSwitchData(): array|stdClass
     {
-        $data = array_merge($this->preservedOptions, array_filter([
+        $preserved = $this->preservedOptions;
+
+        foreach (['numbers', 'patterns'] as $map) {
+            if (($preserved[$map] ?? null) === []) {
+                $preserved[$map] = new stdClass;
+            }
+        }
+
+        $data = array_merge($preserved, array_filter([
             'binding_digit' => $this->bindingDigit,
             'digit_timeout' => $this->digitTimeout,
             'listen_on' => $this->listenOn,

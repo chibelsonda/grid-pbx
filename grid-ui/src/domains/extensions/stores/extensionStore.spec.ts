@@ -112,10 +112,7 @@ const input: ExtensionUpdate = {
   hotdesk: defaultExtensionHotdeskInput(),
   voicemail: {
     enabled: false,
-    notification_emails: [],
-    transcribe: false,
-    require_pin: false,
-    pin: null,
+    input: null,
   },
 }
 

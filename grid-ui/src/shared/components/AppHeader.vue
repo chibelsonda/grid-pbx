@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Menu, MenuButton, MenuItem, MenuItems, TransitionRoot } from '@headlessui/vue'
-import { Bars3Icon, ChevronDownIcon, MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
+import { Bars3Icon, ChevronDownIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useAuthStore } from '@/domains/auth/stores/authStore'
 import FormListbox, { type ListboxOptionValue } from '@/shared/components/FormListbox.vue'
+import SearchInput from '@/shared/components/SearchInput.vue'
 
 defineProps<{ sidebarCollapsed: boolean }>()
 defineEmits<{ toggleMobile: [] }>()
@@ -13,6 +14,7 @@ defineEmits<{ toggleMobile: [] }>()
 const router = useRouter()
 const auth = useAuthStore()
 const accounts = useAccountStore()
+const workspaceSearch = ref('')
 const initials = computed(() =>
   (auth.user?.name ?? 'Grid Admin')
     .split(' ')
@@ -53,14 +55,12 @@ async function signOut(): Promise<void> {
         <Bars3Icon class="size-5" />
       </button>
 
-      <div class="relative hidden w-full max-w-sm sm:block">
-        <MagnifyingGlassIcon
-          class="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-slate-400"
-        />
-        <input
-          type="search"
+      <div class="hidden w-full max-w-sm sm:block">
+        <SearchInput
+          v-model="workspaceSearch"
+          label="Search this workspace"
           placeholder="Search this workspace..."
-          class="h-9 w-full rounded-full bg-slate-100 pr-4 pl-10 text-xs text-slate-700 placeholder:text-slate-400 focus:bg-white focus:outline-none"
+          input-class="!h-9 !rounded-full !border-transparent !bg-slate-100 focus:!border-brand-400 focus:!bg-white"
         />
       </div>
 

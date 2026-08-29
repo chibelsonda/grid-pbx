@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ArrowDownIcon, ArrowUpIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -150,20 +151,13 @@ function submit(): void {
           </div>
         </header>
         <div class="grid gap-4 p-5">
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Name</span
-            ><input
-              v-model="form.name"
-              aria-label="Name"
-              required
-              maxlength="128"
-              class="field-control"
-              :class="validationControlClass(fieldError('name'))"
-              :aria-invalid="Boolean(fieldError('name'))"
-            /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-              fieldError('name')
-            }}</span></label
-          ><label class="grid gap-2"
+          <FormInput
+            v-model="form.name"
+            label="Name"
+            required
+            maxlength="128"
+            :error="fieldError('name')"
+          /><label class="grid gap-2"
             ><span class="text-xs font-semibold text-slate-600">Music on hold</span
             ><FormListbox
               :model-value="form.music_on_hold_media_id"

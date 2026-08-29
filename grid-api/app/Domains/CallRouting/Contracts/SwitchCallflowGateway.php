@@ -11,11 +11,12 @@ interface SwitchCallflowGateway
         SwitchAccount $account,
         string $name,
         string $destinationModule,
-        string $destinationResourceId,
+        ?string $destinationResourceId,
         array $phoneNumbers,
         ?string $fallbackModule = null,
         ?string $fallbackResourceId = null,
         array $branchRoutes = [],
+        array $destinationTemporalRuleIds = [],
     ): array;
 
     /** @return array<string, mixed> */
@@ -23,7 +24,7 @@ interface SwitchCallflowGateway
         SwitchAccount $account,
         string $resourceId,
         string $destinationModule,
-        string $destinationResourceId,
+        ?string $destinationResourceId,
         ?string $name,
         array $assignedPhoneNumbers,
         array $knownPhoneNumbers,
@@ -31,6 +32,7 @@ interface SwitchCallflowGateway
         ?string $fallbackModule = null,
         ?string $fallbackResourceId = null,
         array $branchOperations = [],
+        array $destinationTemporalRuleIds = [],
     ): array;
 
     public function delete(SwitchAccount $account, string $resourceId): void;

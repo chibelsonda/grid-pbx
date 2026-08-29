@@ -95,6 +95,10 @@ generic form or exposing every schema field for every workflow.
    use the approved readable neutral palette.
 6. Headless UI primitives and shared form helpers are preferred for interactive
    controls. Entity-owned components retain domain-specific conditional logic.
+   Native controls are encapsulated by `FormInput`, `FormTextarea`,
+   `SearchInput`, `FormFileInput`, and `FormCheckbox` so label association,
+   descriptions, native attributes, model modifiers, `aria-describedby`, and
+   red invalid styling do not drift between domains.
 7. Related records are selected through account-scoped public UUID options.
    Database primary keys and Switch resource identifiers never cross into Vue.
 8. Secrets are write-only. Edit forms show configured-state metadata and
@@ -323,8 +327,8 @@ full editor.
 | User options | Language and presence ID expose `aria-invalid` but not the invalid border; switches have no shared invalid container treatment | Use the same control helper for inputs and switch containers |
 | Credentials and hotdesk | Typed, write-only secret handling and live preserve/clear behavior are implemented; several controls duplicate hard-coded invalid classes | Preserve the security contract and replace duplicated styling with the shared helper |
 | Language, timezone, and presence | Current fields are free text; Monster used account-derived selections for the values it knew | Prefer capability/account-backed listboxes or comboboxes while preserving an existing unprojected value during edit |
-| Initial Device during create | Kazoo treats Device creation as a related User workflow, while the former starter payload exposed only a duplicated subset of Device fields | Reuse the Device domain's complete capability-driven Basic/Advanced editor in a wide modal or wizard step. Device form state, Zod validation, options, and payload mapping remain single-source; Extension owns only inclusion and new-owner orchestration. |
-| Managed Voicemail during create/edit | The aggregate exposes only enablement, notification emails, transcription, and PIN setup | Keep the intentionally small mailbox bootstrap and route advanced mailbox configuration to the Voicemail editor |
+| Initial Device during create | Kazoo treats Device creation as a related User workflow, while the former starter payload exposed only a duplicated subset of Device fields | Reuse the Device domain's complete capability-driven Basic/Advanced editor as a subview of the existing Extension drawer. Device form state, Zod validation, options, and payload mapping remain single-source; Extension owns only inclusion and new-owner orchestration. |
+| Managed Voicemail during create/edit | Both aggregate operations previously exposed only enablement, notification emails, transcription, and PIN setup | Reuse the complete Voicemail editor as a subview of the existing Extension drawer. Create and edit now share the full field component, Zod contract, Laravel validation, and Switch mutation factory. |
 | Current User schema coverage | Calling options, contact-list exclusion, privacy, credentials, hotdesk, recursive metaflows, caller-ID variants, forwarding, recording, restrictions, endpoint media, MOH, ringtones, safe dial plans/formatters, bounded profile data, and pronounced-name Media are typed; external flags and policy/status fields are preserved and read-only | Continue relationship and operation audits without exposing raw nested JSON or copying every Monster feature tile without checking the connected schema |
 | Relationships | Managed Device, Voicemail Box, and Callflow creation is orchestrated and projected through public API records | Add lifecycle tests for compensation and partial failure as form scope expands; related domain editors remain separate |
 
@@ -385,11 +389,23 @@ visibility, provisioning catalog, Zod schema, payload mapper, Laravel Device
 validation, and Switch mutation translation are shared; Extension owns only
 inclusion, new-owner assignment, dependency ordering, and compensation.
 
+The Extension create and edit workflows now apply the same pattern to managed
+Voicemail. They open the complete standalone mailbox field component as a
+subview of the same drawer, keep the Extension draft in memory, derive and lock
+the managed mailbox identity, and return to the aggregate without stacking a
+modal. Standalone and embedded operations share the same Zod input, Laravel
+`SaveVoicemailBoxRequest` boundary, mutation-data factory, Switch gateway, and
+redacted MySQL projection. Isolated authenticated lifecycles cover full
+aggregate creation, edit hydration, advanced callback/audio clearing,
+persistence reload, and disposable aggregate removal. The standalone callback
+create/edit/clear/delete lifecycle also passes after this extraction.
+
 The next managed-User parity batch is complete. The edit slide-over now uses
 public phone-number UUIDs for external and emergency caller ID, applies an
 independent Laravel E911 check, exposes all current `call_forward` leaf fields,
-discovers call-restriction classifiers from Switch, and edits the complete
-recording target/direction/network matrix. Asserted identity, recording URLs,
+discovers call-restriction classifiers from Switch, and edits the current User
+recording direction/network matrix. Account/Endpoint recording branches remain
+exclusive to the Account schema. Asserted identity, recording URLs,
 and unknown nested properties remain server-owned and are preserved without
 returning private Switch identifiers or raw JSON to Vue. Creation intentionally
 keeps the smaller aggregate bootstrap so account inheritance is not replaced by
@@ -578,8 +594,9 @@ memberships whose parent set is already deleted no longer block Rule cleanup.
 ### Blacklist follow-through (2026-08-29)
 
 Blacklist now uses the shared domain composable, Zod, inline-only error, and
-red invalid-control baseline. Name and blocked-number errors attach directly
-to their controls, the submit path uses `novalidate` so browser-native prompts
+red invalid-control baseline. Its name and blocked-number fields are migrated
+to the shared accessible text/textarea components, and errors attach directly
+to their controls. The submit path uses `novalidate` so browser-native prompts
 cannot replace the application feedback, and actionable API field errors no
 longer also create a global mutation alert.
 
@@ -757,24 +774,47 @@ mutations; it is not presented as a complete visual implementation of every
 | Legacy and unsafe Menu branches | `children.#`, unknown keys, nested or unresolved key nodes | Displayed as preserved read-only state; `#` cannot be newly created | Implemented |
 | Numeric branch JSON shape | numeric child object properties | Normalized as JSON objects in Switch writes, MySQL JSON, and API resources so `{"0": ...}` never becomes a list | Implemented and tested |
 | Temporal Rule Set match | `data.rule_set`, `children.rule_set`, and `children._` | Shows ordered public Rule UUIDs for context; create/replace/clear resolves only public destination UUIDs and preserves additional temporal keys | Implemented and tested |
+| Direct Temporal Rules | ordered `data.rules[]`, `children.<rule_id>`, and `children._` | Selects and reorders public Rule UUIDs, requires one public match destination per rule, maps raw branch keys only on the server, and explicitly clears removed rules while preserving unrelated children | Implemented; SDK, API, Zod, and isolated-headless tested |
 | Visual route map | Recursive `flow.children` tree | Scroll-bounded connected nodes with semantic branch badges and keyboard-accessible selection; unknown child keys become numbered preserved labels in the public contract while internal keys remain lossless | Read-only foundation implemented and headless-tested |
-| Drag-and-drop editor placement | Full route graph and action palette | The interactive graph canvas lives on the main Callflow page, not inside a slide-over; a right-side panel may edit only the currently selected node | Required layout decision |
+| Main-page editor placement | Full route graph, inspector, and action palette | The selectable graph workspace lives inline on the main Callflow page, not inside a slide-over; right-side panels are reserved for mutation forms | Implemented and isolated-headless verified |
+| Drag-and-drop mutations | Recursive node and branch operations | The future drag-and-drop layer will extend the inline workspace and use typed selected-node operations; it will not move the canvas into a panel | Pending |
 | Selected-node inspector | Public safe tree contract | Shows public branch breadcrumbs, module, resolved label, reference state, child count, and honest editability status; never displays raw node data or upstream IDs | Implemented and headless-tested |
 | Module reference palette | Primary `callflows.*.json` action schemas | Searchable categorized catalog of all 73 primary local schemas, labeled as guided, planned, or capability-gated; no inactive item is presented as an edit action | Implemented and headless-tested |
-| Other keyed recursive branches | Direct temporal rules and module-specific branch schemas | Read-only structural view until each module editor has reference and round-trip coverage | Pending |
+| Other keyed recursive branches | Module-specific branch schemas beyond Menu and temporal routing | Read-only structural view until each module editor has reference and round-trip coverage | Pending |
 
 The selectable node-and-connector diagram, safe inspector, and schema-backed
-module palette are now the visual foundation for the advanced editor. The
-main page will own the drag-and-drop canvas so it has sufficient room for
-branching routes; right-side panels are limited to selected-node properties.
-The remaining work adds recursive linear and keyed mutations plus
-module-specific node forms. Unsupported nodes remain locked and lossless.
-GridPBX uses its Tailwind visual language rather than copying Monster's
-styling.
+module palette now render in a full-width main-page workspace with no detail
+slide-over. This gives branching routes sufficient room and preserves the
+agreed boundary: right-side panels are limited to typed mutation forms. The
+remaining work adds drag-and-drop recursive linear and additional keyed
+mutations plus module-specific node forms. Direct temporal and Rule Set branches
+already use typed, server-mapped operations. Unsupported nodes remain locked
+and lossless.
+GridPBX uses its Tailwind visual language rather than copying Monster's styling.
 
 Focused Switch package, Laravel feature, Vue schema/store, and isolated
 authenticated headless Playwright checks cover these boundaries without
 creating a live route.
+
+### Shared mutation controls checkpoint
+
+The Device reference form and the User/Extension workflow now render ordinary
+text, password, email, telephone, number, and multiline fields through the
+shared `FormInput` and `FormTextarea` components. This includes the embedded
+Device and Voicemail editors plus Directory, Group, Media, Temporal routing,
+Conference, Fax, Menu, Queue/Agent, Line Key, and Account mutation panels, so
+nested and standalone workflows share the same labels, descriptions, ARIA
+relationships, and field-local red validation state.
+
+Purpose-specific shared adapters now cover search, file upload, and checkbox
+behavior as well. `SearchInput` is used by entity lists, action palettes, and
+the workspace header; `FormFileInput` owns Media and Voicemail audio selection;
+and `FormCheckbox` supplies card, row, compact, and inline variants for form
+selection groups and voicemail message selection. Advanced CDR/recording
+filters, confirmation text, and guided metaflow fields also use `FormInput`.
+There are no direct native `input` or `textarea` elements outside these shared
+primitives in `grid-ui/src`; Headless UI listboxes and the existing toggle
+adapter remain specialized controls.
 
 ## Delivery order
 

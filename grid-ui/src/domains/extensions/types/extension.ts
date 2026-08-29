@@ -95,7 +95,7 @@ export type ExtensionRecordingRules = Record<
   'any' | 'inbound' | 'outbound',
   ExtensionRecordingSource
 >
-export type ExtensionCallRecording = Record<'account' | 'endpoint', ExtensionRecordingRules>
+export type ExtensionCallRecording = ExtensionRecordingRules
 
 export type ExtensionAdvancedCallingConfiguration = {
   caller_id: {
@@ -290,10 +290,7 @@ export type ExtensionCreate = ExtensionUserConfiguration & {
   hotdesk: ExtensionHotdeskInput
   voicemail: {
     enabled: boolean
-    notification_emails: string[]
-    transcribe: boolean
-    require_pin: boolean
-    pin: string | null
+    input: VoicemailBoxInput | null
   }
   device: {
     enabled: boolean
@@ -301,7 +298,11 @@ export type ExtensionCreate = ExtensionUserConfiguration & {
   }
 }
 
-export type ExtensionUpdate = Omit<ExtensionCreate, 'device'> & {
+export type ExtensionUpdate = Omit<ExtensionCreate, 'device' | 'voicemail'> & {
+  voicemail: {
+    enabled: boolean
+    input: VoicemailBoxInput | null
+  }
   metaflows: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
   caller_id: {
     internal: { name: string | null; number: string | null }
@@ -390,3 +391,4 @@ export type SyncRun = {
 }
 import type { MetaflowAction, MetaflowResources } from '@/shared/switch/metaflows/types'
 import type { DeviceInput } from '@/domains/devices/types/device'
+import type { VoicemailBoxInput } from '@/domains/voicemail/types/voicemail'

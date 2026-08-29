@@ -20,6 +20,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
+use App\Domains\Voicemail\Services\VoicemailMutationDataFactory;
 use App\Shared\Switch\MetaflowPolicy;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use Illuminate\Support\Arr;
@@ -41,6 +42,7 @@ class ExtensionProvisioningService
         private readonly LineKeyProjectionService $lineKeyProjection,
         private readonly MetaflowPolicy $metaflowPolicy,
         private readonly DeviceMutationDataFactory $deviceMutationData,
+        private readonly VoicemailMutationDataFactory $voicemailMutationData,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -68,16 +70,20 @@ class ExtensionProvisioningService
 
             if ($data['voicemail']['enabled']) {
                 $currentStep = 'voicemail_box';
-                $created['voicemail_box'] = $this->gateway->createVoicemailBox($account, [
+                $voicemailInput = [
+                    ...$data['voicemail']['input'],
                     'name' => "({$data['extension']}) {$displayName}",
                     'mailbox' => $data['extension'],
-                    'owner_id' => $userResourceId,
-                    'timezone' => $data['timezone'] ?? null,
-                    'notification_emails' => $data['voicemail']['notification_emails'],
-                    'transcribe' => $data['voicemail']['transcribe'],
-                    'require_pin' => $data['voicemail']['require_pin'],
-                    'pin' => $data['voicemail']['pin'] ?? null,
-                ]);
+                    'assigned_extension_id' => null,
+                ];
+                $created['voicemail_box'] = $this->gateway->createVoicemailBox(
+                    $account,
+                    $this->voicemailMutationData->make(
+                        $account,
+                        $voicemailInput,
+                        $userResourceId,
+                    ),
+                );
                 $this->recordCreatedResource($operation, $created, 'voicemail_box');
             }
 
@@ -221,16 +227,18 @@ class ExtensionProvisioningService
 
             if ($data['voicemail']['enabled']) {
                 $currentStep = 'voicemail_box';
-                $voicemailData = [
+                $voicemailInput = [
+                    ...$data['voicemail']['input'],
                     'name' => "({$data['extension']}) {$displayName}",
                     'mailbox' => $data['extension'],
-                    'owner_id' => $extension->switch_resource_id,
-                    'timezone' => $data['timezone'] ?? null,
-                    'notification_emails' => $data['voicemail']['notification_emails'],
-                    'transcribe' => $data['voicemail']['transcribe'],
-                    'require_pin' => $data['voicemail']['require_pin'],
-                    'pin' => $data['voicemail']['pin'] ?? null,
+                    'assigned_extension_id' => null,
                 ];
+                $voicemailData = $this->voicemailMutationData->make(
+                    $account,
+                    $voicemailInput,
+                    $extension->switch_resource_id,
+                    $managedVoicemail,
+                );
                 $snapshots['voicemail_box'] = $managedVoicemail === null
                     ? $this->gateway->createVoicemailBox($account, $voicemailData)
                     : $this->gateway->updateVoicemailBox(
@@ -586,26 +594,24 @@ class ExtensionProvisioningService
         }
 
         if (isset($data['call_recording']) && is_array($data['call_recording'])) {
-            foreach (['account', 'endpoint'] as $target) {
-                foreach (['any', 'inbound', 'outbound'] as $direction) {
-                    foreach (['any', 'onnet', 'offnet'] as $network) {
-                        $path = "call_recording.{$target}.{$direction}.{$network}";
-                        $current = data_get($snapshot, $path);
-                        $current = is_array($current) ? $current : [];
-                        data_set(
-                            $data,
-                            "{$path}.preserved_options",
-                            $this->safePreservedOptions($current, [
-                                'enabled',
-                                'format',
-                                'record_min_sec',
-                                'record_on_answer',
-                                'record_on_bridge',
-                                'record_sample_rate',
-                                'time_limit',
-                            ]),
-                        );
-                    }
+            foreach (['any', 'inbound', 'outbound'] as $direction) {
+                foreach (['any', 'onnet', 'offnet'] as $network) {
+                    $path = "call_recording.{$direction}.{$network}";
+                    $current = data_get($snapshot, $path);
+                    $current = is_array($current) ? $current : [];
+                    data_set(
+                        $data,
+                        "{$path}.preserved_options",
+                        $this->safePreservedOptions($current, [
+                            'enabled',
+                            'format',
+                            'record_min_sec',
+                            'record_on_answer',
+                            'record_on_bridge',
+                            'record_sample_rate',
+                            'time_limit',
+                        ]),
+                    );
                 }
             }
         }
@@ -803,10 +809,10 @@ class ExtensionProvisioningService
         }
 
         if ($data['voicemail']['enabled']
-            && $data['voicemail']['require_pin']
+            && $data['voicemail']['input']['require_pin']
             && $managedVoicemail === null
-            && empty($data['voicemail']['pin'])) {
-            $errors['voicemail.pin'][] = 'A PIN is required when creating a managed mailbox.';
+            && empty($data['voicemail']['input']['pin'])) {
+            $errors['voicemail.input.pin'][] = 'A PIN is required when creating a managed mailbox.';
         }
 
         if ($errors !== []) {

@@ -97,8 +97,8 @@ export function hydrateExtensionUserConfiguration(
   const defaults = defaultExtensionUserConfiguration()
 
   return {
-    ...defaults,
-    ...source,
+    language: source?.language ?? defaults.language,
+    presence_id: source?.presence_id ?? defaults.presence_id,
     call_waiting: { ...defaults.call_waiting, ...source?.call_waiting },
     do_not_disturb: { ...defaults.do_not_disturb, ...source?.do_not_disturb },
     contact_list: { ...defaults.contact_list, ...source?.contact_list },
@@ -123,15 +123,12 @@ export function hydrateExtensionCallRecording(
 ): ExtensionCallRecording {
   const recording = {} as ExtensionCallRecording
 
-  for (const target of ['account', 'endpoint'] as const) {
-    recording[target] = {} as ExtensionCallRecording[typeof target]
-    for (const direction of ['any', 'inbound', 'outbound'] as const) {
-      recording[target][direction] = {} as ExtensionCallRecording[typeof target][typeof direction]
-      for (const network of ['any', 'onnet', 'offnet'] as const) {
-        recording[target][direction][network] = {
-          ...defaultRecordingParameters(),
-          ...source?.[target]?.[direction]?.[network],
-        }
+  for (const direction of ['any', 'inbound', 'outbound'] as const) {
+    recording[direction] = {} as ExtensionCallRecording[typeof direction]
+    for (const network of ['any', 'onnet', 'offnet'] as const) {
+      recording[direction][network] = {
+        ...defaultRecordingParameters(),
+        ...source?.[direction]?.[network],
       }
     }
   }

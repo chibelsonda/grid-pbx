@@ -244,7 +244,7 @@ class ExtensionDetailResource extends JsonResource
         return $restrictions;
     }
 
-    /** @return array<string, array<string, array<string, array<string, mixed>>>> */
+    /** @return array<string, array<string, array<string, mixed>>> */
     private function callRecording(): array
     {
         $value = is_array($this->switch_json['call_recording'] ?? null)
@@ -261,17 +261,15 @@ class ExtensionDetailResource extends JsonResource
             'time_limit',
         ];
 
-        foreach (['account', 'endpoint'] as $target) {
-            foreach (['any', 'inbound', 'outbound'] as $direction) {
-                foreach (['any', 'onnet', 'offnet'] as $network) {
-                    $parameters = data_get($value, "{$target}.{$direction}.{$network}");
+        foreach (['any', 'inbound', 'outbound'] as $direction) {
+            foreach (['any', 'onnet', 'offnet'] as $network) {
+                $parameters = data_get($value, "{$direction}.{$network}");
 
-                    if (is_array($parameters)) {
-                        $recording[$target][$direction][$network] = array_intersect_key(
-                            $parameters,
-                            array_flip($editable),
-                        );
-                    }
+                if (is_array($parameters)) {
+                    $recording[$direction][$network] = array_intersect_key(
+                        $parameters,
+                        array_flip($editable),
+                    );
                 }
             }
         }

@@ -49,6 +49,7 @@ class CallflowEditorService
             ->withCount('rules')
             ->orderBy('name')
             ->get();
+        $temporalRules = $account->temporalRules()->orderBy('name')->get();
 
         return [
             'mode' => $callflow === null ? 'create' : 'update',
@@ -57,6 +58,7 @@ class CallflowEditorService
             'fallback' => $this->fallbackEditor($callflow),
             'menu_branches' => $this->menuBranches($callflow),
             'temporal_match' => $this->temporalMatch($callflow),
+            'direct_temporal_routes' => $this->directTemporalRoutes($account, $callflow),
             'temporal_rule_sets' => $temporalRuleSets->mapWithKeys(fn ($set): array => [
                 $set->id => $set->rules->map(fn ($membership): array => [
                     'id' => $membership->rule?->id,
@@ -65,6 +67,13 @@ class CallflowEditorService
                     'resolved' => $membership->rule !== null,
                 ])->values()->all(),
             ])->all(),
+            'temporal_rules' => $temporalRules->map(fn ($rule): array => [
+                'id' => $rule->id,
+                'label' => $rule->name,
+                'detail' => $rule->cycle === null
+                    ? 'Temporal Rule'
+                    : ucfirst(str_replace('_', ' ', $rule->cycle)).' recurrence',
+            ])->values()->all(),
             'destination_types' => [
                 ['value' => 'extension', 'label' => 'Extension'],
                 ['value' => 'device', 'label' => 'Device'],
@@ -78,6 +87,7 @@ class CallflowEditorService
                 ['value' => 'conference', 'label' => 'Conference'],
                 ['value' => 'fax_box', 'label' => 'Fax Box'],
                 ['value' => 'temporal_rule_set', 'label' => 'Business Hours / Schedule'],
+                ['value' => 'temporal_rules', 'label' => 'Direct Temporal Rules'],
             ],
             'destinations' => [
                 'extension' => $account->extensions()->orderBy('display_name')->get()->map(fn ($item): array => [
@@ -140,6 +150,7 @@ class CallflowEditorService
                     'label' => $item->name,
                     'detail' => $item->rules_count.' schedule rules',
                 ])->values()->all(),
+                'temporal_rules' => [],
             ],
             'phone_numbers' => $account->phoneNumbers()
                 ->with('assignedCallflow:callflow_id,id,name')
@@ -214,6 +225,20 @@ class CallflowEditorService
         if (! $editor['editable']) {
             throw ValidationException::withMessages([
                 'temporal_match_destination_id' => [$editor['blocked_reason']],
+            ]);
+        }
+    }
+
+    public function assertDirectTemporalRoutesEditable(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+    ): void {
+        $blocked = collect($this->directTemporalRoutes($account, $callflow))
+            ->first(fn (array $route): bool => ! $route['editable']);
+
+        if (is_array($blocked)) {
+            throw ValidationException::withMessages([
+                'temporal_rule_routes' => [$blocked['blocked_reason']],
             ]);
         }
     }
@@ -327,13 +352,14 @@ class CallflowEditorService
             'blocked_reason' => $blockedReason,
             'branches' => $branches,
             'legacy_hash_present' => array_key_exists('#', $children),
-            'unknown_branch_keys' => array_values(array_filter(
-                array_keys($children),
-                fn (mixed $key): bool => is_string($key)
+            'unknown_branch_keys' => collect(array_keys($children))
+                ->filter(fn (mixed $key): bool => is_string($key)
                     && $key !== '_'
                     && $key !== '#'
-                    && ! in_array($key, self::MENU_BRANCH_KEYS, true),
-            )),
+                    && ! in_array($key, self::MENU_BRANCH_KEYS, true))
+                ->values()
+                ->map(fn (mixed $_key, int $index): string => 'preserved_'.($index + 1))
+                ->all(),
         ];
     }
 
@@ -368,6 +394,49 @@ class CallflowEditorService
                 ->filter(fn (mixed $key): bool => (string) $key !== '_' && (string) $key !== 'rule_set')
                 ->count(),
         ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    public function directTemporalRoutes(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+    ): array {
+        if ($callflow === null || ($callflow->flow_structure['module'] ?? null) !== 'temporal_route') {
+            return [];
+        }
+
+        $rules = collect(is_array($callflow->flow_structure['temporal_rules'] ?? null)
+            ? $callflow->flow_structure['temporal_rules']
+            : []);
+        $projectedRules = $account->temporalRules()
+            ->whereIn('id', $rules->pluck('id')->filter()->all())
+            ->get()
+            ->keyBy('id');
+        $children = is_array($callflow->flow_structure['children'] ?? null)
+            ? $callflow->flow_structure['children']
+            : [];
+
+        return $rules->map(function (array $rule) use ($projectedRules, $children): array {
+            $id = is_string($rule['id'] ?? null) ? $rule['id'] : null;
+            $projected = $id === null ? null : $projectedRules->get($id);
+            $state = $projected === null
+                ? [
+                    'editable' => false,
+                    'blocked_reason' => 'Synchronize this Temporal Rule before editing its route.',
+                    'target' => null,
+                ]
+                : $this->leafBranchEditor($children[$projected->switch_resource_id] ?? null);
+
+            return [
+                'rule_id' => $id,
+                'label' => is_string($rule['label'] ?? null)
+                    ? $rule['label']
+                    : 'Unresolved Temporal Rule',
+                'position' => is_int($rule['position'] ?? null) ? $rule['position'] : 0,
+                'resolved' => (bool) ($rule['resolved'] ?? false),
+                ...$state,
+            ];
+        })->values()->all();
     }
 
     /** @return array{editable: bool, blocked_reason: ?string, target: ?array{type: string, id: string, label: string}} */

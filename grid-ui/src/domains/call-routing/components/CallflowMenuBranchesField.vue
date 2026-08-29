@@ -34,11 +34,13 @@ function fieldError(index: number, field: string): string | null {
 }
 
 function destinationTypeOptions(): ListboxOptionValue[] {
-  return props.editor.destination_types.map(({ value, label }) => ({
-    value,
-    label,
-    disabled: props.editor.destinations[value].length === 0,
-  }))
+  return props.editor.destination_types
+    .filter(({ value }) => value !== 'temporal_rules')
+    .map(({ value, label }) => ({
+      value,
+      label,
+      disabled: props.editor.destinations[value].length === 0,
+    }))
 }
 
 function destinationOptions(type: CallflowDestinationType): ListboxOptionValue[] {
@@ -91,7 +93,7 @@ function addBranch(): void {
     ({ key }) => !props.branches.some((branch) => branch.key === key),
   )
   const type = props.editor.destination_types.find(
-    ({ value }) => props.editor.destinations[value].length > 0,
+    ({ value }) => value !== 'temporal_rules' && props.editor.destinations[value].length > 0,
   )?.value
 
   if (!definition || !type) return

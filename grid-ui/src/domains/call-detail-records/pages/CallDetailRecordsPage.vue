@@ -7,12 +7,12 @@ import {
   ArrowUpRightIcon,
   ChevronRightIcon,
   ClockIcon,
-  MagnifyingGlassIcon,
   PhoneIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
+import FormInput from '@/shared/components/FormInput.vue'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import CallDetailRecordPanel from '../components/CallDetailRecordPanel.vue'
 import { useCallDetailRecordFilters } from '../composables/useCallDetailRecordFilters'
 import { useCallDetailRecordStore } from '../stores/callDetailRecordStore'
@@ -173,16 +173,12 @@ function humanize(value: string | null): string {
         <div>
           <label class="relative block">
             <span class="sr-only">Search call history</span>
-            <MagnifyingGlassIcon
-              class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-            />
-            <input
+            <SearchInput
               v-model="calls.filters.search"
-              type="search"
+              label="Search call history"
               placeholder="Search caller, callee, call, or interaction…"
-              :aria-invalid="Boolean(fieldError('search'))"
-              class="h-10 w-full rounded-md border border-slate-300 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
-              :class="validationControlClass(fieldError('search'))"
+              input-class="h-10 bg-white text-xs shadow-sm"
+              :error="fieldError('search')"
             />
           </label>
           <p v-if="fieldError('search')" class="mt-1 text-[10px] text-danger">
@@ -215,76 +211,40 @@ function humanize(value: string | null): string {
       </div>
       <DisclosureCard title="Advanced filters">
         <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-            Start date
-            <input
-              v-model="calls.filters.started_from"
-              type="date"
-              :aria-invalid="Boolean(fieldError('started_from'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('started_from'))"
-            />
-            <span v-if="fieldError('started_from')" class="normal-case text-danger">{{
-              fieldError('started_from')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-            End date
-            <input
-              v-model="calls.filters.started_to"
-              type="date"
-              :aria-invalid="Boolean(fieldError('started_to'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('started_to'))"
-            />
-            <span v-if="fieldError('started_to')" class="normal-case text-danger">{{
-              fieldError('started_to')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-            Minimum seconds
-            <input
-              v-model="calls.filters.duration_min"
-              type="number"
-              min="0"
-              max="86400"
-              :aria-invalid="Boolean(fieldError('duration_min'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('duration_min'))"
-            />
-            <span v-if="fieldError('duration_min')" class="normal-case text-danger">{{
-              fieldError('duration_min')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-            Maximum seconds
-            <input
-              v-model="calls.filters.duration_max"
-              type="number"
-              min="0"
-              max="86400"
-              :aria-invalid="Boolean(fieldError('duration_max'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('duration_max'))"
-            />
-            <span v-if="fieldError('duration_max')" class="normal-case text-danger">{{
-              fieldError('duration_max')
-            }}</span>
-          </label>
-          <label class="grid gap-1.5 text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-            Hangup cause
-            <input
-              v-model="calls.filters.hangup_cause"
-              type="text"
-              placeholder="NORMAL_CLEARING"
-              :aria-invalid="Boolean(fieldError('hangup_cause'))"
-              class="h-10 rounded-md border border-slate-300 px-3 text-xs font-normal text-slate-700"
-              :class="validationControlClass(fieldError('hangup_cause'))"
-            />
-            <span v-if="fieldError('hangup_cause')" class="normal-case text-danger">{{
-              fieldError('hangup_cause')
-            }}</span>
-          </label>
+          <FormInput
+            v-model="calls.filters.started_from"
+            label="Start date"
+            type="date"
+            :error="fieldError('started_from')"
+          />
+          <FormInput
+            v-model="calls.filters.started_to"
+            label="End date"
+            type="date"
+            :error="fieldError('started_to')"
+          />
+          <FormInput
+            v-model="calls.filters.duration_min"
+            label="Minimum seconds"
+            type="number"
+            min="0"
+            max="86400"
+            :error="fieldError('duration_min')"
+          />
+          <FormInput
+            v-model="calls.filters.duration_max"
+            label="Maximum seconds"
+            type="number"
+            min="0"
+            max="86400"
+            :error="fieldError('duration_max')"
+          />
+          <FormInput
+            v-model="calls.filters.hangup_cause"
+            label="Hangup cause"
+            placeholder="NORMAL_CLEARING"
+            :error="fieldError('hangup_cause')"
+          />
         </div>
         <div class="mt-4 flex justify-end">
           <button

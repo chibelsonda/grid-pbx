@@ -7,6 +7,8 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -14,6 +16,8 @@ import FormListbox, {
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import CallflowMenuBranchesField from './CallflowMenuBranchesField.vue'
+import CallflowTemporalRuleRoutesField from './CallflowTemporalRuleRoutesField.vue'
+import CallflowTemporalRulesField from './CallflowTemporalRulesField.vue'
 import { useCallflowForm } from '../composables/useCallflowForm'
 import type {
   Callflow,
@@ -45,8 +49,14 @@ const destinationTypeOptions = computed<ListboxOptionValue[]>(() =>
   (props.editor?.destination_types ?? []).map(({ value, label }) => ({
     value,
     label,
-    disabled: props.editor?.destinations[value].length === 0,
+    disabled:
+      value === 'temporal_rules'
+        ? props.editor?.temporal_rules.length === 0
+        : props.editor?.destinations[value].length === 0,
   })),
+)
+const branchDestinationTypeOptions = computed(() =>
+  destinationTypeOptions.value.filter(({ value }) => value !== 'temporal_rules'),
 )
 const destinationOptions = computed<ListboxOptionValue[]>(() =>
   options.value.map(({ id, label, detail }) => ({ value: id, label, description: detail })),
@@ -78,6 +88,12 @@ const selectedTemporalRules = computed(
 watch(
   () => form.destination_type,
   () => {
+    if (form.destination_type === 'temporal_rules') {
+      form.destination_id = ''
+
+      return
+    }
+
     if (!options.value.some(({ id }) => id === form.destination_id)) {
       form.destination_id = options.value[0]?.id ?? ''
     }
@@ -217,20 +233,13 @@ function humanizePhoneState(state: string | null): string {
             </div>
           </header>
           <div class="grid gap-4 p-5">
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Route name</span>
-              <input
-                v-model="form.name"
-                aria-label="Route name"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              />
-              <span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span>
-            </label>
+            <FormInput
+              v-model="form.name"
+              label="Route name"
+              maxlength="128"
+              required
+              :error="fieldError('name')"
+            />
             <div v-if="record">
               <p class="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
                 Entry points
@@ -257,35 +266,23 @@ function humanizePhoneState(state: string | null): string {
             </p>
           </header>
           <div v-if="editor.phone_numbers.length" class="divide-y divide-slate-100 px-5">
-            <label
+            <FormCheckbox
               v-for="phoneNumber in editor.phone_numbers"
               :key="phoneNumber.id"
-              class="flex items-start gap-3 py-4"
-              :class="phoneNumber.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-60'"
-            >
-              <input
-                v-model="form.phone_number_ids"
-                type="checkbox"
-                :value="phoneNumber.id"
-                :disabled="!phoneNumber.available"
-                class="mt-0.5 size-4 accent-brand-500"
-              />
-              <span class="min-w-0">
-                <span class="block font-mono text-xs font-semibold text-slate-700">
-                  {{ phoneNumber.number }}
-                </span>
-                <span v-if="phoneNumber.available" class="mt-1 block text-[10px] text-slate-400">
-                  {{
-                    phoneNumber.selected
-                      ? 'Currently enters this route'
-                      : humanizePhoneState(phoneNumber.state)
-                  }}
-                </span>
-                <span v-else class="mt-1 block text-[10px] font-semibold text-amber-600">
-                  Assigned to {{ phoneNumber.assigned_callflow?.name ?? 'another route' }}
-                </span>
-              </span>
-            </label>
+              :model-value="form.phone_number_ids"
+              :value="phoneNumber.id"
+              :label="phoneNumber.number"
+              :description="
+                phoneNumber.available
+                  ? phoneNumber.selected
+                    ? 'Currently enters this route'
+                    : humanizePhoneState(phoneNumber.state)
+                  : `Assigned to ${phoneNumber.assigned_callflow?.name ?? 'another route'}`
+              "
+              :disabled="!phoneNumber.available"
+              variant="row"
+              @update:model-value="form.phone_number_ids = $event as string[]"
+            />
           </div>
           <p v-else class="p-5 text-xs text-slate-400">
             No projected phone numbers are available for this account.
@@ -316,7 +313,7 @@ function humanizePhoneState(state: string | null): string {
                 fieldError('destination_type')
               }}</span>
             </label>
-            <label class="grid gap-2">
+            <label v-if="form.destination_type !== 'temporal_rules'" class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Destination</span>
               <FormListbox
                 :model-value="form.destination_id"
@@ -332,6 +329,19 @@ function humanizePhoneState(state: string | null): string {
                 fieldError('destination_id')
               }}</span>
             </label>
+            <div v-else class="grid gap-2">
+              <div>
+                <p class="text-xs font-semibold text-slate-600">Temporal Rules</p>
+                <p class="mt-1 text-[10px] text-slate-500">
+                  Select and order the rules written to the Switch temporal route.
+                </p>
+              </div>
+              <CallflowTemporalRulesField
+                v-model="form.temporal_rule_ids"
+                :options="editor.temporal_rules"
+                :error="fieldError('temporal_rule_ids')"
+              />
+            </div>
             <div
               v-if="selectedOption"
               class="flex items-start gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-4"
@@ -345,6 +355,29 @@ function humanizePhoneState(state: string | null): string {
                 </p>
               </div>
             </div>
+          </div>
+        </article>
+
+        <article
+          v-if="form.destination_type === 'temporal_rules'"
+          class="card-surface overflow-hidden"
+          :class="validationControlClass(fieldError('temporal_rule_routes'))"
+          :aria-invalid="Boolean(fieldError('temporal_rule_routes'))"
+        >
+          <header class="border-b border-slate-100 px-5 py-4">
+            <h2 class="text-sm font-semibold text-slate-700">Temporal Rule match routes</h2>
+            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+              Each direct rule uses its own Switch branch. A rule that does not match continues to
+              the next rule; if none match, the fallback destination runs.
+            </p>
+          </header>
+          <div class="p-5">
+            <CallflowTemporalRuleRoutesField
+              :routes="form.temporal_rule_routes"
+              :editor="editor"
+              :errors="errors"
+              @update:routes="form.temporal_rule_routes = $event"
+            />
           </div>
         </article>
 
@@ -366,7 +399,7 @@ function humanizePhoneState(state: string | null): string {
                 <span class="text-xs font-semibold text-slate-600">Fallback type</span>
                 <FormListbox
                   :model-value="form.fallback_destination_type"
-                  :options="destinationTypeOptions"
+                  :options="branchDestinationTypeOptions"
                   aria-label="Fallback type"
                   :invalid="Boolean(fieldError('fallback_destination_type'))"
                   @update:model-value="setFallbackDestinationType"
@@ -479,7 +512,7 @@ function humanizePhoneState(state: string | null): string {
                 <span class="text-xs font-semibold text-slate-600">Match destination type</span>
                 <FormListbox
                   :model-value="form.temporal_match_destination_type"
-                  :options="destinationTypeOptions"
+                  :options="branchDestinationTypeOptions"
                   aria-label="Schedule match destination type"
                   :invalid="Boolean(fieldError('temporal_match_destination_type'))"
                   @update:model-value="setTemporalMatchDestinationType"

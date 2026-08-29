@@ -21,7 +21,7 @@ final readonly class UserRecordingParametersData
     /** @return array<string, mixed> */
     public function toSwitchData(): array
     {
-        return array_merge($this->preservedOptions, [
+        return array_merge($this->preservedOptions, array_filter([
             'enabled' => $this->enabled,
             'format' => $this->format,
             'record_min_sec' => $this->minimumSeconds,
@@ -29,6 +29,6 @@ final readonly class UserRecordingParametersData
             'record_on_bridge' => $this->recordOnBridge,
             'record_sample_rate' => $this->sampleRate,
             'time_limit' => $this->timeLimit,
-        ]);
+        ], static fn (mixed $value): bool => $value !== null));
     }
 }

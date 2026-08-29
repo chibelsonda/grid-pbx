@@ -174,8 +174,10 @@ class ExtensionControllerTest extends TestCase
         ]);
         $gateway->shouldReceive('createVoicemailBox')->once()->withArgs(
             fn ($providedAccount, array $data): bool => $providedAccount->is($account)
-                && $data['owner_id'] === 'switch-user-1001'
-                && $data['mailbox'] === '1001',
+                && $data['owner_switch_resource_id'] === 'switch-user-1001'
+                && $data['mailbox'] === '1001'
+                && $data['include_message_on_notify'] === true
+                && $data['notify_callback'] === null,
         )->andReturn([
             'id' => 'switch-vmbox-1001',
             'owner_id' => 'switch-user-1001',
@@ -516,12 +518,10 @@ class ExtensionControllerTest extends TestCase
                     'international' => ['action' => 'inherit', 'future_option' => true],
                 ],
                 'call_recording' => [
-                    'endpoint' => [
-                        'outbound' => [
-                            'offnet' => [
-                                'enabled' => false,
-                                'url' => 'https://recordings.example.test/user',
-                            ],
+                    'outbound' => [
+                        'offnet' => [
+                            'enabled' => false,
+                            'url' => 'https://recordings.example.test/user',
                         ],
                     ],
                 ],
@@ -557,6 +557,7 @@ class ExtensionControllerTest extends TestCase
             'switch_resource_id' => 'switch-vmbox-1001',
             'owner_switch_resource_id' => 'switch-user-1001',
             'mailbox' => '1001',
+            'require_pin' => true,
             'is_managed' => true,
             'managed_by_workflow' => 'extension_provisioning',
         ]);
@@ -585,7 +586,7 @@ class ExtensionControllerTest extends TestCase
                 && $data['call_forward']['preserved_options']['future_option'] === true
                 && $data['call_restriction']['international']['action'] === 'deny'
                 && $data['call_restriction']['preserved_options']['international']['future_option'] === true
-                && $data['call_recording']['endpoint']['outbound']['offnet']['preserved_options']['url'] === 'https://recordings.example.test/user'
+                && $data['call_recording']['outbound']['offnet']['preserved_options']['url'] === 'https://recordings.example.test/user'
                 && $data['media']['audio']['codecs'] === ['OPUS', 'PCMU']
                 && $data['media']['preserved_options']['audio']['future_audio_option'] === true
                 && $data['media']['preserved_options']['future_media_option'] === true
@@ -690,7 +691,10 @@ class ExtensionControllerTest extends TestCase
                 && $resourceId === $voicemail->switch_resource_id
                 && $data['mailbox'] === '1010'
                 && $data['require_pin'] === true
-                && $data['pin'] === null,
+                && $data['pin'] === null
+                && $data['check_if_owner'] === false
+                && $data['include_message_on_notify'] === false
+                && $data['notify_callback']['disabled'] === true,
         )->andReturn([
             'id' => 'switch-vmbox-1001',
             'owner_id' => 'switch-user-1001',
@@ -727,6 +731,7 @@ class ExtensionControllerTest extends TestCase
         ]);
 
         $payload = $this->updatePayload();
+        $payload['voicemail']['input']['pin'] = null;
         $payload['caller_id'] = [
             'internal' => ['name' => 'Alice Support', 'number' => '1010'],
             'external' => [
@@ -883,6 +888,7 @@ class ExtensionControllerTest extends TestCase
         $payload['extension'] = $extension->extension;
         $payload['username'] = $extension->username;
         $payload['voicemail']['enabled'] = false;
+        $payload['voicemail']['input'] = null;
 
         $this->actingAs($user)
             ->putJson("/api/v1/accounts/{$account->id}/extensions/{$extension->id}", $payload)
@@ -1258,10 +1264,30 @@ class ExtensionControllerTest extends TestCase
             ],
             'voicemail' => [
                 'enabled' => true,
-                'notification_emails' => ['alice@example.test'],
-                'transcribe' => false,
-                'require_pin' => true,
-                'pin' => '1234',
+                'input' => [
+                    'name' => '(1001) Alice Operator',
+                    'mailbox' => '1001',
+                    'assigned_extension_id' => null,
+                    'timezone' => 'Asia/Manila',
+                    'notification_emails' => ['alice@example.test'],
+                    'transcribe' => false,
+                    'require_pin' => true,
+                    'pin' => '1234',
+                    'check_if_owner' => true,
+                    'delete_after_notify' => false,
+                    'include_message_on_notify' => true,
+                    'include_transcription_on_notify' => true,
+                    'media_extension' => 'mp3',
+                    'not_configurable' => false,
+                    'oldest_message_first' => false,
+                    'save_after_notify' => false,
+                    'skip_envelope' => false,
+                    'skip_greeting' => false,
+                    'skip_instructions' => false,
+                    'is_voicemail_ff_rw_enabled' => false,
+                    'seek_duration_ms' => 10000,
+                    'notify_callback' => null,
+                ],
             ],
             'device' => [
                 'enabled' => true,
@@ -1316,15 +1342,42 @@ class ExtensionControllerTest extends TestCase
             ],
             'voicemail' => [
                 'enabled' => true,
-                'notification_emails' => ['alice@example.test'],
-                'transcribe' => true,
-                'require_pin' => true,
-                'pin' => null,
+                'input' => [
+                    'name' => '(1010) Alice Support',
+                    'mailbox' => '1010',
+                    'assigned_extension_id' => null,
+                    'timezone' => 'Asia/Manila',
+                    'notification_emails' => ['alice@example.test'],
+                    'transcribe' => true,
+                    'require_pin' => true,
+                    'pin' => '1234',
+                    'check_if_owner' => false,
+                    'delete_after_notify' => false,
+                    'include_message_on_notify' => false,
+                    'include_transcription_on_notify' => true,
+                    'media_extension' => 'wav',
+                    'not_configurable' => false,
+                    'oldest_message_first' => true,
+                    'save_after_notify' => true,
+                    'skip_envelope' => true,
+                    'skip_greeting' => false,
+                    'skip_instructions' => false,
+                    'is_voicemail_ff_rw_enabled' => true,
+                    'seek_duration_ms' => 15000,
+                    'notify_callback' => [
+                        'disabled' => true,
+                        'number' => '+15559876543',
+                        'attempts' => 3,
+                        'interval_s' => 300,
+                        'timeout_s' => 30,
+                        'schedule' => [3600],
+                    ],
+                ],
             ],
         ];
     }
 
-    /** @return array<string, array<string, array<string, array<string, mixed>>>> */
+    /** @return array<string, array<string, array<string, mixed>>> */
     private function recordingPayload(): array
     {
         $parameters = [
@@ -1339,7 +1392,7 @@ class ExtensionControllerTest extends TestCase
         $source = ['any' => $parameters, 'onnet' => $parameters, 'offnet' => $parameters];
         $rules = ['any' => $source, 'inbound' => $source, 'outbound' => $source];
 
-        return ['account' => $rules, 'endpoint' => $rules];
+        return $rules;
     }
 
     /** @return array{User, SwitchAccount} */

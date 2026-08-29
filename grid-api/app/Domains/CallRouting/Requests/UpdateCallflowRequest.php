@@ -17,8 +17,14 @@ class UpdateCallflowRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:128'],
-            'destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set'])],
-            'destination_id' => ['required', 'uuid'],
+            'destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set', 'temporal_rules'])],
+            'destination_id' => ['nullable', 'required_unless:destination_type,temporal_rules', 'uuid'],
+            'temporal_rule_ids' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],
+            'temporal_rule_ids.*' => ['required', 'uuid', 'distinct'],
+            'temporal_rule_routes' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],
+            'temporal_rule_routes.*.rule_id' => ['required', 'uuid', 'distinct'],
+            'temporal_rule_routes.*.destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set'])],
+            'temporal_rule_routes.*.destination_id' => ['required', 'uuid'],
             'manage_fallback' => ['sometimes', 'boolean'],
             'fallback_destination_type' => ['nullable', 'required_with:fallback_destination_id', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set'])],
             'fallback_destination_id' => ['nullable', 'required_with:fallback_destination_type', 'uuid'],

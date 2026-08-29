@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { AccountCallRecording } from '../types/account'
 
 const props = defineProps<{ fieldErrors: Record<string, string[]> }>()
@@ -98,60 +98,26 @@ function error(target: string, direction: string, network: string, field: string
                       >{{ error(target.value, direction.value, network.value, 'format') }}</span
                     >
                   </label>
-                  <label class="grid gap-2">
-                    <span class="text-xs font-semibold text-slate-600">Minimum seconds</span>
-                    <input
-                      v-model.number="
-                        recording[target.value][direction.value][network.value].record_min_sec
-                      "
-                      type="number"
-                      min="0"
-                      max="3600"
-                      class="field-control"
-                      :class="
-                        validationControlClass(
-                          error(target.value, direction.value, network.value, 'record_min_sec'),
-                        )
-                      "
-                      :aria-invalid="
-                        Boolean(
-                          error(target.value, direction.value, network.value, 'record_min_sec'),
-                        )
-                      "
-                    />
-                    <span
-                      v-if="error(target.value, direction.value, network.value, 'record_min_sec')"
-                      class="text-[10px] text-danger"
-                      >{{
-                        error(target.value, direction.value, network.value, 'record_min_sec')
-                      }}</span
-                    >
-                  </label>
-                  <label class="grid gap-2">
-                    <span class="text-xs font-semibold text-slate-600">Time limit</span>
-                    <input
-                      v-model.number="
-                        recording[target.value][direction.value][network.value].time_limit
-                      "
-                      type="number"
-                      min="5"
-                      max="10800"
-                      class="field-control"
-                      :class="
-                        validationControlClass(
-                          error(target.value, direction.value, network.value, 'time_limit'),
-                        )
-                      "
-                      :aria-invalid="
-                        Boolean(error(target.value, direction.value, network.value, 'time_limit'))
-                      "
-                    />
-                    <span
-                      v-if="error(target.value, direction.value, network.value, 'time_limit')"
-                      class="text-[10px] text-danger"
-                      >{{ error(target.value, direction.value, network.value, 'time_limit') }}</span
-                    >
-                  </label>
+                  <FormInput
+                    v-model.number="
+                      recording[target.value][direction.value][network.value].record_min_sec
+                    "
+                    label="Minimum seconds"
+                    type="number"
+                    min="0"
+                    max="3600"
+                    :error="error(target.value, direction.value, network.value, 'record_min_sec')"
+                  />
+                  <FormInput
+                    v-model.number="
+                      recording[target.value][direction.value][network.value].time_limit
+                    "
+                    label="Time limit"
+                    type="number"
+                    min="5"
+                    max="10800"
+                    :error="error(target.value, direction.value, network.value, 'time_limit')"
+                  />
                   <label class="grid gap-2">
                     <span class="text-xs font-semibold text-slate-600">Sample rate</span>
                     <FormListbox

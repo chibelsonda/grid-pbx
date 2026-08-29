@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { ChevronDownIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import AccountFormatterSettings from './AccountFormatterSettings.vue'
 import type { AccountDialPlan, AccountFormatter } from '../types/account'
 
@@ -41,19 +41,12 @@ function addRule(): void {
             <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
           </DisclosureButton>
           <DisclosurePanel class="grid gap-4 border-t border-slate-200 p-4">
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">System dial plans</span>
-              <input
-                v-model="systemDialPlans"
-                class="field-control"
-                :class="validationControlClass(error('dial_plan.system'))"
-                :aria-invalid="Boolean(error('dial_plan.system'))"
-                placeholder="System plan names, comma separated"
-              />
-              <span v-if="error('dial_plan.system')" class="text-[10px] text-danger">
-                {{ error('dial_plan.system') }}
-              </span>
-            </label>
+            <FormInput
+              v-model="systemDialPlans"
+              label="System dial plans"
+              placeholder="System plan names, comma separated"
+              :error="error('dial_plan.system')"
+            />
             <div class="flex items-center justify-between gap-3">
               <p class="text-[10px] text-slate-500">Rules modify locally dialed numbers.</p>
               <button
@@ -75,54 +68,31 @@ function addRule(): void {
               :key="index"
               class="grid gap-3 rounded-md border border-slate-200 p-4 sm:grid-cols-2"
             >
-              <label class="grid gap-2 sm:col-span-2">
-                <span class="text-xs font-semibold text-slate-600">Regex pattern</span>
-                <input
-                  v-model="rule.pattern"
-                  maxlength="512"
-                  class="field-control font-mono"
-                  :class="validationControlClass(error(`dial_plan.rules.${index}.pattern`))"
-                  :aria-invalid="Boolean(error(`dial_plan.rules.${index}.pattern`))"
-                  placeholder="^([2-9][0-9]{6})$"
-                />
-                <span
-                  v-if="error(`dial_plan.rules.${index}.pattern`)"
-                  class="text-[10px] text-danger"
-                  >{{ error(`dial_plan.rules.${index}.pattern`) }}</span
-                >
-              </label>
-              <label class="grid gap-2 sm:col-span-2">
-                <span class="text-xs font-semibold text-slate-600">Description</span>
-                <input
-                  v-model="rule.description"
-                  maxlength="255"
-                  class="field-control"
-                  :class="validationControlClass(error(`dial_plan.rules.${index}.description`))"
-                  :aria-invalid="Boolean(error(`dial_plan.rules.${index}.description`))"
-                />
-                <span
-                  v-if="error(`dial_plan.rules.${index}.description`)"
-                  class="text-[10px] text-danger"
-                >
-                  {{ error(`dial_plan.rules.${index}.description`) }}
-                </span>
-              </label>
-              <label v-for="key in ['prefix', 'suffix'] as const" :key="key" class="grid gap-2">
-                <span class="text-xs font-semibold capitalize text-slate-600">{{ key }}</span>
-                <input
-                  v-model="rule[key]"
-                  maxlength="64"
-                  class="field-control"
-                  :class="validationControlClass(error(`dial_plan.rules.${index}.${key}`))"
-                  :aria-invalid="Boolean(error(`dial_plan.rules.${index}.${key}`))"
-                />
-                <span
-                  v-if="error(`dial_plan.rules.${index}.${key}`)"
-                  class="text-[10px] text-danger"
-                >
-                  {{ error(`dial_plan.rules.${index}.${key}`) }}
-                </span>
-              </label>
+              <FormInput
+                v-model="rule.pattern"
+                label="Regex pattern"
+                class="sm:col-span-2"
+                maxlength="512"
+                input-class="font-mono"
+                placeholder="^([2-9][0-9]{6})$"
+                :error="error(`dial_plan.rules.${index}.pattern`)"
+              />
+              <FormInput
+                v-model="rule.description"
+                label="Description"
+                class="sm:col-span-2"
+                maxlength="255"
+                :error="error(`dial_plan.rules.${index}.description`)"
+              />
+              <FormInput
+                v-for="key in ['prefix', 'suffix'] as const"
+                :key="key"
+                v-model="rule[key]"
+                :label="key"
+                class="capitalize"
+                maxlength="64"
+                :error="error(`dial_plan.rules.${index}.${key}`)"
+              />
               <button
                 type="button"
                 class="inline-flex items-center justify-center gap-1 rounded-md border border-red-200 px-3 py-2 text-[11px] font-semibold text-danger hover:bg-red-50 sm:col-span-2"

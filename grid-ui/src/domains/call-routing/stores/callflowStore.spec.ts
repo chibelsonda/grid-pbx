@@ -139,7 +139,9 @@ describe('callflow store', () => {
         target: null,
         preserved_branch_count: 0,
       },
+      direct_temporal_routes: [],
       temporal_rule_sets: {},
+      temporal_rules: [],
       destination_types: [{ value: 'extension', label: 'Extension' }],
       destinations: {
         extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
@@ -154,6 +156,7 @@ describe('callflow store', () => {
         conference: [],
         fax_box: [],
         temporal_rule_set: [],
+        temporal_rules: [],
       },
       phone_numbers: [
         {
@@ -217,7 +220,9 @@ describe('callflow store', () => {
         target: null,
         preserved_branch_count: 0,
       },
+      direct_temporal_routes: [],
       temporal_rule_sets: {},
+      temporal_rules: [],
       destination_types: [{ value: 'extension', label: 'Extension' }],
       destinations: {
         extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
@@ -232,6 +237,7 @@ describe('callflow store', () => {
         conference: [],
         fax_box: [],
         temporal_rule_set: [],
+        temporal_rules: [],
       },
       phone_numbers: [
         {

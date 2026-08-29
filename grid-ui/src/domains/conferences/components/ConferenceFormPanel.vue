@@ -4,11 +4,11 @@ import { KeyIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useConferenceForm } from '../composables/useConferenceForm'
 import type {
   Conference,
@@ -31,7 +31,11 @@ const { form, numbers, validate, validationErrors } = useConferenceForm(props.re
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const mediaOptions = computed<ListboxOptionValue[]>(() => [
   { value: null, label: 'Switch default' },
-  ...props.options.media.map(({ id, label, detail }) => ({ value: id, label, description: detail })),
+  ...props.options.media.map(({ id, label, detail }) => ({
+    value: id,
+    label,
+    description: detail,
+  })),
 ])
 const baseToneOptions: ListboxOptionValue[] = [
   { value: 'enabled', label: 'Play the standard tone' },
@@ -115,20 +119,14 @@ function setToneMode(
             </div>
           </header>
           <div class="grid gap-4 p-5 sm:grid-cols-2">
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Name</span
-              ><input
-                v-model="form.name"
-                aria-label="Name"
-                required
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span></label
-            >
+            <FormInput
+              v-model="form.name"
+              label="Name"
+              class="sm:col-span-2"
+              required
+              maxlength="128"
+              :error="fieldError('name')"
+            />
             <label class="grid gap-2 sm:col-span-2"
               ><span class="text-xs font-semibold text-slate-600">Owner</span
               ><FormSelect
@@ -143,44 +141,31 @@ function setToneMode(
                 fieldError('owner_id')
               }}</span></label
             >
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">General conference numbers</span
-              ><input
-                v-model="numbers.conference"
-                aria-label="General conference numbers"
-                inputmode="numeric"
-                class="field-control"
-                :class="validationControlClass(fieldError('conference_numbers'))"
-                :aria-invalid="Boolean(fieldError('conference_numbers'))"
-                placeholder="7000, 7002"
-              /><span v-if="fieldError('conference_numbers')" class="text-[10px] text-danger">{{ fieldError('conference_numbers') }}</span
-              ><span class="text-[10px] text-slate-500"
-                >Comma- or space-separated access identifiers; these are not purchased PSTN
-                numbers.</span
-              ></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Maximum participants</span
-              ><input
-                v-model.number="form.max_participants"
-                type="number"
-                min="1"
-                max="10000"
-                class="field-control"
-                :class="validationControlClass(fieldError('max_participants'))"
-                :aria-invalid="Boolean(fieldError('max_participants'))"
-                placeholder="No explicit limit"
-              /><span v-if="fieldError('max_participants')" class="text-[10px] text-danger">{{ fieldError('max_participants') }}</span></label>
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Prompt language</span
-              ><input
-                v-model="form.language"
-                maxlength="16"
-                class="field-control"
-                :class="validationControlClass(fieldError('language'))"
-                :aria-invalid="Boolean(fieldError('language'))"
-                placeholder="en-US"
-              /><span v-if="fieldError('language')" class="text-[10px] text-danger">{{ fieldError('language') }}</span></label>
+            <FormInput
+              v-model="numbers.conference"
+              label="General conference numbers"
+              class="sm:col-span-2"
+              inputmode="numeric"
+              placeholder="7000, 7002"
+              description="Comma- or space-separated access identifiers; these are not purchased PSTN numbers."
+              :error="fieldError('conference_numbers')"
+            />
+            <FormInput
+              v-model.number="form.max_participants"
+              label="Maximum participants"
+              type="number"
+              min="1"
+              max="10000"
+              placeholder="No explicit limit"
+              :error="fieldError('max_participants')"
+            />
+            <FormInput
+              v-model="form.language"
+              label="Prompt language"
+              maxlength="16"
+              placeholder="en-US"
+              :error="fieldError('language')"
+            />
           </div>
         </article>
 
@@ -195,31 +180,26 @@ function setToneMode(
             </div>
           </header>
           <div class="grid gap-4 p-5 sm:grid-cols-2">
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Member numbers</span
-              ><input
-                v-model="numbers.member"
-                aria-label="Member numbers"
-                inputmode="numeric"
-                class="field-control"
-                :class="validationControlClass(fieldError('member_numbers'))"
-                :aria-invalid="Boolean(fieldError('member_numbers'))"
-                placeholder="7001"
-              /><span v-if="fieldError('member_numbers')" class="text-[10px] text-danger">{{ fieldError('member_numbers') }}</span></label>
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Member PIN</span
-              ><input
-                v-model="form.member_pin"
-                :disabled="form.clear_member_pin"
-                inputmode="numeric"
-                maxlength="32"
-                class="field-control disabled:opacity-50"
-                :class="validationControlClass(fieldError('member_pin'))"
-                :aria-invalid="Boolean(fieldError('member_pin'))"
-                :placeholder="
-                  record?.member_pin_configured ? 'Configured — enter to replace' : 'Optional'
-                "
-              /><span v-if="fieldError('member_pin')" class="text-[10px] text-danger">{{ fieldError('member_pin') }}</span></label>
+            <FormInput
+              v-model="numbers.member"
+              label="Member numbers"
+              class="sm:col-span-2"
+              inputmode="numeric"
+              placeholder="7001"
+              :error="fieldError('member_numbers')"
+            />
+            <FormInput
+              v-model="form.member_pin"
+              label="Member PIN"
+              :disabled="form.clear_member_pin"
+              inputmode="numeric"
+              maxlength="32"
+              input-class="disabled:opacity-50"
+              :placeholder="
+                record?.member_pin_configured ? 'Configured — enter to replace' : 'Optional'
+              "
+              :error="fieldError('member_pin')"
+            />
             <ToggleSwitch
               v-if="record?.member_pin_configured"
               v-model="form.clear_member_pin"
@@ -229,9 +209,21 @@ function setToneMode(
               @update:model-value="form.member_pin = null"
             />
             <div class="grid gap-3 sm:col-span-2 sm:grid-cols-3">
-              <ToggleSwitch v-model="form.member_join_muted" label="Join muted" :invalid="Boolean(fieldError('member_join_muted'))" />
-              <ToggleSwitch v-model="form.member_join_deaf" label="Join deaf" :invalid="Boolean(fieldError('member_join_deaf'))" />
-              <ToggleSwitch v-model="form.member_play_entry_prompt" label="Play entry prompt" :invalid="Boolean(fieldError('member_play_entry_prompt'))" />
+              <ToggleSwitch
+                v-model="form.member_join_muted"
+                label="Join muted"
+                :invalid="Boolean(fieldError('member_join_muted'))"
+              />
+              <ToggleSwitch
+                v-model="form.member_join_deaf"
+                label="Join deaf"
+                :invalid="Boolean(fieldError('member_join_deaf'))"
+              />
+              <ToggleSwitch
+                v-model="form.member_play_entry_prompt"
+                label="Play entry prompt"
+                :invalid="Boolean(fieldError('member_play_entry_prompt'))"
+              />
             </div>
           </div>
         </article>
@@ -244,31 +236,26 @@ function setToneMode(
             </p>
           </header>
           <div class="grid gap-4 p-5 sm:grid-cols-2">
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Moderator numbers</span
-              ><input
-                v-model="numbers.moderator"
-                aria-label="Moderator numbers"
-                inputmode="numeric"
-                class="field-control"
-                :class="validationControlClass(fieldError('moderator_numbers'))"
-                :aria-invalid="Boolean(fieldError('moderator_numbers'))"
-                placeholder="7099"
-              /><span v-if="fieldError('moderator_numbers')" class="text-[10px] text-danger">{{ fieldError('moderator_numbers') }}</span></label>
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Moderator PIN</span
-              ><input
-                v-model="form.moderator_pin"
-                :disabled="form.clear_moderator_pin"
-                inputmode="numeric"
-                maxlength="32"
-                class="field-control disabled:opacity-50"
-                :class="validationControlClass(fieldError('moderator_pin'))"
-                :aria-invalid="Boolean(fieldError('moderator_pin'))"
-                :placeholder="
-                  record?.moderator_pin_configured ? 'Configured — enter to replace' : 'Optional'
-                "
-              /><span v-if="fieldError('moderator_pin')" class="text-[10px] text-danger">{{ fieldError('moderator_pin') }}</span></label>
+            <FormInput
+              v-model="numbers.moderator"
+              label="Moderator numbers"
+              class="sm:col-span-2"
+              inputmode="numeric"
+              placeholder="7099"
+              :error="fieldError('moderator_numbers')"
+            />
+            <FormInput
+              v-model="form.moderator_pin"
+              label="Moderator PIN"
+              :disabled="form.clear_moderator_pin"
+              inputmode="numeric"
+              maxlength="32"
+              input-class="disabled:opacity-50"
+              :placeholder="
+                record?.moderator_pin_configured ? 'Configured — enter to replace' : 'Optional'
+              "
+              :error="fieldError('moderator_pin')"
+            />
             <ToggleSwitch
               v-if="record?.moderator_pin_configured"
               v-model="form.clear_moderator_pin"
@@ -278,14 +265,38 @@ function setToneMode(
               @update:model-value="form.moderator_pin = null"
             />
             <div class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-              <ToggleSwitch v-model="form.moderator_join_muted" label="Moderator joins muted" :invalid="Boolean(fieldError('moderator_join_muted'))" />
-              <ToggleSwitch v-model="form.moderator_join_deaf" label="Moderator joins deaf" :invalid="Boolean(fieldError('moderator_join_deaf'))" />
+              <ToggleSwitch
+                v-model="form.moderator_join_muted"
+                label="Moderator joins muted"
+                :invalid="Boolean(fieldError('moderator_join_muted'))"
+              />
+              <ToggleSwitch
+                v-model="form.moderator_join_deaf"
+                label="Moderator joins deaf"
+                :invalid="Boolean(fieldError('moderator_join_deaf'))"
+              />
             </div>
             <div class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-              <ToggleSwitch v-model="form.require_moderator" label="Require moderator" :invalid="Boolean(fieldError('require_moderator'))" />
-              <ToggleSwitch v-model="form.wait_for_moderator" label="Members wait for moderator" :invalid="Boolean(fieldError('wait_for_moderator'))" />
-              <ToggleSwitch v-model="form.play_name" label="Announce participant names" :invalid="Boolean(fieldError('play_name'))" />
-              <ToggleSwitch v-model="form.play_welcome" label="Play welcome prompt" :invalid="Boolean(fieldError('play_welcome'))" />
+              <ToggleSwitch
+                v-model="form.require_moderator"
+                label="Require moderator"
+                :invalid="Boolean(fieldError('require_moderator'))"
+              />
+              <ToggleSwitch
+                v-model="form.wait_for_moderator"
+                label="Members wait for moderator"
+                :invalid="Boolean(fieldError('wait_for_moderator'))"
+              />
+              <ToggleSwitch
+                v-model="form.play_name"
+                label="Announce participant names"
+                :invalid="Boolean(fieldError('play_name'))"
+              />
+              <ToggleSwitch
+                v-model="form.play_welcome"
+                label="Play welcome prompt"
+                :invalid="Boolean(fieldError('play_welcome'))"
+              />
             </div>
           </div>
         </article>
@@ -306,7 +317,9 @@ function setToneMode(
                 aria-label="Conference full prompt"
                 :invalid="Boolean(fieldError('max_members_media_id'))"
                 @update:model-value="setMedia('max_members_media_id', $event)"
-              /><span v-if="fieldError('max_members_media_id')" class="text-[10px] text-danger">{{ fieldError('max_members_media_id') }}</span></label
+              /><span v-if="fieldError('max_members_media_id')" class="text-[10px] text-danger">{{
+                fieldError('max_members_media_id')
+              }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Participant entry tone</span
@@ -316,7 +329,9 @@ function setToneMode(
                 aria-label="Participant entry tone"
                 :invalid="Boolean(fieldError('play_entry_tone_mode'))"
                 @update:model-value="setToneMode('play_entry_tone_mode', $event)"
-              /><span v-if="fieldError('play_entry_tone_mode')" class="text-[10px] text-danger">{{ fieldError('play_entry_tone_mode') }}</span></label
+              /><span v-if="fieldError('play_entry_tone_mode')" class="text-[10px] text-danger">{{
+                fieldError('play_entry_tone_mode')
+              }}</span></label
             >
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Participant exit tone</span
@@ -326,7 +341,9 @@ function setToneMode(
                 aria-label="Participant exit tone"
                 :invalid="Boolean(fieldError('play_exit_tone_mode'))"
                 @update:model-value="setToneMode('play_exit_tone_mode', $event)"
-              /><span v-if="fieldError('play_exit_tone_mode')" class="text-[10px] text-danger">{{ fieldError('play_exit_tone_mode') }}</span></label
+              /><span v-if="fieldError('play_exit_tone_mode')" class="text-[10px] text-danger">{{
+                fieldError('play_exit_tone_mode')
+              }}</span></label
             >
             <label v-if="form.play_entry_tone_mode === 'media'" class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Entry tone media</span
@@ -336,7 +353,11 @@ function setToneMode(
                 aria-label="Entry tone media"
                 :invalid="Boolean(fieldError('play_entry_tone_media_id'))"
                 @update:model-value="setMedia('play_entry_tone_media_id', $event)"
-              /><span v-if="fieldError('play_entry_tone_media_id')" class="text-[10px] text-danger">{{ fieldError('play_entry_tone_media_id') }}</span></label
+              /><span
+                v-if="fieldError('play_entry_tone_media_id')"
+                class="text-[10px] text-danger"
+                >{{ fieldError('play_entry_tone_media_id') }}</span
+              ></label
             >
             <label v-if="form.play_exit_tone_mode === 'media'" class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Exit tone media</span
@@ -346,38 +367,33 @@ function setToneMode(
                 aria-label="Exit tone media"
                 :invalid="Boolean(fieldError('play_exit_tone_media_id'))"
                 @update:model-value="setMedia('play_exit_tone_media_id', $event)"
-              /><span v-if="fieldError('play_exit_tone_media_id')" class="text-[10px] text-danger">{{ fieldError('play_exit_tone_media_id') }}</span></label
+              /><span
+                v-if="fieldError('play_exit_tone_media_id')"
+                class="text-[10px] text-danger"
+                >{{ fieldError('play_exit_tone_media_id') }}</span
+              ></label
             >
           </div>
         </article>
 
         <DisclosureCard title="Advanced Switch profiles"
           ><div class="grid gap-4 sm:grid-cols-2">
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Profile name</span
-              ><input
-                v-model="form.profile_name"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('profile_name'))"
-                :aria-invalid="Boolean(fieldError('profile_name'))" /><span v-if="fieldError('profile_name')" class="text-[10px] text-danger">{{ fieldError('profile_name') }}</span></label
-            ><label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Caller controls</span
-              ><input
-                v-model="form.caller_controls"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('caller_controls'))"
-                :aria-invalid="Boolean(fieldError('caller_controls'))" /><span v-if="fieldError('caller_controls')" class="text-[10px] text-danger">{{ fieldError('caller_controls') }}</span></label
-            ><label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Moderator controls</span
-              ><input
-                v-model="form.moderator_controls"
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('moderator_controls'))"
-                :aria-invalid="Boolean(fieldError('moderator_controls'))"
-              /><span v-if="fieldError('moderator_controls')" class="text-[10px] text-danger">{{ fieldError('moderator_controls') }}</span></label></div
+            <FormInput
+              v-model="form.profile_name"
+              label="Profile name"
+              maxlength="128"
+              :error="fieldError('profile_name')"
+            /><FormInput
+              v-model="form.caller_controls"
+              label="Caller controls"
+              maxlength="128"
+              :error="fieldError('caller_controls')"
+            /><FormInput
+              v-model="form.moderator_controls"
+              label="Moderator controls"
+              maxlength="128"
+              :error="fieldError('moderator_controls')"
+            /></div
         ></DisclosureCard>
       </fieldset>
       <div v-if="record && canManage" class="rounded-md border border-red-100 bg-red-50 p-4">

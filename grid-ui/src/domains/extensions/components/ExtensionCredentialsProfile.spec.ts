@@ -25,12 +25,18 @@ describe('ExtensionCredentialsProfile', () => {
     expect(wrapper.text()).toContain('Configured')
     expect(wrapper.text()).toContain('never returned to GridPBX')
 
-    await wrapper.get('button').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Remove login credentials'))!
+      .trigger('click')
     expect(credentials.username).toBeNull()
     expect(credentials.clear_credentials).toBe(true)
     expect(wrapper.text()).toContain('Login credentials will be removed')
 
-    await wrapper.get('button').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Keep configured login'))!
+      .trigger('click')
     expect(credentials.username).toBe('alice.operator')
     expect(credentials.clear_credentials).toBe(false)
   })

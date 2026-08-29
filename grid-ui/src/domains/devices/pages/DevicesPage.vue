@@ -6,11 +6,11 @@ import {
   ChevronRightIcon,
   DevicePhoneMobileIcon,
   LinkIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   SignalIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import { useDeviceStore } from '../stores/deviceStore'
 
 const accounts = useAccountStore()
@@ -145,14 +145,11 @@ function humanize(value: string): string {
 
       <div class="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
         <form class="relative w-full max-w-sm" @submit.prevent="search">
-          <MagnifyingGlassIcon
-            class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400"
-          />
-          <input
+          <SearchInput
             v-model="devices.search"
-            type="search"
+            label="Search devices"
             placeholder="Search name, model, MAC, extension…"
-            class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm outline-none focus:border-brand-500"
+            input-class="h-10 bg-white text-xs shadow-sm"
           />
         </form>
         <span

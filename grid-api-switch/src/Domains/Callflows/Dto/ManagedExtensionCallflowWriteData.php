@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Domains\Callflows\Dto;
 
 use InvalidArgumentException;
+use stdClass;
 
 final readonly class ManagedExtensionCallflowWriteData
 {
@@ -41,7 +42,7 @@ final readonly class ManagedExtensionCallflowWriteData
             throw new InvalidArgumentException('Managed extension callflow user target has diverged.');
         }
 
-        if (! in_array($this->previousExtension, $this->stringNumbers(), true)) {
+        if (! $this->containsPreviousExtension()) {
             throw new InvalidArgumentException('Managed extension callflow no longer contains its extension number.');
         }
 
@@ -60,7 +61,7 @@ final readonly class ManagedExtensionCallflowWriteData
         $data = $this->withoutPrivateFields($this->current);
         $data['name'] = trim($this->name);
         $data['numbers'] = array_values(array_unique(array_map(
-            fn (string $number): string => $number === $this->previousExtension
+            fn (string $number): string => $this->sameExtensionNumber($number)
                 ? $this->extension
                 : $number,
             $this->stringNumbers(),
@@ -81,12 +82,12 @@ final readonly class ManagedExtensionCallflowWriteData
             $children['_'] = [
                 'module' => 'voicemail',
                 'data' => ['id' => $this->voicemailBoxResourceId],
-                'children' => [],
+                'children' => new stdClass,
             ];
         }
 
         $flow['children'] = $children;
-        $data['flow'] = $flow;
+        $data['flow'] = $this->normalizeChildrenMaps($flow);
 
         return $data;
     }
@@ -98,6 +99,41 @@ final readonly class ManagedExtensionCallflowWriteData
             is_array($this->current['numbers'] ?? null) ? $this->current['numbers'] : [],
             static fn (mixed $number): bool => is_string($number) && $number !== '',
         ));
+    }
+
+    private function containsPreviousExtension(): bool
+    {
+        foreach ($this->stringNumbers() as $number) {
+            if ($this->sameExtensionNumber($number)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function sameExtensionNumber(string $number): bool
+    {
+        return $number === $this->previousExtension
+            || $number === "+{$this->previousExtension}";
+    }
+
+    /** @param array<string, mixed> $node
+     * @return array<string, mixed>
+     */
+    private function normalizeChildrenMaps(array $node): array
+    {
+        $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+
+        foreach ($children as $key => $child) {
+            if (is_array($child)) {
+                $children[$key] = $this->normalizeChildrenMaps($child);
+            }
+        }
+
+        $node['children'] = $children === [] ? new stdClass : $children;
+
+        return $node;
     }
 
     /** @param array<string, mixed> $data

@@ -5,6 +5,7 @@ namespace App\Domains\Extensions\Requests;
 use App\Domains\Devices\Requests\SaveDeviceRequest;
 use App\Domains\Devices\Support\MacAddress;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Voicemail\Requests\SaveVoicemailBoxRequest;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Support\Facades\Validator as ValidatorFacade;
 use Illuminate\Validation\Rule;
@@ -87,13 +88,14 @@ class StoreExtensionRequest extends FormRequest
                 Rule::prohibitedIf($this->boolean('hotdesk.clear_pin')),
             ],
             'hotdesk.clear_pin' => ['required', 'boolean'],
-            'voicemail' => ['required', 'array:enabled,notification_emails,transcribe,require_pin,pin'],
+            'voicemail' => ['required', 'array:enabled,input'],
             'voicemail.enabled' => ['required', 'boolean'],
-            'voicemail.notification_emails' => ['present', 'array', 'max:10'],
-            'voicemail.notification_emails.*' => ['email:rfc', 'max:254', 'distinct'],
-            'voicemail.transcribe' => ['required', 'boolean'],
-            'voicemail.require_pin' => ['required', 'boolean'],
-            'voicemail.pin' => ['nullable', 'required_if:voicemail.require_pin,true', 'string', 'regex:/^[0-9]{4,6}$/'],
+            'voicemail.input' => [
+                Rule::requiredIf($this->boolean('voicemail.enabled')),
+                Rule::prohibitedIf(! $this->boolean('voicemail.enabled')),
+                'nullable',
+                'array',
+            ],
             'device' => ['required', 'array:enabled,input'],
             'device.enabled' => ['required', 'boolean'],
             'device.input' => [
@@ -125,6 +127,7 @@ class StoreExtensionRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
+            $this->validateVoicemailInput($validator);
             $this->validateDeviceInput($validator);
 
             $username = $this->input('username');
@@ -167,6 +170,49 @@ class StoreExtensionRequest extends FormRequest
                 );
             }
         }];
+    }
+
+    private function validateVoicemailInput(Validator $validator): void
+    {
+        if (! $this->boolean('voicemail.enabled')) {
+            return;
+        }
+
+        $input = $this->input('voicemail.input');
+
+        if (! is_array($input)) {
+            return;
+        }
+
+        /** @var SaveVoicemailBoxRequest $voicemailRequest */
+        $voicemailRequest = SaveVoicemailBoxRequest::create($this->getUri(), 'POST', $input);
+        $voicemailRequest->setContainer($this->container);
+        $voicemailRequest->setRouteResolver($this->getRouteResolver());
+        $voicemailRequest->setUserResolver($this->getUserResolver());
+        $voicemailRequest->replace($input);
+
+        $voicemailValidator = ValidatorFacade::make(
+            $input,
+            $this->container->call([$voicemailRequest, 'rules']),
+        );
+
+        foreach ($voicemailRequest->after() as $callback) {
+            $voicemailValidator->after($callback);
+        }
+
+        if ($voicemailValidator->fails()) {
+            foreach ($voicemailValidator->errors()->messages() as $path => $messages) {
+                foreach ($messages as $message) {
+                    $validator->errors()->add("voicemail.input.{$path}", $message);
+                }
+            }
+
+            return;
+        }
+
+        $voicemail = (array) $this->input('voicemail', []);
+        $voicemail['input'] = $voicemailValidator->validated();
+        $this->merge(['voicemail' => $voicemail]);
     }
 
     private function validateDeviceInput(Validator $validator): void

@@ -18,6 +18,7 @@ export type CallflowNode = {
     label: string
     kind: 'default' | 'schedule_match' | 'key' | 'preserved'
   } | null
+  temporal_rules?: CallflowTemporalRuleOption[]
   children: Record<string, CallflowNode>
 }
 
@@ -39,6 +40,7 @@ export const callflowDestinationTypes = [
   'conference',
   'fax_box',
   'temporal_rule_set',
+  'temporal_rules',
 ] as const
 
 export type CallflowDestinationType = (typeof callflowDestinationTypes)[number]
@@ -77,6 +79,26 @@ export type CallflowTemporalRuleOption = {
   label: string
   position: number
   resolved: boolean
+}
+
+export type CallflowTemporalRuleRouteInput = {
+  rule_id: string
+  destination_type: CallflowDestinationType
+  destination_id: string
+}
+
+export type CallflowDirectTemporalRoute = {
+  rule_id: string | null
+  label: string
+  position: number
+  resolved: boolean
+  editable: boolean
+  blocked_reason: string | null
+  target: {
+    type: CallflowDestinationType
+    id: string
+    label: string
+  } | null
 }
 
 export type CallflowEditor = {
@@ -119,7 +141,9 @@ export type CallflowEditor = {
     } | null
     preserved_branch_count: number
   }
+  direct_temporal_routes: CallflowDirectTemporalRoute[]
   temporal_rule_sets: Record<string, CallflowTemporalRuleOption[]>
+  temporal_rules: CallflowDestination[]
   destination_types: Array<{ value: CallflowDestinationType; label: string }>
   destinations: Record<CallflowDestinationType, CallflowDestination[]>
   phone_numbers: Array<{
@@ -135,7 +159,9 @@ export type CallflowEditor = {
 export type CallflowUpdate = {
   name: string
   destination_type: CallflowDestinationType
-  destination_id: string
+  destination_id: string | null
+  temporal_rule_ids?: string[]
+  temporal_rule_routes?: CallflowTemporalRuleRouteInput[]
   phone_number_ids: string[]
   manage_fallback?: boolean
   fallback_destination_type?: CallflowDestinationType | null

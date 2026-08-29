@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { BoltIcon } from '@heroicons/vue/24/outline'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import MetaflowSettings from '@/shared/switch/metaflows/components/MetaflowSettings.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import type { ListboxOptionValue, ListboxValue } from '@/shared/components/FormListbox.vue'
 import type {
   AccountCallflowOption,
@@ -55,11 +55,6 @@ function error(field: string): string | null {
 function selectPreflow(value: ListboxValue): void {
   preflow.value.callflow_id = typeof value === 'string' ? value : null
   preflow.value.preserve_callflow = false
-}
-
-function setDigitTimeout(event: Event): void {
-  const value = (event.target as HTMLInputElement).value
-  metaflows.value.digit_timeout = value === '' ? null : Number(value)
 }
 </script>
 
@@ -118,23 +113,15 @@ function setDigitTimeout(event: Event): void {
             {{ error('metaflows.binding_digit') }}
           </span>
         </label>
-        <label class="grid gap-2">
-          <span class="text-xs font-semibold text-slate-600">Digit timeout (ms)</span>
-          <input
-            :value="metaflows.digit_timeout ?? ''"
-            type="number"
-            min="0"
-            max="60000"
-            class="field-control"
-            :class="validationControlClass(error('metaflows.digit_timeout'))"
-            :aria-invalid="Boolean(error('metaflows.digit_timeout'))"
-            placeholder="Switch default"
-            @input="setDigitTimeout"
-          />
-          <span v-if="error('metaflows.digit_timeout')" class="text-[10px] text-danger">
-            {{ error('metaflows.digit_timeout') }}
-          </span>
-        </label>
+        <FormInput
+          v-model.number="metaflows.digit_timeout"
+          label="Digit timeout (ms)"
+          type="number"
+          min="0"
+          max="60000"
+          placeholder="Switch default"
+          :error="error('metaflows.digit_timeout')"
+        />
         <label class="grid gap-2">
           <span class="text-xs font-semibold text-slate-600">Listen on</span>
           <FormListbox

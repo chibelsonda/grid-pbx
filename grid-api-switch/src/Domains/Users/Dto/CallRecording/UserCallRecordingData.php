@@ -7,16 +7,12 @@ namespace GridPbx\Switch\Domains\Users\Dto\CallRecording;
 final readonly class UserCallRecordingData
 {
     public function __construct(
-        public UserRecordingRulesData $account,
-        public UserRecordingRulesData $endpoint,
+        public UserRecordingRulesData $rules,
     ) {}
 
-    /** @return array<string, array<string, array<string, array<string, mixed>>>> */
+    /** @return array<string, array<string, array<string, mixed>>> */
     public function toSwitchData(): array
     {
-        return [
-            'account' => $this->account->toSwitchData(),
-            'endpoint' => $this->endpoint->toSwitchData(),
-        ];
+        return $this->rules->toSwitchData();
     }
 }

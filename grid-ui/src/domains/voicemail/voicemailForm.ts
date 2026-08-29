@@ -1,8 +1,23 @@
 import type {
+  VoicemailBoxBasicForm,
   VoicemailBoxConfiguration,
+  VoicemailBoxInput,
   VoicemailFormOptions,
   VoicemailNotificationCallback,
 } from './types/voicemail'
+
+export function defaultVoicemailBoxBasicForm(): VoicemailBoxBasicForm {
+  return {
+    name: '',
+    mailbox: '',
+    assigned_extension_id: null,
+    timezone: null,
+    notification_emails: '',
+    transcribe: false,
+    require_pin: false,
+    pin: '',
+  }
+}
 
 export function defaultVoicemailFormOptions(): VoicemailFormOptions {
   return {
@@ -53,4 +68,38 @@ export function hydrateVoicemailBoxConfiguration(
   source?: Partial<VoicemailBoxConfiguration>,
 ): VoicemailBoxConfiguration {
   return { ...defaultVoicemailBoxConfiguration(), ...source }
+}
+
+export function buildVoicemailBoxInput(
+  form: VoicemailBoxBasicForm,
+  configuration: VoicemailBoxConfiguration,
+  callbackConfigured: boolean,
+  notificationCallback: VoicemailNotificationCallback,
+  callbackSchedule: string,
+): VoicemailBoxInput {
+  return {
+    name: form.name.trim(),
+    mailbox: form.mailbox.trim(),
+    assigned_extension_id: form.assigned_extension_id,
+    timezone: form.timezone,
+    notification_emails: form.notification_emails
+      .split(/[\n,]/)
+      .map((email) => email.trim())
+      .filter(Boolean),
+    transcribe: form.transcribe,
+    require_pin: form.require_pin,
+    pin: form.pin.trim() || null,
+    ...configuration,
+    notify_callback: callbackConfigured
+      ? {
+          ...notificationCallback,
+          number: notificationCallback.number?.trim() || null,
+          schedule: callbackSchedule
+            .split(/[\s,]+/)
+            .map((value) => value.trim())
+            .filter(Boolean)
+            .map(Number),
+        }
+      : null,
+  }
 }

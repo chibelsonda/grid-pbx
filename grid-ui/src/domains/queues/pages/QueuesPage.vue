@@ -4,12 +4,12 @@ import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
-  MagnifyingGlassIcon,
   PlusIcon,
   QueueListIcon,
   UsersIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import AgentStatusPanel from '../components/AgentStatusPanel.vue'
 import QueueFormPanel from '../components/QueueFormPanel.vue'
 import { useQueueStore } from '../stores/queueStore'
@@ -154,14 +154,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
             class="mb-4 flex gap-3"
             @submit.prevent="accounts.selectedId && queues.load(accounts.selectedId)"
           >
-            <label class="relative min-w-0 flex-1"
-              ><MagnifyingGlassIcon
-                class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" /><input
-                v-model="queues.search"
-                type="search"
-                placeholder="Search queues…"
-                class="h-10 w-full rounded-md border border-slate-200 bg-white pr-3 pl-9 text-xs shadow-sm" /></label
-            ><button
+            <SearchInput v-model="queues.search" label="Search queues" class="min-w-0 flex-1" placeholder="Search queues…" input-class="h-10 bg-white text-xs shadow-sm" /><button
               class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
             >
               Search

@@ -18,12 +18,28 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
   const availablePhoneNumberIds = new Set(
     editor.phone_numbers.filter(({ available }) => available).map(({ id }) => id),
   )
+  const availableTemporalRuleIds = new Set(editor.temporal_rules.map(({ id }) => id))
 
   return z
     .object({
       name: z.string().trim().min(1, 'Enter a route name.').max(128),
       destination_type: z.enum(callflowDestinationTypes),
-      destination_id: z.uuid('Select a valid destination.'),
+      destination_id: z.string(),
+      temporal_rule_ids: z
+        .array(z.uuid('Select a valid Temporal Rule.'))
+        .max(50, 'Select no more than 50 Temporal Rules.')
+        .refine(unique, 'Select each Temporal Rule once.')
+        .default([]),
+      temporal_rule_routes: z
+        .array(
+          z.object({
+            rule_id: z.uuid('Select a valid Temporal Rule.'),
+            destination_type: z.enum(callflowDestinationTypes),
+            destination_id: z.string(),
+          }),
+        )
+        .max(50, 'Configure no more than 50 Temporal Rule routes.')
+        .default([]),
       manage_fallback: z.boolean(),
       fallback_enabled: z.boolean(),
       fallback_destination_type: z.enum(callflowDestinationTypes),
@@ -49,11 +65,73 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
     })
     .strict()
     .superRefine((input, context) => {
-      if (!destinationIds.get(input.destination_type)?.has(input.destination_id)) {
+      if (
+        input.destination_type !== 'temporal_rules' &&
+        !destinationIds.get(input.destination_type)?.has(input.destination_id)
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['destination_id'],
           message: 'Select an available destination.',
+        })
+      }
+
+      if (input.destination_type === 'temporal_rules') {
+        if (input.temporal_rule_ids.length === 0) {
+          context.addIssue({
+            code: 'custom',
+            path: ['temporal_rule_ids'],
+            message: 'Select at least one Temporal Rule.',
+          })
+        }
+
+        if (input.temporal_rule_ids.some((id) => !availableTemporalRuleIds.has(id))) {
+          context.addIssue({
+            code: 'custom',
+            path: ['temporal_rule_ids'],
+            message: 'One or more Temporal Rules are unavailable.',
+          })
+        }
+
+        const routeRuleIds = input.temporal_rule_routes.map(({ rule_id }) => rule_id)
+
+        if (
+          !unique(routeRuleIds) ||
+          routeRuleIds.length !== input.temporal_rule_ids.length ||
+          input.temporal_rule_ids.some((id) => !routeRuleIds.includes(id))
+        ) {
+          context.addIssue({
+            code: 'custom',
+            path: ['temporal_rule_routes'],
+            message: 'Configure exactly one match destination for each selected Temporal Rule.',
+          })
+        }
+
+        input.temporal_rule_routes.forEach((route, index) => {
+          if (
+            route.destination_type === 'temporal_rules' ||
+            !destinationIds.get(route.destination_type)?.has(route.destination_id)
+          ) {
+            context.addIssue({
+              code: 'custom',
+              path: ['temporal_rule_routes', index, 'destination_id'],
+              message: 'Select an available match destination.',
+            })
+          }
+
+          const current = editor.direct_temporal_routes.find(
+            ({ rule_id }) => rule_id === route.rule_id,
+          )
+
+          if (current?.editable === false) {
+            context.addIssue({
+              code: 'custom',
+              path: ['temporal_rule_routes', index, 'destination_id'],
+              message:
+                current.blocked_reason ??
+                'This Temporal Rule branch is read-only and will be preserved.',
+            })
+          }
         })
       }
 
@@ -157,6 +235,10 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
     })
     .transform(({ fallback_enabled, temporal_match_enabled, ...input }) => ({
       ...input,
+      destination_id: input.destination_type === 'temporal_rules' ? null : input.destination_id,
+      temporal_rule_ids: input.destination_type === 'temporal_rules' ? input.temporal_rule_ids : [],
+      temporal_rule_routes:
+        input.destination_type === 'temporal_rules' ? input.temporal_rule_routes : [],
       fallback_destination_type:
         input.manage_fallback && fallback_enabled ? input.fallback_destination_type : null,
       fallback_destination_id:

@@ -1,18 +1,29 @@
 <script setup lang="ts">
+import { nextTick, ref, watch } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     title: string
     eyebrow?: string
     description?: string
     width?: 'medium' | 'wide'
+    scrollKey?: string | number
   }>(),
-  { eyebrow: 'GridPBX', description: '', width: 'wide' },
+  { eyebrow: 'GridPBX', description: '', width: 'wide', scrollKey: '' },
 )
 
 const emit = defineEmits<{ close: [] }>()
+const content = ref<HTMLElement | null>(null)
+
+watch(
+  () => props.scrollKey,
+  async () => {
+    await nextTick()
+    content.value?.scrollTo({ top: 0 })
+  },
+)
 </script>
 
 <template>
@@ -67,7 +78,11 @@ const emit = defineEmits<{ close: [] }>()
                     <XMarkIcon class="size-5" />
                   </button>
                 </header>
-                <div class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7">
+                <div
+                  ref="content"
+                  data-testid="slide-over-content"
+                  class="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7"
+                >
                   <slot />
                 </div>
               </DialogPanel>

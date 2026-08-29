@@ -3,6 +3,8 @@ import { computed, ref } from 'vue'
 import { MegaphoneIcon, QueueListIcon, TrashIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -27,12 +29,27 @@ const strategyOptions: ListboxOptionValue[] = [
   { value: 'round_robin', label: 'Round robin' },
   { value: 'most_idle', label: 'Most idle' },
 ]
-const exitKeyOptions: ListboxOptionValue[] = ['#', '*', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].map(
-  (value) => ({ value, label: value }),
-)
+const exitKeyOptions: ListboxOptionValue[] = [
+  '#',
+  '*',
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+].map((value) => ({ value, label: value }))
 const mediaOptions = computed<ListboxOptionValue[]>(() => [
   { value: null, label: 'Switch default' },
-  ...props.options.media.map(({ id, label, detail }) => ({ value: id, label, description: detail })),
+  ...props.options.media.map(({ id, label, detail }) => ({
+    value: id,
+    label,
+    description: detail,
+  })),
 ])
 
 type MediaField =
@@ -53,9 +70,11 @@ function fieldError(field: string): string | null {
   const direct = errors.value[field]?.[0]
   if (direct) return direct
 
-  return Object.entries(errors.value).find(
-    ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
-  )?.[1][0] ?? null
+  return (
+    Object.entries(errors.value).find(
+      ([key, messages]) => key.startsWith(`${field}.`) && Boolean(messages[0]),
+    )?.[1][0] ?? null
+  )
 }
 
 function setStrategy(value: ListboxValue): void {
@@ -104,20 +123,14 @@ function submit(): void {
             </div>
           </header>
           <div class="grid gap-4 p-5 sm:grid-cols-2">
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Name</span
-              ><input
-                v-model="form.name"
-                aria-label="Name"
-                required
-                maxlength="128"
-                class="field-control"
-                :class="validationControlClass(fieldError('name'))"
-                :aria-invalid="Boolean(fieldError('name'))"
-              /><span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-                fieldError('name')
-              }}</span></label
-            >
+            <FormInput
+              v-model="form.name"
+              label="Name"
+              class="sm:col-span-2"
+              required
+              maxlength="128"
+              :error="fieldError('name')"
+            />
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Strategy</span
               ><FormListbox
@@ -142,68 +155,47 @@ function submit(): void {
                 fieldError('music_on_hold_media_id')
               }}</span></label
             >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Agent ring timeout</span
-              ><input
-                v-model.number="form.agent_ring_timeout"
-                type="number"
-                min="1"
-                max="300"
-                class="field-control"
-                :class="validationControlClass(fieldError('agent_ring_timeout'))"
-                :aria-invalid="Boolean(fieldError('agent_ring_timeout'))"
-              /><span v-if="fieldError('agent_ring_timeout')" class="text-[10px] text-danger">{{ fieldError('agent_ring_timeout') }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Wrap-up time</span
-              ><input
-                v-model.number="form.agent_wrapup_time"
-                type="number"
-                min="0"
-                max="3600"
-                class="field-control"
-                :class="validationControlClass(fieldError('agent_wrapup_time'))"
-                :aria-invalid="Boolean(fieldError('agent_wrapup_time'))"
-              /><span v-if="fieldError('agent_wrapup_time')" class="text-[10px] text-danger">{{ fieldError('agent_wrapup_time') }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Connection timeout</span
-              ><input
-                v-model.number="form.connection_timeout"
-                type="number"
-                min="0"
-                max="86400"
-                class="field-control"
-                :class="validationControlClass(fieldError('connection_timeout'))"
-                :aria-invalid="Boolean(fieldError('connection_timeout'))"
-              /><span v-if="fieldError('connection_timeout')" class="text-[10px] text-danger">{{ fieldError('connection_timeout') }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600"
-                >Maximum callers
-                <span class="font-normal text-slate-400">(0 = unlimited)</span></span
-              ><input
-                v-model.number="form.max_queue_size"
-                type="number"
-                min="0"
-                max="10000"
-                class="field-control"
-                :class="validationControlClass(fieldError('max_queue_size'))"
-                :aria-invalid="Boolean(fieldError('max_queue_size'))"
-              /><span v-if="fieldError('max_queue_size')" class="text-[10px] text-danger">{{ fieldError('max_queue_size') }}</span></label
-            >
-            <label class="grid gap-2"
-              ><span class="text-xs font-semibold text-slate-600">Agents rung together</span
-              ><input
-                v-model.number="form.ring_simultaneously"
-                type="number"
-                min="1"
-                max="100"
-                class="field-control"
-                :class="validationControlClass(fieldError('ring_simultaneously'))"
-                :aria-invalid="Boolean(fieldError('ring_simultaneously'))"
-              /><span v-if="fieldError('ring_simultaneously')" class="text-[10px] text-danger">{{ fieldError('ring_simultaneously') }}</span></label
-            >
+            <FormInput
+              v-model.number="form.agent_ring_timeout"
+              label="Agent ring timeout"
+              type="number"
+              min="1"
+              max="300"
+              :error="fieldError('agent_ring_timeout')"
+            />
+            <FormInput
+              v-model.number="form.agent_wrapup_time"
+              label="Wrap-up time"
+              type="number"
+              min="0"
+              max="3600"
+              :error="fieldError('agent_wrapup_time')"
+            />
+            <FormInput
+              v-model.number="form.connection_timeout"
+              label="Connection timeout"
+              type="number"
+              min="0"
+              max="86400"
+              :error="fieldError('connection_timeout')"
+            />
+            <FormInput
+              v-model.number="form.max_queue_size"
+              label="Maximum callers"
+              description="0 = unlimited"
+              type="number"
+              min="0"
+              max="10000"
+              :error="fieldError('max_queue_size')"
+            />
+            <FormInput
+              v-model.number="form.ring_simultaneously"
+              label="Agents rung together"
+              type="number"
+              min="1"
+              max="100"
+              :error="fieldError('ring_simultaneously')"
+            />
             <label class="grid gap-2"
               ><span class="text-xs font-semibold text-slate-600">Caller exit key</span
               ><FormListbox
@@ -228,22 +220,19 @@ function submit(): void {
               :class="validationControlClass(fieldError('record_caller'))"
               :invalid="Boolean(fieldError('record_caller'))"
             />
-            <label class="grid gap-2 sm:col-span-2"
-              ><span class="text-xs font-semibold text-slate-600">Maximum priority</span
-              ><input
-                v-model.number="form.max_priority"
-                type="number"
-                min="0"
-                max="255"
-                :disabled="Boolean(record)"
-                class="field-control disabled:bg-slate-50 disabled:text-slate-500"
-                :class="validationControlClass(fieldError('max_priority'))"
-                :aria-invalid="Boolean(fieldError('max_priority'))"
-                placeholder="Switch default"
-              /><span class="text-[10px] text-slate-500"
-                >Create-only in the connected Switch schema; existing queues retain their value.</span
-              ><span v-if="fieldError('max_priority')" class="text-[10px] text-danger">{{ fieldError('max_priority') }}</span></label
-            >
+            <FormInput
+              v-model.number="form.max_priority"
+              label="Maximum priority"
+              class="sm:col-span-2"
+              type="number"
+              min="0"
+              max="255"
+              :disabled="Boolean(record)"
+              input-class="disabled:bg-slate-50 disabled:text-slate-500"
+              placeholder="Switch default"
+              description="Create-only in the connected Switch schema; existing queues retain their value."
+              :error="fieldError('max_priority')"
+            />
           </div>
         </article>
         <article class="card-surface overflow-hidden">
@@ -265,7 +254,9 @@ function submit(): void {
                 aria-label="Connect announcement"
                 :invalid="Boolean(fieldError('announce_media_id'))"
                 @update:model-value="setMedia('announce_media_id', $event)"
-              /><span v-if="fieldError('announce_media_id')" class="text-[10px] text-danger">{{ fieldError('announce_media_id') }}</span></label
+              /><span v-if="fieldError('announce_media_id')" class="text-[10px] text-danger">{{
+                fieldError('announce_media_id')
+              }}</span></label
             >
             <ToggleSwitch
               v-model="form.announcements_enabled"
@@ -276,18 +267,15 @@ function submit(): void {
               :invalid="Boolean(fieldError('announcements_enabled'))"
             />
             <template v-if="form.announcements_enabled">
-              <label class="grid gap-2 sm:col-span-2"
-                ><span class="text-xs font-semibold text-slate-600">Announcement interval (seconds)</span
-                ><input
-                  v-model.number="form.announcement_interval"
-                  type="number"
-                  min="15"
-                  max="86400"
-                  class="field-control"
-                  :class="validationControlClass(fieldError('announcement_interval'))"
-                  :aria-invalid="Boolean(fieldError('announcement_interval'))"
-                /><span v-if="fieldError('announcement_interval')" class="text-[10px] text-danger">{{ fieldError('announcement_interval') }}</span></label
-              >
+              <FormInput
+                v-model.number="form.announcement_interval"
+                label="Announcement interval (seconds)"
+                class="sm:col-span-2"
+                type="number"
+                min="15"
+                max="86400"
+                :error="fieldError('announcement_interval')"
+              />
               <ToggleSwitch
                 v-model="form.position_announcements_enabled"
                 label="Announce queue position"
@@ -310,7 +298,10 @@ function submit(): void {
                     Select all four prompts or leave all four on the Switch defaults.
                   </p>
                 </div>
-                <label v-for="prompt in announcementPromptFields" :key="prompt.field" class="grid gap-2"
+                <label
+                  v-for="prompt in announcementPromptFields"
+                  :key="prompt.field"
+                  class="grid gap-2"
                   ><span class="text-xs font-semibold text-slate-600">{{ prompt.label }}</span
                   ><FormListbox
                     :model-value="form[prompt.field]"
@@ -318,9 +309,11 @@ function submit(): void {
                     :aria-label="prompt.label"
                     :invalid="Boolean(fieldError(prompt.field) || fieldError('announcement_media'))"
                     @update:model-value="setMedia(prompt.field, $event)"
-                  /></label
+                /></label>
+                <p
+                  v-if="fieldError('announcement_media')"
+                  class="text-[10px] text-danger sm:col-span-2"
                 >
-                <p v-if="fieldError('announcement_media')" class="text-[10px] text-danger sm:col-span-2">
                   {{ fieldError('announcement_media') }}
                 </p>
               </div>
@@ -339,22 +332,16 @@ function submit(): void {
             </div>
           </header>
           <div class="grid gap-2 p-5">
-            <label
+            <FormCheckbox
               v-for="agent in options.agents"
               :key="agent.id"
-              class="flex cursor-pointer items-center gap-3 rounded-md border border-slate-100 px-4 py-3 hover:bg-slate-50"
-              :class="validationControlClass(fieldError('agent_ids'))"
-              ><input
-                v-model="form.agent_ids"
-                type="checkbox"
-                :value="agent.id"
-                class="size-4 accent-brand-500"
-                :aria-invalid="Boolean(fieldError('agent_ids'))"
-              /><span
-                ><span class="block text-xs font-semibold text-slate-700">{{ agent.label }}</span
-                ><span class="text-[10px] text-slate-400">{{ agent.detail }}</span></span
-              ></label
-            >
+              :model-value="form.agent_ids"
+              :value="agent.id"
+              :label="agent.label"
+              :description="agent.detail"
+              :error="fieldError('agent_ids')"
+              @update:model-value="form.agent_ids = $event as string[]"
+            />
             <p v-if="!options.agents.length" class="text-xs text-slate-400">
               No projected extensions can act as agents.
             </p>

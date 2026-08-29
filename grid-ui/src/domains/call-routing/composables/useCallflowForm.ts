@@ -7,6 +7,7 @@ import type {
   CallflowDestinationType,
   CallflowEditor,
   CallflowMenuBranchInput,
+  CallflowTemporalRuleRouteInput,
   CallflowUpdate,
 } from '../types/callRouting'
 
@@ -14,6 +15,8 @@ type CallflowFormState = {
   name: string
   destination_type: CallflowDestinationType
   destination_id: string
+  temporal_rule_ids: string[]
+  temporal_rule_routes: CallflowTemporalRuleRouteInput[]
   phone_number_ids: string[]
   manage_fallback: boolean
   fallback_enabled: boolean
@@ -35,6 +38,8 @@ export function useCallflowForm(
     name: '',
     destination_type: 'extension',
     destination_id: '',
+    temporal_rule_ids: [],
+    temporal_rule_routes: [],
     phone_number_ids: [],
     manage_fallback: true,
     fallback_enabled: false,
@@ -56,9 +61,13 @@ export function useCallflowForm(
     if (!editor) return
 
     form.name = record?.name ?? record?.numbers[0] ?? ''
-    const currentType = record?.flow?.target?.type
-    const firstAvailable = editor.destination_types.find(
-      ({ value }) => editor.destinations[value].length > 0,
+    const currentType = record?.flow?.temporal_rules?.length
+      ? 'temporal_rules'
+      : record?.flow?.target?.type
+    const firstAvailable = editor.destination_types.find(({ value }) =>
+      value === 'temporal_rules'
+        ? editor.temporal_rules.length > 0
+        : editor.destinations[value].length > 0,
     )?.value
     form.destination_type = currentType ?? firstAvailable ?? 'extension'
     form.destination_id =
@@ -66,12 +75,25 @@ export function useCallflowForm(
       editor.destinations[currentType].some(({ id }) => id === record?.flow?.target?.id)
         ? (record?.flow?.target?.id ?? '')
         : (editor.destinations[form.destination_type][0]?.id ?? '')
+    form.temporal_rule_ids = (record?.flow?.temporal_rules ?? []).flatMap(({ id }) =>
+      id === null ? [] : [id],
+    )
+    form.temporal_rule_routes = form.temporal_rule_ids.map((ruleId) => {
+      const current = editor.direct_temporal_routes.find(({ rule_id }) => rule_id === ruleId)
+      const fallback = firstBranchDestination(editor)
+
+      return {
+        rule_id: ruleId,
+        destination_type: current?.target?.type ?? fallback.type,
+        destination_id: current?.target?.id ?? fallback.id,
+      }
+    })
     form.phone_number_ids = editor.phone_numbers
       .filter(({ selected }) => selected)
       .map(({ id }) => id)
     const fallbackType = editor.fallback.target?.type
     const firstFallbackType = editor.destination_types.find(
-      ({ value }) => editor.destinations[value].length > 0,
+      ({ value }) => value !== 'temporal_rules' && editor.destinations[value].length > 0,
     )?.value
     form.manage_fallback = editor.fallback.editable
     form.fallback_enabled = editor.fallback.target !== null
@@ -95,7 +117,7 @@ export function useCallflowForm(
     )
     const temporalMatchType = editor.temporal_match.target?.type
     const firstTemporalMatchType = editor.destination_types.find(
-      ({ value }) => editor.destinations[value].length > 0,
+      ({ value }) => value !== 'temporal_rules' && editor.destinations[value].length > 0,
     )?.value
     form.manage_temporal_match = editor.temporal_match.editable
     form.temporal_match_enabled = record === null || editor.temporal_match.target !== null
@@ -114,6 +136,24 @@ export function useCallflowForm(
   watch([() => toValue(recordSource), () => toValue(editorSource)], initialize, {
     immediate: true,
   })
+  watch(
+    () => [...form.temporal_rule_ids],
+    (ruleIds) => {
+      const editor = toValue(editorSource)
+      if (!editor) return
+
+      const existing = new Map(form.temporal_rule_routes.map((route) => [route.rule_id, route]))
+      const fallback = firstBranchDestination(editor)
+      form.temporal_rule_routes = ruleIds.map(
+        (ruleId) =>
+          existing.get(ruleId) ?? {
+            rule_id: ruleId,
+            destination_type: fallback.type,
+            destination_id: fallback.id,
+          },
+      )
+    },
+  )
   watch(form, () => (validationErrors.value = {}), { deep: true })
 
   function validate(): FormValidationResult<CallflowUpdate> {
@@ -142,4 +182,18 @@ export function useCallflowForm(
   }
 
   return { form, validate, validationErrors }
+}
+
+function firstBranchDestination(editor: CallflowEditor): {
+  type: CallflowDestinationType
+  id: string
+} {
+  const type = editor.destination_types.find(
+    ({ value }) => value !== 'temporal_rules' && editor.destinations[value].length > 0,
+  )?.value
+
+  return {
+    type: type ?? 'extension',
+    id: type ? (editor.destinations[type][0]?.id ?? '') : '',
+  }
 }

@@ -2,9 +2,9 @@
 import { computed } from 'vue'
 import { BuildingOffice2Icon, ShieldExclamationIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
-import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useAccountSettingsForm } from '../composables/useAccountSettingsForm'
 import AccountCallRecordingSettings from './AccountCallRecordingSettings.vue'
 import AccountRoutingSettings from './AccountRoutingSettings.vue'
@@ -139,32 +139,18 @@ function selectRestriction(key: string, value: ListboxValue): void {
           <h2 class="text-sm font-semibold text-slate-700">Identity and locale</h2>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Account name</span>
-            <input
-              v-model="form.name"
-              aria-label="Account name"
-              class="field-control"
-              :class="validationControlClass(fieldError('name'))"
-              :aria-invalid="Boolean(fieldError('name'))"
-            />
-            <span v-if="fieldError('name')" class="text-[10px] text-danger">{{
-              fieldError('name')
-            }}</span>
-          </label>
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Legal organization</span>
-            <input
-              v-model="form.organization_name"
-              aria-label="Legal organization"
-              class="field-control"
-              :class="validationControlClass(fieldError('organization_name'))"
-              :aria-invalid="Boolean(fieldError('organization_name'))"
-            />
-            <span v-if="fieldError('organization_name')" class="text-[10px] text-danger">{{
-              fieldError('organization_name')
-            }}</span>
-          </label>
+          <FormInput
+            v-model="form.name"
+            label="Account name"
+            class="sm:col-span-2"
+            :error="fieldError('name')"
+          />
+          <FormInput
+            v-model="form.organization_name"
+            label="Legal organization"
+            class="sm:col-span-2"
+            :error="fieldError('organization_name')"
+          />
           <label class="grid gap-2">
             <span class="text-xs font-semibold text-slate-600">Timezone</span>
             <FormListbox
@@ -223,30 +209,16 @@ function selectRestriction(key: string, value: ListboxValue): void {
           }}</span>
         </label>
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Internal ringtone</span
-            ><input
-              v-model="form.ringtone_internal"
-              aria-label="Internal ringtone"
-              class="field-control"
-              :class="validationControlClass(fieldError('ringtone_internal'))"
-              :aria-invalid="Boolean(fieldError('ringtone_internal'))"
-            /><span v-if="fieldError('ringtone_internal')" class="text-[10px] text-danger">{{
-              fieldError('ringtone_internal')
-            }}</span></label
-          >
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">External ringtone</span
-            ><input
-              v-model="form.ringtone_external"
-              aria-label="External ringtone"
-              class="field-control"
-              :class="validationControlClass(fieldError('ringtone_external'))"
-              :aria-invalid="Boolean(fieldError('ringtone_external'))"
-            /><span v-if="fieldError('ringtone_external')" class="text-[10px] text-danger">{{
-              fieldError('ringtone_external')
-            }}</span></label
-          >
+          <FormInput
+            v-model="form.ringtone_internal"
+            label="Internal ringtone"
+            :error="fieldError('ringtone_internal')"
+          />
+          <FormInput
+            v-model="form.ringtone_external"
+            label="External ringtone"
+            :error="fieldError('ringtone_external')"
+          />
         </div>
       </article>
 
@@ -260,36 +232,20 @@ function selectRestriction(key: string, value: ListboxValue): void {
         <div class="grid gap-5 p-5">
           <section class="grid gap-4 rounded-md border border-slate-200 p-4 sm:grid-cols-2">
             <h3 class="text-xs font-semibold text-slate-700 sm:col-span-2">Internal calls</h3>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Name</span>
-              <input
-                v-model="form.caller_id.internal.name"
-                aria-label="Internal caller ID name"
-                maxlength="35"
-                class="field-control"
-                :class="validationControlClass(fieldError('caller_id.internal.name'))"
-                :aria-invalid="Boolean(fieldError('caller_id.internal.name'))"
-              />
-              <span v-if="fieldError('caller_id.internal.name')" class="text-[10px] text-danger">{{
-                fieldError('caller_id.internal.name')
-              }}</span>
-            </label>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Number</span>
-              <input
-                v-model="form.caller_id.internal.number"
-                aria-label="Internal caller ID number"
-                maxlength="35"
-                class="field-control"
-                :class="validationControlClass(fieldError('caller_id.internal.number'))"
-                :aria-invalid="Boolean(fieldError('caller_id.internal.number'))"
-              />
-              <span
-                v-if="fieldError('caller_id.internal.number')"
-                class="text-[10px] text-danger"
-                >{{ fieldError('caller_id.internal.number') }}</span
-              >
-            </label>
+            <FormInput
+              v-model="form.caller_id.internal.name"
+              label="Name"
+              aria-label="Internal caller ID name"
+              maxlength="35"
+              :error="fieldError('caller_id.internal.name')"
+            />
+            <FormInput
+              v-model="form.caller_id.internal.number"
+              label="Number"
+              aria-label="Internal caller ID number"
+              maxlength="35"
+              :error="fieldError('caller_id.internal.number')"
+            />
           </section>
 
           <section
@@ -300,20 +256,13 @@ function selectRestriction(key: string, value: ListboxValue): void {
             <h3 class="text-xs font-semibold capitalize text-slate-700 sm:col-span-2">
               {{ scope }} calls
             </h3>
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Name</span>
-              <input
-                v-model="form.caller_id[scope].name"
-                :aria-label="`${scope} caller ID name`"
-                maxlength="35"
-                class="field-control"
-                :class="validationControlClass(fieldError(`caller_id.${scope}.name`))"
-                :aria-invalid="Boolean(fieldError(`caller_id.${scope}.name`))"
-              />
-              <span v-if="fieldError(`caller_id.${scope}.name`)" class="text-[10px] text-danger">{{
-                fieldError(`caller_id.${scope}.name`)
-              }}</span>
-            </label>
+            <FormInput
+              v-model="form.caller_id[scope].name"
+              label="Name"
+              :aria-label="`${scope} caller ID name`"
+              maxlength="35"
+              :error="fieldError(`caller_id.${scope}.name`)"
+            />
             <label class="grid gap-2">
               <span class="text-xs font-semibold text-slate-600">Phone number</span>
               <FormListbox
