@@ -19,12 +19,125 @@ export type CallflowNode = {
     kind: 'default' | 'schedule_match' | 'key' | 'preserved'
   } | null
   temporal_rules?: CallflowTemporalRuleOption[]
+  settings?: Record<string, unknown> | null
   children: Record<string, CallflowNode>
 }
 
 export type CallflowNodeSelection = {
   node: CallflowNode
   path: string[]
+}
+
+export const callflowTreeBranchKeys = [
+  '_',
+  'timeout',
+  '0',
+  '1',
+  '2',
+  '3',
+  '4',
+  '5',
+  '6',
+  '7',
+  '8',
+  '9',
+  '*',
+  'rule_set',
+] as const
+
+export type CallflowTreeBranchKey = (typeof callflowTreeBranchKeys)[number]
+
+export type CallflowTreeMoveInput = {
+  source_path: string[]
+  destination_parent_path: string[]
+  destination_branch: CallflowTreeBranchKey
+}
+
+export type CallflowTreeReorderInput = {
+  mode: 'insert_before' | 'swap'
+  source_path: string[]
+  target_path: string[]
+}
+
+export type CallflowTreeNodeCreateInput = {
+  parent_path: string[]
+  branch: CallflowTreeBranchKey
+  destination_type: CallflowDestinationType
+  destination_id: string
+}
+
+export type CallflowTreeNodeUpdateInput = {
+  node_path: string[]
+  destination_type: CallflowDestinationType
+  destination_id: string
+}
+
+export const callflowInlineModules = [
+  'sleep',
+  'tts',
+  'collect_dtmf',
+  'record_call',
+  'record_caller',
+  'send_dtmf',
+  'flush_dtmf',
+  'dead_air',
+  'language',
+  'missed_call_alert',
+] as const
+
+export type CallflowInlineModule = (typeof callflowInlineModules)[number]
+
+export type CallflowInlineNodeData = {
+  duration?: number
+  unit?: 'ms' | 's' | 'm' | 'h'
+  text?: string
+  voice?: string | null
+  language?: string | null
+  engine?: 'flite' | 'google' | 'ispeech' | 'voicefabric' | null
+  endless_playback?: boolean
+  collection_name?: string | null
+  interdigit_timeout?: number
+  max_digits?: number
+  terminators?: string[]
+  action?: 'start' | 'stop'
+  format?: 'mp3' | 'wav' | null
+  label?: string | null
+  record_min_sec?: number | null
+  record_on_answer?: boolean
+  record_on_bridge?: boolean
+  record_sample_rate?: number | null
+  should_follow_transfer?: boolean
+  time_limit?: number
+  timeout?: number
+  digits?: string
+  duration_ms?: number
+  recipients?: CallflowAlertRecipient[]
+  skip_module: boolean
+}
+
+export type CallflowAlertRecipient = {
+  type: 'user' | 'email'
+  id: string
+}
+
+export type CallflowInlineNodeCreateInput = {
+  parent_path: string[]
+  branch: CallflowTreeBranchKey
+  module: CallflowInlineModule
+  data: CallflowInlineNodeData
+}
+
+export type CallflowInlineNodeUpdateInput = {
+  node_path: string[]
+  module: CallflowInlineModule
+  data: CallflowInlineNodeData
+}
+
+export type CallflowNodeEditorContext = {
+  operation: 'create' | 'update'
+  path: string[]
+  node: CallflowNode
+  module: string
 }
 
 export const callflowDestinationTypes = [

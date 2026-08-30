@@ -66,6 +66,7 @@ class CallflowPublicTreeService
             'temporal_rules' => is_array($node['temporal_rules'] ?? null)
                 ? array_values($node['temporal_rules'])
                 : [],
+            'settings' => is_array($node['settings'] ?? null) ? $node['settings'] : null,
             'children' => (object) $children,
         ];
     }

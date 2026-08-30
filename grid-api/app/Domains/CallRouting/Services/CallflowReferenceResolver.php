@@ -95,8 +95,93 @@ class CallflowReferenceResolver
                 default => 'unresolved',
             },
             'temporal_rules' => $directTemporalRules,
+            'settings' => $this->publicInlineSettings($module, $data, $targets),
             'children' => $children,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @return array<string, mixed>|null
+     */
+    private function publicInlineSettings(string $module, array $data, array $targets): ?array
+    {
+        if ($module === 'missed_call_alert') {
+            return [
+                'recipients' => $this->publicMissedCallAlertRecipients($data['recipients'] ?? null, $targets),
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        $keys = match ($module) {
+            'sleep' => ['duration', 'unit', 'skip_module'],
+            'tts' => ['text', 'voice', 'language', 'engine', 'endless_playback', 'terminators', 'skip_module'],
+            'collect_dtmf' => ['collection_name', 'interdigit_timeout', 'max_digits', 'terminators', 'terminator', 'timeout', 'skip_module'],
+            'record_call' => [
+                'action', 'format', 'label', 'record_min_sec', 'record_on_answer', 'record_on_bridge',
+                'record_sample_rate', 'should_follow_transfer', 'time_limit', 'skip_module',
+            ],
+            'record_caller' => ['format', 'time_limit', 'skip_module'],
+            'send_dtmf' => ['digits', 'duration_ms', 'skip_module'],
+            'flush_dtmf' => ['collection_name', 'skip_module'],
+            'dead_air' => ['skip_module'],
+            'language' => ['language', 'skip_module'],
+            default => [],
+        };
+
+        if ($keys === []) {
+            return null;
+        }
+
+        $settings = [];
+
+        foreach ($keys as $key) {
+            $value = $data[$key] ?? null;
+
+            if (is_scalar($value) || is_array($value)) {
+                $settings[$key] = $value;
+            }
+        }
+
+        return $settings;
+    }
+
+    /**
+     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @return list<array{type: string, id: string}>
+     */
+    private function publicMissedCallAlertRecipients(mixed $value, array $targets): array
+    {
+        if (! is_array($value)) {
+            return [];
+        }
+
+        $recipients = [];
+
+        foreach ($value as $recipient) {
+            if (! is_array($recipient) || ! is_string($recipient['type'] ?? null)) {
+                continue;
+            }
+
+            $ids = is_array($recipient['id'] ?? null) ? $recipient['id'] : [$recipient['id'] ?? null];
+
+            foreach ($ids as $id) {
+                if (! is_string($id) || $id === '') {
+                    continue;
+                }
+
+                if ($recipient['type'] === 'email' && filter_var($id, FILTER_VALIDATE_EMAIL) !== false) {
+                    $recipients[] = ['type' => 'email', 'id' => $id];
+                }
+
+                if ($recipient['type'] === 'user' && isset($targets['extension'][$id])) {
+                    $recipients[] = ['type' => 'user', 'id' => $targets['extension'][$id]['id']];
+                }
+            }
+        }
+
+        return $recipients;
     }
 
     /** @return array<string, array<string, array{id: string, label: string}>> */

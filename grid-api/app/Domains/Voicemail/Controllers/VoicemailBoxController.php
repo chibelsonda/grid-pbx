@@ -13,6 +13,7 @@ use App\Domains\Voicemail\Services\VoicemailBoxMutationService;
 use App\Domains\Voicemail\Services\VoicemailBoxOptionsService;
 use App\Domains\Voicemail\Services\VoicemailBoxService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -31,7 +32,7 @@ class VoicemailBoxController extends Controller
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
 
-        return response()->json(['data' => $options->get($switchAccount)]);
+        return ApiResponse::data($options->get($switchAccount));
     }
 
     public function index(
@@ -135,6 +136,6 @@ class VoicemailBoxController extends Controller
         Gate::authorize('delete', [$switchVoicemailBox, $switchAccount]);
         $mutations->delete($switchAccount, $switchVoicemailBox, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

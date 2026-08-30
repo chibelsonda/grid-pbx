@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
   ArrowLeftIcon,
   ArrowPathRoundedSquareIcon,
+  ArrowsRightLeftIcon,
   HashtagIcon,
   LinkIcon,
   PencilSquareIcon,
@@ -10,23 +11,59 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
-import { findCallflowAction } from '../catalog/callflowActionCatalog'
+import FormListbox, {
+  type ListboxOptionValue,
+  type ListboxValue,
+} from '@/shared/components/FormListbox.vue'
+import { findCallflowAction, type CallflowAction } from '../catalog/callflowActionCatalog'
+import { availableCallflowBranches } from '../services/callflowTreeBranches'
 import CallflowActionPalette from './CallflowActionPalette.vue'
 import CallflowDiagram from './CallflowDiagram.vue'
-import type { Callflow, CallflowNode, CallflowNodeSelection } from '../types/callRouting'
+import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
+import type {
+  Callflow,
+  CallflowNode,
+  CallflowNodeEditorContext,
+  CallflowNodeSelection,
+  CallflowTreeBranchKey,
+  CallflowTreeMoveInput,
+  CallflowTreeReorderInput,
+} from '../types/callRouting'
 
-const props = defineProps<{
-  record: Callflow | null
-  loading: boolean
-  error: string | null
-  canManage: boolean
-  deleting: boolean
-  mutationError: string | null
+const props = withDefaults(
+  defineProps<{
+    record: Callflow | null
+    loading: boolean
+    error: string | null
+    canManage: boolean
+    deleting: boolean
+    mutationError: string | null
+    treeMoving?: boolean
+    treeMutationError?: string | null
+  }>(),
+  { treeMoving: false, treeMutationError: null },
+)
+const emit = defineEmits<{
+  close: []
+  edit: []
+  delete: []
+  'move-node': [input: CallflowTreeMoveInput]
+  'reorder-nodes': [input: CallflowTreeReorderInput]
+  'create-node': [context: CallflowNodeEditorContext]
+  'edit-node': [context: CallflowNodeEditorContext]
 }>()
-defineEmits<{ close: []; edit: []; delete: [] }>()
 const confirmingDelete = ref(false)
 const selectedNode = ref<CallflowNode | null>(null)
 const selectedPath = ref<string[]>([])
+const moveSource = ref<CallflowNodeSelection | null>(null)
+const dragSource = ref<CallflowNodeSelection | null>(null)
+const paletteAction = ref<CallflowAction | null>(null)
+const destinationBranch = ref<CallflowTreeBranchKey | null>(null)
+const nodeInfoOpen = ref(false)
+const paletteShell = ref<HTMLElement | null>(null)
+const paletteFloating = ref(false)
+const palettePosition = ref({ left: 0, top: 0, width: 304 })
+let palettePointerOffset = { x: 0, y: 0 }
 const title = computed(
   () =>
     props.record?.name ??
@@ -75,12 +112,99 @@ const selectedStatusClass = computed(() => {
       return 'border-amber-200 bg-amber-50 text-amber-700'
   }
 })
+const selectedNodeTitle = computed(() =>
+  selectedNode.value
+    ? `${humanize(selectedNode.value.module)}${selectedNode.value.target ? `: ${selectedNode.value.target.label}` : ''}`
+    : 'Callflow node',
+)
+const selectedMovable = computed(
+  () =>
+    props.canManage &&
+    selectedNode.value !== null &&
+    selectedPath.value.length > 0 &&
+    selectedNode.value.reference_status !== 'unresolved' &&
+    selectedNode.value.branch?.kind !== 'preserved' &&
+    selectedAction.value?.status === 'guided',
+)
+const selectedNodeEditable = computed(
+  () =>
+    props.canManage &&
+    selectedNode.value !== null &&
+    selectedPath.value.length > 0 &&
+    selectedNode.value.branch?.kind !== 'preserved' &&
+    selectedAction.value?.status === 'guided',
+)
+const selectedParentAddable = computed(
+  () =>
+    props.canManage &&
+    selectedNode.value !== null &&
+    selectedNode.value.reference_status !== 'unresolved' &&
+    selectedNode.value.branch?.kind !== 'preserved' &&
+    selectedAction.value?.status === 'guided' &&
+    availableCallflowBranches(selectedNode.value).length > 0,
+)
+const availableBranchOptions = computed<ListboxOptionValue[]>(() => {
+  if (
+    !selectedNode.value ||
+    selectedPath.value.some((segment) => segment.startsWith('preserved_'))
+  ) {
+    return []
+  }
+
+  return availableCallflowBranches(selectedNode.value)
+})
+const destinationEligible = computed(
+  () =>
+    moveSource.value !== null &&
+    destinationBranch.value !== null &&
+    !pathStartsWith(selectedPath.value, moveSource.value.path) &&
+    !samePath([...selectedPath.value, destinationBranch.value], moveSource.value.path),
+)
+const reorderTargetEligible = computed(
+  () =>
+    moveSource.value !== null &&
+    selectedNode.value !== null &&
+    selectedPath.value.length > 0 &&
+    !samePath(selectedPath.value, moveSource.value.path) &&
+    !selectedPath.value.some((segment) => segment.startsWith('preserved_')) &&
+    selectedNode.value.branch?.kind !== 'preserved' &&
+    selectedAction.value?.status === 'guided',
+)
+const canInsertBefore = computed(
+  () =>
+    reorderTargetEligible.value &&
+    moveSource.value !== null &&
+    !pathStartsWith(selectedPath.value, moveSource.value.path) &&
+    !Object.hasOwn(moveSource.value.node.children, '_'),
+)
+const canSwap = computed(
+  () =>
+    reorderTargetEligible.value &&
+    moveSource.value !== null &&
+    !pathStartsWith(selectedPath.value, moveSource.value.path) &&
+    !pathStartsWith(moveSource.value.path, selectedPath.value),
+)
 
 watch(
   () => props.record?.flow,
   (flow) => {
     selectedNode.value = flow ?? null
     selectedPath.value = []
+    moveSource.value = null
+    dragSource.value = null
+    paletteAction.value = null
+    destinationBranch.value = null
+    nodeInfoOpen.value = false
+  },
+  { immediate: true },
+)
+
+watch(
+  availableBranchOptions,
+  (options) => {
+    if (!options.some(({ value }) => value === destinationBranch.value)) {
+      destinationBranch.value = (options[0]?.value as CallflowTreeBranchKey | undefined) ?? null
+    }
   },
   { immediate: true },
 )
@@ -88,6 +212,171 @@ watch(
 function selectNode(selection: CallflowNodeSelection): void {
   selectedNode.value = selection.node
   selectedPath.value = [...selection.path]
+  nodeInfoOpen.value = true
+}
+
+function samePath(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((segment, index) => segment === right[index])
+}
+
+function pathStartsWith(path: string[], prefix: string[]): boolean {
+  return path.length >= prefix.length && prefix.every((segment, index) => segment === path[index])
+}
+
+function beginMove(): void {
+  if (!selectedMovable.value || !selectedNode.value) return
+  moveSource.value = { node: selectedNode.value, path: [...selectedPath.value] }
+  nodeInfoOpen.value = false
+}
+
+function startDrag(selection: CallflowNodeSelection): void {
+  paletteAction.value = null
+  dragSource.value = selection
+  moveSource.value = selection
+}
+
+function finishDrag(): void {
+  dragSource.value = null
+}
+
+function startPaletteActionDrag(action: CallflowAction): void {
+  dragSource.value = null
+  // The action travels with the native DataTransfer payload. Avoid mutating the
+  // route tree during dragstart because replacing the drag source can cancel the
+  // browser's active drag operation.
+  void action
+}
+
+function finishPaletteActionDrag(): void {
+  paletteAction.value = null
+}
+
+function requestMove(input: CallflowTreeMoveInput): void {
+  if (props.treeMoving) return
+  dragSource.value = null
+  nodeInfoOpen.value = false
+  emit('move-node', input)
+}
+
+function moveHere(): void {
+  if (!moveSource.value || !destinationBranch.value || !destinationEligible.value) return
+  requestMove({
+    source_path: [...moveSource.value.path],
+    destination_parent_path: [...selectedPath.value],
+    destination_branch: destinationBranch.value,
+  })
+}
+
+function requestReorder(mode: CallflowTreeReorderInput['mode']): void {
+  if (!moveSource.value || props.treeMoving) return
+  if (mode === 'insert_before' && !canInsertBefore.value) return
+  if (mode === 'swap' && !canSwap.value) return
+
+  emit('reorder-nodes', {
+    mode,
+    source_path: [...moveSource.value.path],
+    target_path: [...selectedPath.value],
+  })
+}
+
+function movePalette(event: PointerEvent): void {
+  if (!paletteFloating.value) return
+  const margin = 8
+  const maxLeft = Math.max(margin, window.innerWidth - palettePosition.value.width - margin)
+  const maxTop = Math.max(margin, window.innerHeight - 120)
+
+  palettePosition.value = {
+    ...palettePosition.value,
+    left: Math.min(maxLeft, Math.max(margin, event.clientX - palettePointerOffset.x)),
+    top: Math.min(maxTop, Math.max(margin, event.clientY - palettePointerOffset.y)),
+  }
+}
+
+function stopMovingPalette(): void {
+  window.removeEventListener('pointermove', movePalette)
+  window.removeEventListener('pointerup', stopMovingPalette)
+  window.removeEventListener('pointercancel', stopMovingPalette)
+}
+
+function startMovingPalette(event: PointerEvent): void {
+  if (event.button !== 0 || !paletteShell.value) return
+  const bounds = paletteShell.value.getBoundingClientRect()
+  palettePosition.value = { left: bounds.left, top: bounds.top, width: bounds.width }
+  palettePointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top }
+  paletteFloating.value = true
+  window.addEventListener('pointermove', movePalette)
+  window.addEventListener('pointerup', stopMovingPalette)
+  window.addEventListener('pointercancel', stopMovingPalette)
+  event.preventDefault()
+}
+
+function dockPalette(): void {
+  stopMovingPalette()
+  paletteFloating.value = false
+}
+
+const paletteStyle = computed(() =>
+  paletteFloating.value
+    ? {
+        left: `${palettePosition.value.left}px`,
+        top: `${palettePosition.value.top}px`,
+        width: `${palettePosition.value.width}px`,
+        maxHeight: 'calc(100vh - 16px)',
+      }
+    : undefined,
+)
+
+onBeforeUnmount(stopMovingPalette)
+
+function cancelMove(): void {
+  moveSource.value = null
+  dragSource.value = null
+}
+
+function createNode(action: CallflowAction): void {
+  if (!selectedParentAddable.value || !selectedNode.value) return
+  createNodeAt(action, { node: selectedNode.value, path: [...selectedPath.value] })
+}
+
+function createNodeAt(action: CallflowAction, selection: CallflowNodeSelection): void {
+  if (
+    !props.canManage ||
+    action.status !== 'guided' ||
+    selection.node.reference_status === 'unresolved' ||
+    selection.node.branch?.kind === 'preserved' ||
+    findCallflowAction(selection.node.module)?.status !== 'guided' ||
+    availableCallflowBranches(selection.node).length === 0
+  ) {
+    return
+  }
+
+  selectedNode.value = selection.node
+  selectedPath.value = [...selection.path]
+  paletteAction.value = null
+  nodeInfoOpen.value = false
+  emit('create-node', {
+    operation: 'create',
+    path: [...selection.path],
+    node: selection.node,
+    module: action.module,
+  })
+}
+
+function editNode(): void {
+  if (!selectedNodeEditable.value || !selectedNode.value) return
+  nodeInfoOpen.value = false
+  emit('edit-node', {
+    operation: 'update',
+    path: [...selectedPath.value],
+    node: selectedNode.value,
+    module: selectedNode.value.module,
+  })
+}
+
+function setDestinationBranch(value: ListboxValue): void {
+  if (availableBranchOptions.value.some((option) => option.value === value)) {
+    destinationBranch.value = value as CallflowTreeBranchKey
+  }
 }
 
 function humanize(value: string | null): string {
@@ -114,7 +403,7 @@ function humanize(value: string | null): string {
         </p>
         <h2 class="mt-1 truncate text-lg font-semibold text-slate-800">{{ title }}</h2>
         <p class="mt-1 text-xs text-slate-500">
-          The route map and node inspector stay on the main page; mutation forms open from here.
+          The full-width route map stays on the main page; select a node to inspect it in a modal.
         </p>
       </div>
       <button
@@ -137,108 +426,103 @@ function humanize(value: string | null): string {
       {{ error }}
     </div>
     <div v-else-if="record" class="grid gap-5">
-      <div class="grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <article class="card-surface p-4">
-          <HashtagIcon class="size-5 text-blue-500" />
-          <p class="mt-3 text-lg font-semibold text-slate-700">{{ record.node_count }}</p>
-          <p class="text-[9px] font-bold tracking-wide text-slate-400 uppercase">Nodes</p>
-        </article>
-        <article class="card-surface p-4">
-          <LinkIcon class="size-5 text-violet-500" />
-          <p class="mt-3 text-lg font-semibold text-slate-700">{{ record.max_depth }}</p>
-          <p class="text-[9px] font-bold tracking-wide text-slate-400 uppercase">Max depth</p>
-        </article>
-        <article class="card-surface p-4">
-          <ArrowPathRoundedSquareIcon class="size-5 text-emerald-500" />
-          <p class="mt-3 text-lg font-semibold text-slate-700">{{ record.modules.length }}</p>
-          <p class="text-[9px] font-bold tracking-wide text-slate-400 uppercase">Modules</p>
-        </article>
-        <article class="card-surface p-4 sm:col-span-2 xl:col-span-3">
-          <div class="flex items-center gap-3">
-            <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
-              <ArrowPathRoundedSquareIcon class="size-4" />
-            </span>
-            <div>
-              <p class="text-xs font-semibold text-slate-700">{{ humanize(record.route_type) }}</p>
-              <p class="mt-0.5 text-[10px] text-slate-500">
-                Synchronized
-                {{
-                  record.last_synced_at ? new Date(record.last_synced_at).toLocaleString() : 'never'
-                }}
-              </p>
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <div class="grid gap-5 xl:grid-cols-[minmax(0,1fr)_22rem] xl:items-start">
-        <div class="grid min-w-0 gap-5">
-          <article class="card-surface p-5">
-            <h2 class="mb-4 text-sm font-semibold text-slate-700">Route structure</h2>
-            <CallflowDiagram
-              v-if="record.flow"
-              :node="record.flow"
-              :selected-path="selectedPath"
-              @select="selectNode"
-            />
-            <p v-else class="text-xs text-slate-500">
-              Switch did not return a structural flow for this route.
-            </p>
-            <section
-              v-if="selectedNode"
-              aria-labelledby="selected-callflow-node-heading"
-              class="mt-4 rounded-lg border border-slate-200 bg-slate-50/70 p-4"
-            >
-              <div class="flex flex-wrap items-start gap-3">
-                <div class="min-w-0">
-                  <h3
-                    id="selected-callflow-node-heading"
-                    class="text-xs font-semibold text-slate-700"
-                  >
-                    Selected node
-                  </h3>
-                  <p class="mt-1 break-words text-[10px] text-slate-500">
-                    {{ selectionBreadcrumb.join(' / ') }}
-                  </p>
-                </div>
-                <span
-                  class="ml-auto rounded-full border px-2.5 py-1 text-[9px] font-semibold"
-                  :class="selectedStatusClass"
+      <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
+        <article class="card-surface min-w-0 p-4 sm:p-5">
+          <header class="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
+            <h2 class="mr-auto text-sm font-semibold text-slate-700">Route structure</h2>
+            <div class="flex flex-wrap items-center gap-2" aria-label="Route summary">
+              <div
+                class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5"
+              >
+                <HashtagIcon class="size-3.5 text-blue-600" />
+                <span class="text-xs font-semibold text-slate-700">{{ record.node_count }}</span>
+                <span class="text-[9px] font-bold tracking-wide text-slate-500 uppercase"
+                  >Nodes</span
                 >
-                  {{ selectedStatusLabel }}
+              </div>
+              <div
+                class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5"
+              >
+                <LinkIcon class="size-3.5 text-violet-600" />
+                <span class="text-xs font-semibold text-slate-700">{{ record.max_depth }}</span>
+                <span class="text-[9px] font-bold tracking-wide text-slate-500 uppercase">
+                  Max depth
                 </span>
               </div>
-              <dl class="mt-4 grid gap-3 text-[10px] sm:grid-cols-2 lg:grid-cols-4">
-                <div>
-                  <dt class="font-bold tracking-wide text-slate-500 uppercase">Module</dt>
-                  <dd class="mt-1 font-mono font-semibold text-slate-700">
-                    {{ selectedNode.module }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-bold tracking-wide text-slate-500 uppercase">Destination</dt>
-                  <dd class="mt-1 font-semibold text-slate-700">
-                    {{ selectedNode.target?.label ?? 'Inline Switch action' }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-bold tracking-wide text-slate-500 uppercase">Reference</dt>
-                  <dd class="mt-1 text-slate-700">{{ humanize(selectedNode.reference_status) }}</dd>
-                </div>
-                <div>
-                  <dt class="font-bold tracking-wide text-slate-500 uppercase">Child paths</dt>
-                  <dd class="mt-1 text-slate-700">
-                    {{ Object.keys(selectedNode.children).length }}
-                  </dd>
-                </div>
-              </dl>
-            </section>
-          </article>
+              <div
+                class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5"
+              >
+                <ArrowPathRoundedSquareIcon class="size-3.5 text-emerald-600" />
+                <span class="text-xs font-semibold text-slate-700">{{
+                  record.modules.length
+                }}</span>
+                <span class="text-[9px] font-bold tracking-wide text-slate-500 uppercase">
+                  Modules
+                </span>
+              </div>
+              <div
+                class="inline-flex min-h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1"
+              >
+                <ArrowPathRoundedSquareIcon class="size-3.5 shrink-0 text-brand-600" />
+                <span class="text-[10px] font-semibold text-slate-700">
+                  {{ humanize(record.route_type) }}
+                </span>
+                <span class="text-[9px] text-slate-500">
+                  Synchronized
+                  {{
+                    record.last_synced_at
+                      ? new Date(record.last_synced_at).toLocaleString()
+                      : 'never'
+                  }}
+                </span>
+              </div>
+            </div>
+          </header>
+          <CallflowDiagram
+            v-if="record.flow"
+            :node="record.flow"
+            :entry-name="record.name"
+            :numbers="record.numbers"
+            :patterns="record.patterns"
+            :selected-path="selectedPath"
+            :editable="canManage"
+            :moving="treeMoving"
+            :drag-source-path="dragSource?.path ?? null"
+            :palette-action="paletteAction"
+            @select="selectNode"
+            @drag-start="startDrag"
+            @drag-end="finishDrag"
+            @move="requestMove"
+            @add-action="(selection, action) => createNodeAt(action, selection)"
+          />
+          <p v-else class="text-xs text-slate-500">
+            Switch did not return a structural flow for this route.
+          </p>
+        </article>
 
-          <CallflowActionPalette />
-        </div>
-
-        <aside class="grid gap-5 xl:sticky xl:top-5">
+        <aside class="grid gap-4">
+          <div
+            ref="paletteShell"
+            :style="paletteStyle"
+            :class="
+              paletteFloating
+                ? 'fixed z-40 overflow-hidden rounded-lg shadow-2xl ring-1 ring-slate-300'
+                : 'xl:sticky xl:top-3'
+            "
+          >
+            <CallflowActionPalette
+              compact
+              movable
+              :floating="paletteFloating"
+              :enabled="selectedParentAddable"
+              :drag-enabled="canManage"
+              @choose="createNode"
+              @action-drag-start="startPaletteActionDrag"
+              @action-drag-end="finishPaletteActionDrag"
+              @drag-start="startMovingPalette"
+              @dock="dockPalette"
+            />
+          </div>
           <article class="card-surface p-5">
             <h2 class="text-sm font-semibold text-slate-700">Entry points</h2>
             <div class="mt-4 grid gap-3 text-xs">
@@ -317,6 +601,148 @@ function humanize(value: string | null): string {
       </div>
     </div>
   </section>
+  <CallflowNodeInfoDialog
+    v-if="selectedNode"
+    :open="nodeInfoOpen"
+    :title="selectedNodeTitle"
+    :breadcrumb="selectionBreadcrumb.join(' / ')"
+    @close="nodeInfoOpen = false"
+  >
+    <div class="flex flex-wrap items-center gap-3">
+      <span
+        class="rounded-full border px-2.5 py-1 text-[9px] font-semibold"
+        :class="selectedStatusClass"
+      >
+        {{ selectedStatusLabel }}
+      </span>
+      <p class="text-[10px] text-slate-500">
+        Select an action below or close to return to the canvas.
+      </p>
+    </div>
+    <dl class="mt-5 grid gap-4 text-[10px] sm:grid-cols-2 lg:grid-cols-4">
+      <div>
+        <dt class="font-bold tracking-wide text-slate-500 uppercase">Module</dt>
+        <dd class="mt-1 font-mono font-semibold text-slate-700">{{ selectedNode.module }}</dd>
+      </div>
+      <div>
+        <dt class="font-bold tracking-wide text-slate-500 uppercase">Destination</dt>
+        <dd class="mt-1 font-semibold text-slate-700">
+          {{ selectedNode.target?.label ?? 'Inline Switch action' }}
+        </dd>
+      </div>
+      <div>
+        <dt class="font-bold tracking-wide text-slate-500 uppercase">Reference</dt>
+        <dd class="mt-1 text-slate-700">{{ humanize(selectedNode.reference_status) }}</dd>
+      </div>
+      <div>
+        <dt class="font-bold tracking-wide text-slate-500 uppercase">Child paths</dt>
+        <dd class="mt-1 text-slate-700">{{ Object.keys(selectedNode.children).length }}</dd>
+      </div>
+    </dl>
+    <div v-if="canManage" class="mt-5 border-t border-slate-200 pt-5">
+      <button
+        v-if="selectedNodeEditable && !moveSource"
+        type="button"
+        class="mb-3 inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:bg-brand-50"
+        @click="editNode"
+      >
+        <PencilSquareIcon class="size-4" /> Edit action target
+      </button>
+      <div v-if="moveSource" class="grid gap-3">
+        <div class="flex items-start gap-3 rounded-md border border-blue-200 bg-blue-50 p-3">
+          <ArrowsRightLeftIcon class="mt-0.5 size-4 shrink-0 text-blue-600" />
+          <div class="min-w-0">
+            <p class="text-[10px] font-semibold text-blue-800">
+              Moving {{ humanize(moveSource.node.module) }}
+            </p>
+            <p class="mt-0.5 text-[10px] leading-4 text-blue-700">
+              Choose an empty branch for an ordinary move. Occupied-position operations are shown
+              separately when safe.
+            </p>
+          </div>
+          <button
+            type="button"
+            class="ml-auto text-[10px] font-semibold text-blue-700"
+            :disabled="treeMoving"
+            @click="cancelMove"
+          >
+            Cancel
+          </button>
+        </div>
+        <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Empty destination branch</span>
+            <FormListbox
+              :model-value="destinationBranch"
+              :options="availableBranchOptions"
+              aria-label="Destination branch"
+              :disabled="treeMoving || availableBranchOptions.length === 0"
+              :placeholder="
+                availableBranchOptions.length
+                  ? 'Select an empty branch'
+                  : 'No editable empty branch'
+              "
+              @update:model-value="setDestinationBranch"
+            />
+          </label>
+          <button
+            type="button"
+            :disabled="!destinationEligible || treeMoving"
+            class="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
+            @click="moveHere"
+          >
+            <ArrowsRightLeftIcon class="size-4" />
+            {{ treeMoving ? 'Moving…' : 'Move subtree here' }}
+          </button>
+        </div>
+        <div class="grid gap-3 border-t border-slate-200 pt-4 sm:grid-cols-2">
+          <button
+            type="button"
+            :disabled="!canInsertBefore || treeMoving"
+            class="rounded-md border border-slate-300 bg-white p-3 text-left disabled:cursor-not-allowed disabled:opacity-45"
+            @click="requestReorder('insert_before')"
+          >
+            <span class="block text-xs font-semibold text-slate-700">Insert before selected</span>
+            <span class="mt-1 block text-[10px] leading-4 text-slate-500">
+              Put the moving action in this position and continue into the selected subtree.
+            </span>
+          </button>
+          <button
+            type="button"
+            :disabled="!canSwap || treeMoving"
+            class="rounded-md border border-slate-300 bg-white p-3 text-left disabled:cursor-not-allowed disabled:opacity-45"
+            @click="requestReorder('swap')"
+          >
+            <span class="block text-xs font-semibold text-slate-700">Swap positions</span>
+            <span class="mt-1 block text-[10px] leading-4 text-slate-500">
+              Exchange two separate subtrees without rebuilding either action.
+            </span>
+          </button>
+        </div>
+        <p v-if="!reorderTargetEligible" class="text-[10px] leading-4 text-slate-500">
+          Select another guided action on the canvas to enable compatible reorder operations.
+        </p>
+        <p v-else-if="!canInsertBefore && !canSwap" class="text-[10px] leading-4 text-amber-700">
+          This source and target have an ancestor relationship or a continuation that makes an
+          occupied-position reorder unsafe.
+        </p>
+      </div>
+      <button
+        v-else-if="selectedMovable"
+        type="button"
+        class="inline-flex h-9 items-center gap-2 rounded-md border border-brand-200 bg-white px-4 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+        @click="beginMove"
+      >
+        <ArrowsRightLeftIcon class="size-4" /> Move or reorder this subtree
+      </button>
+      <p v-else class="text-[10px] leading-4 text-slate-500">
+        Root, preserved, unresolved, and not-yet-guided nodes remain read-only.
+      </p>
+      <p v-if="treeMutationError" class="mt-3 text-xs font-semibold text-danger">
+        {{ treeMutationError }}
+      </p>
+    </div>
+  </CallflowNodeInfoDialog>
   <ConfirmDialog
     :open="confirmingDelete"
     title="Delete this route?"

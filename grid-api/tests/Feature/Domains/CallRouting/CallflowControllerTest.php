@@ -6,6 +6,7 @@ use App\Domains\Auditing\Models\AuditLog;
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\Groups\Models\SwitchGroup;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\Organizations\Enums\OrganizationRole;
@@ -247,6 +248,26 @@ class CallflowControllerTest extends TestCase
             {
                 throw new \LogicException('Not used by this test.');
             }
+
+            public function moveTreeNode(SwitchAccount $account, string $resourceId, array $sourcePath, array $destinationParentPath, string $destinationBranch): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function reorderTreeNodes(SwitchAccount $account, string $resourceId, string $mode, array $sourcePath, array $targetPath): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeInlineTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, array $settings): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
         };
         $this->app->instance(SwitchCallflowGateway::class, $gateway);
 
@@ -286,6 +307,586 @@ class CallflowControllerTest extends TestCase
             $extension->id,
             AuditLog::query()->latest('created_at')->firstOrFail()->metadata['destination_id'],
         );
+    }
+
+    public function test_it_moves_a_public_callflow_subtree_and_rejects_unsafe_paths(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-main',
+            'name' => 'Main menu',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+            'extension' => '1001',
+        ]);
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-group-support',
+            'name' => 'Support',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-main',
+            'name' => 'Main route',
+            'root_module' => 'menu',
+            'modules' => ['menu', 'user', 'group'],
+            'node_count' => 3,
+            'max_depth' => 2,
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Main menu'],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '1' => [
+                        'module' => 'user',
+                        'target' => ['type' => 'extension', 'id' => $extension->id, 'label' => 'Reception'],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                    '2' => [
+                        'module' => 'group',
+                        'target' => ['type' => 'group', 'id' => $group->id, 'label' => 'Support'],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('moveTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            array $sourcePath,
+            array $destinationParentPath,
+            string $destinationBranch,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $sourcePath === ['1']
+            && $destinationParentPath === ['2']
+            && $destinationBranch === '_')->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '2' => [
+                            'module' => 'group',
+                            'data' => ['id' => 'switch-group-support'],
+                            'children' => [
+                                '_' => [
+                                    'module' => 'user',
+                                    'data' => ['id' => 'switch-user-reception'],
+                                    'children' => [],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree", [
+                'source_path' => ['1'],
+                'destination_parent_path' => ['2'],
+                'destination_branch' => '_',
+            ])
+            ->assertOk()
+            ->assertJsonMissingPath('data.flow.children.1')
+            ->assertJsonPath('data.flow.children.2.children._.target.id', $extension->id)
+            ->assertJsonMissing(['switch-user-reception']);
+
+        $this->assertDatabaseHas('switch_callflows', [
+            'callflow_id' => $callflow->getKey(),
+            'node_count' => 3,
+            'max_depth' => 3,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.node_moved',
+            'outcome' => 'succeeded',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree", [
+                'source_path' => ['preserved_1'],
+                'destination_parent_path' => [],
+                'destination_branch' => '_',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('source_path.0');
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree", [
+                'source_path' => ['2', '_'],
+                'destination_parent_path' => ['2'],
+                'destination_branch' => '_',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('destination_branch');
+
+        $callflow->refresh();
+        $flow = $callflow->flow_structure;
+        $flow['children']['3'] = [
+            'module' => 'custom_vendor',
+            'target' => null,
+            'reference_status' => 'not_applicable',
+            'children' => [],
+        ];
+        $callflow->forceFill(['flow_structure' => $flow])->save();
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree", [
+                'source_path' => ['3'],
+                'destination_parent_path' => ['2'],
+                'destination_branch' => '_',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('source_path');
+    }
+
+    public function test_it_reorders_guided_subtrees_using_only_public_paths(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-main',
+            'name' => 'Main menu',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+            'extension' => '1001',
+        ]);
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-group-support',
+            'name' => 'Support',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-main',
+            'name' => 'Main route',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Main menu'],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '1' => [
+                        'module' => 'user',
+                        'target' => ['type' => 'extension', 'id' => $extension->id, 'label' => 'Reception'],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                    '2' => [
+                        'module' => 'group',
+                        'target' => ['type' => 'group', 'id' => $group->id, 'label' => 'Support'],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('reorderTreeNodes')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $mode,
+            array $sourcePath,
+            array $targetPath,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $mode === 'swap'
+            && $sourcePath === ['1']
+            && $targetPath === ['2'])->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '1' => [
+                            'module' => 'group',
+                            'data' => ['id' => 'switch-group-support'],
+                            'children' => [],
+                        ],
+                        '2' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'switch-user-reception'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/order", [
+                'mode' => 'swap',
+                'source_path' => ['1'],
+                'target_path' => ['2'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children.1.target.id', $group->id)
+            ->assertJsonPath('data.flow.children.2.target.id', $extension->id)
+            ->assertJsonMissing(['switch-group-support', 'switch-user-reception']);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.nodes_reordered',
+            'outcome' => 'succeeded',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/order", [
+                'mode' => 'swap',
+                'source_path' => ['1'],
+                'target_path' => ['1'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('target_path');
+    }
+
+    public function test_it_adds_schema_backed_inline_nodes_and_exposes_only_safe_settings(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-main',
+            'name' => 'Main menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-main',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Main menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $settings = [
+            'text' => 'Welcome to GridPBX.',
+            'voice' => 'female',
+            'language' => 'en-US',
+            'engine' => 'flite',
+            'endless_playback' => false,
+            'terminators' => ['#'],
+            'skip_module' => false,
+        ];
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $receivedSettings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'tts'
+            && $receivedSettings === $settings)->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'tts',
+                            'data' => [...$settings, 'internal_provider_token' => 'server-secret'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'tts',
+                'data' => $settings,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children._.module', 'tts')
+            ->assertJsonPath('data.flow.children._.settings.text', 'Welcome to GridPBX.')
+            ->assertJsonPath('data.flow.children._.settings.engine', 'flite')
+            ->assertJsonMissing(['server-secret']);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.inline_node_created',
+            'outcome' => 'succeeded',
+        ]);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'node_path' => ['_'],
+                'module' => 'tts',
+                'data' => [...$settings, 'url' => 'https://should-not-be-user-managed.example'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('data');
+    }
+
+    public function test_it_maps_missed_call_alert_recipients_across_the_public_switch_boundary(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-main',
+            'name' => 'Main menu',
+        ]);
+        $recipient = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+            'extension' => '1001',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-main',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Main menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $publicSettings = [
+            'recipients' => [
+                ['type' => 'user', 'id' => $recipient->id],
+                ['type' => 'email', 'id' => 'alerts@example.com'],
+            ],
+            'skip_module' => false,
+        ];
+        $switchSettings = [
+            'recipients' => [
+                ['type' => 'user', 'id' => 'switch-user-reception'],
+                ['type' => 'email', 'id' => 'alerts@example.com'],
+            ],
+            'skip_module' => false,
+        ];
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'missed_call_alert'
+            && $settings === $switchSettings)->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'missed_call_alert',
+                            'data' => [...$switchSettings, 'private_notification_token' => 'secret'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'missed_call_alert',
+                'data' => $publicSettings,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children._.settings.recipients.0.type', 'user')
+            ->assertJsonPath('data.flow.children._.settings.recipients.0.id', $recipient->id)
+            ->assertJsonPath('data.flow.children._.settings.recipients.1.id', 'alerts@example.com')
+            ->assertJsonMissing(['switch-user-reception', 'secret']);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'missed_call_alert',
+                'data' => [
+                    'recipients' => [['type' => 'user', 'id' => fake()->uuid()]],
+                    'skip_module' => false,
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('data.recipients.0.id');
+    }
+
+    public function test_it_adds_and_retargets_guided_reference_nodes_without_exposing_switch_ids(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-main',
+            'name' => 'Main menu',
+        ]);
+        $reception = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-reception',
+            'display_name' => 'Reception',
+            'extension' => '1001',
+        ]);
+        $support = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-support',
+            'display_name' => 'Support',
+            'extension' => '1002',
+        ]);
+        $voicemail = SwitchVoicemailBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-mailbox-reception',
+            'name' => 'Reception mailbox',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-main',
+            'name' => 'Main route',
+            'root_module' => 'menu',
+            'modules' => ['menu', 'user'],
+            'node_count' => 2,
+            'max_depth' => 2,
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Main menu'],
+                'reference_status' => 'resolved',
+                'children' => [
+                    '1' => [
+                        'module' => 'user',
+                        'target' => ['type' => 'extension', 'id' => $reception->id, 'label' => 'Reception'],
+                        'reference_status' => 'resolved',
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeTreeNode')->once()->ordered()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            string $targetResourceId,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $operation === 'create'
+            && $path === ['1']
+            && $branch === '_'
+            && $module === 'voicemail'
+            && $targetResourceId === 'switch-mailbox-reception')->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '1' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'switch-user-reception'],
+                            'children' => [
+                                '_' => [
+                                    'module' => 'voicemail',
+                                    'data' => ['id' => 'switch-mailbox-reception'],
+                                    'children' => [],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+        $gateway->shouldReceive('writeTreeNode')->once()->ordered()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            string $targetResourceId,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $operation === 'update'
+            && $path === ['1']
+            && $branch === null
+            && $module === 'user'
+            && $targetResourceId === 'switch-user-support')->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [
+                        '1' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'switch-user-support'],
+                            'children' => [
+                                '_' => [
+                                    'module' => 'voicemail',
+                                    'data' => ['id' => 'switch-mailbox-reception'],
+                                    'children' => [],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
+                'parent_path' => ['1'],
+                'branch' => '_',
+                'destination_type' => 'voicemail',
+                'destination_id' => $voicemail->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children.1.children._.target.id', $voicemail->id)
+            ->assertJsonMissing(['switch-mailbox-reception']);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
+                'parent_path' => ['1'],
+                'branch' => '_',
+                'destination_type' => 'voicemail',
+                'destination_id' => $voicemail->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('branch');
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
+                'node_path' => ['1'],
+                'destination_type' => 'extension',
+                'destination_id' => $support->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children.1.target.id', $support->id)
+            ->assertJsonPath('data.flow.children.1.children._.target.id', $voicemail->id)
+            ->assertJsonMissing(['switch-user-support']);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.node_created',
+            'outcome' => 'succeeded',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.node_updated',
+            'outcome' => 'succeeded',
+        ]);
     }
 
     public function test_it_locks_unsupported_and_unresolved_roots_in_the_guided_editor_and_api(): void
@@ -1095,6 +1696,26 @@ class CallflowControllerTest extends TestCase
             {
                 throw new \LogicException('Not used by this test.');
             }
+
+            public function moveTreeNode(SwitchAccount $account, string $resourceId, array $sourcePath, array $destinationParentPath, string $destinationBranch): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function reorderTreeNodes(SwitchAccount $account, string $resourceId, string $mode, array $sourcePath, array $targetPath): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeInlineTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, array $settings): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
         });
 
         $this->actingAs($user)
@@ -1195,6 +1816,26 @@ class CallflowControllerTest extends TestCase
             {
                 throw new \LogicException('Not used by this test.');
             }
+
+            public function moveTreeNode(SwitchAccount $account, string $resourceId, array $sourcePath, array $destinationParentPath, string $destinationBranch): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function reorderTreeNodes(SwitchAccount $account, string $resourceId, string $mode, array $sourcePath, array $targetPath): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeInlineTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, array $settings): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
         };
         $this->app->instance(SwitchCallflowGateway::class, $gateway);
 
@@ -1274,6 +1915,26 @@ class CallflowControllerTest extends TestCase
             public function delete(SwitchAccount $account, string $resourceId): void
             {
                 $this->deletedResourceId = $resourceId;
+            }
+
+            public function moveTreeNode(SwitchAccount $account, string $resourceId, array $sourcePath, array $destinationParentPath, string $destinationBranch): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function reorderTreeNodes(SwitchAccount $account, string $resourceId, string $mode, array $sourcePath, array $targetPath): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function writeInlineTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, array $settings): array
+            {
+                throw new \LogicException('Not used by this test.');
             }
         };
         $this->app->instance(SwitchCallflowGateway::class, $gateway);

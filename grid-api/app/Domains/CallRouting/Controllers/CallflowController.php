@@ -3,9 +3,15 @@
 namespace App\Domains\CallRouting\Controllers;
 
 use App\Domains\CallRouting\Models\SwitchCallflow;
+use App\Domains\CallRouting\Requests\CreateCallflowNodeRequest;
+use App\Domains\CallRouting\Requests\CreateInlineCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\ListCallflowsRequest;
+use App\Domains\CallRouting\Requests\MoveCallflowNodeRequest;
+use App\Domains\CallRouting\Requests\ReorderCallflowNodesRequest;
 use App\Domains\CallRouting\Requests\StoreCallflowRequest;
+use App\Domains\CallRouting\Requests\UpdateCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\UpdateCallflowRequest;
+use App\Domains\CallRouting\Requests\UpdateInlineCallflowNodeRequest;
 use App\Domains\CallRouting\Resources\CallflowResource;
 use App\Domains\CallRouting\Services\CallflowEditorService;
 use App\Domains\CallRouting\Services\CallflowMutationService;
@@ -14,6 +20,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -73,7 +80,7 @@ class CallflowController extends Controller
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
 
-        return response()->json(['data' => $editor->editor($switchAccount)]);
+        return ApiResponse::data($editor->editor($switchAccount));
     }
 
     public function store(
@@ -108,7 +115,7 @@ class CallflowController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         $switchCallflow = $callflows->find($switchAccount, $callflow);
 
-        return response()->json(['data' => $editor->editor($switchAccount, $switchCallflow)]);
+        return ApiResponse::data($editor->editor($switchAccount, $switchCallflow));
     }
 
     public function update(
@@ -153,6 +160,138 @@ class CallflowController extends Controller
             $request->ip(),
         );
 
-        return response()->noContent();
+        return ApiResponse::noContent();
+    }
+
+    public function moveNode(
+        MoveCallflowNodeRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->moveTreeNode(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function createNode(
+        CreateCallflowNodeRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->createTreeNode(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function reorderNodes(
+        ReorderCallflowNodesRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->reorderTreeNodes(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function updateNode(
+        UpdateCallflowNodeRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->updateTreeNode(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function createInlineNode(
+        CreateInlineCallflowNodeRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->createInlineTreeNode(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function updateInlineNode(
+        UpdateInlineCallflowNodeRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->updateInlineTreeNode(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
     }
 }

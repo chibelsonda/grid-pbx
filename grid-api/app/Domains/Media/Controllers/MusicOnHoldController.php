@@ -9,6 +9,7 @@ use App\Domains\Media\Resources\MediaResource;
 use App\Domains\Media\Services\MusicOnHoldService;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,9 +28,9 @@ class MusicOnHoldController extends Controller
         Gate::authorize('viewAny', [SwitchMedia::class, $switchAccount]);
         $media = $musicOnHold->selected($switchAccount);
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'media' => $media === null ? null : (new MediaResource($media))->resolve($request),
-        ]]);
+        ]);
     }
 
     public function update(
@@ -49,8 +50,8 @@ class MusicOnHoldController extends Controller
             $request->ip(),
         );
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'media' => $media === null ? null : (new MediaResource($media))->resolve($request),
-        ]]);
+        ]);
     }
 }

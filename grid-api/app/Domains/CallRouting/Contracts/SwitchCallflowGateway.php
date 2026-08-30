@@ -35,5 +35,52 @@ interface SwitchCallflowGateway
         array $destinationTemporalRuleIds = [],
     ): array;
 
+    /**
+     * @param  list<string>  $sourcePath
+     * @param  list<string>  $destinationParentPath
+     * @return array<string, mixed>
+     */
+    public function moveTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        array $sourcePath,
+        array $destinationParentPath,
+        string $destinationBranch,
+    ): array;
+
+    /**
+     * @param  list<string>  $path
+     * @return array<string, mixed>
+     */
+    public function writeTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        string $operation,
+        array $path,
+        ?string $branch,
+        string $module,
+        string $targetResourceId,
+    ): array;
+
+    /** @param list<string> $sourcePath @param list<string> $targetPath @return array<string, mixed> */
+    public function reorderTreeNodes(
+        SwitchAccount $account,
+        string $resourceId,
+        string $mode,
+        array $sourcePath,
+        array $targetPath,
+    ): array;
+
+    /** @param list<string> $path @param array<string, mixed> $settings @return array<string, mixed> */
+    public function writeInlineTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        string $operation,
+        array $path,
+        ?string $branch,
+        string $module,
+        array $settings,
+    ): array;
+
     public function delete(SwitchAccount $account, string $resourceId): void;
 }

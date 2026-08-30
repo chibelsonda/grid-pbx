@@ -5,6 +5,12 @@ import type {
   Callflow,
   CallflowEditor,
   CallflowFilters,
+  CallflowTreeMoveInput,
+  CallflowTreeReorderInput,
+  CallflowTreeNodeCreateInput,
+  CallflowTreeNodeUpdateInput,
+  CallflowInlineNodeCreateInput,
+  CallflowInlineNodeUpdateInput,
   CallflowUpdate,
   SyncState,
 } from '../types/callRouting'
@@ -27,12 +33,19 @@ export const useCallflowStore = defineStore('call-routing', {
     editorOpen: false,
     saving: false,
     deleting: false,
+    treeMoving: false,
+    treeEditor: null as CallflowEditor | null,
+    treeEditorLoading: false,
+    treeNodeSaving: false,
+    treeNodeError: null as string | null,
+    treeNodeFieldErrors: {} as Record<string, string[]>,
     synchronizing: false,
     error: null as string | null,
     detailError: null as string | null,
     editorError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
     mutationError: null as string | null,
+    treeMutationError: null as string | null,
   }),
   actions: {
     reset(): void {
@@ -49,6 +62,11 @@ export const useCallflowStore = defineStore('call-routing', {
       this.editorError = null
       this.fieldErrors = {}
       this.mutationError = null
+      this.treeMutationError = null
+      this.treeEditor = null
+      this.treeEditorLoading = false
+      this.treeNodeError = null
+      this.treeNodeFieldErrors = {}
     },
     async load(accountId: string, page = 1): Promise<void> {
       this.loading = true
@@ -208,6 +226,146 @@ export const useCallflowStore = defineStore('call-routing', {
         return false
       } finally {
         this.deleting = false
+      }
+    },
+    async moveTreeNode(
+      accountId: string,
+      callflowId: string,
+      input: CallflowTreeMoveInput,
+    ): Promise<Callflow | null> {
+      this.treeMoving = true
+      this.treeMutationError = null
+
+      try {
+        const updated = await callflowApi.moveTreeNode(accountId, callflowId, input)
+        this.detail = updated
+        const index = this.records.findIndex((record) => record.id === updated.id)
+        if (index >= 0) this.records[index] = updated
+
+        return updated
+      } catch (error) {
+        this.treeMutationError = axios.isAxiosError(error)
+          ? (error.response?.data?.errors?.source_path?.[0] ??
+            error.response?.data?.errors?.destination_parent_path?.[0] ??
+            error.response?.data?.errors?.destination_branch?.[0] ??
+            error.response?.data?.message ??
+            'Unable to move the callflow node.')
+          : 'Unable to move the callflow node.'
+
+        return null
+      } finally {
+        this.treeMoving = false
+      }
+    },
+    async loadTreeEditor(accountId: string, callflowId: string): Promise<boolean> {
+      this.treeEditor = null
+      this.treeEditorLoading = true
+      this.treeNodeError = null
+      this.treeNodeFieldErrors = {}
+
+      try {
+        this.treeEditor = await callflowApi.editor(accountId, callflowId)
+
+        return true
+      } catch (error) {
+        this.treeNodeError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to load action destinations.')
+          : 'Unable to load action destinations.'
+
+        return false
+      } finally {
+        this.treeEditorLoading = false
+      }
+    },
+    async reorderTreeNodes(
+      accountId: string,
+      callflowId: string,
+      input: CallflowTreeReorderInput,
+    ): Promise<Callflow | null> {
+      this.treeMoving = true
+      this.treeMutationError = null
+
+      try {
+        const updated = await callflowApi.reorderTreeNodes(accountId, callflowId, input)
+        this.detail = updated
+        const index = this.records.findIndex((record) => record.id === updated.id)
+        if (index >= 0) this.records[index] = updated
+
+        return updated
+      } catch (error) {
+        this.treeMutationError = axios.isAxiosError(error)
+          ? (error.response?.data?.errors?.source_path?.[0] ??
+            error.response?.data?.errors?.target_path?.[0] ??
+            error.response?.data?.errors?.mode?.[0] ??
+            error.response?.data?.message ??
+            'Unable to reorder the callflow nodes.')
+          : 'Unable to reorder the callflow nodes.'
+
+        return null
+      } finally {
+        this.treeMoving = false
+      }
+    },
+    closeTreeEditor(): void {
+      this.treeEditor = null
+      this.treeNodeError = null
+      this.treeNodeFieldErrors = {}
+    },
+    async createTreeNode(
+      accountId: string,
+      callflowId: string,
+      input: CallflowTreeNodeCreateInput,
+    ): Promise<Callflow | null> {
+      return this.saveTreeNode(() => callflowApi.createTreeNode(accountId, callflowId, input))
+    },
+    async updateTreeNode(
+      accountId: string,
+      callflowId: string,
+      input: CallflowTreeNodeUpdateInput,
+    ): Promise<Callflow | null> {
+      return this.saveTreeNode(() => callflowApi.updateTreeNode(accountId, callflowId, input))
+    },
+    async createInlineTreeNode(
+      accountId: string,
+      callflowId: string,
+      input: CallflowInlineNodeCreateInput,
+    ): Promise<Callflow | null> {
+      return this.saveTreeNode(() => callflowApi.createInlineTreeNode(accountId, callflowId, input))
+    },
+    async updateInlineTreeNode(
+      accountId: string,
+      callflowId: string,
+      input: CallflowInlineNodeUpdateInput,
+    ): Promise<Callflow | null> {
+      return this.saveTreeNode(() => callflowApi.updateInlineTreeNode(accountId, callflowId, input))
+    },
+    async saveTreeNode(request: () => Promise<Callflow>): Promise<Callflow | null> {
+      this.treeNodeSaving = true
+      this.treeNodeError = null
+      this.treeNodeFieldErrors = {}
+
+      try {
+        const updated = await request()
+        this.detail = updated
+        const index = this.records.findIndex((record) => record.id === updated.id)
+        if (index >= 0) this.records[index] = updated
+        this.closeTreeEditor()
+
+        return updated
+      } catch (error) {
+        this.treeNodeFieldErrors = axios.isAxiosError(error)
+          ? (error.response?.data?.errors ?? {})
+          : {}
+        this.treeNodeError =
+          Object.keys(this.treeNodeFieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to save the callflow action.')
+              : 'Unable to save the callflow action.'
+
+        return null
+      } finally {
+        this.treeNodeSaving = false
       }
     },
     async synchronize(accountId: string): Promise<void> {

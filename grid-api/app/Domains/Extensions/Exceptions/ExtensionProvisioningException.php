@@ -2,6 +2,7 @@
 
 namespace App\Domains\Extensions\Exceptions;
 
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -32,13 +33,12 @@ class ExtensionProvisioningException extends RuntimeException
 
     public function render(Request $request): JsonResponse
     {
-        return response()->json([
-            'message' => $this->getMessage(),
+        return ApiResponse::error($this->getMessage(), Response::HTTP_BAD_GATEWAY, [
             'code' => $this->repairRequired()
                 ? 'extension_repair_required'
                 : 'extension_provisioning_failed',
             'repair_required' => $this->repairRequired(),
             'operation_id' => $this->operationId,
-        ], Response::HTTP_BAD_GATEWAY);
+        ]);
     }
 }

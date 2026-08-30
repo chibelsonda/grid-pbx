@@ -4,6 +4,12 @@ import type {
   CallflowEditor,
   CallflowFilters,
   CallflowUpdate,
+  CallflowTreeMoveInput,
+  CallflowTreeReorderInput,
+  CallflowTreeNodeCreateInput,
+  CallflowTreeNodeUpdateInput,
+  CallflowInlineNodeCreateInput,
+  CallflowInlineNodeUpdateInput,
   SyncRun,
   SyncState,
 } from '../types/callRouting'
@@ -66,6 +72,78 @@ export const callflowApi = {
   async update(accountId: string, callflowId: string, input: CallflowUpdate): Promise<Callflow> {
     const response = await http.put<ApiResponse<Callflow>>(
       `/api/v1/accounts/${accountId}/callflows/${callflowId}`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async moveTreeNode(
+    accountId: string,
+    callflowId: string,
+    input: CallflowTreeMoveInput,
+  ): Promise<Callflow> {
+    const response = await http.patch<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async createTreeNode(
+    accountId: string,
+    callflowId: string,
+    input: CallflowTreeNodeCreateInput,
+  ): Promise<Callflow> {
+    const response = await http.post<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/nodes`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async reorderTreeNodes(
+    accountId: string,
+    callflowId: string,
+    input: CallflowTreeReorderInput,
+  ): Promise<Callflow> {
+    const response = await http.patch<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/order`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async updateTreeNode(
+    accountId: string,
+    callflowId: string,
+    input: CallflowTreeNodeUpdateInput,
+  ): Promise<Callflow> {
+    const response = await http.patch<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/nodes`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async createInlineTreeNode(
+    accountId: string,
+    callflowId: string,
+    input: CallflowInlineNodeCreateInput,
+  ): Promise<Callflow> {
+    const response = await http.post<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/inline-nodes`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async updateInlineTreeNode(
+    accountId: string,
+    callflowId: string,
+    input: CallflowInlineNodeUpdateInput,
+  ): Promise<Callflow> {
+    const response = await http.patch<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/inline-nodes`,
       input,
     )
 

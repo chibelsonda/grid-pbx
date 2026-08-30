@@ -7,6 +7,10 @@ namespace GridPbx\Switch\Tests;
 use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowBranchWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeWriteData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\ManagedExtensionCallflowWriteData;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
@@ -17,6 +21,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
+use InvalidArgumentException;
 use JsonException;
 use PHPUnit\Framework\TestCase;
 
@@ -494,6 +499,390 @@ final class CallflowResourceClientTest extends TestCase
 
         self::assertSame('DELETE', $this->history[0]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/callflows/callflow-1', $this->history[0]['request']->getUri()->getPath());
+    }
+
+    /** @throws JsonException */
+    public function test_it_moves_a_public_subtree_without_rebuilding_its_node_data(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->moveTreeNode('account-1', 'callflow-1', new CallflowTreeMoveData(
+            current: [
+                'id' => 'callflow-1',
+                '_rev' => '4-revision',
+                'pvt_account_id' => 'account-1',
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'menu-1'],
+                    'children' => [
+                        '1' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'user-1', 'timeout' => 20],
+                            'children' => [
+                                '_' => [
+                                    'module' => 'voicemail',
+                                    'data' => ['id' => 'mailbox-1', 'action' => 'compose'],
+                                    'children' => [],
+                                ],
+                            ],
+                        ],
+                        '2' => [
+                            'module' => 'group',
+                            'data' => ['id' => 'group-1'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ],
+            sourcePath: ['1'],
+            destinationParentPath: ['2'],
+            destinationBranch: '_',
+        ));
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $flow = $body['data']['flow'];
+
+        self::assertSame('POST', $this->history[0]['request']->getMethod());
+        self::assertArrayNotHasKey('1', $flow['children']);
+        self::assertSame('user-1', $flow['children']['2']['children']['_']['data']['id']);
+        self::assertSame(20, $flow['children']['2']['children']['_']['data']['timeout']);
+        self::assertSame(
+            'mailbox-1',
+            $flow['children']['2']['children']['_']['children']['_']['data']['id'],
+        );
+        self::assertArrayNotHasKey('_rev', $body['data']);
+        self::assertArrayNotHasKey('pvt_account_id', $body['data']);
+    }
+
+    public function test_it_rejects_preserved_paths_cycles_and_occupied_destinations(): void
+    {
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '1' => [
+                        'module' => 'user',
+                        'data' => ['id' => 'user-1'],
+                        'children' => [
+                            '_' => ['module' => 'voicemail', 'data' => ['id' => 'box-1'], 'children' => []],
+                        ],
+                    ],
+                    '2' => ['module' => 'group', 'data' => ['id' => 'group-1'], 'children' => []],
+                ],
+            ],
+        ];
+
+        foreach ([
+            [['preserved_1'], [], '_'],
+            [['1'], ['1', '_'], '_'],
+            [['2'], ['1'], '_'],
+        ] as [$source, $destination, $branch]) {
+            try {
+                new CallflowTreeMoveData($current, $source, $destination, $branch);
+                self::fail('Unsafe callflow tree move was accepted.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    /** @throws JsonException */
+    public function test_it_adds_a_guided_reference_node_to_an_empty_public_branch(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->writeTreeNode(
+            'account-1',
+            'callflow-1',
+            CallflowTreeNodeWriteData::create(
+                current: [
+                    'id' => 'callflow-1',
+                    '_rev' => '4-revision',
+                    'flow' => [
+                        'module' => 'menu',
+                        'data' => ['id' => 'menu-1'],
+                        'children' => [
+                            '1' => [
+                                'module' => 'user',
+                                'data' => ['id' => 'user-1'],
+                                'children' => [],
+                            ],
+                        ],
+                    ],
+                ],
+                parentPath: ['1'],
+                branch: '_',
+                module: 'voicemail',
+                resourceId: 'mailbox-1',
+            ),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $node = $body['data']['flow']['children']['1']['children']['_'];
+
+        self::assertSame('POST', $this->history[0]['request']->getMethod());
+        self::assertSame('voicemail', $node['module']);
+        self::assertSame(['id' => 'mailbox-1'], $node['data']);
+        self::assertSame([], $node['children']);
+        self::assertArrayNotHasKey('_rev', $body['data']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_retargets_a_guided_node_and_preserves_its_data_and_children(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->writeTreeNode(
+            'account-1',
+            'callflow-1',
+            CallflowTreeNodeWriteData::update(
+                current: [
+                    'flow' => [
+                        'module' => 'menu',
+                        'data' => ['id' => 'menu-1'],
+                        'children' => [
+                            '1' => [
+                                'module' => 'user',
+                                'data' => ['id' => 'user-1', 'timeout' => 25],
+                                'children' => [
+                                    '_' => [
+                                        'module' => 'voicemail',
+                                        'data' => ['id' => 'mailbox-1'],
+                                        'children' => [],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                nodePath: ['1'],
+                module: 'user',
+                resourceId: 'user-2',
+            ),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $node = $body['data']['flow']['children']['1'];
+
+        self::assertSame('user-2', $node['data']['id']);
+        self::assertSame(25, $node['data']['timeout']);
+        self::assertSame('mailbox-1', $node['children']['_']['data']['id']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_inserts_a_descendant_before_its_ancestor_losslessly(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '1' => [
+                        'module' => 'user',
+                        'data' => ['id' => 'user-1', 'timeout' => 20],
+                        'children' => [
+                            '_' => [
+                                'module' => 'play',
+                                'data' => ['id' => 'media-1', 'terminators' => ['#']],
+                                'children' => [],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $client->reorderTreeNodes(
+            'account-1',
+            'callflow-1',
+            new CallflowTreeReorderData($current, 'insert_before', ['1', '_'], ['1']),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $first = $body['data']['flow']['children']['1'];
+
+        self::assertSame('play', $first['module']);
+        self::assertSame(['#'], $first['data']['terminators']);
+        self::assertSame('user', $first['children']['_']['module']);
+        self::assertSame(20, $first['children']['_']['data']['timeout']);
+        self::assertSame([], $first['children']['_']['children']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_swaps_disjoint_subtrees_without_rebuilding_them(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '1' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []],
+                    '2' => ['module' => 'group', 'data' => ['id' => 'group-1'], 'children' => []],
+                ],
+            ],
+        ];
+
+        $client->reorderTreeNodes(
+            'account-1',
+            'callflow-1',
+            new CallflowTreeReorderData($current, 'swap', ['1'], ['2']),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('group-1', $body['data']['flow']['children']['1']['data']['id']);
+        self::assertSame('user-1', $body['data']['flow']['children']['2']['data']['id']);
+    }
+
+    public function test_it_rejects_an_inline_action_on_a_branch_the_parent_module_does_not_support(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('destination branch is not valid');
+
+        CallflowInlineNodeWriteData::create(
+            [
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'user-1'],
+                    'children' => [],
+                ],
+            ],
+            [],
+            'timeout',
+            'sleep',
+            ['duration' => 1, 'unit' => 's', 'skip_module' => false],
+        );
+    }
+
+    /** @throws JsonException */
+    public function test_it_updates_inline_recording_settings_without_exposing_server_owned_storage_data(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '_' => [
+                        'module' => 'record_call',
+                        'data' => [
+                            'action' => 'start',
+                            'format' => 'mp3',
+                            'url' => 'https://storage.internal.example/recordings',
+                            'method' => 'put',
+                            'origin' => 'server-owned',
+                            'vendor_option' => ['preserve' => true],
+                        ],
+                        'children' => [
+                            '_' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $client->writeInlineTreeNode(
+            'account-1',
+            'callflow-1',
+            CallflowInlineNodeWriteData::update(
+                $current,
+                ['_'],
+                'record_call',
+                [
+                    'action' => 'start',
+                    'format' => 'wav',
+                    'label' => 'Support recording',
+                    'record_min_sec' => 2,
+                    'record_on_answer' => true,
+                    'record_on_bridge' => false,
+                    'record_sample_rate' => 16000,
+                    'should_follow_transfer' => true,
+                    'time_limit' => 1800,
+                    'skip_module' => false,
+                ],
+            ),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $node = $body['data']['flow']['children']['_'];
+
+        self::assertSame('wav', $node['data']['format']);
+        self::assertSame('https://storage.internal.example/recordings', $node['data']['url']);
+        self::assertSame('put', $node['data']['method']);
+        self::assertSame('server-owned', $node['data']['origin']);
+        self::assertTrue($node['data']['vendor_option']['preserve']);
+        self::assertSame('user-1', $node['children']['_']['data']['id']);
+    }
+
+    public function test_it_builds_current_schema_dtmf_language_and_alert_inline_actions(): void
+    {
+        $fixtures = [
+            'send_dtmf' => ['digits' => '1234#', 'duration_ms' => 2000, 'skip_module' => false],
+            'flush_dtmf' => ['collection_name' => 'default', 'skip_module' => false],
+            'dead_air' => ['skip_module' => false],
+            'language' => ['language' => 'en-US', 'skip_module' => false],
+            'missed_call_alert' => [
+                'recipients' => [
+                    ['type' => 'user', 'id' => 'switch-user-reception'],
+                    ['type' => 'email', 'id' => 'alerts@example.com'],
+                ],
+                'skip_module' => false,
+            ],
+        ];
+
+        foreach ($fixtures as $module => $settings) {
+            $document = CallflowInlineNodeWriteData::create(
+                [
+                    'flow' => [
+                        'module' => 'user',
+                        'data' => ['id' => 'switch-user-parent'],
+                        'children' => [],
+                    ],
+                ],
+                [],
+                '_',
+                $module,
+                $settings,
+            )->toSwitchData();
+
+            $children = (array) $document['flow']['children'];
+            self::assertSame($module, $children['_']['module']);
+            self::assertSame($settings, $children['_']['data']);
+        }
+    }
+
+    public function test_it_rejects_an_invalid_call_language(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('language setting is invalid');
+
+        CallflowInlineNodeWriteData::create(
+            ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+            [],
+            '_',
+            'language',
+            ['language' => 'english', 'skip_module' => false],
+        );
     }
 
     public function test_it_updates_a_managed_extension_number_and_voicemail_fallback_losslessly(): void

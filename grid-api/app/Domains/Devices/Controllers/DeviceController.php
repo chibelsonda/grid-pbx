@@ -13,6 +13,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -75,7 +76,7 @@ class DeviceController extends Controller
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
 
-        return response()->json(['data' => $options->get($switchAccount)]);
+        return ApiResponse::data($options->get($switchAccount));
     }
 
     public function store(
@@ -142,6 +143,6 @@ class DeviceController extends Controller
             $request->ip(),
         );
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

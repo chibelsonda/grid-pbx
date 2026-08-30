@@ -14,6 +14,7 @@ use App\Domains\Voicemail\Services\VoicemailBoxService;
 use App\Domains\Voicemail\Services\VoicemailMessageMutationService;
 use App\Domains\Voicemail\Services\VoicemailMessageService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -125,13 +126,13 @@ class VoicemailMessageController extends Controller
         $folder = VoicemailMessageFolder::from($request->validated('folder'));
         $selectedMessages = $messages->findMany($switchVoicemailBox, $messageIds);
 
-        return response()->json(['data' => $mutation->changeFolders(
+        return ApiResponse::data($mutation->changeFolders(
             $switchAccount,
             $switchVoicemailBox,
             $selectedMessages,
             $folder,
             $user,
             $request->ip(),
-        ) + ['folder' => $folder->value]]);
+        ) + ['folder' => $folder->value]);
     }
 }

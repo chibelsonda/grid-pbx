@@ -20,6 +20,10 @@ class CallflowMutationService
         private readonly SwitchCallflowGateway $gateway,
         private readonly CallflowReferenceResolver $references,
         private readonly CallflowEditorService $editor,
+        private readonly CallflowTreeMoveValidator $treeMoveValidator,
+        private readonly CallflowTreeReorderValidator $treeReorderValidator,
+        private readonly CallflowTreeNodeWriteValidator $treeNodeWriteValidator,
+        private readonly CallflowInlineNodeDataValidator $inlineNodeDataValidator,
         private readonly CallflowJsonNormalizer $jsonNormalizer,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly AuditService $audit,
@@ -147,6 +151,451 @@ class CallflowMutationService
             });
         } catch (Throwable $exception) {
             $this->recordFailure($actor, $account, $callflow, 'callflow.update_failed', $data, $exception, $ipAddress);
+
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    public function moveTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        $this->editor->assertEditable($callflow);
+        $this->treeMoveValidator->assertAllowed(
+            $callflow,
+            $data['source_path'],
+            $data['destination_parent_path'],
+            $data['destination_branch'],
+        );
+
+        try {
+            $snapshot = new CallflowSnapshot($this->gateway->moveTreeNode(
+                $account,
+                $callflow->switch_resource_id,
+                $data['source_path'],
+                $data['destination_parent_path'],
+                $data['destination_branch'],
+            ));
+
+            return DB::transaction(function () use ($account, $callflow, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
+                $projected = $this->project($account, $callflow, $snapshot);
+                $this->audit->record(
+                    $actor,
+                    $account,
+                    'callflow.node_moved',
+                    'succeeded',
+                    $projected->switch_resource_id,
+                    [
+                        'callflow_id' => $projected->id,
+                        'source_path' => $data['source_path'],
+                        'destination_parent_path' => $data['destination_parent_path'],
+                        'destination_branch' => $data['destination_branch'],
+                    ],
+                    $ipAddress,
+                    'callflow',
+                );
+
+                return $this->load($projected);
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure(
+                $actor,
+                $account,
+                $callflow,
+                'callflow.node_move_failed',
+                $data,
+                $exception,
+                $ipAddress,
+            );
+
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    public function createTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        [$module, $resourceId] = $this->resolveDestination(
+            $account,
+            $callflow,
+            $data['destination_type'],
+            $data['destination_id'],
+        );
+        $this->editor->assertEditable($callflow);
+        $this->treeNodeWriteValidator->assertCanCreate(
+            $callflow,
+            $data['parent_path'],
+            $data['branch'],
+            $module,
+        );
+
+        return $this->writeTreeNode(
+            $account,
+            $callflow,
+            $actor,
+            'create',
+            $data['parent_path'],
+            $data['branch'],
+            $module,
+            $resourceId,
+            $data,
+            $ipAddress,
+        );
+    }
+
+    /** @param array<string, mixed> $data */
+    public function reorderTreeNodes(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        $this->editor->assertEditable($callflow);
+        $this->treeReorderValidator->assertAllowed(
+            $callflow,
+            $data['mode'],
+            $data['source_path'],
+            $data['target_path'],
+        );
+
+        try {
+            $snapshot = new CallflowSnapshot($this->gateway->reorderTreeNodes(
+                $account,
+                $callflow->switch_resource_id,
+                $data['mode'],
+                $data['source_path'],
+                $data['target_path'],
+            ));
+
+            return DB::transaction(function () use ($account, $callflow, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
+                $projected = $this->project($account, $callflow, $snapshot);
+                $this->audit->record(
+                    $actor,
+                    $account,
+                    'callflow.nodes_reordered',
+                    'succeeded',
+                    $projected->switch_resource_id,
+                    [
+                        'callflow_id' => $projected->id,
+                        'mode' => $data['mode'],
+                        'source_path' => $data['source_path'],
+                        'target_path' => $data['target_path'],
+                    ],
+                    $ipAddress,
+                    'callflow',
+                );
+
+                return $this->load($projected);
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure(
+                $actor,
+                $account,
+                $callflow,
+                'callflow.node_reorder_failed',
+                $data,
+                $exception,
+                $ipAddress,
+            );
+
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    public function createInlineTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        $this->editor->assertEditable($callflow);
+        $settings = $this->inlineSettingsForSwitch(
+            $account,
+            $data['module'],
+            $this->inlineNodeDataValidator->validate($data['module'], $data['data']),
+        );
+        $this->treeNodeWriteValidator->assertCanCreate(
+            $callflow,
+            $data['parent_path'],
+            $data['branch'],
+            $data['module'],
+        );
+
+        return $this->writeInlineTreeNode(
+            $account,
+            $callflow,
+            $actor,
+            'create',
+            $data['parent_path'],
+            $data['branch'],
+            $data['module'],
+            $settings,
+            $ipAddress,
+        );
+    }
+
+    /** @param array<string, mixed> $data */
+    public function updateInlineTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        $this->editor->assertEditable($callflow);
+        $settings = $this->inlineSettingsForSwitch(
+            $account,
+            $data['module'],
+            $this->inlineNodeDataValidator->validate($data['module'], $data['data']),
+        );
+        $this->treeNodeWriteValidator->assertCanUpdate($callflow, $data['node_path'], $data['module']);
+
+        return $this->writeInlineTreeNode(
+            $account,
+            $callflow,
+            $actor,
+            'update',
+            $data['node_path'],
+            null,
+            $data['module'],
+            $settings,
+            $ipAddress,
+        );
+    }
+
+    /**
+     * @param  list<string>  $path
+     * @param  array<string, mixed>  $settings
+     */
+    private function writeInlineTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        string $operation,
+        array $path,
+        ?string $branch,
+        string $module,
+        array $settings,
+        ?string $ipAddress,
+    ): SwitchCallflow {
+        try {
+            $snapshot = new CallflowSnapshot($this->gateway->writeInlineTreeNode(
+                $account,
+                $callflow->switch_resource_id,
+                $operation,
+                $path,
+                $branch,
+                $module,
+                $settings,
+            ));
+
+            return DB::transaction(function () use (
+                $account,
+                $callflow,
+                $actor,
+                $operation,
+                $path,
+                $branch,
+                $module,
+                $ipAddress,
+                $snapshot,
+            ): SwitchCallflow {
+                $projected = $this->project($account, $callflow, $snapshot);
+                $this->audit->record(
+                    $actor,
+                    $account,
+                    $operation === 'create' ? 'callflow.inline_node_created' : 'callflow.inline_node_updated',
+                    'succeeded',
+                    $projected->switch_resource_id,
+                    [
+                        'callflow_id' => $projected->id,
+                        'path' => $path,
+                        'branch' => $branch,
+                        'module' => $module,
+                    ],
+                    $ipAddress,
+                    'callflow',
+                );
+
+                return $this->load($projected);
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure(
+                $actor,
+                $account,
+                $callflow,
+                $operation === 'create' ? 'callflow.inline_node_create_failed' : 'callflow.inline_node_update_failed',
+                ['path' => $path, 'branch' => $branch, 'module' => $module],
+                $exception,
+                $ipAddress,
+            );
+
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function inlineSettingsForSwitch(
+        SwitchAccount $account,
+        string $module,
+        array $settings,
+    ): array {
+        if ($module !== 'missed_call_alert') {
+            return $settings;
+        }
+
+        /** @var list<array{type: string, id: string}> $recipients */
+        $recipients = $settings['recipients'];
+        $userIds = collect($recipients)
+            ->where('type', 'user')
+            ->pluck('id')
+            ->unique()
+            ->values();
+        $resources = $account->extensions()
+            ->whereIn('id', $userIds)
+            ->get()
+            ->mapWithKeys(fn ($extension): array => [(string) $extension->id => $extension->switch_resource_id]);
+        $errors = [];
+
+        foreach ($recipients as $index => &$recipient) {
+            if ($recipient['type'] !== 'user') {
+                continue;
+            }
+
+            $resourceId = $resources->get($recipient['id']);
+
+            if (! is_string($resourceId) || $resourceId === '') {
+                $errors["data.recipients.$index.id"] = ['Select a synchronized extension in this account.'];
+
+                continue;
+            }
+
+            $recipient['id'] = $resourceId;
+        }
+        unset($recipient);
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+
+        $settings['recipients'] = $recipients;
+
+        return $settings;
+    }
+
+    /** @param array<string, mixed> $data */
+    public function updateTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        [$module, $resourceId] = $this->resolveDestination(
+            $account,
+            $callflow,
+            $data['destination_type'],
+            $data['destination_id'],
+        );
+        $this->editor->assertEditable($callflow);
+        $this->treeNodeWriteValidator->assertCanUpdate($callflow, $data['node_path'], $module);
+
+        return $this->writeTreeNode(
+            $account,
+            $callflow,
+            $actor,
+            'update',
+            $data['node_path'],
+            null,
+            $module,
+            $resourceId,
+            $data,
+            $ipAddress,
+        );
+    }
+
+    /**
+     * @param  list<string>  $path
+     * @param  array<string, mixed>  $auditData
+     */
+    private function writeTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        string $operation,
+        array $path,
+        ?string $branch,
+        string $module,
+        string $resourceId,
+        array $auditData,
+        ?string $ipAddress,
+    ): SwitchCallflow {
+        try {
+            $snapshot = new CallflowSnapshot($this->gateway->writeTreeNode(
+                $account,
+                $callflow->switch_resource_id,
+                $operation,
+                $path,
+                $branch,
+                $module,
+                $resourceId,
+            ));
+
+            return DB::transaction(function () use (
+                $account,
+                $callflow,
+                $actor,
+                $operation,
+                $path,
+                $branch,
+                $module,
+                $auditData,
+                $ipAddress,
+                $snapshot,
+            ): SwitchCallflow {
+                $projected = $this->project($account, $callflow, $snapshot);
+                $this->audit->record(
+                    $actor,
+                    $account,
+                    $operation === 'create' ? 'callflow.node_created' : 'callflow.node_updated',
+                    'succeeded',
+                    $projected->switch_resource_id,
+                    [
+                        'callflow_id' => $projected->id,
+                        'path' => $path,
+                        'branch' => $branch,
+                        'module' => $module,
+                        'destination_type' => $auditData['destination_type'],
+                        'destination_id' => $auditData['destination_id'],
+                    ],
+                    $ipAddress,
+                    'callflow',
+                );
+
+                return $this->load($projected);
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure(
+                $actor,
+                $account,
+                $callflow,
+                $operation === 'create' ? 'callflow.node_create_failed' : 'callflow.node_update_failed',
+                $auditData,
+                $exception,
+                $ipAddress,
+            );
 
             throw $exception;
         }

@@ -11,6 +11,7 @@ use App\Domains\Queues\Resources\QueueResource;
 use App\Domains\Queues\Services\QueueMutationService;
 use App\Domains\Queues\Services\QueueService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,7 +36,7 @@ class QueueController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [SwitchQueue::class, $switchAccount]);
 
-        return response()->json(['data' => $queues->options($switchAccount)]);
+        return ApiResponse::data($queues->options($switchAccount));
     }
 
     public function show(Request $request, string $account, string $queue, SwitchAccountService $accounts, QueueService $queues): QueueResource
@@ -75,6 +76,6 @@ class QueueController extends Controller
         Gate::authorize('delete', [$model, $switchAccount]);
         $mutations->delete($switchAccount, $model, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

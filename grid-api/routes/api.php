@@ -51,15 +51,14 @@ use App\Domains\TemporalRouting\Controllers\TemporalRuleSetController;
 use App\Domains\Voicemail\Controllers\VoicemailBoxController;
 use App\Domains\Voicemail\Controllers\VoicemailGreetingController;
 use App\Domains\Voicemail\Controllers\VoicemailMessageController;
+use App\Support\Http\ApiResponse;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
-    Route::get('/health', fn () => response()->json([
-        'data' => [
-            'service' => 'grid-api',
-            'status' => 'healthy',
-            'timestamp' => now()->toIso8601String(),
-        ],
+    Route::get('/health', fn () => ApiResponse::data([
+        'service' => 'grid-api',
+        'status' => 'healthy',
+        'timestamp' => now()->toIso8601String(),
     ]));
 
     Route::middleware('auth:sanctum')->group(function (): void {
@@ -162,6 +161,12 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/callflows/{callflow}/editor', [CallflowController::class, 'edit']);
             Route::get('/callflows/{callflow}', [CallflowController::class, 'show']);
             Route::put('/callflows/{callflow}', [CallflowController::class, 'update']);
+            Route::patch('/callflows/{callflow}/tree', [CallflowController::class, 'moveNode']);
+            Route::patch('/callflows/{callflow}/tree/order', [CallflowController::class, 'reorderNodes']);
+            Route::post('/callflows/{callflow}/tree/nodes', [CallflowController::class, 'createNode']);
+            Route::patch('/callflows/{callflow}/tree/nodes', [CallflowController::class, 'updateNode']);
+            Route::post('/callflows/{callflow}/tree/inline-nodes', [CallflowController::class, 'createInlineNode']);
+            Route::patch('/callflows/{callflow}/tree/inline-nodes', [CallflowController::class, 'updateInlineNode']);
             Route::delete('/callflows/{callflow}', [CallflowController::class, 'destroy']);
             Route::get('/call-detail-records', [CallDetailRecordController::class, 'index']);
             Route::get('/call-detail-records/{callDetailRecord}', [CallDetailRecordController::class, 'show']);

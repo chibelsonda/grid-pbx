@@ -11,6 +11,7 @@ use App\Domains\TemporalRouting\Resources\TemporalRuleResource;
 use App\Domains\TemporalRouting\Services\TemporalRoutingService;
 use App\Domains\TemporalRouting\Services\TemporalRuleMutationService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -61,6 +62,6 @@ class TemporalRuleController extends Controller
         Gate::authorize('delete', [$model, $switchAccount]);
         $mutations->delete($switchAccount, $model, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

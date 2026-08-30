@@ -5,7 +5,11 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Domains\Callflows;
 
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeWriteData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\ManagedExtensionCallflowWriteData;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
@@ -43,6 +47,98 @@ final readonly class CallflowResourceClient
                 rawurlencode($callflowId),
             ),
             ['json' => ['data' => $callflow->toSwitchData()]],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $callflowId) {
+            throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
+        }
+
+        return $snapshot;
+    }
+
+    public function moveTreeNode(
+        string $accountId,
+        string $callflowId,
+        CallflowTreeMoveData $move,
+    ): CallflowSnapshot {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $callflowId = $this->requiredIdentifier($callflowId, 'callflow');
+        $payload = $this->client->request(
+            'POST',
+            sprintf(
+                'accounts/%s/callflows/%s',
+                rawurlencode($accountId),
+                rawurlencode($callflowId),
+            ),
+            ['json' => ['data' => $move->toSwitchData()]],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $callflowId) {
+            throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
+        }
+
+        return $snapshot;
+    }
+
+    public function writeTreeNode(
+        string $accountId,
+        string $callflowId,
+        CallflowTreeNodeWriteData $node,
+    ): CallflowSnapshot {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $callflowId = $this->requiredIdentifier($callflowId, 'callflow');
+        $payload = $this->client->request(
+            'POST',
+            sprintf(
+                'accounts/%s/callflows/%s',
+                rawurlencode($accountId),
+                rawurlencode($callflowId),
+            ),
+            ['json' => ['data' => $node->toSwitchData()]],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $callflowId) {
+            throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
+        }
+
+        return $snapshot;
+    }
+
+    public function reorderTreeNodes(
+        string $accountId,
+        string $callflowId,
+        CallflowTreeReorderData $reorder,
+    ): CallflowSnapshot {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $callflowId = $this->requiredIdentifier($callflowId, 'callflow');
+        $payload = $this->client->request(
+            'POST',
+            sprintf('accounts/%s/callflows/%s', rawurlencode($accountId), rawurlencode($callflowId)),
+            ['json' => ['data' => $reorder->toSwitchData()]],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $callflowId) {
+            throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
+        }
+
+        return $snapshot;
+    }
+
+    public function writeInlineTreeNode(
+        string $accountId,
+        string $callflowId,
+        CallflowInlineNodeWriteData $node,
+    ): CallflowSnapshot {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $callflowId = $this->requiredIdentifier($callflowId, 'callflow');
+        $payload = $this->client->request(
+            'POST',
+            sprintf('accounts/%s/callflows/%s', rawurlencode($accountId), rawurlencode($callflowId)),
+            ['json' => ['data' => $node->toSwitchData()]],
         );
         $snapshot = $this->snapshot($payload);
 

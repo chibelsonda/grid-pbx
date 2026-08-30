@@ -2,6 +2,7 @@
 
 namespace App\Domains\Extensions\Exceptions;
 
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use RuntimeException;
@@ -17,11 +18,10 @@ class ExtensionRecoveryException extends RuntimeException
 
     public function render(Request $request): JsonResponse
     {
-        return response()->json([
-            'message' => $this->getMessage(),
+        return ApiResponse::error($this->getMessage(), Response::HTTP_BAD_GATEWAY, [
             'code' => 'extension_recovery_failed',
             'repair_required' => true,
             'operation_id' => $this->operationId,
-        ], Response::HTTP_BAD_GATEWAY);
+        ]);
     }
 }

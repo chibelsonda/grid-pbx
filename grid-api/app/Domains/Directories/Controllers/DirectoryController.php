@@ -11,6 +11,7 @@ use App\Domains\Directories\Services\DirectoryService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,7 +36,7 @@ class DirectoryController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [SwitchDirectory::class, $switchAccount]);
 
-        return response()->json(['data' => $directories->options($switchAccount)]);
+        return ApiResponse::data($directories->options($switchAccount));
     }
 
     public function show(Request $request, string $account, string $directory, SwitchAccountService $accounts, DirectoryService $directories): DirectoryResource
@@ -76,6 +77,6 @@ class DirectoryController extends Controller
         Gate::authorize('delete', [$model, $switchAccount]);
         $mutations->delete($switchAccount, $model, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

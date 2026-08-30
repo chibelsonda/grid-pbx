@@ -1,7 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { callflowApi, type CallflowPage } from '../api/callflowApi'
-import type { Callflow, CallflowEditor, CallflowUpdate, SyncRun } from '../types/callRouting'
+import type {
+  Callflow,
+  CallflowEditor,
+  CallflowInlineNodeCreateInput,
+  CallflowInlineNodeUpdateInput,
+  CallflowTreeMoveInput,
+  CallflowTreeReorderInput,
+  CallflowTreeNodeCreateInput,
+  CallflowTreeNodeUpdateInput,
+  CallflowUpdate,
+  SyncRun,
+} from '../types/callRouting'
 import { useCallflowStore } from './callflowStore'
 
 vi.mock('../api/callflowApi', () => ({
@@ -13,6 +24,50 @@ vi.mock('../api/callflowApi', () => ({
     create: vi.fn<(accountId: string, input: CallflowUpdate) => Promise<Callflow>>(),
     update:
       vi.fn<(accountId: string, callflowId: string, input: CallflowUpdate) => Promise<Callflow>>(),
+    moveTreeNode:
+      vi.fn<
+        (accountId: string, callflowId: string, input: CallflowTreeMoveInput) => Promise<Callflow>
+      >(),
+    reorderTreeNodes:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowTreeReorderInput,
+        ) => Promise<Callflow>
+      >(),
+    createTreeNode:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowTreeNodeCreateInput,
+        ) => Promise<Callflow>
+      >(),
+    updateTreeNode:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowTreeNodeUpdateInput,
+        ) => Promise<Callflow>
+      >(),
+    createInlineTreeNode:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowInlineNodeCreateInput,
+        ) => Promise<Callflow>
+      >(),
+    updateInlineTreeNode:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowInlineNodeUpdateInput,
+        ) => Promise<Callflow>
+      >(),
     delete: vi.fn<(accountId: string, callflowId: string) => Promise<void>>(),
     startProjectionSync: vi.fn<(accountId: string) => Promise<SyncRun>>(),
     syncStatus: vi.fn<(accountId: string, runId: string) => Promise<SyncRun>>(),
@@ -293,5 +348,160 @@ describe('callflow store', () => {
 
     expect(store.fieldErrors.name).toEqual(['Enter a route name.'])
     expect(store.editorError).toBeNull()
+  })
+
+  it('replaces the projected tree after a typed subtree move', async () => {
+    const input: CallflowTreeMoveInput = {
+      source_path: ['1'],
+      destination_parent_path: ['2'],
+      destination_branch: '_',
+    }
+    const updated: Callflow = {
+      ...callflow,
+      max_depth: 3,
+      flow: {
+        module: 'menu',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {
+          '2': {
+            module: 'group',
+            target: { type: 'group', id: 'group-public', label: 'Support' },
+            reference_status: 'resolved',
+            children: {
+              _: {
+                module: 'user',
+                target: { type: 'extension', id: 'extension-public', label: 'Reception' },
+                reference_status: 'resolved',
+                children: {},
+              },
+            },
+          },
+        },
+      },
+    }
+    vi.mocked(callflowApi.moveTreeNode).mockResolvedValue(updated)
+    const store = useCallflowStore()
+    store.detail = callflow
+    store.records = [callflow]
+
+    await store.moveTreeNode('account-1', callflow.id, input)
+
+    expect(callflowApi.moveTreeNode).toHaveBeenCalledWith('account-1', callflow.id, input)
+    expect(store.detail?.max_depth).toBe(3)
+    expect(store.records[0]?.flow?.children['2']?.children._?.module).toBe('user')
+    expect(store.treeMutationError).toBeNull()
+  })
+
+  it('replaces the projection after adding a guided action node', async () => {
+    const input: CallflowTreeNodeCreateInput = {
+      parent_path: ['_'],
+      branch: '_',
+      destination_type: 'voicemail',
+      destination_id: '4a2aedf6-41ed-46db-9496-e0468e97cc95',
+    }
+    const updated: Callflow = {
+      ...callflow,
+      node_count: 3,
+      flow: {
+        ...callflow.flow!,
+        children: {
+          _: {
+            ...callflow.flow!.children._!,
+            children: {
+              _: {
+                module: 'voicemail',
+                target: {
+                  type: 'voicemail',
+                  id: input.destination_id,
+                  label: 'After hours',
+                },
+                reference_status: 'resolved',
+                children: {},
+              },
+            },
+          },
+        },
+      },
+    }
+    vi.mocked(callflowApi.createTreeNode).mockResolvedValue(updated)
+    const store = useCallflowStore()
+    store.detail = callflow
+    store.records = [callflow]
+
+    await store.createTreeNode('account-1', callflow.id, input)
+
+    expect(callflowApi.createTreeNode).toHaveBeenCalledWith('account-1', callflow.id, input)
+    expect(store.detail?.node_count).toBe(3)
+    expect(store.records[0]?.flow?.children._?.children._?.target?.label).toBe('After hours')
+    expect(store.treeNodeError).toBeNull()
+  })
+
+  it('replaces the projection after adding a schema-backed inline action', async () => {
+    const input: CallflowInlineNodeCreateInput = {
+      parent_path: ['_'],
+      branch: '_',
+      module: 'tts',
+      data: {
+        text: 'Please hold.',
+        voice: 'female',
+        language: null,
+        engine: null,
+        endless_playback: false,
+        terminators: ['#'],
+        skip_module: false,
+      },
+    }
+    const updated: Callflow = {
+      ...callflow,
+      node_count: 3,
+      flow: {
+        ...callflow.flow!,
+        children: {
+          _: {
+            ...callflow.flow!.children._!,
+            children: {
+              _: {
+                module: 'tts',
+                target: null,
+                reference_status: 'not_applicable',
+                settings: input.data,
+                children: {},
+              },
+            },
+          },
+        },
+      },
+    }
+    vi.mocked(callflowApi.createInlineTreeNode).mockResolvedValue(updated)
+    const store = useCallflowStore()
+    store.detail = callflow
+    store.records = [callflow]
+
+    await store.createInlineTreeNode('account-1', callflow.id, input)
+
+    expect(callflowApi.createInlineTreeNode).toHaveBeenCalledWith('account-1', callflow.id, input)
+    expect(store.detail?.flow?.children._?.children._?.settings?.text).toBe('Please hold.')
+    expect(store.treeNodeError).toBeNull()
+  })
+
+  it('replaces the projected tree after a lossless subtree reorder', async () => {
+    const input: CallflowTreeReorderInput = {
+      mode: 'swap',
+      source_path: ['1'],
+      target_path: ['2'],
+    }
+    const updated = { ...callflow, name: 'Reordered route' }
+    vi.mocked(callflowApi.reorderTreeNodes).mockResolvedValue(updated)
+    const store = useCallflowStore()
+    store.detail = callflow
+    store.records = [callflow]
+
+    await store.reorderTreeNodes('account-1', callflow.id, input)
+
+    expect(callflowApi.reorderTreeNodes).toHaveBeenCalledWith('account-1', callflow.id, input)
+    expect(store.detail?.name).toBe('Reordered route')
+    expect(store.records[0]?.name).toBe('Reordered route')
+    expect(store.treeMutationError).toBeNull()
   })
 })

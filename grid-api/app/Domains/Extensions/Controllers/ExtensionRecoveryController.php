@@ -10,6 +10,7 @@ use App\Domains\Extensions\Services\ExtensionRecoveryService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -26,11 +27,11 @@ class ExtensionRecoveryController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('create', [SwitchExtension::class, $switchAccount]);
 
-        return response()->json([
-            'data' => $recovery->pending($switchAccount)
+        return ApiResponse::data(
+            $recovery->pending($switchAccount)
                 ->map(fn ($operation): array => $recovery->summary($operation))
                 ->all(),
-        ]);
+        );
     }
 
     public function recover(
@@ -54,6 +55,6 @@ class ExtensionRecoveryController extends Controller
             $request->ip(),
         );
 
-        return response()->json(['data' => $query->summary($recovered)]);
+        return ApiResponse::data($query->summary($recovered));
     }
 }

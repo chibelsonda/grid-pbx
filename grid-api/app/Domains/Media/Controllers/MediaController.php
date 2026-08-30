@@ -13,6 +13,7 @@ use App\Domains\Media\Services\MediaService;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -123,6 +124,6 @@ class MediaController extends Controller
         Gate::authorize('delete', [$switchMedia, $switchAccount]);
         $mutations->delete($switchAccount, $switchMedia, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

@@ -36,9 +36,23 @@ Implemented checkpoint:
   list searches, advanced history filters, guided metaflow editors, uploads,
   confirmation dialogs, and selection groups use these purpose-specific
   adapters; raw native inputs remain encapsulated inside the shared controls
-- Full-width inline Callflow workspace for the safe recursive route map,
-  selected-node inspector, and schema-backed action catalog; route mutation
-  forms remain in right-side panels
+- Wide Callflow workspace with small responsive side gutters for the safe
+  recursive route map. A Kazoo-aligned document entry card displays the primary
+  number/pattern above the actual `flow` root; a compact draggable action
+  palette can return to its right-side dock, and centralized semantic icons are
+  shared across the diagram, palette, and node forms. The selected-node detail
+  remains an information modal.
+  Accessible subtree moves support empty public branches plus guarded
+  insert-before and disjoint-subtree swap operations; typed mutation forms
+  remain in right-side panels
+- Palette-driven add forms for guided reference actions and selected-node
+  target editing. These reuse the account-scoped destination catalog, Zod and
+  API validation, public UUIDs, and lossless server-side node-data preservation
+- Schema-backed side-panel forms for Sleep, Text to Speech, Collect/Send/Flush
+  DTMF, Dead Air, Language, Record Call, Record Caller, and Missed Call Alert.
+  Only bounded public properties are accepted; alert extension UUIDs are
+  translated server-side, recording storage values remain server-owned, and
+  unknown node data plus complete children are preserved losslessly
 - Conflict-safe phone-number entry-point assignment within the routing editor
 - Guided Switch-first callflow creation and dependency-aware deletion
 - Shared Axios response-envelope unwrapping for clean domain API clients
@@ -505,6 +519,8 @@ Initial roles:
 - JSON request and response bodies except file transfers
 - Resource-oriented routes with account scope in the URL
 - Consistent success, validation, error, and pagination envelopes
+- `ApiResponse` owns data, error, metadata, and no-content responses so domain
+  controllers pass values directly and cannot accidentally emit `data.data`
 - API resources, routes, and UI state use only the public UUID column named
   `id`; internal primary and foreign keys are never serialized
 - MySQL primary keys are named for their entity (`user_id`, `device_id`,
@@ -551,6 +567,12 @@ POST   /api/v1/accounts/{account}/callflows
 GET    /api/v1/accounts/{account}/callflows/{callflow}
 GET    /api/v1/accounts/{account}/callflows/{callflow}/editor
 PUT    /api/v1/accounts/{account}/callflows/{callflow}
+PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree
+PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/order
+POST   /api/v1/accounts/{account}/callflows/{callflow}/tree/nodes
+PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/nodes
+POST   /api/v1/accounts/{account}/callflows/{callflow}/tree/inline-nodes
+PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/inline-nodes
 DELETE /api/v1/accounts/{account}/callflows/{callflow}
 GET    /api/v1/accounts/{account}/call-detail-records
 GET    /api/v1/accounts/{account}/call-detail-records/{callDetailRecord}
@@ -689,11 +711,30 @@ Acceptance criteria:
   resolution, queued reconciliation, audited protected playback/download with
   byte ranges, and a Vue inventory plus right-side detail panel. Binary audio
   remains in Switch or its storage provider; deletion remains policy-gated.
-- Callflow editor layout: the selectable node graph, inspector, and action
-  palette now live in a full-width workspace on the main Callflow page. The
-  remaining drag-and-drop mutation layer stays on that canvas; right-side
-  panels may edit selected-node typed properties but must not contain or
-  constrain the graph.
+- Callflow editor layout: the selectable node graph now uses the full available
+  content width on the main Callflow page inside small responsive side gutters,
+  without the normal narrow centered-page maximum. A compact categorized action
+  palette starts in a sticky Kazoo-style right rail, can be dragged within the
+  viewport, and has an explicit Dock control. Safe selected-node information
+  and reorder controls open in an accessible modal.
+  Existing guided subtrees can be moved by pointer drag-and-drop or an
+  equivalent keyboard workflow into empty `_`, Menu, and Temporal Rule Set
+  branches. Public paths are revalidated by Laravel and the Switch adapter;
+  preserved branches, unsupported actions, and cycles are rejected without
+  rewriting the document. Occupied positions support guarded insert-before
+  and disjoint-subtree swap operations that preserve the complete raw subtree.
+  Right-side panels may edit selected-node typed properties but must not
+  contain or constrain the graph.
+  Guided resource actions can now be added from the palette into an empty
+  schema-valid branch and retargeted from the selected-node modal. The
+  shared side panel supports User/Extension, Device, Voicemail, Callflow,
+  Media, Directory, Group, Queue Member, Menu, Conference, Fax Box, and
+  Temporal Rule Set references without exposing Switch identifiers.
+  Sleep, Text to Speech, Collect/Send/Flush DTMF, Dead Air, Language, Record
+  Call, Record Caller, and Missed Call Alert use a separate schema-driven panel
+  with current Switch bounds. The visual route
+  begins with document entry data (`numbers[]`/`patterns[]`) and only then the
+  real action tree; this display-only entry card is never written into `flow`.
 - Conference foundation: typed CRUD, normalized general/member/moderator
   access-number rows, owner relationship, full redacted `switch_json`,
   write-only PIN replacement/removal, queued synchronization, last-observed
@@ -728,9 +769,10 @@ Acceptance criteria:
   module-specific right-side forms, public-reference resolution, schema-aware
   validation, and lossless read-only preservation for unsupported nodes. The
   selectable recursive read-only canvas, safe public branch-label contract,
-  selected-node inspector, and searchable 73-module schema reference palette
-  are delivered; arbitrary node mutation and module-specific forms remain
-  next.
+  selected-node modal, compact searchable 73-module schema reference palette,
+  guided reference-node add/edit forms, empty-branch moves, insert-before, and
+  disjoint-subtree swaps are delivered. Remaining non-reference module forms
+  remain next.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after
   carrier and compliance approval.

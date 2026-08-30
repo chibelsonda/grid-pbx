@@ -10,6 +10,7 @@ use App\Domains\Voicemail\Services\VoicemailBoxService;
 use App\Domains\Voicemail\Services\VoicemailGreetingAudioService;
 use App\Domains\Voicemail\Services\VoicemailGreetingMutationService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Gate;
@@ -80,6 +81,6 @@ class VoicemailGreetingController extends Controller
         $greeting = $switchVoicemailBox->unavailableGreeting()->firstOrFail();
         $mutation->detach($switchAccount, $switchVoicemailBox, $greeting, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

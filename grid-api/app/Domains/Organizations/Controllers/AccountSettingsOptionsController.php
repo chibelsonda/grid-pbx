@@ -6,6 +6,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\AccountSettingsOptionsService;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,8 +21,6 @@ class AccountSettingsOptionsController extends Controller
         /** @var User $user */
         $user = $request->user();
 
-        return response()->json([
-            'data' => $options->get($accounts->findMemberAccessible($user, $account)),
-        ]);
+        return ApiResponse::data($options->get($accounts->findMemberAccessible($user, $account)));
     }
 }

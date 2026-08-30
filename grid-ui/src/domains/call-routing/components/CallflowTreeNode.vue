@@ -1,18 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import {
-  ArrowDownIcon,
-  ArrowPathRoundedSquareIcon,
-  ClockIcon,
-  DevicePhoneMobileIcon,
-  ListBulletIcon,
-  MusicalNoteIcon,
-  QueueListIcon,
-  QuestionMarkCircleIcon,
-  Squares2X2Icon,
-  UserIcon,
-} from '@heroicons/vue/24/outline'
-import type { CallflowNode, CallflowNodeSelection } from '../types/callRouting'
+import { ArrowDownIcon, ArrowsPointingOutIcon } from '@heroicons/vue/24/outline'
+import { findCallflowAction } from '../catalog/callflowActionCatalog'
+import type { CallflowAction } from '../catalog/callflowActionCatalog'
+import { callflowActionIcon } from '../catalog/callflowActionIcons'
+import { availableCallflowBranches } from '../services/callflowTreeBranches'
+import type {
+  CallflowNode,
+  CallflowNodeSelection,
+  CallflowTreeMoveInput,
+} from '../types/callRouting'
 
 defineOptions({ name: 'CallflowTreeNode' })
 const props = withDefaults(
@@ -21,13 +18,27 @@ const props = withDefaults(
     depth?: number
     path?: string[]
     selectedPath?: string[]
+    editable?: boolean
+    moving?: boolean
+    dragSourcePath?: string[] | null
+    paletteAction?: CallflowAction | null
   }>(),
   {
     depth: 1,
     path: () => [],
+    editable: false,
+    moving: false,
+    dragSourcePath: null,
+    paletteAction: null,
   },
 )
-const emit = defineEmits<{ select: [selection: CallflowNodeSelection] }>()
+const emit = defineEmits<{
+  select: [selection: CallflowNodeSelection]
+  'drag-start': [selection: CallflowNodeSelection]
+  'drag-end': []
+  move: [input: CallflowTreeMoveInput]
+  'add-action': [selection: CallflowNodeSelection, action: CallflowAction]
+}>()
 const depth = computed(() => props.depth)
 const selected = computed(
   () =>
@@ -36,6 +47,29 @@ const selected = computed(
     props.selectedPath.every((segment, index) => segment === props.path[index]),
 )
 const children = computed(() => Object.entries(props.node.children))
+const movable = computed(
+  () =>
+    props.editable &&
+    !props.moving &&
+    props.path.length > 0 &&
+    props.node.branch?.kind !== 'preserved' &&
+    findCallflowAction(props.node.module)?.status === 'guided',
+)
+const isDragSource = computed(() => samePath(props.path, props.dragSourcePath))
+const subtreeDropAllowed = computed(
+  () =>
+    props.editable &&
+    !props.moving &&
+    props.dragSourcePath !== null &&
+    props.dragSourcePath.length > 0 &&
+    !Object.hasOwn(props.node.children, '_') &&
+    !pathStartsWith(props.path, props.dragSourcePath) &&
+    !samePath([...props.path, '_'], props.dragSourcePath),
+)
+const paletteDropAllowed = computed(
+  () => props.paletteAction !== null && canAcceptPaletteAction(props.paletteAction),
+)
+const dropAllowed = computed(() => subtreeDropAllowed.value || paletteDropAllowed.value)
 
 function selectNode(): void {
   emit('select', { node: props.node, path: [...props.path] })
@@ -49,28 +83,99 @@ function forwardSelection(selection: CallflowNodeSelection): void {
   emit('select', selection)
 }
 
-const moduleIcon = computed(() => {
-  switch (props.node.module) {
-    case 'user':
-      return UserIcon
-    case 'device':
-      return DevicePhoneMobileIcon
-    case 'play':
-      return MusicalNoteIcon
-    case 'menu':
-      return ListBulletIcon
-    case 'group':
-    case 'acdc_member':
-    case 'acdc_queue':
-      return QueueListIcon
-    case 'temporal_route':
-      return ClockIcon
-    case 'callflow':
-      return ArrowPathRoundedSquareIcon
-    default:
-      return props.node.reference_status === 'unresolved' ? QuestionMarkCircleIcon : Squares2X2Icon
+function forwardAddAction(selection: CallflowNodeSelection, action: CallflowAction): void {
+  emit('add-action', selection, action)
+}
+
+function samePath(left: string[], right?: string[] | null): boolean {
+  return (
+    right !== undefined &&
+    right !== null &&
+    left.length === right.length &&
+    left.every((segment, index) => segment === right[index])
+  )
+}
+
+function pathStartsWith(path: string[], prefix: string[]): boolean {
+  return path.length >= prefix.length && prefix.every((segment, index) => segment === path[index])
+}
+
+function startDragging(event: DragEvent): void {
+  if (!movable.value) {
+    event.preventDefault()
+    return
   }
-})
+
+  event.dataTransfer?.setData('text/plain', JSON.stringify(props.path))
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  emit('drag-start', { node: props.node, path: [...props.path] })
+}
+
+function allowDrop(event: DragEvent): void {
+  const paletteAction = paletteActionFromEvent(event)
+  const acceptsPaletteTransfer =
+    canAcceptPaletteTarget() &&
+    (props.paletteAction !== null || paletteAction !== null || hasPaletteTransfer(event))
+  if (!subtreeDropAllowed.value && !acceptsPaletteTransfer) return
+  event.preventDefault()
+  if (event.dataTransfer) {
+    event.dataTransfer.dropEffect = acceptsPaletteTransfer ? 'copy' : 'move'
+  }
+}
+
+function dropNode(event: DragEvent): void {
+  const droppedPaletteAction = props.paletteAction ?? paletteActionFromEvent(event)
+  if (!dropAllowed.value && !canAcceptPaletteAction(droppedPaletteAction)) return
+  event.preventDefault()
+
+  if (canAcceptPaletteAction(droppedPaletteAction) && droppedPaletteAction) {
+    emit('add-action', { node: props.node, path: [...props.path] }, droppedPaletteAction)
+    return
+  }
+
+  if (!subtreeDropAllowed.value || props.dragSourcePath === null) return
+  emit('move', {
+    source_path: [...props.dragSourcePath],
+    destination_parent_path: [...props.path],
+    destination_branch: '_',
+  })
+}
+
+function paletteActionFromEvent(event: DragEvent): CallflowAction | null {
+  const getData = event.dataTransfer?.getData
+  if (typeof getData !== 'function') return null
+
+  const module = getData.call(event.dataTransfer, 'application/x-gridpbx-callflow-action')
+  return module ? findCallflowAction(module) : null
+}
+
+function hasPaletteTransfer(event: DragEvent): boolean {
+  return Array.from(event.dataTransfer?.types ?? []).includes(
+    'application/x-gridpbx-callflow-action',
+  )
+}
+
+function canAcceptPaletteTarget(): boolean {
+  return (
+    props.editable &&
+    !props.moving &&
+    props.node.reference_status !== 'unresolved' &&
+    props.node.branch?.kind !== 'preserved' &&
+    findCallflowAction(props.node.module)?.status === 'guided' &&
+    availableCallflowBranches(props.node).length > 0
+  )
+}
+
+function canAcceptPaletteAction(action: CallflowAction | null): boolean {
+  return action?.status === 'guided' && canAcceptPaletteTarget()
+}
+
+const moduleIcon = computed(() =>
+  callflowActionIcon(props.node.module, props.node.reference_status === 'unresolved'),
+)
+const moduleLabel = computed(
+  () => findCallflowAction(props.node.module)?.label ?? humanize(props.node.module),
+)
 const branchClass = computed(() => {
   switch (props.node.branch?.kind) {
     case 'schedule_match':
@@ -102,16 +207,27 @@ function humanize(value: string): string {
       role="treeitem"
       :aria-level="depth"
       :aria-selected="selected"
-      :aria-label="`${humanize(node.module)}${node.target ? `: ${node.target.label}` : ''}`"
+      :aria-disabled="moving || undefined"
+      :aria-label="`${moduleLabel}${node.target ? `: ${node.target.label}` : ''}`"
+      :draggable="movable"
+      :title="movable ? 'Drag this subtree to an empty branch' : undefined"
       class="w-52 rounded-lg border bg-white text-left shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-      :class="
-        selected
-          ? 'border-brand-500 ring-2 ring-brand-100'
-          : node.reference_status === 'unresolved'
-            ? 'border-amber-300'
-            : 'border-slate-300 hover:border-brand-300'
-      "
+      :class="[
+        dropAllowed
+          ? 'border-emerald-500 ring-2 ring-emerald-100'
+          : selected
+            ? 'border-brand-500 ring-2 ring-brand-100'
+            : node.reference_status === 'unresolved'
+              ? 'border-amber-300'
+              : 'border-slate-300 hover:border-brand-300',
+        isDragSource && 'opacity-55',
+        movable && 'cursor-grab active:cursor-grabbing',
+      ]"
       @click="selectNode"
+      @dragstart="startDragging"
+      @dragend="emit('drag-end')"
+      @dragover="allowDrop"
+      @drop="dropNode"
     >
       <header class="flex items-center gap-3 border-b border-slate-200 px-3 py-2.5">
         <span
@@ -125,10 +241,11 @@ function humanize(value: string): string {
           <component :is="moduleIcon" class="size-4" />
         </span>
         <div class="min-w-0">
-          <p class="truncate text-xs font-semibold text-slate-800">{{ humanize(node.module) }}</p>
+          <p class="truncate text-xs font-semibold text-slate-800">{{ moduleLabel }}</p>
           <p class="mt-0.5 font-mono text-[9px] text-slate-500">{{ node.module }}</p>
         </div>
         <span class="ml-auto text-[9px] font-bold text-slate-400">{{ depth }}</span>
+        <ArrowsPointingOutIcon v-if="movable" class="size-3.5 text-slate-400" />
       </header>
       <div class="min-h-12 px-3 py-2.5">
         <p v-if="node.target" class="truncate text-[10px] font-semibold text-brand-700">
@@ -141,6 +258,9 @@ function humanize(value: string): string {
           Target is not projected
         </p>
         <p v-else class="text-[10px] leading-4 text-slate-500">Inline Switch action</p>
+        <p v-if="dropAllowed" class="mt-2 text-[9px] font-semibold text-emerald-700">
+          {{ paletteDropAllowed ? 'Drop to configure this action' : 'Drop here as the next step' }}
+        </p>
       </div>
     </button>
 
@@ -163,7 +283,15 @@ function humanize(value: string): string {
           :depth="depth + 1"
           :path="childPath(childKey)"
           :selected-path="selectedPath"
+          :editable="editable"
+          :moving="moving"
+          :drag-source-path="dragSourcePath"
+          :palette-action="paletteAction"
           @select="forwardSelection"
+          @drag-start="emit('drag-start', $event)"
+          @drag-end="emit('drag-end')"
+          @move="emit('move', $event)"
+          @add-action="forwardAddAction"
         />
       </div>
     </div>

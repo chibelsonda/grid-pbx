@@ -18,6 +18,7 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -36,7 +37,7 @@ class ExtensionController extends Controller
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
 
-        return response()->json(['data' => $options->get($switchAccount)]);
+        return ApiResponse::data($options->get($switchAccount));
     }
 
     public function __invoke(
@@ -126,7 +127,7 @@ class ExtensionController extends Controller
         $switchExtension = $extensions->find($switchAccount, $extension);
         Gate::authorize('delete', [$switchExtension, $switchAccount]);
 
-        return response()->json(['data' => $preview->preview($switchAccount, $switchExtension)]);
+        return ApiResponse::data($preview->preview($switchAccount, $switchExtension));
     }
 
     public function destroy(
@@ -150,6 +151,6 @@ class ExtensionController extends Controller
             $request->ip(),
         );
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

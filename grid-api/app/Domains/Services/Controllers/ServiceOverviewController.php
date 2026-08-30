@@ -8,6 +8,7 @@ use App\Domains\Services\Models\SwitchServiceSummary;
 use App\Domains\Services\Resources\ServiceOverviewResource;
 use App\Domains\Services\Services\ServiceOverviewService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -21,6 +22,6 @@ class ServiceOverviewController extends Controller
         Gate::authorize('viewAny', [SwitchServiceSummary::class, $switchAccount]);
         $summary = $service->get($switchAccount);
 
-        return $summary === null ? response()->json(['data' => null]) : (new ServiceOverviewResource($summary))->response();
+        return $summary === null ? ApiResponse::data(null) : (new ServiceOverviewResource($summary))->response();
     }
 }

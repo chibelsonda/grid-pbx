@@ -11,6 +11,7 @@ use App\Domains\Menus\Services\MenuMutationService;
 use App\Domains\Menus\Services\MenuService;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,7 +36,7 @@ class MenuController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [SwitchMenu::class, $switchAccount]);
 
-        return response()->json(['data' => $menus->options($switchAccount)]);
+        return ApiResponse::data($menus->options($switchAccount));
     }
 
     public function show(Request $request, string $account, string $menu, SwitchAccountService $accounts, MenuService $menus): MenuResource
@@ -75,6 +76,6 @@ class MenuController extends Controller
         Gate::authorize('delete', [$model, $switchAccount]);
         $mutations->delete($switchAccount, $model, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

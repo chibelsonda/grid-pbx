@@ -8,6 +8,7 @@ use App\Domains\Devices\Services\DeviceService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,7 +28,7 @@ class DeviceProvisioningEnrollmentController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         $switchDevice = $devices->find($switchAccount, $device);
 
-        return response()->json(['data' => $enrollment->status($switchDevice)]);
+        return ApiResponse::data($enrollment->status($switchDevice));
     }
 
     public function store(
@@ -44,10 +45,10 @@ class DeviceProvisioningEnrollmentController extends Controller
         $switchDevice = $devices->find($switchAccount, $device);
         Gate::authorize('update', [$switchDevice, $switchAccount]);
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'message' => 'Device enrolled for manufacturer provisioning.',
             'enrollment' => $enrollment->enroll($switchAccount, $switchDevice, $user, $request->ip()),
-        ]]);
+        ]);
     }
 
     public function destroy(
@@ -64,9 +65,9 @@ class DeviceProvisioningEnrollmentController extends Controller
         $switchDevice = $devices->find($switchAccount, $device);
         Gate::authorize('update', [$switchDevice, $switchAccount]);
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'message' => 'Device detached from manufacturer provisioning.',
             'enrollment' => $enrollment->detach($switchAccount, $switchDevice, $user, $request->ip()),
-        ]]);
+        ]);
     }
 }

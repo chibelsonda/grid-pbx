@@ -775,21 +775,34 @@ mutations; it is not presented as a complete visual implementation of every
 | Numeric branch JSON shape | numeric child object properties | Normalized as JSON objects in Switch writes, MySQL JSON, and API resources so `{"0": ...}` never becomes a list | Implemented and tested |
 | Temporal Rule Set match | `data.rule_set`, `children.rule_set`, and `children._` | Shows ordered public Rule UUIDs for context; create/replace/clear resolves only public destination UUIDs and preserves additional temporal keys | Implemented and tested |
 | Direct Temporal Rules | ordered `data.rules[]`, `children.<rule_id>`, and `children._` | Selects and reorders public Rule UUIDs, requires one public match destination per rule, maps raw branch keys only on the server, and explicitly clears removed rules while preserving unrelated children | Implemented; SDK, API, Zod, and isolated-headless tested |
-| Visual route map | Recursive `flow.children` tree | Scroll-bounded connected nodes with semantic branch badges and keyboard-accessible selection; unknown child keys become numbered preserved labels in the public contract while internal keys remain lossless | Read-only foundation implemented and headless-tested |
-| Main-page editor placement | Full route graph, inspector, and action palette | The selectable graph workspace lives inline on the main Callflow page, not inside a slide-over; right-side panels are reserved for mutation forms | Implemented and isolated-headless verified |
-| Drag-and-drop mutations | Recursive node and branch operations | The future drag-and-drop layer will extend the inline workspace and use typed selected-node operations; it will not move the canvas into a panel | Pending |
-| Selected-node inspector | Public safe tree contract | Shows public branch breadcrumbs, module, resolved label, reference state, child count, and honest editability status; never displays raw node data or upstream IDs | Implemented and headless-tested |
-| Module reference palette | Primary `callflows.*.json` action schemas | Searchable categorized catalog of all 73 primary local schemas, labeled as guided, planned, or capability-gated; no inactive item is presented as an edit action | Implemented and headless-tested |
+| Callflow entry node | Document-level `numbers[]`, `patterns[]`, and `name` above `flow` | A distinct Kazoo-aligned top card displays the primary number/pattern and additional-entry count, then connects to the actual root action. Entry data is never synthesized into `flow` | Implemented and isolated-headless verified |
+| Visual route map | Recursive `flow.children` tree | Scroll-bounded connected nodes with semantic branch badges, centralized module-specific icons, and keyboard-accessible selection; unknown child keys become numbered preserved labels in the public contract while internal keys remain lossless | Interactive foundation implemented and headless-tested |
+| Main-page editor placement | Full route graph and action palette | The graph uses the full available Callflow content width inside small responsive gutters rather than a narrow centered maximum. A compact categorized palette starts in a sticky Kazoo-style right rail, can be moved within the viewport, and has an explicit Dock control; typed mutation forms remain in right-side panels | Implemented and isolated-headless verified |
+| Tree mutations | Recursive node and branch operations | Pointer drag-and-drop and the keyboard workflow move guided subtrees into empty public `_`, Menu digit/Star/timeout, and Temporal Rule Set branches. Guided palette cards are also draggable onto eligible nodes; a drop opens the same validated form and never writes until explicit submission. The node modal supports insert-before when the source default continuation is empty and swapping two disjoint subtrees. Laravel and the Switch adapter reject root, preserved, unsupported, unresolved, no-op, and cyclic operations while preserving complete node data server-side | Safe move, palette drop, and occupied-position reorder boundaries implemented |
+| Selected-node information | Public safe tree contract | An accessible modal shows public branch breadcrumbs, module, resolved label, reference state, child count, honest editability status, and safe move/reorder controls; it never displays raw node data or upstream IDs | Implemented and headless-tested |
+| Guided reference action forms | Resource-backed `callflows.*.json` modules | Palette actions add User/Extension, Device, Voicemail, Callflow, Media, Directory, Group, Queue Member, Menu, Conference, Fax Box, and Temporal Rule Set nodes only to empty schema-valid branches. The selected-node modal retargets the same modules while preserving module data and complete children | Implemented across SDK, API, Zod, Vue, and isolated headless tests |
+| Schema-backed inline action forms | `callflows.sleep`, `tts`, `collect_dtmf`, `send_dtmf`, `flush_dtmf`, `dead_air`, `language`, `record_call`, `record_caller`, and `missed_call_alert` | Zod and Laravel validate current schema bounds in a right-side panel. Missed Call Alert accepts public extension UUIDs or validated email addresses and maps extension recipients to Switch IDs only on the server. The Switch DTO merges only managed public properties into existing node data and preserves the complete subtree. Recording URL, HTTP method, origin, media name, and other server-owned values are never exposed or accepted | Implemented across SDK, API, Zod, Vue, and isolated-headless tests |
+| Module reference palette | Primary `callflows.*.json` action schemas | Searchable categorized catalog of all 73 primary local schemas, labeled as guided, planned, or capability-gated. All entries and diagram/editor nodes use one centralized corresponding icon map. Guided resource and supported inline actions open their schema-appropriate right-side form; planned and restricted entries remain non-mutating | Implemented and headless-tested |
 | Other keyed recursive branches | Module-specific branch schemas beyond Menu and temporal routing | Read-only structural view until each module editor has reference and round-trip coverage | Pending |
 
-The selectable node-and-connector diagram, safe inspector, and schema-backed
-module palette now render in a full-width main-page workspace with no detail
-slide-over. This gives branching routes sufficient room and preserves the
-agreed boundary: right-side panels are limited to typed mutation forms. The
-remaining work adds drag-and-drop recursive linear and additional keyed
-mutations plus module-specific node forms. Direct temporal and Rule Set branches
-already use typed, server-mapped operations. Unsupported nodes remain locked
-and lossless.
+The selectable node-and-connector diagram and compact schema-backed right
+palette now render in a wide main-page workspace with small responsive gutters
+and no narrow centered maximum. The palette can be dragged within the viewport
+and returned to its right-side dock. There is no graph detail slide-over;
+selected-node information and safe reorder controls use an accessible modal.
+This gives branching routes
+sufficient room and preserves the agreed boundary: right-side panels are
+limited to typed mutation forms. Guided subtrees can now be moved into empty
+schema-valid branches, inserted before a compatible occupied position, or
+swapped across disjoint positions without exposing raw
+Switch keys or rebuilding node data. Guided resource modules have shared add
+and retarget forms backed by account-scoped public UUID choices. Sleep,
+text-to-speech, DTMF collection/send/flush, Dead Air, Language, the two
+recording actions, and Missed Call Alert now have bounded non-reference forms.
+The remaining work adds additional non-reference module forms and explicitly
+designed module-specific branch editors.
+Direct temporal and Rule Set branches already use typed, server-mapped
+operations. Unsupported nodes remain locked and lossless.
 GridPBX uses its Tailwind visual language rather than copying Monster's styling.
 
 Focused Switch package, Laravel feature, Vue schema/store, and isolated

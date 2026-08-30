@@ -9,7 +9,11 @@ use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowBranchWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeWriteData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use UnexpectedValueException;
 
@@ -92,6 +96,141 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
     public function delete(SwitchAccount $account, string $resourceId): void
     {
         $this->callflows->delete($account->switch_account_id, $resourceId);
+    }
+
+    public function moveTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        array $sourcePath,
+        array $destinationParentPath,
+        string $destinationBranch,
+    ): array {
+        $current = $this->resources->find(
+            $account->switch_account_id,
+            AccountResource::Callflows,
+            $resourceId,
+        );
+
+        if (! $current instanceof CallflowSnapshot) {
+            throw new UnexpectedValueException('Switch returned an unexpected callflow resource.');
+        }
+
+        return $this->callflows->moveTreeNode(
+            $account->switch_account_id,
+            $resourceId,
+            new CallflowTreeMoveData(
+                current: $current->toArray(),
+                sourcePath: $sourcePath,
+                destinationParentPath: $destinationParentPath,
+                destinationBranch: $destinationBranch,
+            ),
+        )->toArray();
+    }
+
+    public function writeTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        string $operation,
+        array $path,
+        ?string $branch,
+        string $module,
+        string $targetResourceId,
+    ): array {
+        $current = $this->resources->find(
+            $account->switch_account_id,
+            AccountResource::Callflows,
+            $resourceId,
+        );
+
+        if (! $current instanceof CallflowSnapshot) {
+            throw new UnexpectedValueException('Switch returned an unexpected callflow resource.');
+        }
+
+        $write = $operation === 'create'
+            ? CallflowTreeNodeWriteData::create(
+                current: $current->toArray(),
+                parentPath: $path,
+                branch: (string) $branch,
+                module: $module,
+                resourceId: $targetResourceId,
+            )
+            : CallflowTreeNodeWriteData::update(
+                current: $current->toArray(),
+                nodePath: $path,
+                module: $module,
+                resourceId: $targetResourceId,
+            );
+
+        return $this->callflows->writeTreeNode(
+            $account->switch_account_id,
+            $resourceId,
+            $write,
+        )->toArray();
+    }
+
+    public function reorderTreeNodes(
+        SwitchAccount $account,
+        string $resourceId,
+        string $mode,
+        array $sourcePath,
+        array $targetPath,
+    ): array {
+        $current = $this->resources->find(
+            $account->switch_account_id,
+            AccountResource::Callflows,
+            $resourceId,
+        );
+
+        if (! $current instanceof CallflowSnapshot) {
+            throw new UnexpectedValueException('Switch returned an unexpected callflow resource.');
+        }
+
+        return $this->callflows->reorderTreeNodes(
+            $account->switch_account_id,
+            $resourceId,
+            new CallflowTreeReorderData($current->toArray(), $mode, $sourcePath, $targetPath),
+        )->toArray();
+    }
+
+    public function writeInlineTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        string $operation,
+        array $path,
+        ?string $branch,
+        string $module,
+        array $settings,
+    ): array {
+        $current = $this->resources->find(
+            $account->switch_account_id,
+            AccountResource::Callflows,
+            $resourceId,
+        );
+
+        if (! $current instanceof CallflowSnapshot) {
+            throw new UnexpectedValueException('Switch returned an unexpected callflow resource.');
+        }
+
+        $write = $operation === 'create'
+            ? CallflowInlineNodeWriteData::create(
+                $current->toArray(),
+                $path,
+                (string) $branch,
+                $module,
+                $settings,
+            )
+            : CallflowInlineNodeWriteData::update(
+                $current->toArray(),
+                $path,
+                $module,
+                $settings,
+            );
+
+        return $this->callflows->writeInlineTreeNode(
+            $account->switch_account_id,
+            $resourceId,
+            $write,
+        )->toArray();
     }
 
     /**

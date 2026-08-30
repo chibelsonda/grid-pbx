@@ -310,6 +310,10 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   page,
 }) => {
   const issues = collectPageIssues(page)
+  let movePayload: unknown = null
+  let createNodePayload: unknown = null
+  let updateNodePayload: unknown = null
+  let inlineCreatePayload: unknown = null
   const callflowId = '8224c7ce-e17a-4ff5-abf6-54a502705a19'
   const callflow = {
     id: callflowId,
@@ -389,11 +393,214 @@ test('renders a recursive visual route map without exposing preserved Switch bra
       body: JSON.stringify({ data: callflow }),
     })
   })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/tree`, async (route) => {
+    movePayload = route.request().postDataJSON()
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          ...callflow,
+          max_depth: 2,
+          flow: {
+            ...callflow.flow,
+            children: {
+              _: {
+                ...callflow.flow.children.rule_set,
+                branch: { key: '_', label: 'No schedule match', kind: 'default' },
+              },
+              preserved_1: callflow.flow.children.preserved_1,
+            },
+          },
+        },
+      }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/editor`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          mode: 'update',
+          editable: true,
+          blocked_reason: null,
+          fallback: { editable: true, blocked_reason: null, target: null },
+          menu_branches: {
+            editable: true,
+            blocked_reason: null,
+            branches: [],
+            legacy_hash_present: false,
+            unknown_branch_keys: [],
+          },
+          temporal_match: {
+            editable: true,
+            blocked_reason: null,
+            target: null,
+            preserved_branch_count: 0,
+          },
+          direct_temporal_routes: [],
+          temporal_rule_sets: {},
+          temporal_rules: [],
+          destination_types: [
+            { value: 'extension', label: 'Extension' },
+            { value: 'voicemail', label: 'Voicemail' },
+          ],
+          destinations: {
+            extension: [
+              {
+                id: '16f95ac5-243c-476a-b238-9f51108f82e1',
+                label: 'Reception',
+                detail: '1000',
+              },
+              {
+                id: 'aa90a27d-6726-43ee-820c-bbf68008a0f6',
+                label: 'Support',
+                detail: '1001',
+              },
+            ],
+            device: [],
+            voicemail: [
+              {
+                id: '216fe383-b79f-45ee-a98e-a507ef3b2995',
+                label: 'Reception mailbox',
+                detail: '1000',
+              },
+            ],
+            callflow: [],
+            media: [],
+            directory: [],
+            group: [],
+            queue: [],
+            menu: [],
+            conference: [],
+            fax_box: [],
+            temporal_rule_set: [],
+            temporal_rules: [],
+          },
+          phone_numbers: [],
+        },
+      }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/tree/nodes`, async (route) => {
+    const isCreate = route.request().method() === 'POST'
+    if (isCreate) createNodePayload = route.request().postDataJSON()
+    else updateNodePayload = route.request().postDataJSON()
+
+    const extensionTarget = isCreate
+      ? callflow.flow.children.rule_set.target
+      : {
+          type: 'extension',
+          id: 'aa90a27d-6726-43ee-820c-bbf68008a0f6',
+          label: 'Support',
+        }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          ...callflow,
+          node_count: 4,
+          max_depth: 3,
+          flow: {
+            ...callflow.flow,
+            children: {
+              _: {
+                ...callflow.flow.children.rule_set,
+                target: extensionTarget,
+                branch: { key: '_', label: 'No schedule match', kind: 'default' },
+                children: {
+                  _: {
+                    module: 'voicemail',
+                    target: {
+                      type: 'voicemail',
+                      id: '216fe383-b79f-45ee-a98e-a507ef3b2995',
+                      label: 'Reception mailbox',
+                    },
+                    reference_status: 'resolved',
+                    branch: { key: '_', label: 'Default branch', kind: 'default' },
+                    children: {},
+                  },
+                },
+              },
+              preserved_1: callflow.flow.children.preserved_1,
+            },
+          },
+        },
+      }),
+    })
+  })
+  await page.route(
+    `**/api/v1/accounts/*/callflows/${callflowId}/tree/inline-nodes`,
+    async (route) => {
+      inlineCreatePayload = route.request().postDataJSON()
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            ...callflow,
+            node_count: 5,
+            max_depth: 4,
+            flow: {
+              ...callflow.flow,
+              children: {
+                _: {
+                  ...callflow.flow.children.rule_set,
+                  target: {
+                    type: 'extension',
+                    id: 'aa90a27d-6726-43ee-820c-bbf68008a0f6',
+                    label: 'Support',
+                  },
+                  branch: { key: '_', label: 'No schedule match', kind: 'default' },
+                  children: {
+                    _: {
+                      module: 'voicemail',
+                      target: {
+                        type: 'voicemail',
+                        id: '216fe383-b79f-45ee-a98e-a507ef3b2995',
+                        label: 'Reception mailbox',
+                      },
+                      reference_status: 'resolved',
+                      branch: { key: '_', label: 'Default branch', kind: 'default' },
+                      children: {
+                        _: {
+                          module: 'tts',
+                          target: null,
+                          reference_status: 'not_applicable',
+                          settings: {
+                            text: 'Please hold for the next available representative.',
+                            voice: 'female',
+                            language: null,
+                            engine: null,
+                            endless_playback: false,
+                            terminators: ['#'],
+                            skip_module: false,
+                          },
+                          branch: { key: '_', label: 'Default branch', kind: 'default' },
+                          children: {},
+                        },
+                      },
+                    },
+                  },
+                },
+                preserved_1: callflow.flow.children.preserved_1,
+              },
+            },
+          },
+        }),
+      })
+    },
+  )
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'View Visual diagram route' }).click()
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
   await expect(workspace.getByRole('heading', { name: 'Visual route map' })).toBeVisible()
+  await expect(
+    workspace.getByRole('treeitem', { name: 'Callflow entry: +15550001234' }),
+  ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(workspace.getByText('Schedule matches', { exact: true }).last()).toBeVisible()
   await expect(workspace.getByText('Preserved branch 1', { exact: true }).last()).toBeVisible()
@@ -401,11 +608,33 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await expect(workspace.getByText('switch-rule-secret')).toHaveCount(0)
 
   await workspace.getByRole('treeitem', { name: 'User: Reception' }).click()
-  const inspector = workspace.getByRole('region', { name: 'Selected node' })
-  await expect(inspector).toContainText('Root / Schedule matches')
-  await expect(inspector).toContainText('user')
-  await expect(inspector).toContainText('Reception')
-  await expect(inspector).toContainText('Guided now')
+  const nodeInfo = page.getByRole('dialog', { name: 'User: Reception' })
+  await expect(nodeInfo).toContainText('Root / Schedule matches')
+  await expect(nodeInfo).toContainText('user')
+  await expect(nodeInfo).toContainText('Reception')
+  await expect(nodeInfo).toContainText('Guided now')
+  await nodeInfo.getByRole('button', { name: 'Close node information' }).click()
+  await expect(nodeInfo).toHaveCount(0)
+
+  const actionPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  const paletteBeforeMove = await actionPalette.boundingBox()
+  const paletteHandle = actionPalette.getByRole('button', { name: 'Move action palette' })
+  const handleBox = await paletteHandle.boundingBox()
+  expect(paletteBeforeMove).not.toBeNull()
+  expect(handleBox).not.toBeNull()
+  await paletteHandle.dispatchEvent('pointerdown', {
+    button: 0,
+    clientX: handleBox!.x + handleBox!.width / 2,
+    clientY: handleBox!.y + handleBox!.height / 2,
+  })
+  await page.mouse.move(handleBox!.x - 180, handleBox!.y + 70, { steps: 8 })
+  await page.locator('body').dispatchEvent('pointerup')
+  await expect(actionPalette.getByRole('button', { name: 'Dock action palette' })).toBeVisible()
+  const floatingPaletteBox = await actionPalette.boundingBox()
+  expect(floatingPaletteBox).not.toBeNull()
+  expect(floatingPaletteBox!.x).toBeLessThan(paletteBeforeMove!.x)
+  await actionPalette.getByRole('button', { name: 'Dock action palette' }).click()
+  await expect(actionPalette.getByRole('button', { name: 'Dock action palette' })).toHaveCount(0)
 
   const actionSearch = workspace.getByRole('searchbox', { name: 'Search callflow actions' })
   await actionSearch.fill('webhook')
@@ -413,11 +642,129 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await expect(workspace.getByText('Capability required', { exact: true })).toBeVisible()
   await expect(workspace.getByText('1 action', { exact: true })).toBeVisible()
 
+  await workspace
+    .getByRole('treeitem', { name: 'User: Reception' })
+    .dragTo(workspace.getByRole('treeitem', { name: 'Temporal Route: Office hours' }))
+  await expect
+    .poll(() => movePayload)
+    .toEqual({
+      source_path: ['rule_set'],
+      destination_parent_path: [],
+      destination_branch: '_',
+    })
+  await expect(workspace.getByText('No schedule match', { exact: true }).last()).toBeVisible()
+  await expect(workspace.getByText('Schedule matches', { exact: true })).toHaveCount(0)
+
+  await workspace.getByRole('treeitem', { name: 'User: Reception' }).click()
+  await page
+    .getByRole('dialog', { name: 'User: Reception' })
+    .getByRole('button', { name: 'Close node information' })
+    .click()
+  await expect(page.getByRole('dialog', { name: 'User: Reception' })).toHaveCount(0)
+  const actionSearchAfterMove = workspace.getByRole('searchbox', {
+    name: 'Search callflow actions',
+  })
+  await actionSearchAfterMove.fill('voicemail')
+  await workspace.getByRole('button', { name: 'Add Voicemail' }).click()
+  const addPanel = page.getByRole('dialog', { name: 'Add Voicemail' })
+  await expect(page.getByRole('heading', { name: 'Add Voicemail' })).toBeVisible()
+  await expect(addPanel.getByRole('button', { name: 'Action destination' })).toContainText(
+    'Reception mailbox',
+  )
+  await addPanel.getByRole('button', { name: 'Add action' }).click()
+  await expect
+    .poll(() => createNodePayload)
+    .toEqual({
+      parent_path: ['_'],
+      branch: '_',
+      destination_type: 'voicemail',
+      destination_id: '216fe383-b79f-45ee-a98e-a507ef3b2995',
+    })
+  await expect(addPanel).toHaveCount(0)
+  await expect(
+    workspace.getByRole('treeitem', { name: 'Voicemail: Reception mailbox' }),
+  ).toBeVisible()
+
+  await workspace.getByRole('treeitem', { name: 'User: Reception' }).click()
+  await page
+    .getByRole('dialog', { name: 'User: Reception' })
+    .getByRole('button', { name: 'Edit action target' })
+    .click()
+  const editPanel = page.getByRole('dialog', { name: 'Edit User' })
+  await editPanel.getByRole('button', { name: 'Action destination' }).click()
+  await page.getByRole('option', { name: /Support/ }).click()
+  await editPanel.getByRole('button', { name: 'Save target' }).click()
+  await expect
+    .poll(() => updateNodePayload)
+    .toEqual({
+      node_path: ['_'],
+      destination_type: 'extension',
+      destination_id: 'aa90a27d-6726-43ee-820c-bbf68008a0f6',
+    })
+  await expect(editPanel).toHaveCount(0)
+  await expect(workspace.getByRole('treeitem', { name: 'User: Support' })).toBeVisible()
+
+  await workspace.getByRole('treeitem', { name: 'Voicemail: Reception mailbox' }).click()
+  await page
+    .getByRole('dialog', { name: 'Voicemail: Reception mailbox' })
+    .getByRole('button', { name: 'Close node information' })
+    .click()
+  const inlineActionSearch = workspace.getByRole('searchbox', {
+    name: 'Search callflow actions',
+  })
+  await inlineActionSearch.click()
+  await inlineActionSearch.press('Control+A')
+  await inlineActionSearch.press('Backspace')
+  await inlineActionSearch.type('tts')
+  await expect(inlineActionSearch).toHaveValue('tts')
+  await workspace
+    .getByRole('button', { name: 'Add Text to speech' })
+    .dragTo(workspace.getByRole('treeitem', { name: 'Voicemail: Reception mailbox' }))
+  const ttsPanel = page.getByRole('dialog', { name: 'Add Text to speech' })
+  await ttsPanel.getByRole('button', { name: 'Add action' }).click()
+  await expect(ttsPanel.getByRole('textbox', { name: 'Text to speak' })).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  )
+  await ttsPanel
+    .getByRole('textbox', { name: 'Text to speak' })
+    .fill('Please hold for the next available representative.')
+  await ttsPanel.getByRole('button', { name: 'Add action' }).click()
+  await expect
+    .poll(() => inlineCreatePayload)
+    .toEqual({
+      parent_path: ['_', '_'],
+      branch: '_',
+      module: 'tts',
+      data: {
+        text: 'Please hold for the next available representative.',
+        voice: 'female',
+        language: null,
+        engine: null,
+        endless_playback: false,
+        terminators: ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '#', '*'],
+        skip_module: false,
+      },
+    })
+  await expect(ttsPanel).toHaveCount(0)
+  await expect(workspace.getByRole('treeitem', { name: 'Text to speech' })).toBeVisible()
+
   const map = workspace.getByRole('tree', { name: 'Callflow diagram' })
   const mapBox = await map.boundingBox()
   const workspaceBox = await workspace.boundingBox()
+  const paletteBox = await actionPalette.boundingBox()
+  const mainBox = await page.getByRole('main').boundingBox()
+  const viewport = page.viewportSize()
   expect(mapBox).not.toBeNull()
   expect(workspaceBox).not.toBeNull()
+  expect(paletteBox).not.toBeNull()
+  expect(mainBox).not.toBeNull()
+  expect(viewport).not.toBeNull()
   expect(mapBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x)
+  expect(paletteBox!.x).toBeGreaterThan(mapBox!.x)
+  expect(workspaceBox!.x).toBeGreaterThanOrEqual(mainBox!.x + 16)
+  expect(workspaceBox!.x + workspaceBox!.width).toBeLessThanOrEqual(
+    mainBox!.x + mainBox!.width - 16,
+  )
   expect(issues).toEqual([])
 })

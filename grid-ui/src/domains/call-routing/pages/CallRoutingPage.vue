@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -13,11 +13,24 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallflowDetailPanel from '../components/CallflowDetailPanel.vue'
 import CallflowEditorPanel from '../components/CallflowEditorPanel.vue'
+import CallflowInlineNodeEditorPanel from '../components/CallflowInlineNodeEditorPanel.vue'
+import CallflowNodeEditorPanel from '../components/CallflowNodeEditorPanel.vue'
+import { isGuidedInlineCallflowModule } from '../catalog/callflowActionCatalog'
 import { useCallflowStore } from '../stores/callflowStore'
-import type { CallflowUpdate } from '../types/callRouting'
+import type {
+  CallflowNodeEditorContext,
+  CallflowTreeMoveInput,
+  CallflowTreeReorderInput,
+  CallflowTreeNodeCreateInput,
+  CallflowTreeNodeUpdateInput,
+  CallflowInlineNodeCreateInput,
+  CallflowInlineNodeUpdateInput,
+  CallflowUpdate,
+} from '../types/callRouting'
 
 const accounts = useAccountStore()
 const callflows = useCallflowStore()
+const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
 const nodesOnPage = computed(() =>
   callflows.records.reduce((total, route) => total + route.node_count, 0),
 )
@@ -45,6 +58,7 @@ const freshnessLabel = computed(() =>
 watch(
   () => accounts.selectedId,
   (accountId) => {
+    nodeEditorContext.value = null
     callflows.reset()
     if (accountId) void callflows.load(accountId, 1)
   },
@@ -80,6 +94,58 @@ function saveRoute(input: CallflowUpdate): void {
   else void callflows.create(accounts.selectedId, input)
 }
 
+function moveTreeNode(input: CallflowTreeMoveInput): void {
+  if (accounts.selectedId && callflows.detail) {
+    void callflows.moveTreeNode(accounts.selectedId, callflows.detail.id, input)
+  }
+}
+
+function reorderTreeNodes(input: CallflowTreeReorderInput): void {
+  if (accounts.selectedId && callflows.detail) {
+    void callflows.reorderTreeNodes(accounts.selectedId, callflows.detail.id, input)
+  }
+}
+
+function openNodeEditor(context: CallflowNodeEditorContext): void {
+  if (!accounts.selectedId || !callflows.detail) return
+  nodeEditorContext.value = context
+  if (isGuidedInlineCallflowModule(context.module) && context.module !== 'missed_call_alert') {
+    callflows.closeTreeEditor()
+  } else {
+    void callflows.loadTreeEditor(accounts.selectedId, callflows.detail.id)
+  }
+}
+
+function closeNodeEditor(): void {
+  nodeEditorContext.value = null
+  callflows.closeTreeEditor()
+}
+
+async function saveTreeNode(
+  input:
+    | CallflowTreeNodeCreateInput
+    | CallflowTreeNodeUpdateInput
+    | CallflowInlineNodeCreateInput
+    | CallflowInlineNodeUpdateInput,
+): Promise<void> {
+  if (!accounts.selectedId || !callflows.detail || !nodeEditorContext.value) return
+
+  const inline = 'module' in input && 'data' in input
+  const updated = inline
+    ? nodeEditorContext.value.operation === 'create' && 'parent_path' in input
+      ? await callflows.createInlineTreeNode(accounts.selectedId, callflows.detail.id, input)
+      : nodeEditorContext.value.operation === 'update' && 'node_path' in input
+        ? await callflows.updateInlineTreeNode(accounts.selectedId, callflows.detail.id, input)
+        : null
+    : nodeEditorContext.value.operation === 'create' && 'parent_path' in input
+      ? await callflows.createTreeNode(accounts.selectedId, callflows.detail.id, input)
+      : nodeEditorContext.value.operation === 'update' && 'node_path' in input
+        ? await callflows.updateTreeNode(accounts.selectedId, callflows.detail.id, input)
+        : null
+
+  if (updated) nodeEditorContext.value = null
+}
+
 function deleteRoute(): void {
   if (accounts.selectedId && callflows.detail) {
     void callflows.destroy(accounts.selectedId, callflows.detail.id)
@@ -103,7 +169,7 @@ function routeTitle(route: {
 
 <template>
   <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto flex max-w-[1500px] flex-col gap-4 sm:flex-row sm:items-center">
+    <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Call Routing</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Call Routing</h1>
@@ -134,7 +200,13 @@ function routeTitle(route: {
     </div>
   </section>
 
-  <div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+  <div
+    :class="
+      workspaceOpen
+        ? 'w-full px-4 py-4 sm:px-6 sm:py-5'
+        : 'mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8'
+    "
+  >
     <CallflowDetailPanel
       v-if="workspaceOpen"
       :record="callflows.detail"
@@ -143,9 +215,15 @@ function routeTitle(route: {
       :can-manage="canManage"
       :deleting="callflows.deleting"
       :mutation-error="callflows.mutationError"
+      :tree-moving="callflows.treeMoving"
+      :tree-mutation-error="callflows.treeMutationError"
       @close="callflows.closeDetail"
       @edit="openEditor"
       @delete="deleteRoute"
+      @move-node="moveTreeNode"
+      @reorder-nodes="reorderTreeNodes"
+      @create-node="openNodeEditor"
+      @edit-node="openNodeEditor"
     />
 
     <template v-else>
@@ -200,7 +278,12 @@ function routeTitle(route: {
         class="mb-4 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_190px_190px_auto]"
         @submit.prevent="applyFilters"
       >
-        <SearchInput v-model="callflows.filters.search" label="Search call routes" placeholder="Search route, number, pattern, feature code…" input-class="h-10 bg-white text-xs shadow-sm" />
+        <SearchInput
+          v-model="callflows.filters.search"
+          label="Search call routes"
+          placeholder="Search route, number, pattern, feature code…"
+          input-class="h-10 bg-white text-xs shadow-sm"
+        />
         <FormSelect
           v-model="callflows.filters.type"
           aria-label="Route type"
@@ -360,5 +443,27 @@ function routeTitle(route: {
     :can-manage="canManage"
     @close="callflows.closeEditor"
     @save="saveRoute"
+  />
+  <CallflowNodeEditorPanel
+    v-if="nodeEditorContext && !isGuidedInlineCallflowModule(nodeEditorContext.module)"
+    :context="nodeEditorContext"
+    :editor="callflows.treeEditor"
+    :loading="callflows.treeEditorLoading"
+    :saving="callflows.treeNodeSaving"
+    :error="callflows.treeNodeError"
+    :field-errors="callflows.treeNodeFieldErrors"
+    @close="closeNodeEditor"
+    @save="saveTreeNode"
+  />
+  <CallflowInlineNodeEditorPanel
+    v-if="nodeEditorContext && isGuidedInlineCallflowModule(nodeEditorContext.module)"
+    :context="nodeEditorContext"
+    :editor="callflows.treeEditor"
+    :loading="callflows.treeEditorLoading"
+    :saving="callflows.treeNodeSaving"
+    :error="callflows.treeNodeError"
+    :field-errors="callflows.treeNodeFieldErrors"
+    @close="closeNodeEditor"
+    @save="saveTreeNode"
   />
 </template>

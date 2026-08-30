@@ -11,6 +11,7 @@ use App\Domains\TemporalRouting\Resources\TemporalRuleSetResource;
 use App\Domains\TemporalRouting\Services\TemporalRoutingService;
 use App\Domains\TemporalRouting\Services\TemporalRuleSetMutationService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -33,7 +34,7 @@ class TemporalRuleSetController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [SwitchTemporalRuleSet::class, $switchAccount]);
 
-        return response()->json(['data' => $service->options($switchAccount)]);
+        return ApiResponse::data($service->options($switchAccount));
     }
 
     public function show(Request $request, string $account, string $set, SwitchAccountService $accounts, TemporalRoutingService $service): TemporalRuleSetResource
@@ -69,6 +70,6 @@ class TemporalRuleSetController extends Controller
         Gate::authorize('delete', [$model, $switchAccount]);
         $mutations->delete($switchAccount, $model, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

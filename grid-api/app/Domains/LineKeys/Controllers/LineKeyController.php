@@ -11,6 +11,7 @@ use App\Domains\LineKeys\Services\LineKeyMutationService;
 use App\Domains\LineKeys\Services\LineKeyService;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,12 +36,12 @@ class LineKeyController extends Controller
         $switchDevice = $devices->find($switchAccount, $device);
         $preview = $lineKeys->preview($switchDevice);
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'device' => (new LineKeyDeviceResource($preview['device']))->resolve($request),
             'capability' => $preview['capability'],
             'value_choices' => $preview['value_choices'],
             'payload_preview' => $preview['payload_preview'],
-        ]]);
+        ]);
     }
 
     public function update(SaveLineKeysRequest $request, string $account, string $device, SwitchAccountService $accounts, DeviceService $devices, LineKeyMutationService $mutations): JsonResponse
@@ -52,8 +53,8 @@ class LineKeyController extends Controller
         Gate::authorize('update', [$switchDevice, $switchAccount]);
         $updated = $mutations->update($switchAccount, $switchDevice, $user, $request->validated('line_keys'), $request->ip());
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'device' => (new LineKeyDeviceResource($updated))->resolve($request),
-        ]]);
+        ]);
     }
 }

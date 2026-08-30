@@ -11,6 +11,7 @@ use App\Domains\Groups\Services\GroupService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -35,7 +36,7 @@ class GroupController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [SwitchGroup::class, $switchAccount]);
 
-        return response()->json(['data' => $groups->options($switchAccount)]);
+        return ApiResponse::data($groups->options($switchAccount));
     }
 
     public function show(Request $request, string $account, string $group, SwitchAccountService $accounts, GroupService $groups): GroupResource
@@ -75,6 +76,6 @@ class GroupController extends Controller
         Gate::authorize('delete', [$model, $switchAccount]);
         $mutations->delete($switchAccount, $model, $user, $request->ip());
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

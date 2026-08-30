@@ -1,3 +1,9 @@
+import {
+  callflowInlineModules,
+  type CallflowDestinationType,
+  type CallflowInlineModule,
+} from '../types/callRouting'
+
 export type CallflowActionStatus = 'guided' | 'planned' | 'restricted'
 
 export type CallflowAction = {
@@ -14,6 +20,21 @@ export type CallflowActionCategory = {
   actions: CallflowAction[]
 }
 
+const guidedDestinationTypes: Partial<Record<string, CallflowDestinationType>> = {
+  user: 'extension',
+  device: 'device',
+  voicemail: 'voicemail',
+  callflow: 'callflow',
+  play: 'media',
+  directory: 'directory',
+  group: 'group',
+  acdc_member: 'queue',
+  menu: 'menu',
+  conference: 'conference',
+  faxbox: 'fax_box',
+  temporal_route: 'temporal_rule_set',
+}
+
 const guidedModules = new Set([
   'user',
   'device',
@@ -27,6 +48,7 @@ const guidedModules = new Set([
   'conference',
   'faxbox',
   'temporal_route',
+  ...callflowInlineModules,
 ])
 
 const restrictedModules = new Set([
@@ -50,16 +72,21 @@ const descriptions: Record<string, string> = {
   conference: 'Join a configured conference.',
   device: 'Ring one projected endpoint.',
   directory: 'Open a configured dial-by-name directory.',
+  dead_air: 'Suppress media and wait until the caller hangs up.',
   disa: 'Provide authenticated direct inward system access.',
   faxbox: 'Deliver a fax to a configured fax box.',
+  flush_dtmf: 'Clear a named collection of buffered keypad digits.',
   group: 'Ring a configured group of endpoints.',
   menu: 'Route input through a configured IVR menu.',
+  missed_call_alert: 'Notify extensions or email addresses about a missed call.',
   offnet: 'Send a call through an external carrier resource.',
   pivot: 'Delegate call control to an external application.',
   play: 'Play projected media to the caller.',
   record_call: 'Record the active call according to policy.',
+  send_dtmf: 'Send configured keypad digits to the active call.',
   resources: 'Select carrier resources for external routing.',
   temporal_route: 'Branch using a business-hours rule set.',
+  language: 'Change the call language for subsequent prompts.',
   tts: 'Generate speech from configured text.',
   user: 'Ring the devices assigned to an extension.',
   voicemail: 'Send the caller to a voicemail box.',
@@ -211,4 +238,12 @@ export function findCallflowAction(module: string): CallflowAction | null {
       .flatMap((catalogCategory) => catalogCategory.actions)
       .find((catalogAction) => catalogAction.module === module) ?? null
   )
+}
+
+export function callflowActionDestinationType(module: string): CallflowDestinationType | null {
+  return guidedDestinationTypes[module] ?? null
+}
+
+export function isGuidedInlineCallflowModule(module: string): module is CallflowInlineModule {
+  return callflowInlineModules.some((inlineModule) => inlineModule === module)
 }

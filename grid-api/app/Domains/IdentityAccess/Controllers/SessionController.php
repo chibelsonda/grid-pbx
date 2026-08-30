@@ -5,6 +5,7 @@ namespace App\Domains\IdentityAccess\Controllers;
 use App\Domains\IdentityAccess\Requests\LoginRequest;
 use App\Domains\IdentityAccess\Resources\SessionResource;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -39,6 +40,6 @@ class SessionController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return response()->noContent();
+        return ApiResponse::noContent();
     }
 }

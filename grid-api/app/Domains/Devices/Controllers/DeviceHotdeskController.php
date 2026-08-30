@@ -7,6 +7,7 @@ use App\Domains\Devices\Services\DeviceService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -26,7 +27,7 @@ class DeviceHotdeskController extends Controller
         $switchAccount = $accounts->findAccessible($user, $account);
         $switchDevice = $devices->find($switchAccount, $device);
 
-        return response()->json(['data' => $hotdesk->memberships($switchAccount, $switchDevice)]);
+        return ApiResponse::data($hotdesk->memberships($switchAccount, $switchDevice));
     }
 
     public function store(
@@ -48,13 +49,13 @@ class DeviceHotdeskController extends Controller
             ->whereNotNull('switch_resource_id')
             ->firstOrFail();
 
-        return response()->json(['data' => $hotdesk->signIn(
+        return ApiResponse::data($hotdesk->signIn(
             $switchAccount,
             $switchDevice,
             $switchExtension,
             $user,
             $request->ip(),
-        )]);
+        ));
     }
 
     public function destroy(
@@ -76,12 +77,12 @@ class DeviceHotdeskController extends Controller
             ->whereNotNull('switch_resource_id')
             ->firstOrFail();
 
-        return response()->json(['data' => $hotdesk->signOut(
+        return ApiResponse::data($hotdesk->signOut(
             $switchAccount,
             $switchDevice,
             $switchExtension,
             $user,
             $request->ip(),
-        )]);
+        ));
     }
 }

@@ -8,6 +8,7 @@ use App\Domains\Devices\Services\DeviceService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Http\Controllers\Controller;
+use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Gate;
 
@@ -31,12 +32,12 @@ class DeviceProvisioningController extends Controller
 
         $controls->sync($switchAccount, $switchDevice, $user, $reboot, $request->ip());
 
-        return response()->json(['data' => [
+        return ApiResponse::data([
             'message' => $reboot
                 ? 'Switch accepted the device reprovision request.'
                 : 'Switch accepted the device synchronization request.',
             'command' => $command,
             'reboot' => $reboot,
-        ]]);
+        ]);
     }
 }
