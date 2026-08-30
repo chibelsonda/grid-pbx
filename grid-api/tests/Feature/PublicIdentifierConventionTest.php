@@ -105,6 +105,9 @@ class PublicIdentifierConventionTest extends TestCase
     private function assertIdentifier(Model $model, string $primaryKey): void
     {
         $this->assertSame($primaryKey, $model->getKeyName());
+        $this->assertTrue($model->getIncrementing());
+        $this->assertSame('int', $model->getKeyType());
+        $this->assertIsInt($model->getKey());
         $this->assertTrue(Str::isUuid($model->id));
         $this->assertNotSame((string) $model->getKey(), $model->id);
         $this->assertArrayNotHasKey($primaryKey, $model->toArray());

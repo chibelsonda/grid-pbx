@@ -48,9 +48,13 @@ const fixedCallflowTreeBranchKeys = [
 ] as const
 
 export type CallflowPriorityBranchKey = `${number}`
+export type CallflowCapturedNumberBranchKey = string & {
+  readonly __callflowCapturedNumberBranchKey: unique symbol
+}
 export type CallflowTreeBranchKey =
   | (typeof fixedCallflowTreeBranchKeys)[number]
   | CallflowPriorityBranchKey
+  | CallflowCapturedNumberBranchKey
 
 export const callflowPriorityBranchKeys = Array.from(
   { length: 256 },
@@ -63,7 +67,17 @@ export const callflowTreeBranchKeys: readonly CallflowTreeBranchKey[] = [
 ]
 
 export function isCallflowTreeBranchKey(value: unknown): value is CallflowTreeBranchKey {
-  return typeof value === 'string' && callflowTreeBranchKeys.includes(value as CallflowTreeBranchKey)
+  return (
+    typeof value === 'string' &&
+    (callflowTreeBranchKeys.includes(value as CallflowTreeBranchKey) ||
+      isCallflowCapturedNumberBranchKey(value))
+  )
+}
+
+export function isCallflowCapturedNumberBranchKey(
+  value: unknown,
+): value is CallflowCapturedNumberBranchKey {
+  return typeof value === 'string' && /^[0-9*#+]{1,64}$/.test(value)
 }
 
 export type CallflowTreeMoveInput = {
@@ -104,7 +118,16 @@ export const callflowInlineModules = [
   'response',
   'hangup',
   'set_variable',
+  'set_variables',
+  'manual_presence',
+  'group_pickup',
+  'page_group',
+  'ring_group',
+  'receive_fax',
+  'conference',
+  'voicemail',
   'branch_variable',
+  'branch_bnumber',
   'missed_call_alert',
   'set_cid',
   'prepend_cid',
@@ -145,6 +168,7 @@ export type CallflowInlineNodeData = {
     | 'activate'
     | 'deactivate'
     | 'update'
+    | 'check'
   format?: 'mp3' | 'wav' | null
   label?: string | null
   record_min_sec?: number | null
@@ -161,7 +185,24 @@ export type CallflowInlineNodeData = {
   variable?: 'call_priority'
   value?: string
   channel?: 'a' | 'both'
+  custom_application_vars?: Record<string, string>
+  export?: boolean
+  presence_id?: string
+  status?: 'idle' | 'ringing' | 'busy'
+  target_type?: 'extension' | 'device' | 'group'
+  target_id?: string
+  audio?: 'one-way' | 'two-way'
+  device_ids?: string[]
+  strategy?: 'simultaneous' | 'single'
+  endpoints?: CallflowRingGroupEndpoint[]
+  repeats?: number
+  owner_id?: string
+  fax_option?: 'auto' | boolean
+  service_mode?: true
   scope?: 'custom_channel_vars'
+  hunt?: boolean
+  hunt_allow?: string | null
+  hunt_deny?: string | null
   recipients?: CallflowAlertRecipient[]
   caller_id_name?: string
   caller_id_number?: string
@@ -184,6 +225,21 @@ export type CallflowInlineNodeData = {
 export type CallflowAlertRecipient = {
   type: 'user' | 'email'
   id: string
+}
+
+export type CallflowRingGroupEndpoint = {
+  device_id: string
+  delay: number
+  timeout: number
+}
+
+export type CallflowCustomApplicationVariable = {
+  key: string
+  value: string
+}
+
+export type CallflowInlineNodeFormData = CallflowInlineNodeData & {
+  custom_application_variables?: CallflowCustomApplicationVariable[]
 }
 
 export type CallflowInlineNodeCreateInput = {

@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('extension_lifecycle_operations', function (Blueprint $table): void {
-            $table->ulid('extension_lifecycle_operation_id')->primary();
+            $table->bigIncrements('extension_lifecycle_operation_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->constrained('switch_accounts', 'account_id')->cascadeOnDelete();
-            $table->foreignUlid('switch_extension_id')->nullable()->constrained('switch_extensions', 'extension_id')->nullOnDelete();
+            $table->foreignId('switch_account_id')->constrained('switch_accounts', 'account_id')->cascadeOnDelete();
+            $table->foreignId('switch_extension_id')->nullable()->constrained('switch_extensions', 'extension_id')->nullOnDelete();
             $table->foreignId('requested_by_user_id')->nullable()->constrained('users', 'user_id')->nullOnDelete();
             $table->string('operation', 32);
             $table->string('status', 32);

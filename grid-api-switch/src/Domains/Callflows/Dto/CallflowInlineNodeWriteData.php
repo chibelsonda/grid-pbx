@@ -29,7 +29,16 @@ final readonly class CallflowInlineNodeWriteData
         'response' => ['code', 'message', 'skip_module'],
         'hangup' => ['skip_module'],
         'set_variable' => ['variable', 'value', 'channel', 'skip_module'],
+        'set_variables' => ['custom_application_vars', 'export', 'skip_module'],
+        'manual_presence' => ['presence_id', 'status', 'skip_module'],
+        'group_pickup' => ['device_id', 'user_id', 'group_id', 'skip_module'],
+        'page_group' => ['audio', 'endpoints', 'skip_module'],
+        'ring_group' => ['strategy', 'endpoints', 'repeats', 'timeout', 'skip_module'],
+        'receive_fax' => ['owner_id', 'media', 'skip_module'],
+        'conference' => ['skip_module'],
+        'voicemail' => ['action', 'skip_module'],
         'branch_variable' => ['variable', 'scope', 'skip_module'],
+        'branch_bnumber' => ['hunt', 'hunt_allow', 'hunt_deny', 'skip_module'],
         'missed_call_alert' => ['recipients', 'skip_module'],
         'set_cid' => ['caller_id_name', 'caller_id_number', 'skip_module'],
         'prepend_cid' => [
@@ -120,9 +129,66 @@ final readonly class CallflowInlineNodeWriteData
             }
         }
 
+        if ($this->module === 'group_pickup') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+            $targets = array_filter(
+                ['device_id', 'user_id', 'group_id'],
+                fn (string $key): bool => is_string($currentData[$key] ?? null)
+                    && $currentData[$key] !== '',
+            );
+
+            if (count($targets) !== 1) {
+                throw new InvalidArgumentException('The existing Group Pickup target is not supported.');
+            }
+        }
+
+        if ($this->module === 'receive_fax') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+
+            if (! is_string($currentData['owner_id'] ?? null) || $currentData['owner_id'] === '') {
+                throw new InvalidArgumentException('The existing Receive Fax owner is not supported.');
+            }
+        }
+
+        if ($this->module === 'page_group') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+            $this->assertEditablePageGroup($currentData);
+        }
+
+        if ($this->module === 'ring_group') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+            $this->assertEditableRingGroup($currentData);
+        }
+
+        if ($this->module === 'conference') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+
+            if (is_string($currentData['id'] ?? null) && $currentData['id'] !== '') {
+                throw new InvalidArgumentException('Configured conference destinations must be edited through the destination editor.');
+            }
+        }
+
+        if ($this->module === 'voicemail') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+
+            if (($currentData['action'] ?? null) !== 'check'
+                || (is_string($currentData['id'] ?? null) && $currentData['id'] !== '')) {
+                throw new InvalidArgumentException('Configured voicemail destinations must be edited through the destination editor.');
+            }
+        }
+
         if ($this->module === 'branch_variable'
             && ! CallflowBranchPolicy::supportsCallPriority($node)) {
             throw new InvalidArgumentException('The existing branch variable is not supported.');
+        }
+
+        if ($this->module === 'branch_bnumber' && ($this->settings['hunt'] ?? false) === true) {
+            $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+            $exactBranches = array_filter(array_keys($children), fn (string|int $key): bool => (string) $key !== '_');
+
+            if ($exactBranches !== []) {
+                throw new InvalidArgumentException('Remove exact captured-number branches before enabling hunt mode.');
+            }
         }
     }
 
@@ -188,7 +254,16 @@ final readonly class CallflowInlineNodeWriteData
             'response' => $this->assertResponse(),
             'hangup' => null,
             'set_variable' => $this->assertSetVariable(),
+            'set_variables' => $this->assertSetVariables(),
+            'manual_presence' => $this->assertManualPresence(),
+            'group_pickup' => $this->assertGroupPickup(),
+            'page_group' => $this->assertPageGroup(),
+            'ring_group' => $this->assertRingGroup(),
+            'receive_fax' => $this->assertReceiveFax(),
+            'conference' => null,
+            'voicemail' => $this->oneOf('action', ['check']),
             'branch_variable' => $this->assertBranchVariable(),
+            'branch_bnumber' => $this->assertBranchBnumber(),
             'missed_call_alert' => $this->assertMissedCallAlert(),
             'set_cid' => $this->assertSetCid(),
             'prepend_cid' => $this->assertPrependCid(),
@@ -293,11 +368,275 @@ final readonly class CallflowInlineNodeWriteData
         $this->oneOf('channel', ['a', 'both']);
     }
 
+    private function assertSetVariables(): void
+    {
+        $variables = $this->settings['custom_application_vars'] ?? null;
+
+        if (! is_array($variables) || count($variables) > 64) {
+            throw new InvalidArgumentException('The inline action custom application variables are invalid.');
+        }
+
+        foreach ($variables as $key => $value) {
+            $name = (string) $key;
+            $length = is_string($value)
+                ? (function_exists('mb_strlen') ? mb_strlen($value) : strlen($value))
+                : null;
+
+            if (preg_match('/^[A-Za-z0-9_-]{1,128}$/', $name) !== 1
+                || ! is_int($length)
+                || $length > 1024
+                || str_contains($value, "\0")
+                || str_contains($value, "\r")
+                || str_contains($value, "\n")) {
+                throw new InvalidArgumentException('The inline action custom application variable is invalid.');
+            }
+        }
+
+        $this->boolean('export');
+    }
+
+    private function assertManualPresence(): void
+    {
+        $this->string('presence_id', 1, 256);
+        $this->oneOf('status', ['idle', 'ringing', 'busy']);
+
+        $presenceId = $this->settings['presence_id'];
+
+        if (trim($presenceId) !== $presenceId
+            || preg_match('/^[^\s@]+(?:@[^\s@]+)?$/u', $presenceId) !== 1) {
+            throw new InvalidArgumentException('The inline action presence identifier is invalid.');
+        }
+    }
+
+    private function assertGroupPickup(): void
+    {
+        $targets = array_filter(
+            ['device_id', 'user_id', 'group_id'],
+            fn (string $key): bool => array_key_exists($key, $this->settings),
+        );
+
+        if (count($targets) !== 1) {
+            throw new InvalidArgumentException('The inline Group Pickup action must contain exactly one target.');
+        }
+
+        $this->string(array_values($targets)[0], 1, 128);
+    }
+
+    private function assertPageGroup(): void
+    {
+        $this->oneOf('audio', ['one-way', 'two-way']);
+        $endpoints = $this->settings['endpoints'] ?? null;
+
+        if (! is_array($endpoints) || ! array_is_list($endpoints)
+            || $endpoints === [] || count($endpoints) > 20) {
+            throw new InvalidArgumentException('The inline Page Group endpoint selection is invalid.');
+        }
+
+        $ids = [];
+
+        foreach ($endpoints as $endpoint) {
+            if (! is_array($endpoint)
+                || array_diff(array_keys($endpoint), ['endpoint_type', 'id']) !== []
+                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! is_string($endpoint['id'] ?? null)
+                || $endpoint['id'] === ''
+                || strlen($endpoint['id']) > 128
+                || in_array($endpoint['id'], $ids, true)) {
+                throw new InvalidArgumentException('The inline Page Group endpoint selection is invalid.');
+            }
+
+            $ids[] = $endpoint['id'];
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    private function assertEditablePageGroup(array $data): void
+    {
+        $endpoints = $data['endpoints'] ?? null;
+
+        if (! in_array($data['audio'] ?? null, ['one-way', 'two-way'], true)
+            || ($data['barge_calls'] ?? false) === true
+            || ! $this->optionalIntegerInRange($data, 'timeout', 1, 30)
+            || ! is_array($endpoints)
+            || ! array_is_list($endpoints)
+            || $endpoints === []
+            || count($endpoints) > 20) {
+            throw new InvalidArgumentException('The existing Page Group configuration is not supported.');
+        }
+
+        $ids = [];
+
+        foreach ($endpoints as $endpoint) {
+            if (! is_array($endpoint)
+                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! is_string($endpoint['id'] ?? null)
+                || $endpoint['id'] === ''
+                || strlen($endpoint['id']) > 128
+                || ! $this->optionalIntegerInRange($endpoint, 'delay', 0, 30)
+                || ! $this->optionalIntegerInRange($endpoint, 'timeout', 1, 30)
+                || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
+                || in_array($endpoint['id'], $ids, true)) {
+                throw new InvalidArgumentException('The existing Page Group configuration is not supported.');
+            }
+
+            $ids[] = $endpoint['id'];
+        }
+    }
+
+    private function assertRingGroup(): void
+    {
+        $this->oneOf('strategy', ['simultaneous', 'single']);
+        $this->integer('repeats', 1, 3);
+        $this->integer('timeout', 1, 120);
+        $endpoints = $this->settings['endpoints'] ?? null;
+
+        if (! is_array($endpoints) || ! array_is_list($endpoints)
+            || $endpoints === [] || count($endpoints) > 20) {
+            throw new InvalidArgumentException('The inline Ring Group endpoint selection is invalid.');
+        }
+
+        $ids = [];
+        $timings = [];
+
+        foreach ($endpoints as $endpoint) {
+            if (! is_array($endpoint)
+                || array_diff(array_keys($endpoint), ['endpoint_type', 'id', 'delay', 'timeout']) !== []
+                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! is_string($endpoint['id'] ?? null)
+                || $endpoint['id'] === ''
+                || strlen($endpoint['id']) > 128
+                || ! is_int($endpoint['delay'] ?? null)
+                || $endpoint['delay'] < 0
+                || $endpoint['delay'] > 60
+                || ! is_int($endpoint['timeout'] ?? null)
+                || $endpoint['timeout'] < 1
+                || $endpoint['timeout'] > 60
+                || ($this->settings['strategy'] === 'single' && $endpoint['delay'] !== 0)
+                || in_array($endpoint['id'], $ids, true)) {
+                throw new InvalidArgumentException('The inline Ring Group endpoint selection is invalid.');
+            }
+
+            $ids[] = $endpoint['id'];
+            $timings[] = ['delay' => $endpoint['delay'], 'timeout' => $endpoint['timeout']];
+        }
+
+        if ($this->ringGroupAttemptTimeout($this->settings['strategy'], $timings) !== $this->settings['timeout']) {
+            throw new InvalidArgumentException('The inline Ring Group timeout does not match its endpoints.');
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    private function assertEditableRingGroup(array $data): void
+    {
+        $strategy = is_string($data['strategy'] ?? null) ? $data['strategy'] : 'simultaneous';
+        $repeats = is_int($data['repeats'] ?? null) ? $data['repeats'] : 1;
+        $endpoints = $data['endpoints'] ?? null;
+
+        if (! in_array($strategy, ['simultaneous', 'single'], true)
+            || $repeats < 1
+            || $repeats > 3
+            || ! is_array($endpoints)
+            || ! array_is_list($endpoints)
+            || $endpoints === []
+            || count($endpoints) > 20) {
+            throw new InvalidArgumentException('The existing Ring Group configuration is not supported.');
+        }
+
+        $ids = [];
+        $timings = [];
+
+        foreach ($endpoints as $endpoint) {
+            $delay = is_array($endpoint) && is_int($endpoint['delay'] ?? null) ? $endpoint['delay'] : 0;
+            $timeout = is_array($endpoint) && is_int($endpoint['timeout'] ?? null) ? $endpoint['timeout'] : 20;
+
+            if (! is_array($endpoint)
+                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! is_string($endpoint['id'] ?? null)
+                || $endpoint['id'] === ''
+                || strlen($endpoint['id']) > 128
+                || $delay < 0
+                || $delay > 60
+                || $timeout < 1
+                || $timeout > 60
+                || ($strategy === 'single' && $delay !== 0)
+                || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
+                || in_array($endpoint['id'], $ids, true)) {
+                throw new InvalidArgumentException('The existing Ring Group configuration is not supported.');
+            }
+
+            $ids[] = $endpoint['id'];
+            $timings[] = ['delay' => $delay, 'timeout' => $timeout];
+        }
+
+        $attemptTimeout = $this->ringGroupAttemptTimeout($strategy, $timings);
+        $storedTimeout = is_int($data['timeout'] ?? null) ? $data['timeout'] : 20;
+
+        if ($attemptTimeout > 120 || $storedTimeout !== $attemptTimeout) {
+            throw new InvalidArgumentException('The existing Ring Group configuration is not supported.');
+        }
+    }
+
+    /** @param list<array{delay: int, timeout: int}> $endpoints */
+    private function ringGroupAttemptTimeout(string $strategy, array $endpoints): int
+    {
+        if ($strategy === 'single') {
+            return array_sum(array_column($endpoints, 'timeout'));
+        }
+
+        return max(array_map(
+            fn (array $endpoint): int => $endpoint['delay'] + $endpoint['timeout'],
+            $endpoints,
+        ));
+    }
+
+    /** @param array<string, mixed> $data */
+    private function optionalIntegerInRange(array $data, string $key, int $minimum, int $maximum): bool
+    {
+        if (! array_key_exists($key, $data)) {
+            return true;
+        }
+
+        return is_int($data[$key]) && $data[$key] >= $minimum && $data[$key] <= $maximum;
+    }
+
+    private function assertReceiveFax(): void
+    {
+        $this->string('owner_id', 1, 128);
+        $media = $this->settings['media'] ?? null;
+
+        if (! is_array($media)
+            || array_keys($media) !== ['fax_option']
+            || (! is_bool($media['fax_option'] ?? null) && ($media['fax_option'] ?? null) !== 'auto')) {
+            throw new InvalidArgumentException('The inline Receive Fax media setting is invalid.');
+        }
+    }
+
     private function assertBranchVariable(): void
     {
         if (($this->settings['variable'] ?? null) !== 'call_priority'
             || ($this->settings['scope'] ?? null) !== 'custom_channel_vars') {
             throw new InvalidArgumentException('The inline action branch variable setting is not supported.');
+        }
+    }
+
+    private function assertBranchBnumber(): void
+    {
+        $this->boolean('hunt');
+        $this->nullableString('hunt_allow', 512);
+        $this->nullableString('hunt_deny', 512);
+
+        foreach (['hunt_allow', 'hunt_deny'] as $key) {
+            $value = $this->settings[$key] ?? null;
+
+            if ($value !== null && ($value === '' || ! $this->safeRegex($value))) {
+                throw new InvalidArgumentException(sprintf('The inline action %s setting is invalid.', $key));
+            }
+        }
+
+        if (($this->settings['hunt'] ?? false) !== true
+            && (($this->settings['hunt_allow'] ?? null) !== null
+                || ($this->settings['hunt_deny'] ?? null) !== null)) {
+            throw new InvalidArgumentException('Captured-number hunt filters require hunt mode.');
         }
     }
 
@@ -591,12 +930,41 @@ final readonly class CallflowInlineNodeWriteData
         foreach (self::MANAGED_KEYS[$this->module] as $key) {
             if (! array_key_exists($key, $this->settings) || $this->settings[$key] === null) {
                 unset($current[$key]);
+            } elseif ($this->module === 'receive_fax' && $key === 'media') {
+                $currentMedia = is_array($current['media'] ?? null) ? $current['media'] : [];
+                $currentMedia['fax_option'] = $this->settings['media']['fax_option'];
+                $current['media'] = $currentMedia;
+            } elseif (in_array($this->module, ['page_group', 'ring_group'], true) && $key === 'endpoints') {
+                $current['endpoints'] = $this->deviceEndpointsForWrite($current['endpoints'] ?? null);
             } else {
-                $current[$key] = $this->settings[$key];
+                $current[$key] = $this->module === 'set_variables'
+                    && $key === 'custom_application_vars'
+                        ? (object) $this->settings[$key]
+                        : $this->settings[$key];
             }
         }
 
         return $current;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function deviceEndpointsForWrite(mixed $current): array
+    {
+        $existing = [];
+
+        foreach (is_array($current) ? $current : [] as $endpoint) {
+            if (is_array($endpoint)
+                && is_string($endpoint['endpoint_type'] ?? null)
+                && is_string($endpoint['id'] ?? null)) {
+                $existing[$endpoint['endpoint_type']."\0".$endpoint['id']] = $endpoint;
+            }
+        }
+
+        return array_map(function (array $endpoint) use ($existing): array {
+            $key = $endpoint['endpoint_type']."\0".$endpoint['id'];
+
+            return [...($existing[$key] ?? []), ...$endpoint];
+        }, $this->settings['endpoints']);
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */

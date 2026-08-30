@@ -5,7 +5,11 @@ import { ChevronDownIcon } from '@heroicons/vue/20/solid'
 import { ArrowUturnLeftIcon, ArrowsPointingOutIcon } from '@heroicons/vue/24/outline'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import { callflowActionAppearance } from '../catalog/callflowActionAppearance'
-import { callflowActionCatalog, type CallflowAction } from '../catalog/callflowActionCatalog'
+import {
+  callflowActionCatalog,
+  searchableCallflowActions,
+  type CallflowAction,
+} from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import CallflowNodeCard from './CallflowNodeCard.vue'
 
@@ -35,8 +39,8 @@ const emit = defineEmits<{
 
 const search = ref('')
 const normalizedSearch = computed(() => search.value.trim().toLowerCase())
-const categories = computed(() =>
-  callflowActionCatalog
+const categories = computed(() => {
+  const visibleCategories = callflowActionCatalog
     .map((category) => ({
       ...category,
       actions: category.actions.filter((action) => {
@@ -47,8 +51,34 @@ const categories = computed(() =>
         )
       }),
     }))
-    .filter((category) => category.actions.length > 0),
-)
+    .filter((category) => category.actions.length > 0)
+
+  if (!normalizedSearch.value) return visibleCategories
+
+  const compatibilityMatches = searchableCallflowActions.filter((action) =>
+    [action.label, action.module, action.description].some((value) =>
+      value.toLowerCase().includes(normalizedSearch.value),
+    ),
+  )
+
+  if (!compatibilityMatches.length) return visibleCategories
+
+  const advanced = visibleCategories.find((category) => category.id === 'advanced')
+  if (advanced) {
+    advanced.actions.push(...compatibilityMatches)
+    return visibleCategories
+  }
+
+  return [
+    {
+      id: 'advanced',
+      label: 'Advanced',
+      description: 'Additional actions shown by the Switch callflow editor.',
+      actions: compatibilityMatches,
+    },
+    ...visibleCategories,
+  ]
+})
 const resultCount = computed(() =>
   categories.value.reduce((total, category) => total + category.actions.length, 0),
 )

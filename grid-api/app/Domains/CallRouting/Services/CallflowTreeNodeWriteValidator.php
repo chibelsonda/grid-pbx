@@ -33,7 +33,14 @@ class CallflowTreeNodeWriteValidator
         'response',
         'hangup',
         'set_variable',
+        'set_variables',
+        'manual_presence',
+        'group_pickup',
+        'page_group',
+        'ring_group',
+        'receive_fax',
         'branch_variable',
+        'branch_bnumber',
         'missed_call_alert',
         'set_cid',
         'prepend_cid',
@@ -89,6 +96,7 @@ class CallflowTreeNodeWriteValidator
         SwitchCallflow $callflow,
         array $nodePath,
         string $module,
+        ?array $settings = null,
     ): void {
         if ($nodePath === []) {
             $this->fail('node_path', 'Edit the root action through the guided route editor.');
@@ -127,9 +135,43 @@ class CallflowTreeNodeWriteValidator
             $this->fail('node_path', 'This existing channel variable is not supported by the guided editor.');
         }
 
+        if ($currentModule === 'set_variables'
+            && ($node['settings']['supported_variables'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing custom application variable set is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'group_pickup'
+            && ($node['settings']['supported_target'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing Group Pickup target is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'page_group'
+            && ($node['settings']['supported_configuration'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing Page Group configuration is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'ring_group'
+            && ($node['settings']['supported_configuration'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing Ring Group configuration is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'receive_fax'
+            && ($node['settings']['supported_configuration'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing Receive Fax configuration is not supported by the guided editor.');
+        }
+
         if ($currentModule === 'branch_variable'
             && ($node['settings']['supported_variable'] ?? false) !== true) {
             $this->fail('node_path', 'This existing branch variable is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'branch_bnumber' && ($settings['hunt'] ?? false) === true) {
+            $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+            $exactBranches = array_filter(array_keys($children), fn (string|int $key): bool => (string) $key !== '_');
+
+            if ($exactBranches !== []) {
+                $this->fail('data.hunt', 'Remove exact captured-number branches before enabling hunt mode.');
+            }
         }
     }
 

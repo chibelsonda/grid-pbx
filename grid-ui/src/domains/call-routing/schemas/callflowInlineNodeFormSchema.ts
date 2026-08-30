@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
 import {
   isCallflowTreeBranchKey,
+  isCallflowCapturedNumberBranchKey,
   type CallflowInlineModule,
   type CallflowTreeBranchKey,
 } from '../types/callRouting'
@@ -37,6 +38,60 @@ const terminators = z
   .array(z.enum(callflowDtmfDigits))
   .max(callflowDtmfDigits.length)
   .refine((values) => new Set(values).size === values.length, 'Choose each terminator once.')
+
+const customApplicationVariables = z
+  .array(
+    z.object({
+      key: z
+        .string()
+        .trim()
+        .min(1, 'Enter a variable name.')
+        .max(128)
+        .regex(/^[A-Za-z0-9_-]+$/, 'Use only letters, numbers, hyphens, and underscores.'),
+      value: z
+        .string()
+        .max(1024)
+        .refine(
+          (value) => !/[\x00\r\n]/.test(value),
+          'Values cannot contain line breaks or null bytes.',
+        ),
+    }),
+  )
+  .max(64, 'Add no more than 64 custom application variables.')
+  .superRefine((variables, context) => {
+    const positions = new Map<string, number>()
+
+    variables.forEach(({ key }, index) => {
+      const normalized = key.trim()
+      const previous = positions.get(normalized)
+
+      if (previous === undefined) {
+        positions.set(normalized, index)
+        return
+      }
+
+      const message = 'Variable names must be unique.'
+      context.addIssue({ code: 'custom', path: [previous, 'key'], message })
+      context.addIssue({ code: 'custom', path: [index, 'key'], message })
+    })
+  })
+
+const ringGroupEndpoints = z
+  .array(
+    z
+      .object({
+        device_id: z.string().uuid('Select a synchronized device.'),
+        delay: z.number().int().min(0).max(60),
+        timeout: z.number().int().min(1).max(60),
+      })
+      .strict(),
+  )
+  .min(1, 'Select at least one device.')
+  .max(20, 'Select no more than 20 devices.')
+  .refine(
+    (endpoints) => new Set(endpoints.map(({ device_id }) => device_id)).size === endpoints.length,
+    'Choose each device once.',
+  )
 
 const schemas = {
   sleep: z
@@ -131,6 +186,99 @@ const schemas = {
       skip_module: z.boolean(),
     })
     .strict(),
+  set_variables: z
+    .object({
+      custom_application_variables: customApplicationVariables,
+      export: z.boolean(),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  manual_presence: z
+    .object({
+      presence_id: z
+        .string()
+        .trim()
+        .min(1, 'Enter a presence ID.')
+        .max(256)
+        .regex(
+          /^[^\s@]+(?:@[^\s@]+)?$/u,
+          'Enter a presence ID such as 1001 or 1001@example.com without spaces.',
+        ),
+      status: z.enum(['idle', 'ringing', 'busy']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  group_pickup: z
+    .object({
+      target_type: z.enum(['extension', 'device', 'group']),
+      target_id: z.string().uuid('Select a synchronized pickup target.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  page_group: z
+    .object({
+      audio: z.enum(['one-way', 'two-way']),
+      device_ids: z
+        .array(z.string().uuid('Select a synchronized device.'))
+        .min(1, 'Select at least one device.')
+        .max(20, 'Select no more than 20 devices.')
+        .refine((values) => new Set(values).size === values.length, 'Choose each device once.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  ring_group: z
+    .object({
+      strategy: z.enum(['simultaneous', 'single']),
+      endpoints: ringGroupEndpoints,
+      repeats: z.number().int().min(1).max(3),
+      skip_module: z.boolean(),
+    })
+    .strict()
+    .superRefine(({ strategy, endpoints }, context) => {
+      if (strategy === 'single') {
+        endpoints.forEach(({ delay }, index) => {
+          if (delay !== 0) {
+            context.addIssue({
+              code: 'custom',
+              path: ['endpoints', index, 'delay'],
+              message: 'In-order Ring Group endpoints cannot use a delay.',
+            })
+          }
+        })
+      }
+
+      const attemptTimeout =
+        strategy === 'single'
+          ? endpoints.reduce((total, endpoint) => total + endpoint.timeout, 0)
+          : Math.max(...endpoints.map((endpoint) => endpoint.delay + endpoint.timeout), 0)
+
+      if (attemptTimeout > 120) {
+        context.addIssue({
+          code: 'custom',
+          path: ['endpoints'],
+          message: 'Keep the total Ring Group attempt duration within 120 seconds.',
+        })
+      }
+    }),
+  receive_fax: z
+    .object({
+      owner_id: z.string().uuid('Select a synchronized extension.'),
+      fax_option: z.union([z.literal('auto'), z.boolean()]),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  conference: z
+    .object({
+      service_mode: z.literal(true),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  voicemail: z
+    .object({
+      action: z.literal('check'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
   branch_variable: z
     .object({
       variable: z.literal('call_priority'),
@@ -138,6 +286,31 @@ const schemas = {
       skip_module: z.boolean(),
     })
     .strict(),
+  branch_bnumber: z
+    .object({
+      hunt: z.boolean(),
+      hunt_allow: nullableString(512).refine(
+        (value) => value === null || isSafeSwitchRegex(value),
+        'Enter a supported regular expression.',
+      ),
+      hunt_deny: nullableString(512).refine(
+        (value) => value === null || isSafeSwitchRegex(value),
+        'Enter a supported regular expression.',
+      ),
+      skip_module: z.boolean(),
+    })
+    .strict()
+    .superRefine((data, context) => {
+      if (data.hunt || (data.hunt_allow === null && data.hunt_deny === null)) return
+
+      const message = 'Hunt filters require hunt mode.'
+      if (data.hunt_allow !== null) {
+        context.addIssue({ code: 'custom', path: ['hunt_allow'], message })
+      }
+      if (data.hunt_deny !== null) {
+        context.addIssue({ code: 'custom', path: ['hunt_deny'], message })
+      }
+    }),
   missed_call_alert: z
     .object({
       recipients: z
@@ -261,19 +434,33 @@ export function createCallflowInlineNodeFormSchema(
   module: CallflowInlineModule,
   branchKeys: CallflowTreeBranchKey[],
   branchRequired: boolean,
+  allowCapturedNumberBranch = false,
+  occupiedBranchKeys: string[] = [],
 ) {
   const branches = new Set(branchKeys)
+  const occupied = new Set(occupiedBranchKeys)
 
   return z
     .object({
       branch: z
-        .custom<CallflowTreeBranchKey>(isCallflowTreeBranchKey, 'Choose a supported callflow branch.')
+        .custom<CallflowTreeBranchKey>(
+          isCallflowTreeBranchKey,
+          'Choose a supported callflow branch.',
+        )
         .nullable(),
       data: schemas[module],
     })
     .strict()
     .superRefine((input, context) => {
-      if (branchRequired && (input.branch === null || !branches.has(input.branch))) {
+      const customCapturedNumber =
+        allowCapturedNumberBranch &&
+        isCallflowCapturedNumberBranchKey(input.branch) &&
+        !occupied.has(input.branch)
+
+      if (
+        branchRequired &&
+        (input.branch === null || (!branches.has(input.branch) && !customCapturedNumber))
+      ) {
         context.addIssue({
           code: 'custom',
           path: ['branch'],

@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_voicemail_greetings', function (Blueprint $table): void {
-            $table->ulid('id')->primary();
-            $table->foreignUlid('switch_account_id')->constrained('switch_accounts')->cascadeOnDelete();
-            $table->foreignUlid('switch_voicemail_box_id')->constrained('switch_voicemail_boxes')->cascadeOnDelete();
+            $table->bigIncrements('id');
+            $table->foreignId('switch_account_id')->constrained('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_voicemail_box_id')->constrained('switch_voicemail_boxes')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('type', 32)->default('unavailable');
             $table->string('name')->nullable();

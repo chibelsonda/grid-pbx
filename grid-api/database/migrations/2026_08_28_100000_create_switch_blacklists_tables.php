@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_blacklists', function (Blueprint $table): void {
-            $table->ulid('blacklist_id')->primary();
+            $table->bigIncrements('blacklist_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->boolean('should_block_anonymous')->default(false);
@@ -27,9 +27,9 @@ return new class extends Migration
             $table->index(['switch_account_id', 'name'], 'sbl_account_name_index');
         });
         Schema::create('switch_blacklist_entries', function (Blueprint $table): void {
-            $table->ulid('blacklist_entry_id')->primary();
+            $table->bigIncrements('blacklist_entry_id');
             $table->uuid('id')->unique();
-            $table->ulid('switch_blacklist_id');
+            $table->unsignedBigInteger('switch_blacklist_id');
             $table->foreign('switch_blacklist_id', 'sble_blacklist_fk')->references('blacklist_id')->on('switch_blacklists')->cascadeOnDelete();
             $table->string('number', 32);
             $table->json('metadata')->nullable();

@@ -5,7 +5,6 @@ namespace App\Domains\CallerIdLists\Models;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SwitchCallerIdList extends Model
 {
-    use HasPublicUuid, HasUlids, SoftDeletes;
+    use HasPublicUuid, SoftDeletes;
 
     protected $primaryKey = 'caller_id_list_id';
 

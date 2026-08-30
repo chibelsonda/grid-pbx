@@ -4,14 +4,13 @@ namespace App\Domains\LineKeys\Models;
 
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SwitchLineKey extends Model
 {
-    use HasPublicUuid, HasUlids, SoftDeletes;
+    use HasPublicUuid, SoftDeletes;
 
     protected $primaryKey = 'line_key_id';
 

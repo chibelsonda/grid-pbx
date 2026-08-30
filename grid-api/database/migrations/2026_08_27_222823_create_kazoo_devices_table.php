@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('kazoo_devices', function (Blueprint $table) {
-            $table->ulid('id')->primary();
-            $table->foreignUlid('kazoo_account_id')->constrained()->cascadeOnDelete();
-            $table->foreignUlid('kazoo_extension_id')->nullable()->constrained('kazoo_extensions')->nullOnDelete();
+            $table->bigIncrements('id');
+            $table->foreignId('kazoo_account_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('kazoo_extension_id')->nullable()->constrained('kazoo_extensions')->nullOnDelete();
             $table->string('kazoo_resource_id');
             $table->string('owner_kazoo_resource_id')->nullable();
             $table->string('name')->nullable();

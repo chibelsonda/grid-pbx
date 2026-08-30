@@ -6,13 +6,12 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class AuditLog extends Model
 {
-    use HasPublicUuid, HasUlids;
+    use HasPublicUuid;
 
     protected $primaryKey = 'audit_log_id';
 

@@ -65,6 +65,7 @@ const guidedModules = new Set([
 
 const restrictedModules = new Set([
   'disa',
+  'dynamic_cid',
   'eavesdrop',
   'eavesdrop_feature',
   'intercept',
@@ -82,6 +83,8 @@ const descriptions: Record<string, string> = {
   acdc_queue: 'Enter a configured call-center queue.',
   callflow: 'Continue execution in another callflow.',
   branch_variable: 'Branch by the supported call-priority value with a safe fallback path.',
+  branch_bnumber:
+    'Branch on the feature-code capture group or hunt for the matching account callflow.',
   check_cid: 'Branch by a safe regular expression matched against incoming caller ID.',
   cidlistmatch: 'Branch when incoming caller ID matches a synchronized Caller-ID List.',
   collect_dtmf: 'Collect keypad input before continuing.',
@@ -89,30 +92,41 @@ const descriptions: Record<string, string> = {
   device: 'Ring one projected endpoint.',
   directory: 'Open a configured dial-by-name directory.',
   dead_air: 'Suppress media and wait until the caller hangs up.',
-  disa: 'Provide authenticated direct inward system access.',
+  disa: 'Direct inward system access; gated pending mandatory PIN and call-restriction policy.',
+  dynamic_cid:
+    'Caller-ID replacement; gated pending account-owned number authorization and anti-spoofing policy.',
   faxbox: 'Deliver a fax to a configured fax box.',
   flush_dtmf: 'Clear a named collection of buffered keypad digits.',
   group: 'Ring a configured group of endpoints.',
+  group_pickup: 'Pick up a ringing call for one device, extension, or group.',
+  receive_fax: 'Receive a fax and deliver it to one extension owner.',
   hangup: 'End the current callflow path and disconnect the call.',
   menu: 'Route input through a configured IVR menu.',
   missed_call_alert: 'Notify extensions or email addresses about a missed call.',
-  offnet: 'Send a call through an external carrier resource.',
-  pivot: 'Delegate call control to an external application.',
+  page_group: 'Page up to 20 synchronized devices with one-way or two-way audio.',
+  ring_group: 'Ring up to 20 synchronized devices simultaneously or in order with bounded timing.',
+  offnet:
+    'Global carrier routing; gated pending outbound-context, call-restriction, and toll-fraud controls.',
+  pivot: 'External call control; gated pending allowlisted egress and authenticated callbacks.',
   play: 'Play projected media to the caller.',
   record_call: 'Change recording state for the active call.',
   prepend_cid: 'Prepend or reset caller ID name and number prefixes.',
   send_dtmf: 'Send configured keypad digits to the active call.',
   set_alert_info: 'Set a distinctive-ring Alert-Info value for the called endpoint.',
   set_cid: 'Replace or restore the current caller ID name and number.',
+  set_variables: 'Set custom application variables for the current call.',
   set_variable: 'Set the supported call-priority variable on one or both call legs.',
-  resources: 'Select carrier resources for external routing.',
+  resources:
+    'Account carrier routing; gated pending public account mapping, emergency, and toll-fraud controls.',
   temporal_route: 'Route by a time-of-day rule or change its operational state.',
   language: 'Change the call language for subsequent prompts.',
+  manual_presence: 'Publish an idle, ringing, or busy state for a presence ID.',
   response: 'Return a final SIP response code and optional cause text.',
   tts: 'Generate speech from configured text.',
   user: 'Ring the devices assigned to an extension.',
   voicemail: 'Send the caller to a voicemail box.',
-  webhook: 'Notify an external HTTPS endpoint during the call.',
+  webhook:
+    'External callback; gated pending allowlisted egress, verified TLS, signed payloads, and data minimization.',
 }
 
 const moduleLabels: Record<string, string> = {
@@ -120,6 +134,7 @@ const moduleLabels: Record<string, string> = {
   acdc_member: 'ACDC Member',
   acdc_queue: 'ACDC Queue',
   branch_variable: 'Branch by Call Priority',
+  branch_bnumber: 'Branch Bnumber',
   check_cid: 'Check CID',
   cidlistmatch: 'Caller ID List Match',
   collect_dtmf: 'Collect DTMF',
@@ -174,7 +189,11 @@ function makeAction(input: string | CallflowActionDefinition): CallflowAction {
       `Configure the Switch ${(item.label ?? humanize(item.module)).toLowerCase()} action.`,
     status: actionStatus,
     ...(item.action ? { action: item.action } : {}),
-    ...(item.action ? { preset: { action: item.action as CallflowInlineNodeData['action'] } } : {}),
+    ...(item.module === 'conference' && item.action === 'service'
+      ? { preset: { service_mode: true as const } }
+      : item.action
+        ? { preset: { action: item.action as CallflowInlineNodeData['action'] } }
+        : {}),
   }
 }
 
@@ -187,9 +206,10 @@ function category(
   return { id, label, description, actions: definitions.map(makeAction) }
 }
 
-// Category names, order, and action labels intentionally mirror the installed
-// Switch/Monster Callflows registry. Current Switch schema modules that the legacy
-// registry does not expose remain available in the final compatibility category.
+// Category names, action membership, and order mirror the installed
+// Switch/Monster Callflows registry. Do not add current-schema-only actions to
+// these categories: the expanded palette must remain visually comparable with
+// the connected Switch editor.
 export const callflowActionCatalog: CallflowActionCategory[] = [
   category('basic', 'Basic', 'The primary actions shown by the Switch callflow editor.', [
     definition('play', 'Media'),
@@ -216,8 +236,8 @@ export const callflowActionCatalog: CallflowActionCategory[] = [
     definition('collect_dtmf', 'Collect DTMF'),
     definition('disa', 'DISA'),
     'response',
-    definition('conference', 'Conference Service', 'service', 'planned'),
-    definition('voicemail', 'Check Voicemail', 'check', 'planned'),
+    definition('conference', 'Conference Service', 'service'),
+    definition('voicemail', 'Check Voicemail', 'check'),
     definition('faxbox', 'Fax Boxes'),
     definition('offnet', 'Global Carrier'),
     definition('resources', 'Account Carrier'),
@@ -258,71 +278,46 @@ export const callflowActionCatalog: CallflowActionCategory[] = [
     definition('call_forward', 'Disable call forwarding', 'deactivate'),
     definition('call_forward', 'Update call forwarding', 'update'),
   ]),
-  category(
-    'schema-extensions',
-    'Schema extensions',
-    'Current Switch schema modules not exposed by the installed legacy palette.',
-    [
-      'group',
-      'acdc_member',
-      'acdc_queue',
-      'acdc_agent',
-      'acdc_wait_time',
-      'transfer',
-      'route_to_cid',
-      'branch_bnumber',
-      'branch_variable',
-      'audio_macro',
-      'send_dtmf',
-      'flush_dtmf',
-      'dead_air',
-      'record_caller',
-      'fax_detect',
-      'check_cid',
-      'cidlistmatch',
-      'lookupcidname',
-      'privacy',
-      'set_cid',
-      'nomorobo',
-      'call_waiting',
-      'camping_feature',
-      'park',
-      'move',
-      'group_pickup_feature',
-      'intercom',
-      'after_bridge',
-      'action',
-      'eavesdrop',
-      'eavesdrop_feature',
-      'intercept',
-      'intercept_feature',
-      'set',
-      'set_variable',
-      'edr',
-      'hangup',
-    ],
-  ),
+]
+
+// These current-schema actions are supported by GridPBX but are not present in
+// the installed Monster palette. They are search-only compatibility actions:
+// keeping them outside callflowActionCatalog preserves exact palette parity,
+// while retaining guided editing for existing and explicitly searched nodes.
+export const searchableCallflowActions: CallflowAction[] = [
+  'group',
+  'acdc_member',
+  'branch_bnumber',
+  'branch_variable',
+  'send_dtmf',
+  'flush_dtmf',
+  'dead_air',
+  'record_caller',
+  'check_cid',
+  'cidlistmatch',
+  'set_cid',
+  'set_variable',
+  'hangup',
+].map(makeAction)
+
+const allCallflowActions = [
+  ...callflowActionCatalog.flatMap((catalogCategory) => catalogCategory.actions),
+  ...searchableCallflowActions,
 ]
 
 export function findCallflowAction(module: string, action?: string): CallflowAction | null {
-  const actions = callflowActionCatalog.flatMap((catalogCategory) => catalogCategory.actions)
-
   if (action) {
-    const variant = actions.find(
+    const variant = allCallflowActions.find(
       (catalogAction) => catalogAction.module === module && catalogAction.action === action,
     )
     if (variant) return variant
   }
 
-  return actions.find((catalogAction) => catalogAction.module === module) ?? null
+  return allCallflowActions.find((catalogAction) => catalogAction.module === module) ?? null
 }
 
 export function findCallflowActionById(id: string): CallflowAction | null {
-  return (
-    callflowActionCatalog
-      .flatMap((catalogCategory) => catalogCategory.actions)
-      .find((catalogAction) => catalogAction.id === id) ?? null
-  )
+  return allCallflowActions.find((catalogAction) => catalogAction.id === id) ?? null
 }
 
 export function callflowNodeLabel(
@@ -358,5 +353,25 @@ export function isGuidedInlineCallflowModule(
   action?: unknown,
 ): module is CallflowInlineModule {
   if (!callflowInlineModules.some((inlineModule) => inlineModule === module)) return false
+  if (module === 'conference') return action === 'service'
+  if (module === 'voicemail') return action === 'check'
   return !operationModules.has(module) || (typeof action === 'string' && action !== '')
+}
+
+const inlineModulesUsingEditorCatalog = new Set<CallflowInlineModule>([
+  'group_pickup',
+  'page_group',
+  'ring_group',
+  'receive_fax',
+  'missed_call_alert',
+  'check_cid',
+  'cidlistmatch',
+  'temporal_route',
+  'ring_group_toggle',
+])
+
+export function callflowInlineModuleNeedsEditorCatalog(module: string): boolean {
+  return callflowInlineModules.some((inlineModule) => inlineModule === module)
+    ? inlineModulesUsingEditorCatalog.has(module as CallflowInlineModule)
+    : false
 }

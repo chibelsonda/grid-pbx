@@ -8,7 +8,6 @@ use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchCallflowFactory;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -18,7 +17,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SwitchCallflow extends Model
 {
     /** @use HasFactory<SwitchCallflowFactory> */
-    use HasFactory, HasPublicUuid, HasUlids, SoftDeletes;
+    use HasFactory, HasPublicUuid, SoftDeletes;
 
     protected $primaryKey = 'callflow_id';
 

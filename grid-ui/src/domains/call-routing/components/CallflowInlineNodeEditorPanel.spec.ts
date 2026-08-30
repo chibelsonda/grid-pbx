@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import CallflowInlineNodeEditorPanel from './CallflowInlineNodeEditorPanel.vue'
 import type { CallflowEditor, CallflowNodeEditorContext } from '../types/callRouting'
 
@@ -345,6 +346,446 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
     expect(wrapper.text()).toContain('preserves its settings and dynamic branches')
     expect(wrapper.find('form').exists()).toBe(false)
+  })
+
+  it('configures Branch BNumber hunt filters and exact captured-number child branches', async () => {
+    const branchContext: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'branch_bnumber',
+      node: {
+        module: 'branch_variable',
+        target: null,
+        reference_status: 'not_applicable',
+        settings: { supported_variable: true },
+        children: {
+          '42': {
+            module: 'hangup',
+            target: null,
+            reference_status: 'not_applicable',
+            children: {},
+          },
+        },
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context: branchContext, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    const hunt = wrapper
+      .findAllComponents(ToggleSwitch)
+      .find((toggle) => toggle.props('label') === 'Hunt for a matching callflow')
+    expect(hunt).toBeDefined()
+    expect(hunt!.props('disabled')).toBe(false)
+    hunt!.vm.$emit('update:modelValue', true)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('input[aria-label="Allowed-number pattern"]').setValue('^1\\d{3}$')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'branch_bnumber',
+      data: {
+        hunt: true,
+        hunt_allow: '^1\\d{3}$',
+        hunt_deny: null,
+        skip_module: false,
+      },
+    })
+
+    await wrapper.setProps({
+      context: {
+        operation: 'create',
+        path: ['_'],
+        module: 'hangup',
+        node: {
+          module: 'branch_bnumber',
+          target: null,
+          reference_status: 'not_applicable',
+          settings: { hunt: false },
+          children: {
+            _: {
+              module: 'response',
+              target: null,
+              reference_status: 'not_applicable',
+              children: {},
+            },
+          },
+        },
+      },
+    })
+    const captureBranch = wrapper.get('input[aria-label="Captured number branch"]')
+    await captureBranch.setValue('1000')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[1]?.[0]).toMatchObject({
+      parent_path: ['_'],
+      branch: '1000',
+      module: 'hangup',
+    })
+  })
+
+  it('edits Set CAV as validated rows and submits the schema object', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'set_variables',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    const addVariable = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Add variable'))
+    expect(addVariable).toBeDefined()
+    await addVariable!.trigger('click')
+    await addVariable!.trigger('click')
+
+    await wrapper.get('input[aria-label="Variable 1 name"]').setValue('account_code')
+    await wrapper.get('input[aria-label="Variable 1 value"]').setValue('support')
+    await wrapper.get('input[aria-label="Variable 2 name"]').setValue('account_code')
+    await wrapper.get('input[aria-label="Variable 2 value"]').setValue('sales')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.get('input[aria-label="Variable 1 name"]').attributes('aria-invalid')).toBe(
+      'true',
+    )
+    expect(wrapper.get('input[aria-label="Variable 2 name"]').attributes('aria-invalid')).toBe(
+      'true',
+    )
+
+    await wrapper.get('input[aria-label="Variable 2 name"]').setValue('queue')
+    const exportToggle = wrapper
+      .findAllComponents(ToggleSwitch)
+      .find((toggle) => toggle.props('label') === 'Export to future bridged legs')
+    expect(exportToggle).toBeDefined()
+    exportToggle!.vm.$emit('update:modelValue', true)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'set_variables',
+      data: {
+        custom_application_vars: { account_code: 'support', queue: 'sales' },
+        export: true,
+        skip_module: false,
+      },
+    })
+    expect(wrapper.emitted('save')?.[0]?.[0]).not.toHaveProperty(
+      'data.custom_application_variables',
+    )
+  })
+
+  it('validates and submits the Monster-aligned Manual Presence fields', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'manual_presence',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+    const presenceId = wrapper.get('input[aria-label="Presence ID"]')
+
+    expect(wrapper.text()).toContain('Busy')
+    await presenceId.setValue('bad id')
+    await wrapper.get('form').trigger('submit')
+    expect(presenceId.attributes('aria-invalid')).toBe('true')
+    expect(presenceId.classes()).toContain('!border-red-400')
+
+    await presenceId.setValue('1001@example.com')
+    const status = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Presence status')
+    expect(status).toBeDefined()
+    status!.vm.$emit('update:modelValue', 'ringing')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'manual_presence',
+      data: {
+        presence_id: '1001@example.com',
+        status: 'ringing',
+        skip_module: false,
+      },
+    })
+  })
+
+  it('uses one Monster-aligned selector for a Group Pickup target', async () => {
+    const groupId = '11111111-1111-4111-8111-111111111111'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'group_pickup',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        group: [{ id: groupId, label: 'Support pickup', detail: '3 members' }],
+        extension: [
+          {
+            id: '22222222-2222-4222-8222-222222222222',
+            label: 'Reception',
+            detail: '1001',
+          },
+        ],
+        device: [
+          {
+            id: '33333333-3333-4333-8333-333333333333',
+            label: 'Front desk phone',
+            detail: null,
+          },
+        ],
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    const target = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Pickup target')
+    expect(target).toBeDefined()
+    expect(target!.props('invalid')).toBe(true)
+    expect(target!.props('options')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: `group:${groupId}`, label: 'Support pickup' }),
+      ]),
+    )
+
+    target!.vm.$emit('update:modelValue', `group:${groupId}`)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'group_pickup',
+      data: { target_type: 'group', target_id: groupId, skip_module: false },
+    })
+    expect(wrapper.text()).not.toContain('approved_group_id')
+  })
+
+  it('selects a public Receive Fax owner and supports all Kazoo T.38 modes', async () => {
+    const ownerId = '22222222-2222-4222-8222-222222222222'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'receive_fax',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        extension: [{ id: ownerId, label: 'Fax Reception', detail: '1099' }],
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    const owner = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Fax owner')
+    const t38 = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'T.38 negotiation')
+    expect(owner).toBeDefined()
+    expect(owner!.props('invalid')).toBe(true)
+    expect(t38?.props('options')).toHaveLength(3)
+
+    owner!.vm.$emit('update:modelValue', ownerId)
+    t38!.vm.$emit('update:modelValue', 'auto')
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'receive_fax',
+      data: { owner_id: ownerId, fax_option: 'auto', skip_module: false },
+    })
+  })
+
+  it('selects bounded public Device UUIDs for a Page Group', async () => {
+    const deviceId = '33333333-3333-4333-8333-333333333333'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'page_group',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        device: [{ id: deviceId, label: 'Warehouse speaker', detail: 'SIP paging device' }],
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.text()).toContain('Select at least one device.')
+    expect(wrapper.text()).toContain('1–20 synchronized devices')
+
+    const audio = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Page audio')
+    expect(audio?.props('options')).toHaveLength(2)
+    audio!.vm.$emit('update:modelValue', 'two-way')
+    await wrapper.get('input[aria-label="Warehouse speaker"]').setValue(true)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'page_group',
+      data: { audio: 'two-way', device_ids: [deviceId], skip_module: false },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-page-device')
+  })
+
+  it('orders bounded public Device UUIDs for a Ring Group', async () => {
+    const deviceId = '44444444-4444-4444-8444-444444444444'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'ring_group',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        device: [{ id: deviceId, label: 'Reception phone', detail: 'Front desk' }],
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.text()).toContain('Select at least one device.')
+
+    const strategy = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Ring strategy')
+    const addDevice = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Add Ring Group device')
+    expect(strategy?.props('options')).toHaveLength(2)
+    expect(addDevice?.props('options')).toHaveLength(1)
+
+    addDevice!.vm.$emit('update:modelValue', deviceId)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('input[aria-label="Device 1 delay"]').setValue('5')
+    await wrapper.get('input[aria-label="Attempts"]').setValue('2')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'ring_group',
+      data: {
+        strategy: 'simultaneous',
+        endpoints: [{ device_id: deviceId, delay: 5, timeout: 20 }],
+        repeats: 2,
+        skip_module: false,
+      },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-ring-group-device')
+  })
+
+  it('submits Conference Service without a conference resource identifier', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'conference',
+      preset: { service_mode: true },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('Conference Service')
+    expect(wrapper.text()).toContain('does not store or expose a conference resource ID')
+    await wrapper.get('form').trigger('submit')
+
+    const input = wrapper.emitted('save')?.[0]?.[0] as { data: Record<string, unknown> }
+    expect(input).toMatchObject({
+      module: 'conference',
+      data: { service_mode: true, skip_module: false },
+    })
+    expect(input.data).not.toHaveProperty('id')
+    expect(input.data).not.toHaveProperty('action')
+  })
+
+  it('submits Check Voicemail without a mailbox identifier or auto-login flags', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'voicemail',
+      preset: { action: 'check' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('Check Voicemail')
+    expect(wrapper.text()).toContain('does not store or expose a voicemail box resource ID')
+    await wrapper.get('form').trigger('submit')
+
+    const input = wrapper.emitted('save')?.[0]?.[0] as { data: Record<string, unknown> }
+    expect(input).toMatchObject({
+      module: 'voicemail',
+      data: { action: 'check', skip_module: false },
+    })
+    expect(input.data).not.toHaveProperty('id')
+    expect(input.data).not.toHaveProperty('single_mailbox_login')
+    expect(input.data).not.toHaveProperty('callerid_match_login')
   })
 
   it('validates and submits regex-mode Check CID without exposing absolute mode', async () => {

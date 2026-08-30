@@ -16,7 +16,10 @@ import FormListbox, {
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
 import { findCallflowAction, type CallflowAction } from '../catalog/callflowActionCatalog'
-import { availableCallflowBranches } from '../services/callflowTreeBranches'
+import {
+  availableCallflowBranches,
+  canAddCallflowChild,
+} from '../services/callflowTreeBranches'
 import CallflowActionPalette from './CallflowActionPalette.vue'
 import CallflowDiagram from './CallflowDiagram.vue'
 import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
@@ -141,7 +144,7 @@ const selectedParentAddable = computed(
     selectedNode.value.reference_status !== 'unresolved' &&
     selectedNode.value.branch?.kind !== 'preserved' &&
     selectedAction.value?.status === 'guided' &&
-    availableCallflowBranches(selectedNode.value).length > 0,
+    canAddCallflowChild(selectedNode.value),
 )
 const availableBranchOptions = computed<ListboxOptionValue[]>(() => {
   if (
@@ -345,7 +348,7 @@ function createNodeAt(action: CallflowAction, selection: CallflowNodeSelection):
     selection.node.reference_status === 'unresolved' ||
     selection.node.branch?.kind === 'preserved' ||
     findCallflowAction(selection.node.module)?.status !== 'guided' ||
-    availableCallflowBranches(selection.node).length === 0
+    !canAddCallflowChild(selection.node)
   ) {
     return
   }

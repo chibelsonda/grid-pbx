@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { CallflowNode } from '../types/callRouting'
-import { availableCallflowBranches, orderedCallflowChildren } from './callflowTreeBranches'
+import {
+  availableCallflowBranches,
+  canAddCallflowChild,
+  orderedCallflowChildren,
+  supportsCapturedNumberBranches,
+} from './callflowTreeBranches'
 
 describe('availableCallflowBranches', () => {
   it.each(['check_cid', 'cidlistmatch'])(
@@ -75,6 +80,24 @@ describe('availableCallflowBranches', () => {
         settings: { supported_variable: false },
       }),
     ).toEqual([])
+  })
+
+  it('allows custom captured-number children only while Branch BNumber hunt mode is off', () => {
+    const branching: CallflowNode = {
+      module: 'branch_bnumber',
+      target: null,
+      reference_status: 'not_applicable',
+      settings: { hunt: false },
+      children: {
+        _: { module: 'hangup', target: null, reference_status: 'not_applicable', children: {} },
+      },
+    }
+    const hunting: CallflowNode = { ...branching, settings: { hunt: true } }
+
+    expect(supportsCapturedNumberBranches(branching)).toBe(true)
+    expect(canAddCallflowChild(branching)).toBe(true)
+    expect(supportsCapturedNumberBranches(hunting)).toBe(false)
+    expect(canAddCallflowChild(hunting)).toBe(false)
   })
 })
 

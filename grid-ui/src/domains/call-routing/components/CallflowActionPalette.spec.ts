@@ -62,6 +62,21 @@ describe('CallflowActionPalette', () => {
     expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({ module: 'tts' })
   })
 
+  it('puts the exact shared-module action identity in native drag data', async () => {
+    const setData = vi.fn()
+    const wrapper = mount(CallflowActionPalette, { props: { dragEnabled: true } })
+
+    await wrapper.get('input[type="search"]').setValue('Stop Call Recording')
+    await wrapper
+      .get('[aria-label="Drag Stop Call Recording onto route"]')
+      .trigger('dragstart', { dataTransfer: { setData, effectAllowed: 'none' } })
+
+    expect(setData).toHaveBeenCalledWith(
+      'application/x-gridpbx-callflow-action',
+      'record_call[action=stop]',
+    )
+  })
+
   it('exposes explicit move and dock controls for the floating palette', async () => {
     const wrapper = mount(CallflowActionPalette, {
       props: { compact: true, movable: true, floating: true },
@@ -122,11 +137,28 @@ describe('CallflowActionPalette', () => {
       'Caller-ID',
       'Call Recording',
       'Call Forwarding',
-      'Schema extensions',
     ])
+
+    expect(wrapper.text()).not.toContain('Schema extensions')
+
+    const advanced = wrapper.findAll('button[aria-expanded]')[1]!
+    expect(advanced.text()).toContain('23')
+    await advanced.trigger('click')
+    expect(wrapper.text()).toContain('Webhook')
+    expect(wrapper.text()).not.toContain('Branch Bnumber')
 
     await wrapper.get('input[type="search"]').setValue('Start Call Recording')
     expect(wrapper.text()).toContain('Start Call Recording')
     expect(wrapper.text()).not.toContain('Record Call')
+  })
+
+  it('keeps supported current-schema compatibility actions search-only', async () => {
+    const wrapper = mount(CallflowActionPalette, { props: { compact: true, enabled: true } })
+
+    expect(wrapper.text()).not.toContain('Branch Bnumber')
+    await wrapper.get('input[type="search"]').setValue('Branch Bnumber')
+
+    expect(wrapper.text()).toContain('Branch Bnumber')
+    expect(wrapper.find('[aria-label="Add Branch Bnumber"]').exists()).toBe(true)
   })
 })

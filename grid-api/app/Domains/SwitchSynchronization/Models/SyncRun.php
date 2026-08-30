@@ -6,13 +6,12 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\SyncRunStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SyncRun extends Model
 {
-    use HasPublicUuid, HasUlids;
+    use HasPublicUuid;
 
     protected $primaryKey = 'sync_run_id';
 

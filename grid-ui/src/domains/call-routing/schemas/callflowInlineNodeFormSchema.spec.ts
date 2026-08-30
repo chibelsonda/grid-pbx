@@ -92,6 +92,25 @@ describe('callflow inline node form schema', () => {
       hotdesk: { action: 'logout', skip_module: false },
       do_not_disturb: { action: 'toggle', skip_module: false },
       call_forward: { action: 'update', skip_module: false },
+      page_group: {
+        audio: 'one-way',
+        device_ids: ['11111111-1111-4111-8111-111111111111'],
+        skip_module: false,
+      },
+      ring_group: {
+        strategy: 'simultaneous',
+        endpoints: [
+          {
+            device_id: '11111111-1111-4111-8111-111111111111',
+            delay: 0,
+            timeout: 20,
+          },
+        ],
+        repeats: 1,
+        skip_module: false,
+      },
+      conference: { service_mode: true, skip_module: false },
+      voicemail: { action: 'check', skip_module: false },
     } as const
 
     for (const [module, data] of Object.entries(fixtures)) {
@@ -249,10 +268,303 @@ describe('callflow inline node form schema', () => {
     expect(
       schema.safeParse({ ...valid, data: { ...valid.data, variable: 'x_secret' } }).success,
     ).toBe(false)
-    expect(
-      schema.safeParse({ ...valid, data: { ...valid.data, scope: 'account' } }).success,
-    ).toBe(false)
+    expect(schema.safeParse({ ...valid, data: { ...valid.data, scope: 'account' } }).success).toBe(
+      false,
+    )
     expect(schema.safeParse({ ...valid, branch: '256' }).success).toBe(false)
+  })
+
+  it('validates Branch BNumber modes, safe hunt filters, and exact capture branches', () => {
+    const schema = createCallflowInlineNodeFormSchema('branch_bnumber', ['_'], true, true, ['2000'])
+    const branchMode = {
+      branch: '1000',
+      data: { hunt: false, hunt_allow: null, hunt_deny: null, skip_module: false },
+    }
+
+    expect(schema.safeParse(branchMode).success).toBe(true)
+    expect(schema.safeParse({ ...branchMode, branch: '2000' }).success).toBe(false)
+    expect(schema.safeParse({ ...branchMode, branch: 'sales' }).success).toBe(false)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: {
+          hunt: true,
+          hunt_allow: '^1\\d{3}$',
+          hunt_deny: '^1900$',
+          skip_module: false,
+        },
+      }).success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { hunt: true, hunt_allow: '(?R)', hunt_deny: null, skip_module: false },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { hunt: false, hunt_allow: '^1', hunt_deny: null, skip_module: false },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('validates Set CAV rows, duplicate names, and control characters', () => {
+    const schema = createCallflowInlineNodeFormSchema('set_variables', ['_'], true)
+    const valid = {
+      branch: '_',
+      data: {
+        custom_application_variables: [
+          { key: 'account_code', value: 'support' },
+          { key: 'priority-1', value: '42' },
+        ],
+        export: true,
+        skip_module: false,
+      },
+    }
+
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...valid,
+        data: {
+          ...valid.data,
+          custom_application_variables: [
+            { key: 'account_code', value: 'support' },
+            { key: 'account_code', value: 'sales' },
+          ],
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...valid,
+        data: {
+          ...valid.data,
+          custom_application_variables: [{ key: 'bad key', value: 'support' }],
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...valid,
+        data: {
+          ...valid.data,
+          custom_application_variables: [{ key: 'valid', value: 'line\nbreak' }],
+        },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('validates Manual Presence identifiers and current statuses', () => {
+    const schema = createCallflowInlineNodeFormSchema('manual_presence', ['_'], true)
+
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { presence_id: '1001@example.com', status: 'busy', skip_module: false },
+      }).success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { presence_id: 'bad id', status: 'busy', skip_module: false },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { presence_id: '1001', status: 'unknown', skip_module: false },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('requires one public Group Pickup target', () => {
+    const schema = createCallflowInlineNodeFormSchema('group_pickup', ['_'], true)
+
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: {
+          target_type: 'group',
+          target_id: '11111111-1111-4111-8111-111111111111',
+          skip_module: false,
+        },
+      }).success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { target_type: 'group', target_id: 'switch-group-secret', skip_module: false },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: {
+          target_type: 'queue',
+          target_id: '11111111-1111-4111-8111-111111111111',
+          skip_module: false,
+        },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('requires a public Receive Fax owner and a schema-supported T.38 mode', () => {
+    const schema = createCallflowInlineNodeFormSchema('receive_fax', ['_'], true)
+    const base = {
+      branch: '_',
+      data: {
+        owner_id: '11111111-1111-4111-8111-111111111111',
+        fax_option: 'auto',
+        skip_module: false,
+      },
+    }
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(schema.safeParse({ ...base, data: { ...base.data, fax_option: true } }).success).toBe(
+      true,
+    )
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, owner_id: 'switch-user-secret' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, fax_option: 'unsupported' } }).success,
+    ).toBe(false)
+  })
+
+  it('requires a bounded list of public Page Group devices', () => {
+    const schema = createCallflowInlineNodeFormSchema('page_group', ['_'], true)
+    const deviceId = '11111111-1111-4111-8111-111111111111'
+    const base = {
+      branch: '_',
+      data: { audio: 'one-way', device_ids: [deviceId], skip_module: false },
+    } as const
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(schema.safeParse({ ...base, data: { ...base.data, audio: 'two-way' } }).success).toBe(
+      true,
+    )
+    expect(schema.safeParse({ ...base, data: { ...base.data, device_ids: [] } }).success).toBe(
+      false,
+    )
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, device_ids: [deviceId, deviceId] } })
+        .success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, device_ids: ['switch-device'] } }).success,
+    ).toBe(false)
+  })
+
+  it('requires bounded public Ring Group devices and attempt timing', () => {
+    const schema = createCallflowInlineNodeFormSchema('ring_group', ['_'], true)
+    const deviceId = '11111111-1111-4111-8111-111111111111'
+    const base = {
+      branch: '_',
+      data: {
+        strategy: 'simultaneous',
+        endpoints: [{ device_id: deviceId, delay: 5, timeout: 20 }],
+        repeats: 2,
+        skip_module: false,
+      },
+    } as const
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, strategy: 'weighted_random' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          strategy: 'single',
+          endpoints: [{ device_id: deviceId, delay: 1, timeout: 20 }],
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          strategy: 'single',
+          endpoints: [
+            { device_id: deviceId, delay: 0, timeout: 50 },
+            {
+              device_id: '22222222-2222-4222-8222-222222222222',
+              delay: 0,
+              timeout: 50,
+            },
+            {
+              device_id: '33333333-3333-4333-8333-333333333333',
+              delay: 0,
+              timeout: 50,
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [{ device_id: 'switch-device-id', delay: 0, timeout: 20 }],
+        },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('keeps Conference Service resource-free', () => {
+    const schema = createCallflowInlineNodeFormSchema('conference', ['_'], true)
+    const base = {
+      branch: '_',
+      data: { service_mode: true, skip_module: false },
+    } as const
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, id: 'raw-conference-id' },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, service_mode: false },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('keeps Check Voicemail resource-free and disables auto-login flags', () => {
+    const schema = createCallflowInlineNodeFormSchema('voicemail', ['_'], true)
+    const base = {
+      branch: '_',
+      data: { action: 'check', skip_module: false },
+    } as const
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, id: 'raw-voicemail-id' },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, action: 'compose' },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, single_mailbox_login: true },
+      }).success,
+    ).toBe(false)
   })
 
   it('rejects header injection in Alert-Info', () => {

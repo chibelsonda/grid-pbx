@@ -4,13 +4,12 @@ namespace App\Domains\Queues\Models;
 
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SwitchQueueAgent extends Model
 {
-    use HasPublicUuid, HasUlids;
+    use HasPublicUuid;
 
     protected $primaryKey = 'queue_agent_id';
 

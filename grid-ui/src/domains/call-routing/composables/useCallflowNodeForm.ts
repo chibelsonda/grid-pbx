@@ -2,7 +2,10 @@ import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter } from '
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import { callflowActionDestinationType } from '../catalog/callflowActionCatalog'
 import { createCallflowNodeFormSchema } from '../schemas/callflowNodeFormSchema'
-import { availableCallflowBranches } from '../services/callflowTreeBranches'
+import {
+  availableCallflowBranches,
+  supportsCapturedNumberBranches,
+} from '../services/callflowTreeBranches'
 import type {
   CallflowEditor,
   CallflowNodeEditorContext,
@@ -29,6 +32,10 @@ export function useCallflowNodeForm(
   })
   const branches = computed(() =>
     context.value.operation === 'create' ? availableCallflowBranches(context.value.node) : [],
+  )
+  const usesCapturedNumberBranch = computed(
+    () =>
+      context.value.operation === 'create' && supportsCapturedNumberBranches(context.value.node),
   )
 
   function initialize(): void {
@@ -59,6 +66,8 @@ export function useCallflowNodeForm(
         destinations.value.map(({ id }) => id),
         branches.value.map(({ value }) => value),
         context.value.operation === 'create',
+        usesCapturedNumberBranch.value,
+        Object.keys(context.value.node.children),
       ),
       { ...form },
     )
@@ -82,5 +91,13 @@ export function useCallflowNodeForm(
     }
   }
 
-  return { form, validationErrors, destinationType, destinations, branches, validate }
+  return {
+    form,
+    validationErrors,
+    destinationType,
+    destinations,
+    branches,
+    usesCapturedNumberBranch,
+    validate,
+  }
 }

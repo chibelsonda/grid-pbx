@@ -3,13 +3,12 @@
 namespace App\Domains\TemporalRouting\Models;
 
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SwitchTemporalRuleSetRule extends Model
 {
-    use HasPublicUuid, HasUlids;
+    use HasPublicUuid;
 
     protected $primaryKey = 'temporal_rule_set_rule_id';
 

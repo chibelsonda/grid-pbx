@@ -12,8 +12,8 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('kazoo_sync_runs', function (Blueprint $table) {
-            $table->ulid('id')->primary();
-            $table->foreignUlid('kazoo_account_id')->constrained()->cascadeOnDelete();
+            $table->bigIncrements('id');
+            $table->foreignId('kazoo_account_id')->constrained()->cascadeOnDelete();
             $table->foreignId('requested_by_user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('resource_type', 64);
             $table->string('status', 32);

@@ -9,12 +9,12 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_recordings', function (Blueprint $table): void {
-            $table->ulid('recording_id')->primary();
+            $table->bigIncrements('recording_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
-            $table->ulid('switch_extension_id')->nullable();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->unsignedBigInteger('switch_extension_id')->nullable();
             $table->foreign('switch_extension_id', 'sr_extension_fk')->references('extension_id')->on('switch_extensions')->nullOnDelete();
-            $table->ulid('switch_call_detail_record_id')->nullable();
+            $table->unsignedBigInteger('switch_call_detail_record_id')->nullable();
             $table->foreign('switch_call_detail_record_id', 'sr_cdr_fk')->references('call_detail_record_id')->on('switch_call_detail_records')->nullOnDelete();
             $table->string('switch_resource_id');
             $table->string('owner_switch_resource_id')->nullable();
@@ -56,5 +56,8 @@ return new class extends Migration
         });
     }
 
-    public function down(): void { Schema::dropIfExists('switch_recordings'); }
+    public function down(): void
+    {
+        Schema::dropIfExists('switch_recordings');
+    }
 };

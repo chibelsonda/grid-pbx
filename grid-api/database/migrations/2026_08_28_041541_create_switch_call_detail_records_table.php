@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_call_detail_records', function (Blueprint $table): void {
-            $table->ulid('call_detail_record_id')->primary();
+            $table->bigIncrements('call_detail_record_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id');
-            $table->foreignUlid('switch_extension_id')->nullable();
+            $table->foreignId('switch_account_id');
+            $table->foreignId('switch_extension_id')->nullable();
             $table->string('switch_resource_id');
             $table->string('call_id');
             $table->string('interaction_id')->nullable();

@@ -5,13 +5,12 @@ namespace App\Domains\Directories\Models;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Shared\Models\Concerns\HasPublicUuid;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SwitchDirectoryMember extends Model
 {
-    use HasPublicUuid, HasUlids;
+    use HasPublicUuid;
 
     protected $primaryKey = 'directory_member_id';
 

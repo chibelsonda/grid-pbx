@@ -48,8 +48,8 @@ async function remove(): Promise<void> {
 </script>
 
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto flex max-w-[1500px] items-center gap-4">
+  <section class="border-b border-slate-200/80 bg-white py-5">
+    <div class="page-container flex items-center gap-4">
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Conferences</p>
         <h1 class="text-xl font-semibold text-slate-800">Conferences</h1>
@@ -78,7 +78,7 @@ async function remove(): Promise<void> {
       </div>
     </div>
   </section>
-  <div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+  <div class="page-container py-4 sm:py-6 lg:py-8">
     <div class="mb-5 grid gap-4 sm:grid-cols-3">
       <article class="card-surface flex items-center gap-4 p-4">
         <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"

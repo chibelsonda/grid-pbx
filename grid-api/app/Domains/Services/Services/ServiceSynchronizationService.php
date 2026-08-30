@@ -20,8 +20,13 @@ class ServiceSynchronizationService
         $snapshot = $this->gateway->snapshot($account);
         $incomingPlans = collect($snapshot['plans'] ?? [])->pluck('switch_resource_id')->filter()->all();
         $incomingQuantities = collect($snapshot['quantities'] ?? [])->map(fn ($row) => is_array($row) ? implode("\0", [$row['scope'] ?? '', $row['category'] ?? '', $row['item'] ?? '']) : '')->filter()->all();
-        $deletedCount = $account->servicePlans()->pluck('switch_resource_id')->diff($incomingPlans)->count()
-            + $account->serviceQuantities()->get(['scope', 'category', 'item'])->map(fn ($row) => implode("\0", [$row->scope, $row->category, $row->item]))->diff($incomingQuantities)->count();
+        $existingPlans = $account->servicePlans()->pluck('switch_resource_id')->all();
+        $existingQuantities = $account->serviceQuantities()
+            ->get(['scope', 'category', 'item'])
+            ->map(fn ($row) => implode("\0", [$row->scope, $row->category, $row->item]))
+            ->all();
+        $deletedCount = count(array_diff($existingPlans, $incomingPlans))
+            + count(array_diff($existingQuantities, $incomingQuantities));
         DB::transaction(function () use ($run, $account, $snapshot, $deletedCount): void {
             $summary = $this->projection->project($account, $snapshot);
             $processed = 2 + $summary->plans->count() + $summary->quantities->count();

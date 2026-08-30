@@ -14,7 +14,9 @@ final class CallflowBranchPolicy
 
     public static function isPublicKey(string $key): bool
     {
-        return in_array($key, self::FIXED_PUBLIC_KEYS, true) || self::isPriorityKey($key);
+        return in_array($key, self::FIXED_PUBLIC_KEYS, true)
+            || self::isPriorityKey($key)
+            || self::isCapturedNumberKey($key);
     }
 
     /** @param array<string, mixed> $node */
@@ -25,6 +27,13 @@ final class CallflowBranchPolicy
         if ($module === 'branch_variable') {
             return self::supportsCallPriority($node)
                 && ($branch === '_' || self::isPriorityKey($branch));
+        }
+
+        if ($module === 'branch_bnumber') {
+            $data = is_array($node['data'] ?? null) ? $node['data'] : [];
+
+            return $branch === '_'
+                || (($data['hunt'] ?? false) !== true && self::isCapturedNumberKey($branch));
         }
 
         if ($branch === '_') {
@@ -65,5 +74,10 @@ final class CallflowBranchPolicy
     public static function isPriorityKey(string $key): bool
     {
         return preg_match('/^(?:0|[1-9]\d{0,2})$/', $key) === 1 && (int) $key <= 255;
+    }
+
+    public static function isCapturedNumberKey(string $key): bool
+    {
+        return preg_match('/^[0-9*#+]{1,64}$/', $key) === 1;
     }
 }

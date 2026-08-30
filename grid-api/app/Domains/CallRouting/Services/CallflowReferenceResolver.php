@@ -40,6 +40,13 @@ class CallflowReferenceResolver
     {
         $module = is_string($node['module'] ?? null) ? $node['module'] : 'unknown';
         $data = is_array($node['data'] ?? null) ? $node['data'] : [];
+        $isTemporalOperation = $module === 'temporal_route'
+            && in_array($data['action'] ?? null, ['disable', 'enable', 'reset'], true);
+        $isConferenceService = $module === 'conference'
+            && (! is_string($data['id'] ?? null) || $data['id'] === '');
+        $isVoicemailCheck = $module === 'voicemail'
+            && ($data['action'] ?? null) === 'check'
+            && (! is_string($data['id'] ?? null) || $data['id'] === '');
         $directTemporalRuleIds = $module === 'temporal_route' && is_array($data['rules'] ?? null)
             ? array_values(array_filter($data['rules'], fn (mixed $id): bool => is_string($id) && $id !== ''))
             : [];
@@ -60,11 +67,30 @@ class CallflowReferenceResolver
             $directTemporalRuleIds,
             array_keys($directTemporalRuleIds),
         );
-        $targetType = $module === 'temporal_route' && $directTemporalRuleIds !== []
-            ? null
-            : $this->targetType($module);
+        $groupPickupTarget = $module === 'group_pickup'
+            ? $this->groupPickupTarget($data)
+            : null;
+        $pageGroupSettings = $module === 'page_group'
+            ? $this->publicPageGroupSettings($data, $targets)
+            : null;
+        $ringGroupSettings = $module === 'ring_group'
+            ? $this->publicRingGroupSettings($data, $targets)
+            : null;
+        $targetType = match (true) {
+            $isConferenceService,
+            $isVoicemailCheck,
+            $isTemporalOperation,
+            $module === 'temporal_route' && $directTemporalRuleIds !== [] => null,
+            $module === 'ring_group_toggle' => 'callflow',
+            $module === 'group_pickup' => $groupPickupTarget['type'] ?? null,
+            $module === 'receive_fax' => 'extension',
+            default => $this->targetType($module),
+        };
         $resourceId = match ($module) {
             'temporal_route' => is_string($data['rule_set'] ?? null) ? $data['rule_set'] : null,
+            'ring_group_toggle' => is_string($data['callflow_id'] ?? null) ? $data['callflow_id'] : null,
+            'group_pickup' => $groupPickupTarget['resource_id'] ?? null,
+            'receive_fax' => is_string($data['owner_id'] ?? null) ? $data['owner_id'] : null,
             'faxbox' => is_string($data['id'] ?? null) ? $data['id'] : (is_string($data['faxbox_id'] ?? null) ? $data['faxbox_id'] : null),
             default => is_string($data['id'] ?? null) ? $data['id'] : null,
         };
@@ -87,6 +113,13 @@ class CallflowReferenceResolver
                 'label' => $target['label'],
             ],
             'reference_status' => match (true) {
+                $module === 'group_pickup' => $target === null ? 'unresolved' : 'resolved',
+                $module === 'page_group' => ($pageGroupSettings['supported_configuration'] ?? false)
+                    ? 'resolved'
+                    : 'unresolved',
+                $module === 'ring_group' => ($ringGroupSettings['supported_configuration'] ?? false)
+                    ? 'resolved'
+                    : 'unresolved',
                 $module === 'cidlistmatch'
                     && is_string($data['id'] ?? null)
                     && isset($targets['caller_id_list'][$data['id']]) => 'resolved',
@@ -99,7 +132,9 @@ class CallflowReferenceResolver
                 default => 'unresolved',
             },
             'temporal_rules' => $directTemporalRules,
-            'settings' => $this->publicInlineSettings($module, $data, $targets),
+            'settings' => $pageGroupSettings
+                ?? $ringGroupSettings
+                ?? $this->publicInlineSettings($module, $data, $targets),
             'children' => $children,
         ];
     }
@@ -114,6 +149,7 @@ class CallflowReferenceResolver
         if ($module === 'conference') {
             return [
                 'service_mode' => ! is_string($data['id'] ?? null) || $data['id'] === '',
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
             ];
         }
 
@@ -143,7 +179,9 @@ class CallflowReferenceResolver
         if ($module === 'voicemail') {
             $action = $data['action'] ?? null;
 
-            return is_string($action) && $action !== '' ? ['action' => $action] : null;
+            return is_string($action) && $action !== ''
+                ? ['action' => $action, 'skip_module' => (bool) ($data['skip_module'] ?? false)]
+                : null;
         }
 
         if (in_array($module, [
@@ -185,8 +223,71 @@ class CallflowReferenceResolver
             return $this->publicSetVariableSettings($data);
         }
 
+        if ($module === 'set_variables') {
+            return $this->publicSetVariablesSettings($data);
+        }
+
+        if ($module === 'manual_presence') {
+            return [
+                'presence_id' => is_string($data['presence_id'] ?? null) ? $data['presence_id'] : '',
+                'status' => in_array($data['status'] ?? null, ['idle', 'ringing', 'busy'], true)
+                    ? $data['status']
+                    : 'idle',
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'group_pickup') {
+            $selection = $this->groupPickupTarget($data);
+            $target = $selection === null
+                ? null
+                : ($targets[$selection['type']][$selection['resource_id']] ?? null);
+
+            return [
+                'supported_target' => $selection !== null && $target !== null,
+                'target_type' => $selection['type'] ?? null,
+                'target_id' => $target['id'] ?? null,
+                'target_label' => $target['label'] ?? null,
+                'reference_status' => $target === null ? 'unresolved' : 'resolved',
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'receive_fax') {
+            $resourceId = is_string($data['owner_id'] ?? null) && $data['owner_id'] !== ''
+                ? $data['owner_id']
+                : null;
+            $owner = $resourceId === null ? null : ($targets['extension'][$resourceId] ?? null);
+            $media = is_array($data['media'] ?? null) ? $data['media'] : [];
+            $hasFaxOption = array_key_exists('fax_option', $media);
+            $faxOption = $hasFaxOption ? $media['fax_option'] : false;
+            $supportedFaxOption = ! $hasFaxOption || is_bool($faxOption) || $faxOption === 'auto';
+
+            return [
+                'supported_configuration' => $owner !== null && $supportedFaxOption,
+                'owner_id' => $owner['id'] ?? null,
+                'owner_label' => $owner['label'] ?? null,
+                'reference_status' => $owner === null ? 'unresolved' : 'resolved',
+                'fax_option' => $supportedFaxOption ? $faxOption : null,
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
         if ($module === 'branch_variable') {
             return $this->publicBranchVariableSettings($data);
+        }
+
+        if ($module === 'branch_bnumber') {
+            return [
+                'hunt' => ($data['hunt'] ?? false) === true,
+                'hunt_allow' => is_string($data['hunt_allow'] ?? null) && $data['hunt_allow'] !== ''
+                    ? $data['hunt_allow']
+                    : null,
+                'hunt_deny' => is_string($data['hunt_deny'] ?? null) && $data['hunt_deny'] !== ''
+                    ? $data['hunt_deny']
+                    : null,
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
         }
 
         $keys = match ($module) {
@@ -229,6 +330,138 @@ class CallflowReferenceResolver
         return $settings;
     }
 
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @return array<string, mixed>
+     */
+    private function publicPageGroupSettings(array $data, array $targets): array
+    {
+        $audio = $data['audio'] ?? null;
+        $endpoints = $data['endpoints'] ?? null;
+        $supported = in_array($audio, ['one-way', 'two-way'], true)
+            && ($data['barge_calls'] ?? false) !== true
+            && $this->optionalIntegerInRange($data, 'timeout', 1, 30)
+            && is_array($endpoints)
+            && array_is_list($endpoints)
+            && $endpoints !== []
+            && count($endpoints) <= 20;
+        $deviceIds = [];
+        $seen = [];
+
+        foreach ($supported ? $endpoints : [] as $endpoint) {
+            $resourceId = is_array($endpoint) && is_string($endpoint['id'] ?? null)
+                ? $endpoint['id']
+                : null;
+            $device = $resourceId === null ? null : ($targets['device'][$resourceId] ?? null);
+
+            if (! is_array($endpoint)
+                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! $this->optionalIntegerInRange($endpoint, 'delay', 0, 30)
+                || ! $this->optionalIntegerInRange($endpoint, 'timeout', 1, 30)
+                || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
+                || $device === null
+                || isset($seen[$resourceId])) {
+                $supported = false;
+                break;
+            }
+
+            $seen[$resourceId] = true;
+            $deviceIds[] = $device['id'];
+        }
+
+        return [
+            'supported_configuration' => $supported,
+            'audio' => $supported ? $audio : null,
+            'device_ids' => $supported ? $deviceIds : [],
+            'reference_status' => $supported ? 'resolved' : 'unresolved',
+            'skip_module' => (bool) ($data['skip_module'] ?? false),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @return array<string, mixed>
+     */
+    private function publicRingGroupSettings(array $data, array $targets): array
+    {
+        $strategy = is_string($data['strategy'] ?? null) ? $data['strategy'] : 'simultaneous';
+        $repeats = is_int($data['repeats'] ?? null) ? $data['repeats'] : 1;
+        $endpoints = $data['endpoints'] ?? null;
+        $supported = in_array($strategy, ['simultaneous', 'single'], true)
+            && $repeats >= 1
+            && $repeats <= RingGroupPolicy::MAX_REPEATS
+            && is_array($endpoints)
+            && array_is_list($endpoints)
+            && $endpoints !== []
+            && count($endpoints) <= RingGroupPolicy::MAX_ENDPOINTS;
+        $publicEndpoints = [];
+        $timings = [];
+        $seen = [];
+
+        foreach ($supported ? $endpoints : [] as $endpoint) {
+            $resourceId = is_array($endpoint) && is_string($endpoint['id'] ?? null)
+                ? $endpoint['id']
+                : null;
+            $device = $resourceId === null ? null : ($targets['device'][$resourceId] ?? null);
+            $delay = is_array($endpoint) && is_int($endpoint['delay'] ?? null)
+                ? $endpoint['delay']
+                : 0;
+            $timeout = is_array($endpoint) && is_int($endpoint['timeout'] ?? null)
+                ? $endpoint['timeout']
+                : 20;
+
+            if (! is_array($endpoint)
+                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || $delay < 0
+                || $delay > RingGroupPolicy::MAX_ENDPOINT_DELAY
+                || $timeout < 1
+                || $timeout > RingGroupPolicy::MAX_ENDPOINT_TIMEOUT
+                || ($strategy === 'single' && $delay !== 0)
+                || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
+                || $device === null
+                || isset($seen[$resourceId])) {
+                $supported = false;
+                break;
+            }
+
+            $seen[$resourceId] = true;
+            $publicEndpoints[] = [
+                'device_id' => $device['id'],
+                'delay' => $delay,
+                'timeout' => $timeout,
+            ];
+            $timings[] = ['delay' => $delay, 'timeout' => $timeout];
+        }
+
+        $attemptTimeout = $supported ? RingGroupPolicy::attemptTimeout($strategy, $timings) : null;
+        $storedTimeout = is_int($data['timeout'] ?? null) ? $data['timeout'] : 20;
+        $supported = $supported
+            && $attemptTimeout !== null
+            && $attemptTimeout <= RingGroupPolicy::MAX_ATTEMPT_TIMEOUT
+            && $storedTimeout === $attemptTimeout;
+
+        return [
+            'supported_configuration' => $supported,
+            'strategy' => $supported ? $strategy : null,
+            'endpoints' => $supported ? $publicEndpoints : [],
+            'repeats' => $supported ? $repeats : null,
+            'reference_status' => $supported ? 'resolved' : 'unresolved',
+            'skip_module' => (bool) ($data['skip_module'] ?? false),
+        ];
+    }
+
+    /** @param array<string, mixed> $data */
+    private function optionalIntegerInRange(array $data, string $key, int $minimum, int $maximum): bool
+    {
+        if (! array_key_exists($key, $data)) {
+            return true;
+        }
+
+        return is_int($data[$key]) && $data[$key] >= $minimum && $data[$key] <= $maximum;
+    }
+
     /** @param array<string, mixed> $data @return array<string, mixed> */
     private function publicSetVariableSettings(array $data): array
     {
@@ -257,6 +490,49 @@ class CallflowReferenceResolver
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function publicSetVariablesSettings(array $data): array
+    {
+        $variables = is_array($data['custom_application_vars'] ?? null)
+            ? $data['custom_application_vars']
+            : null;
+        $supported = $variables !== null
+            && count($variables) <= 64
+            && (! array_key_exists('export', $data) || is_bool($data['export']));
+
+        if ($supported) {
+            foreach ($variables as $key => $value) {
+                $name = (string) $key;
+                $length = is_string($value)
+                    ? (function_exists('mb_strlen') ? mb_strlen($value) : strlen($value))
+                    : null;
+
+                if (preg_match('/^[A-Za-z0-9_-]{1,128}$/', $name) !== 1
+                    || ! is_int($length)
+                    || $length > 1024
+                    || preg_match('/[\x00\r\n]/', $value) === 1) {
+                    $supported = false;
+                    break;
+                }
+            }
+        }
+
+        if (! $supported) {
+            return [
+                'supported_variables' => false,
+                'variable_count' => is_array($variables) ? count($variables) : 0,
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        return [
+            'supported_variables' => true,
+            'custom_application_vars' => (object) $variables,
+            'export' => ($data['export'] ?? false) === true,
+            'skip_module' => (bool) ($data['skip_module'] ?? false),
+        ];
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
     private function publicBranchVariableSettings(array $data): array
     {
         $supported = ($data['variable'] ?? null) === 'call_priority'
@@ -275,6 +551,20 @@ class CallflowReferenceResolver
             'scope' => 'custom_channel_vars',
             'skip_module' => (bool) ($data['skip_module'] ?? false),
         ];
+    }
+
+    /** @param array<string, mixed> $data @return array{type: string, resource_id: string}|null */
+    private function groupPickupTarget(array $data): ?array
+    {
+        $targets = [];
+
+        foreach (['device_id' => 'device', 'user_id' => 'extension', 'group_id' => 'group'] as $key => $type) {
+            if (is_string($data[$key] ?? null) && $data[$key] !== '') {
+                $targets[] = ['type' => $type, 'resource_id' => $data[$key]];
+            }
+        }
+
+        return count($targets) === 1 ? $targets[0] : null;
     }
 
     /**

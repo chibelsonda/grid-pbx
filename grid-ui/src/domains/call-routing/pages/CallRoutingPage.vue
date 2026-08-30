@@ -16,7 +16,10 @@ import CallflowDetailPanel from '../components/CallflowDetailPanel.vue'
 import CallflowEditorPanel from '../components/CallflowEditorPanel.vue'
 import CallflowInlineNodeEditorPanel from '../components/CallflowInlineNodeEditorPanel.vue'
 import CallflowNodeEditorPanel from '../components/CallflowNodeEditorPanel.vue'
-import { isGuidedInlineCallflowModule } from '../catalog/callflowActionCatalog'
+import {
+  callflowInlineModuleNeedsEditorCatalog,
+  isGuidedInlineCallflowModule,
+} from '../catalog/callflowActionCatalog'
 import { createComplexCallflowDemo } from '../services/complexCallflowDemo'
 import { useCallflowStore } from '../stores/callflowStore'
 import type {
@@ -35,7 +38,13 @@ const callflows = useCallflowStore()
 const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
 
 function nodeEditorAction(context: CallflowNodeEditorContext): unknown {
-  return context.preset?.action ?? context.node.settings?.action
+  return (
+    context.preset?.action ??
+    context.node.settings?.action ??
+    (context.preset?.service_mode === true || context.node.settings?.service_mode === true
+      ? 'service'
+      : undefined)
+  )
 }
 const demoOpen = ref(false)
 const complexDemo = createComplexCallflowDemo()
@@ -137,13 +146,7 @@ function openNodeEditor(context: CallflowNodeEditorContext): void {
   nodeEditorContext.value = context
   if (
     isGuidedInlineCallflowModule(context.module, nodeEditorAction(context)) &&
-    ![
-      'missed_call_alert',
-      'check_cid',
-      'cidlistmatch',
-      'temporal_route',
-      'ring_group_toggle',
-    ].includes(context.module)
+    !callflowInlineModuleNeedsEditorCatalog(context.module)
   ) {
     callflows.closeTreeEditor()
   } else {

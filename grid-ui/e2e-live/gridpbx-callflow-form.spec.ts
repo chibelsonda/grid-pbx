@@ -1,4 +1,7 @@
-import { expect, test, type Page } from '@playwright/test'
+import { existsSync, readFileSync } from 'node:fs'
+import process from 'node:process'
+
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
@@ -11,6 +14,36 @@ function collectPageIssues(page: Page): string[] {
   })
 
   return issues
+}
+
+async function replaceInputValue(inputLocator: Locator, value: string): Promise<void> {
+  await inputLocator.evaluate((element, nextValue) => {
+    const input = element as HTMLInputElement
+    input.value = nextValue
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  }, value)
+  await expect(inputLocator).toHaveValue(value)
+}
+
+type PublicCallflowNode = {
+  module?: string
+  settings?: Record<string, unknown>
+  children?: Record<string, PublicCallflowNode>
+}
+
+function findCallflowNodeByModule(
+  node: PublicCallflowNode | null | undefined,
+  module: string,
+): PublicCallflowNode | null {
+  if (!node) return null
+  if (node.module === module) return node
+
+  for (const child of Object.values(node.children ?? {})) {
+    const match = findCallflowNodeByModule(child, module)
+    if (match) return match
+  }
+
+  return null
 }
 
 test('opens a deep UI-only callflow demo without mutating Switch', async ({ page }) => {
@@ -34,22 +67,22 @@ test('opens a deep UI-only callflow demo without mutating Switch', async ({ page
   ).toBeVisible()
   await expect(page.getByText('UI-only demonstration.')).toBeVisible()
   await expect(workspace.getByText('20', { exact: true }).first()).toBeVisible()
-  await expect(workspace.getByText('8', { exact: true }).first()).toBeVisible()
+  await expect(workspace.getByText('6', { exact: true }).first()).toBeVisible()
+  await expect(workspace.getByText('14', { exact: true }).first()).toBeVisible()
   await expect(
     workspace.getByRole('treeitem', { name: 'Time of Day: Office hours and holidays' }),
   ).toBeVisible()
-  await expect(workspace.getByRole('treeitem', { name: 'Check CID' })).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'Menu: Main IVR' })).toBeVisible()
   await expect(
-    workspace.getByRole('treeitem', { name: 'ACDC Member: General support queue' }),
+    workspace.getByRole('treeitem', { name: 'Voicemail: Support overflow mailbox' }),
   ).toBeVisible()
-  await expect(workspace.getByRole('treeitem', { name: 'Response' })).toBeVisible()
-  await expect(workspace.getByRole('treeitem', { name: 'Hangup' })).toHaveCount(2)
+  await expect(workspace.getByRole('treeitem', { name: 'Response' })).toHaveCount(3)
 
-  await workspace.getByRole('treeitem', { name: 'Check CID' }).click()
-  const nodeInfo = page.getByRole('dialog', { name: 'Check Cid' })
+  await workspace.getByRole('treeitem', { name: 'Menu: Main IVR' }).click()
+  const nodeInfo = page.getByRole('dialog', { name: 'Menu' })
+  await expect(nodeInfo).toContainText('Main IVR')
   await expect(nodeInfo).toContainText('Business hours match')
-  await expect(nodeInfo).toContainText('Key 1 · Support')
-  await expect(nodeInfo).toContainText('2')
+  await expect(nodeInfo).toContainText('Child paths')
   await expect(nodeInfo.getByRole('button', { name: 'Edit action target' })).toHaveCount(0)
   await nodeInfo.getByRole('button', { name: 'Close node information' }).click()
 
@@ -174,10 +207,1153 @@ test('opens a deep UI-only callflow demo without mutating Switch', async ({ page
   await palette.locator('button[aria-expanded]').nth(1).click()
   categoryToggles = palette.locator('button[aria-expanded="true"]')
   await expect(categoryToggles).toHaveCount(1)
+  const advancedTitles = await palette
+    .locator('button[title*=" · "]')
+    .evaluateAll((actions) =>
+      actions.map((action) => action.getAttribute('title')?.split(' · ')[0] ?? ''),
+    )
+  expect(advancedTitles).toEqual([
+    'Device',
+    'Distinctive Ring',
+    'Callflow',
+    'Page Group',
+    'Set CAV',
+    'Missed Call Alert',
+    'Manual Presence',
+    'TTS',
+    'Sleep',
+    'Language',
+    'Group Pickup',
+    'Receive Fax',
+    'Pivot',
+    'Collect DTMF',
+    'DISA',
+    'Response',
+    'Conference Service',
+    'Check Voicemail',
+    'Fax Boxes',
+    'Global Carrier',
+    'Account Carrier',
+    'Directory',
+    'Webhook',
+  ])
   await expect(workspace.getByText('1 path', { exact: true })).toHaveCount(0)
   await expect(workspace.getByText('Default branch', { exact: true })).toHaveCount(0)
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
+})
+
+test('creates, edits, branches, and removes live guided inline actions', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const suffix = Date.now().toString().slice(-8)
+  const seededRouteName = process.env.GRID_E2E_CALL_PRIORITY_ROUTE_NAME?.trim()
+  const routeName = seededRouteName || `E2E Call Priority ${suffix}`
+  let created = false
+
+  try {
+    await page.goto('/call-routing')
+    await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
+    if (seededRouteName) {
+      await page.getByRole('button', { name: `View ${routeName}` }).click()
+      created = true
+    } else {
+      const editorResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          /\/api\/v1\/accounts\/[^/]+\/callflows\/editor$/.test(new URL(response.url()).pathname),
+      )
+      await page.getByRole('button', { name: 'Create route' }).click()
+      const editor = (await (await editorResponse).json()) as {
+        data: {
+          phone_numbers: Array<{ id: string; number: string; available: boolean }>
+          destination_types: Array<{ value: string }>
+          destinations: Record<string, Array<{ id: string }>>
+        }
+      }
+      const availableNumber = editor.data.phone_numbers.find(({ available }) => available)
+      const availableDestination = editor.data.destination_types.find(
+        ({ value }) => (editor.data.destinations[value]?.length ?? 0) > 0,
+      )
+
+      test.skip(
+        !availableNumber || !availableDestination,
+        'The connected account needs one unassigned phone number and one projected destination.',
+      )
+
+      const createPanel = page.getByRole('dialog', { name: 'Create call route' })
+      await createPanel.getByLabel('Route name').fill(routeName)
+      await createPanel.getByRole('checkbox', { name: availableNumber!.number }).check()
+      const createResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/v1\/accounts\/[^/]+\/callflows$/.test(new URL(response.url()).pathname),
+      )
+      await createPanel.getByRole('button', { name: 'Create route' }).click()
+      expect((await createResponse).status()).toBe(201)
+      created = true
+    }
+
+    const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+    await expect(workspace.getByRole('heading', { name: routeName })).toBeVisible()
+    const diagram = workspace.getByRole('tree', { name: 'Callflow diagram' })
+    await diagram.getByRole('treeitem').nth(1).click()
+    const nodeInformation = page.getByRole('dialog')
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await expect(nodeInformation).toBeHidden()
+
+    const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+    await palette.getByRole('button', { name: /^Advanced/ }).click()
+    const paletteSearch = palette.getByRole('searchbox', { name: 'Search callflow actions' })
+    await replaceInputValue(paletteSearch, 'Branch by Call Priority')
+    await palette.getByTitle('Branch by Call Priority · branch_variable · Guided now').click()
+    const addPriority = page.getByRole('dialog', { name: 'Add Branch by Call Priority' })
+    await expect(addPriority.getByRole('textbox', { name: 'Variable' })).toBeDisabled()
+    await expect(addPriority.getByRole('textbox', { name: 'Scope' })).toBeDisabled()
+    const createPriorityResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addPriority.getByRole('button', { name: 'Add action' }).click()
+    const createdPriority = await createPriorityResponse
+    expect(createdPriority.status()).toBe(200)
+    expect(createdPriority.request().postDataJSON()).toMatchObject({
+      module: 'branch_variable',
+      data: {
+        variable: 'call_priority',
+        scope: 'custom_channel_vars',
+        skip_module: false,
+      },
+    })
+
+    const priorityNode = diagram.getByRole('treeitem', { name: 'Branch by Call Priority' })
+    await expect(priorityNode).toBeVisible()
+    await priorityNode.click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Edit action target' }).click()
+    const editPriority = page.getByRole('dialog', { name: 'Edit Branch by Call Priority' })
+    await editPriority.getByRole('switch', { name: 'Skip this action' }).click()
+    const updatePriorityResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editPriority.getByRole('button', { name: 'Save action' }).click()
+    const updatedPriority = await updatePriorityResponse
+    expect(updatedPriority.status()).toBe(200)
+    expect(updatedPriority.request().postDataJSON()).toMatchObject({
+      node_path: ['_'],
+      module: 'branch_variable',
+      data: { skip_module: true },
+    })
+    await expect(editPriority).toBeHidden()
+
+    await priorityNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await expect(nodeInformation).toBeHidden()
+    await replaceInputValue(paletteSearch, 'Hangup')
+    await palette.getByTitle('Hangup · hangup · Guided now').click()
+    const addHangup = page.getByRole('dialog', { name: 'Add Hangup' })
+    await addHangup.getByRole('button', { name: 'Parent branch' }).click()
+    await page.getByRole('option', { name: /^Priority 42\b/ }).click()
+    const createBranchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addHangup.getByRole('button', { name: 'Add action' }).click()
+    const createdBranch = await createBranchResponse
+    expect(createdBranch.status()).toBe(200)
+    expect(createdBranch.request().postDataJSON()).toMatchObject({
+      parent_path: ['_'],
+      branch: '42',
+      module: 'hangup',
+    })
+    await expect(workspace.getByText('Priority 42', { exact: true })).toBeVisible()
+    await expect(diagram.getByRole('treeitem', { name: 'Hangup' })).toBeVisible()
+
+    await priorityNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Branch Bnumber')
+    await palette.getByTitle('Branch Bnumber · branch_bnumber · Guided now').click()
+    const addCapturedNumber = page.getByRole('dialog', { name: 'Add Branch Bnumber' })
+    await addCapturedNumber.getByRole('switch', { name: 'Hunt for a matching callflow' }).click()
+    await addCapturedNumber.getByLabel('Allowed-number pattern').fill('^1\\d{3}$')
+    const createCapturedNumberResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addCapturedNumber.getByRole('button', { name: 'Add action' }).click()
+    const createdCapturedNumber = await createCapturedNumberResponse
+    expect(createdCapturedNumber.status()).toBe(200)
+    expect(createdCapturedNumber.request().postDataJSON()).toMatchObject({
+      parent_path: ['_'],
+      branch: '_',
+      module: 'branch_bnumber',
+      data: { hunt: true, hunt_allow: '^1\\d{3}$', hunt_deny: null, skip_module: false },
+    })
+
+    const capturedNumberNode = diagram.getByRole('treeitem', { name: 'Branch Bnumber' })
+    await capturedNumberNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editCapturedNumber = page.getByRole('dialog', { name: 'Edit Branch Bnumber' })
+    await editCapturedNumber.getByRole('switch', { name: 'Hunt for a matching callflow' }).click()
+    const updateCapturedNumberResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editCapturedNumber.getByRole('button', { name: 'Save action' }).click()
+    const updatedCapturedNumber = await updateCapturedNumberResponse
+    expect(updatedCapturedNumber.status()).toBe(200)
+    expect(updatedCapturedNumber.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_'],
+      module: 'branch_bnumber',
+      data: { hunt: false, hunt_allow: null, hunt_deny: null, skip_module: false },
+    })
+
+    await capturedNumberNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Hangup')
+    await palette.getByTitle('Hangup · hangup · Guided now').click()
+    const addCapturedHangup = page.getByRole('dialog', { name: 'Add Hangup' })
+    await addCapturedHangup.getByLabel('Captured number branch').fill('1000')
+    const createCapturedBranchResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addCapturedHangup.getByRole('button', { name: 'Add action' }).click()
+    const createdCapturedBranch = await createCapturedBranchResponse
+    expect(createdCapturedBranch.status()).toBe(200)
+    expect(createdCapturedBranch.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_'],
+      branch: '1000',
+      module: 'hangup',
+    })
+    await expect(workspace.getByText('Captured number 1000', { exact: true })).toBeVisible()
+
+    await capturedNumberNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Set CAV')
+    await palette.getByTitle('Set CAV · set_variables · Guided now').click()
+    const addSetCav = page.getByRole('dialog', { name: 'Add Set CAV' })
+    await addSetCav.getByRole('button', { name: 'Add variable' }).click()
+    await addSetCav.getByRole('button', { name: 'Add variable' }).click()
+    await addSetCav.getByLabel('Variable 1 name').fill('gridpbx_test')
+    await addSetCav.getByLabel('Variable 1 value').fill('created')
+    await addSetCav.getByLabel('Variable 2 name').fill('flow_stage')
+    await addSetCav.getByLabel('Variable 2 value').fill('verification')
+    await addSetCav.getByRole('switch', { name: 'Export to future bridged legs' }).click()
+    const createSetCavResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addSetCav.getByRole('button', { name: 'Add action' }).click()
+    const createdSetCav = await createSetCavResponse
+    expect(createdSetCav.status()).toBe(200)
+    expect(createdSetCav.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_'],
+      branch: '_',
+      module: 'set_variables',
+      data: {
+        custom_application_vars: {
+          gridpbx_test: 'created',
+          flow_stage: 'verification',
+        },
+        export: true,
+        skip_module: false,
+      },
+    })
+
+    const setCavNode = diagram.getByRole('treeitem', { name: 'Set CAV' })
+    await expect(setCavNode).toBeVisible()
+    await setCavNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editSetCav = page.getByRole('dialog', { name: 'Edit Set CAV' })
+    await expect(editSetCav.getByLabel('Variable 1 name')).toHaveValue('gridpbx_test')
+    await expect(editSetCav.getByLabel('Variable 2 name')).toHaveValue('flow_stage')
+    await replaceInputValue(editSetCav.getByLabel('Variable 1 value'), 'updated')
+    await editSetCav.getByRole('button', { name: 'Remove variable 2' }).click()
+    await editSetCav.getByRole('switch', { name: 'Export to future bridged legs' }).click()
+    const updateSetCavResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editSetCav.getByRole('button', { name: 'Save action' }).click()
+    const updatedSetCav = await updateSetCavResponse
+    expect(updatedSetCav.status()).toBe(200)
+    expect(updatedSetCav.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_'],
+      module: 'set_variables',
+      data: {
+        custom_application_vars: { gridpbx_test: 'updated' },
+        export: false,
+        skip_module: false,
+      },
+    })
+    await expect(editSetCav).toBeHidden()
+
+    await setCavNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedSetCav = page.getByRole('dialog', { name: 'Edit Set CAV' })
+    await expect(reopenedSetCav.getByLabel('Variable 1 name')).toHaveValue('gridpbx_test')
+    await expect(reopenedSetCav.getByLabel('Variable 1 value')).toHaveValue('updated')
+    await expect(reopenedSetCav.getByLabel('Variable 2 name')).toHaveCount(0)
+    await reopenedSetCav.getByRole('button', { name: 'Close' }).click()
+
+    await setCavNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Manual Presence')
+    await palette.getByTitle('Manual Presence · manual_presence · Guided now').click()
+    const addManualPresence = page.getByRole('dialog', { name: 'Add Manual Presence' })
+    await expect(addManualPresence.getByRole('button', { name: 'Presence status' })).toContainText(
+      'Busy',
+    )
+    await replaceInputValue(addManualPresence.getByLabel('Presence ID'), '1001')
+    const createManualPresenceResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addManualPresence.getByRole('button', { name: 'Add action' }).click()
+    const createdManualPresence = await createManualPresenceResponse
+    expect(createdManualPresence.status()).toBe(200)
+    expect(createdManualPresence.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_', '_'],
+      branch: '_',
+      module: 'manual_presence',
+      data: { presence_id: '1001', status: 'busy', skip_module: false },
+    })
+
+    const manualPresenceNode = diagram.getByRole('treeitem', { name: 'Manual Presence' })
+    await expect(manualPresenceNode).toBeVisible()
+    await manualPresenceNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editManualPresence = page.getByRole('dialog', { name: 'Edit Manual Presence' })
+    await expect(editManualPresence.getByLabel('Presence ID')).toHaveValue('1001')
+    await replaceInputValue(editManualPresence.getByLabel('Presence ID'), '1001@example.com')
+    await editManualPresence.getByRole('button', { name: 'Presence status' }).click()
+    await page.getByRole('option', { name: 'Idle', exact: true }).click()
+    await editManualPresence.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateManualPresenceResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editManualPresence.getByRole('button', { name: 'Save action' }).click()
+    const updatedManualPresence = await updateManualPresenceResponse
+    expect(updatedManualPresence.status()).toBe(200)
+    expect(updatedManualPresence.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_'],
+      module: 'manual_presence',
+      data: { presence_id: '1001@example.com', status: 'idle', skip_module: true },
+    })
+    await expect(editManualPresence).toBeHidden()
+
+    await manualPresenceNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedManualPresence = page.getByRole('dialog', { name: 'Edit Manual Presence' })
+    await expect(reopenedManualPresence.getByLabel('Presence ID')).toHaveValue('1001@example.com')
+    await expect(
+      reopenedManualPresence.getByRole('button', { name: 'Presence status' }),
+    ).toContainText('Idle')
+    await expect(
+      reopenedManualPresence.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedManualPresence.getByRole('button', { name: 'Close' }).click()
+
+    await manualPresenceNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Group Pickup')
+    await palette.getByTitle('Group Pickup · group_pickup · Guided now').click()
+    const addGroupPickup = page.getByRole('dialog', { name: 'Add Group Pickup' })
+    await addGroupPickup.getByRole('button', { name: 'Pickup target' }).click()
+    const extensionOption = page
+      .getByRole('option')
+      .filter({ hasText: /Extension/ })
+      .first()
+    const extensionLabel =
+      (await extensionOption.locator('span').first().textContent())?.trim() ?? ''
+    await extensionOption.click()
+    const createGroupPickupResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addGroupPickup.getByRole('button', { name: 'Add action' }).click()
+    const createdGroupPickup = await createGroupPickupResponse
+    expect(createdGroupPickup.status()).toBe(200)
+    const createdGroupPickupPayload = createdGroupPickup.request().postDataJSON()
+    expect(createdGroupPickupPayload).toMatchObject({
+      parent_path: ['_', '_', '_', '_'],
+      branch: '_',
+      module: 'group_pickup',
+      data: {
+        target_type: 'extension',
+        target_id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        ),
+        skip_module: false,
+      },
+    })
+
+    const groupPickupNode = diagram.getByRole('treeitem', { name: 'Group Pickup' })
+    await expect(groupPickupNode).toContainText(extensionLabel)
+    await groupPickupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editGroupPickup = page.getByRole('dialog', { name: 'Edit Group Pickup' })
+    await expect(editGroupPickup.getByRole('button', { name: 'Pickup target' })).toContainText(
+      extensionLabel,
+    )
+    await editGroupPickup.getByRole('button', { name: 'Pickup target' }).click()
+    const deviceOption = page
+      .getByRole('option')
+      .filter({ hasText: /Device/ })
+      .first()
+    const deviceLabel = (await deviceOption.locator('span').first().textContent())?.trim() ?? ''
+    await deviceOption.click()
+    await editGroupPickup.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateGroupPickupResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editGroupPickup.getByRole('button', { name: 'Save action' }).click()
+    const updatedGroupPickup = await updateGroupPickupResponse
+    expect(updatedGroupPickup.status()).toBe(200)
+    const updatedGroupPickupPayload = updatedGroupPickup.request().postDataJSON()
+    expect(updatedGroupPickupPayload).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_'],
+      module: 'group_pickup',
+      data: {
+        target_type: 'device',
+        target_id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        ),
+        skip_module: true,
+      },
+    })
+    expect(updatedGroupPickupPayload.data.target_id).not.toBe(
+      createdGroupPickupPayload.data.target_id,
+    )
+    await expect(editGroupPickup).toBeHidden()
+
+    await groupPickupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedGroupPickup = page.getByRole('dialog', { name: 'Edit Group Pickup' })
+    await expect(reopenedGroupPickup.getByRole('button', { name: 'Pickup target' })).toContainText(
+      deviceLabel,
+    )
+    await expect(
+      reopenedGroupPickup.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedGroupPickup.getByRole('button', { name: 'Close' }).click()
+
+    await groupPickupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Receive Fax')
+    await palette.getByTitle('Receive Fax · receive_fax · Guided now').click()
+    const addReceiveFax = page.getByRole('dialog', { name: 'Add Receive Fax' })
+    await addReceiveFax.getByRole('button', { name: 'Fax owner' }).click()
+    const faxOwnerOption = page.getByRole('option').first()
+    const faxOwnerLabel = (await faxOwnerOption.locator('span').first().textContent())?.trim() ?? ''
+    await faxOwnerOption.click()
+    await addReceiveFax.getByRole('button', { name: 'T.38 negotiation' }).click()
+    await page.getByRole('option', { name: /^Automatic/ }).click()
+    const createReceiveFaxResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addReceiveFax.getByRole('button', { name: 'Add action' }).click()
+    const createdReceiveFax = await createReceiveFaxResponse
+    expect(createdReceiveFax.status()).toBe(200)
+    const createdReceiveFaxPayload = createdReceiveFax.request().postDataJSON()
+    expect(createdReceiveFaxPayload).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'receive_fax',
+      data: {
+        owner_id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        ),
+        fax_option: 'auto',
+        skip_module: false,
+      },
+    })
+    const createdReceiveFaxBody = (await createdReceiveFax.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const createdReceiveFaxNode = findCallflowNodeByModule(
+      createdReceiveFaxBody.data.flow,
+      'receive_fax',
+    )
+    expect(createdReceiveFaxNode?.settings?.owner_id).toBe(createdReceiveFaxPayload.data.owner_id)
+
+    const receiveFaxRawOwnerId = process.env.GRID_E2E_RECEIVE_FAX_RAW_OWNER_ID?.trim()
+    const receiveFaxPrivateMarker = process.env.GRID_E2E_RECEIVE_FAX_PRIVATE_MARKER?.trim()
+    const receiveFaxInjectionFile = process.env.GRID_E2E_RECEIVE_FAX_INJECTION_FILE?.trim()
+    if (receiveFaxRawOwnerId) {
+      expect(JSON.stringify(createdReceiveFaxBody)).not.toContain(receiveFaxRawOwnerId)
+    }
+    if (receiveFaxPrivateMarker) {
+      expect(JSON.stringify(createdReceiveFaxBody)).not.toContain(receiveFaxPrivateMarker)
+    }
+    if (receiveFaxInjectionFile) {
+      await expect.poll(() => existsSync(receiveFaxInjectionFile), { timeout: 20_000 }).toBe(true)
+    }
+
+    const receiveFaxNode = diagram.getByRole('treeitem', { name: 'Receive Fax' })
+    await expect(receiveFaxNode).toContainText(faxOwnerLabel)
+    await receiveFaxNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editReceiveFax = page.getByRole('dialog', { name: 'Edit Receive Fax' })
+    await expect(editReceiveFax.getByRole('button', { name: 'Fax owner' })).toContainText(
+      faxOwnerLabel,
+    )
+    await expect(editReceiveFax.getByRole('button', { name: 'T.38 negotiation' })).toContainText(
+      'Automatic',
+    )
+    await editReceiveFax.getByRole('button', { name: 'T.38 negotiation' }).click()
+    await page.getByRole('option', { name: /^Enabled/ }).click()
+    await editReceiveFax.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateReceiveFaxResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editReceiveFax.getByRole('button', { name: 'Save action' }).click()
+    const updatedReceiveFax = await updateReceiveFaxResponse
+    expect(updatedReceiveFax.status()).toBe(200)
+    expect(updatedReceiveFax.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_'],
+      module: 'receive_fax',
+      data: { fax_option: true, skip_module: true },
+    })
+    const updatedReceiveFaxBody = (await updatedReceiveFax.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const updatedReceiveFaxNode = findCallflowNodeByModule(
+      updatedReceiveFaxBody.data.flow,
+      'receive_fax',
+    )
+    expect(updatedReceiveFaxNode?.settings).toMatchObject({
+      owner_id: createdReceiveFaxPayload.data.owner_id,
+      fax_option: true,
+      skip_module: true,
+    })
+    if (receiveFaxRawOwnerId) {
+      expect(JSON.stringify(updatedReceiveFaxBody)).not.toContain(receiveFaxRawOwnerId)
+    }
+    if (receiveFaxPrivateMarker) {
+      expect(JSON.stringify(updatedReceiveFaxBody)).not.toContain(receiveFaxPrivateMarker)
+    }
+    await expect(editReceiveFax).toBeHidden()
+
+    await receiveFaxNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedReceiveFax = page.getByRole('dialog', { name: 'Edit Receive Fax' })
+    await expect(reopenedReceiveFax.getByRole('button', { name: 'Fax owner' })).toContainText(
+      faxOwnerLabel,
+    )
+    await expect(
+      reopenedReceiveFax.getByRole('button', { name: 'T.38 negotiation' }),
+    ).toContainText('Enabled')
+    await expect(
+      reopenedReceiveFax.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedReceiveFax.getByRole('button', { name: 'Close' }).click()
+
+    await receiveFaxNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Conference Service')
+    await palette.getByTitle('Conference Service · conference · Guided now').click()
+    const addConferenceService = page.getByRole('dialog', { name: 'Add Conference Service' })
+    await expect(addConferenceService).toContainText(
+      'does not store or expose a conference resource ID',
+    )
+    const createConferenceServiceResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addConferenceService.getByRole('button', { name: 'Add action' }).click()
+    const createdConferenceService = await createConferenceServiceResponse
+    expect(createdConferenceService.status()).toBe(200)
+    expect(createdConferenceService.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'conference',
+      data: { service_mode: true, skip_module: false },
+    })
+    const createdConferenceServiceBody = (await createdConferenceService.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const createdConferenceServiceNode = findCallflowNodeByModule(
+      createdConferenceServiceBody.data.flow,
+      'conference',
+    )
+    expect(createdConferenceServiceNode).toMatchObject({
+      target: null,
+      reference_status: 'not_applicable',
+      settings: { service_mode: true, skip_module: false },
+    })
+
+    const conferenceServicePrivateMarker =
+      process.env.GRID_E2E_CONFERENCE_SERVICE_PRIVATE_MARKER?.trim()
+    const conferenceServiceInjectionFile =
+      process.env.GRID_E2E_CONFERENCE_SERVICE_INJECTION_FILE?.trim()
+    if (conferenceServicePrivateMarker) {
+      expect(JSON.stringify(createdConferenceServiceBody)).not.toContain(
+        conferenceServicePrivateMarker,
+      )
+    }
+    if (conferenceServiceInjectionFile) {
+      await expect
+        .poll(() => existsSync(conferenceServiceInjectionFile), { timeout: 20_000 })
+        .toBe(true)
+    }
+
+    const conferenceServiceNode = diagram.getByRole('treeitem', {
+      name: 'Conference Service',
+    })
+    await conferenceServiceNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editConferenceService = page.getByRole('dialog', { name: 'Edit Conference Service' })
+    await expect(editConferenceService).toContainText(
+      'does not store or expose a conference resource ID',
+    )
+    await editConferenceService.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateConferenceServiceResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editConferenceService.getByRole('button', { name: 'Save action' }).click()
+    const updatedConferenceService = await updateConferenceServiceResponse
+    expect(updatedConferenceService.status()).toBe(200)
+    expect(updatedConferenceService.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_', '_'],
+      module: 'conference',
+      data: { service_mode: true, skip_module: true },
+    })
+    const updatedConferenceServiceBody = (await updatedConferenceService.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    expect(
+      findCallflowNodeByModule(updatedConferenceServiceBody.data.flow, 'conference'),
+    ).toMatchObject({
+      target: null,
+      reference_status: 'not_applicable',
+      settings: { service_mode: true, skip_module: true },
+    })
+    if (conferenceServicePrivateMarker) {
+      expect(JSON.stringify(updatedConferenceServiceBody)).not.toContain(
+        conferenceServicePrivateMarker,
+      )
+    }
+    await expect(editConferenceService).toBeHidden()
+
+    await conferenceServiceNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedConferenceService = page.getByRole('dialog', {
+      name: 'Edit Conference Service',
+    })
+    await expect(
+      reopenedConferenceService.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedConferenceService.getByRole('button', { name: 'Close' }).click()
+
+    await conferenceServiceNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Check Voicemail')
+    await palette.getByTitle('Check Voicemail · voicemail · Guided now').click()
+    const addCheckVoicemail = page.getByRole('dialog', { name: 'Add Check Voicemail' })
+    await expect(addCheckVoicemail).toContainText(
+      'does not store or expose a voicemail box resource ID',
+    )
+    const createCheckVoicemailResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addCheckVoicemail.getByRole('button', { name: 'Add action' }).click()
+    const createdCheckVoicemail = await createCheckVoicemailResponse
+    expect(createdCheckVoicemail.status()).toBe(200)
+    expect(createdCheckVoicemail.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'voicemail',
+      data: { action: 'check', skip_module: false },
+    })
+    const createdCheckVoicemailBody = (await createdCheckVoicemail.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    expect(
+      findCallflowNodeByModule(createdCheckVoicemailBody.data.flow, 'voicemail'),
+    ).toMatchObject({
+      target: null,
+      reference_status: 'not_applicable',
+      settings: { action: 'check', skip_module: false },
+    })
+
+    let checkVoicemailPrivateMarker = process.env.GRID_E2E_CHECK_VOICEMAIL_PRIVATE_MARKER?.trim()
+    const checkVoicemailInjectionFile = process.env.GRID_E2E_CHECK_VOICEMAIL_INJECTION_FILE?.trim()
+    if (checkVoicemailPrivateMarker) {
+      expect(JSON.stringify(createdCheckVoicemailBody)).not.toContain(checkVoicemailPrivateMarker)
+    }
+    if (checkVoicemailInjectionFile) {
+      await expect
+        .poll(() => existsSync(checkVoicemailInjectionFile), { timeout: 20_000 })
+        .toBe(true)
+      checkVoicemailPrivateMarker ||= readFileSync(checkVoicemailInjectionFile, 'utf8').trim()
+    }
+
+    const checkVoicemailNode = diagram.getByRole('treeitem', { name: 'Check Voicemail' })
+    await checkVoicemailNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editCheckVoicemail = page.getByRole('dialog', { name: 'Edit Check Voicemail' })
+    await expect(editCheckVoicemail).toContainText(
+      'does not store or expose a voicemail box resource ID',
+    )
+    await editCheckVoicemail.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateCheckVoicemailResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editCheckVoicemail.getByRole('button', { name: 'Save action' }).click()
+    const updatedCheckVoicemail = await updateCheckVoicemailResponse
+    expect(updatedCheckVoicemail.status()).toBe(200)
+    expect(updatedCheckVoicemail.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_', '_', '_'],
+      module: 'voicemail',
+      data: { action: 'check', skip_module: true },
+    })
+    const updatedCheckVoicemailBody = (await updatedCheckVoicemail.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    expect(
+      findCallflowNodeByModule(updatedCheckVoicemailBody.data.flow, 'voicemail'),
+    ).toMatchObject({
+      target: null,
+      reference_status: 'not_applicable',
+      settings: { action: 'check', skip_module: true },
+    })
+    if (checkVoicemailPrivateMarker) {
+      expect(JSON.stringify(updatedCheckVoicemailBody)).not.toContain(checkVoicemailPrivateMarker)
+    }
+    await expect(editCheckVoicemail).toBeHidden()
+
+    await checkVoicemailNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedCheckVoicemail = page.getByRole('dialog', {
+      name: 'Edit Check Voicemail',
+    })
+    await expect(
+      reopenedCheckVoicemail.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedCheckVoicemail.getByRole('button', { name: 'Close' }).click()
+
+    await checkVoicemailNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Page Group')
+    await palette.getByTitle('Page Group · page_group · Guided now').click()
+    const addPageGroup = page.getByRole('dialog', { name: 'Add Page Group' })
+    const pageDevice = addPageGroup.getByRole('checkbox').first()
+    const pageDeviceLabel = (await pageDevice.getAttribute('aria-label')) ?? ''
+    const publicPageDeviceId = (await pageDevice.getAttribute('value')) ?? ''
+    expect(publicPageDeviceId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
+    await pageDevice.check()
+    const createPageGroupResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addPageGroup.getByRole('button', { name: 'Add action' }).click()
+    const createdPageGroup = await createPageGroupResponse
+    expect(createdPageGroup.status()).toBe(200)
+    expect(createdPageGroup.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'page_group',
+      data: {
+        audio: 'one-way',
+        device_ids: [publicPageDeviceId],
+        skip_module: false,
+      },
+    })
+    const createdPageGroupBody = (await createdPageGroup.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const createdPublicPageGroupNode = findCallflowNodeByModule(
+      createdPageGroupBody.data.flow,
+      'page_group',
+    )
+    expect(createdPublicPageGroupNode).toMatchObject({
+      target: null,
+      reference_status: 'resolved',
+      settings: {
+        supported_configuration: true,
+        audio: 'one-way',
+        device_ids: [publicPageDeviceId],
+        skip_module: false,
+      },
+    })
+    expect(createdPublicPageGroupNode?.settings).not.toHaveProperty('weight')
+
+    const pageGroupRawDeviceId = process.env.GRID_E2E_PAGE_GROUP_RAW_DEVICE_ID?.trim()
+    const pageGroupVerificationFile = process.env.GRID_E2E_PAGE_GROUP_VERIFICATION_FILE?.trim()
+    if (pageGroupRawDeviceId) {
+      expect(JSON.stringify(createdPageGroupBody)).not.toContain(pageGroupRawDeviceId)
+    }
+    const pageGroupNode = diagram.getByRole('treeitem', { name: 'Page Group' })
+    await expect(pageGroupNode).toBeVisible()
+    await pageGroupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editPageGroup = page.getByRole('dialog', { name: 'Edit Page Group' })
+    await expect(editPageGroup.getByRole('checkbox', { name: pageDeviceLabel })).toBeChecked()
+    await editPageGroup.getByRole('button', { name: 'Page audio' }).click()
+    await page.getByRole('option', { name: /^Two-way/ }).click()
+    await editPageGroup.getByRole('switch', { name: 'Skip this action' }).click()
+    const updatePageGroupResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editPageGroup.getByRole('button', { name: 'Save action' }).click()
+    const updatedPageGroup = await updatePageGroupResponse
+    expect(updatedPageGroup.status()).toBe(200)
+    expect(updatedPageGroup.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      module: 'page_group',
+      data: {
+        audio: 'two-way',
+        device_ids: [publicPageDeviceId],
+        skip_module: true,
+      },
+    })
+    const updatedPageGroupBody = (await updatedPageGroup.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const updatedPublicPageGroupNode = findCallflowNodeByModule(
+      updatedPageGroupBody.data.flow,
+      'page_group',
+    )
+    expect(updatedPublicPageGroupNode).toMatchObject({
+      settings: {
+        supported_configuration: true,
+        audio: 'two-way',
+        device_ids: [publicPageDeviceId],
+        skip_module: true,
+      },
+    })
+    expect(updatedPublicPageGroupNode?.settings).not.toHaveProperty('weight')
+    if (pageGroupRawDeviceId) {
+      expect(JSON.stringify(updatedPageGroupBody)).not.toContain(pageGroupRawDeviceId)
+    }
+    if (pageGroupVerificationFile) {
+      await expect.poll(() => existsSync(pageGroupVerificationFile), { timeout: 20_000 }).toBe(true)
+      const rawEvidence = JSON.parse(readFileSync(pageGroupVerificationFile, 'utf8')) as {
+        audio?: string
+        skip_module?: boolean
+        endpoint_type?: string
+        id?: string
+        timeout?: number
+        endpoint_delay?: number
+        endpoint_timeout?: number
+      }
+      expect(rawEvidence).toMatchObject({
+        audio: 'two-way',
+        skip_module: true,
+        endpoint_type: 'device',
+        ...(pageGroupRawDeviceId ? { id: pageGroupRawDeviceId } : {}),
+        timeout: 5,
+        endpoint_delay: 0,
+        endpoint_timeout: 20,
+      })
+    }
+    await expect(editPageGroup).toBeHidden()
+
+    await pageGroupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedPageGroup = page.getByRole('dialog', { name: 'Edit Page Group' })
+    await expect(reopenedPageGroup.getByRole('button', { name: 'Page audio' })).toContainText(
+      'Two-way',
+    )
+    await expect(reopenedPageGroup.getByRole('checkbox', { name: pageDeviceLabel })).toBeChecked()
+    await expect(
+      reopenedPageGroup.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedPageGroup.getByRole('button', { name: 'Close' }).click()
+
+    await pageGroupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Ring Group')
+    await palette.getByTitle('Ring Group · ring_group · Guided now').click()
+    const addRingGroup = page.getByRole('dialog', { name: 'Add Ring Group' })
+    await addRingGroup.getByRole('button', { name: 'Add Ring Group device' }).click()
+    await page.getByRole('option').filter({ hasText: pageDeviceLabel }).click()
+    await addRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' }).fill('5')
+    await addRingGroup.getByRole('spinbutton', { name: 'Attempts' }).fill('2')
+    const createRingGroupResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addRingGroup.getByRole('button', { name: 'Add action' }).click()
+    const createdRingGroup = await createRingGroupResponse
+    expect(createdRingGroup.status()).toBe(200)
+    expect(createdRingGroup.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'ring_group',
+      data: {
+        strategy: 'simultaneous',
+        endpoints: [{ device_id: publicPageDeviceId, delay: 5, timeout: 20 }],
+        repeats: 2,
+        skip_module: false,
+      },
+    })
+    const createdRingGroupBody = (await createdRingGroup.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const createdPublicRingGroupNode = findCallflowNodeByModule(
+      createdRingGroupBody.data.flow,
+      'ring_group',
+    )
+    expect(createdPublicRingGroupNode).toMatchObject({
+      target: null,
+      reference_status: 'resolved',
+      settings: {
+        supported_configuration: true,
+        strategy: 'simultaneous',
+        endpoints: [{ device_id: publicPageDeviceId, delay: 5, timeout: 20 }],
+        repeats: 2,
+        skip_module: false,
+      },
+    })
+    expect(createdPublicRingGroupNode?.settings).not.toHaveProperty('timeout')
+    expect(createdPublicRingGroupNode?.settings).not.toHaveProperty('ringback')
+
+    const ringGroupRawDeviceId = process.env.GRID_E2E_RING_GROUP_RAW_DEVICE_ID?.trim()
+    let ringGroupPrivateMarker = process.env.GRID_E2E_RING_GROUP_PRIVATE_MARKER?.trim()
+    const ringGroupInjectionFile = process.env.GRID_E2E_RING_GROUP_INJECTION_FILE?.trim()
+    const ringGroupVerificationFile = process.env.GRID_E2E_RING_GROUP_VERIFICATION_FILE?.trim()
+    if (ringGroupRawDeviceId) {
+      expect(JSON.stringify(createdRingGroupBody)).not.toContain(ringGroupRawDeviceId)
+    }
+    if (ringGroupPrivateMarker) {
+      expect(JSON.stringify(createdRingGroupBody)).not.toContain(ringGroupPrivateMarker)
+    }
+    if (ringGroupInjectionFile) {
+      await expect.poll(() => existsSync(ringGroupInjectionFile), { timeout: 20_000 }).toBe(true)
+      ringGroupPrivateMarker ||= readFileSync(ringGroupInjectionFile, 'utf8').trim()
+    }
+
+    const ringGroupNode = diagram.getByRole('treeitem', { name: 'Ring Group' })
+    await expect(ringGroupNode).toBeVisible()
+    await ringGroupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editRingGroup = page.getByRole('dialog', { name: 'Edit Ring Group' })
+    await expect(editRingGroup.getByRole('button', { name: 'Ring strategy' })).toContainText(
+      'At the same time',
+    )
+    await expect(editRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' })).toHaveValue('5')
+    await editRingGroup.getByRole('button', { name: 'Ring strategy' }).click()
+    await page.getByRole('option', { name: 'In order' }).click()
+    await expect(editRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' })).toHaveValue('0')
+    await editRingGroup.getByRole('spinbutton', { name: 'Device 1 timeout' }).fill('30')
+    await editRingGroup.getByRole('spinbutton', { name: 'Attempts' }).fill('1')
+    await editRingGroup.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateRingGroupResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editRingGroup.getByRole('button', { name: 'Save action' }).click()
+    const updatedRingGroup = await updateRingGroupResponse
+    expect(updatedRingGroup.status()).toBe(200)
+    expect(updatedRingGroup.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      module: 'ring_group',
+      data: {
+        strategy: 'single',
+        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 30 }],
+        repeats: 1,
+        skip_module: true,
+      },
+    })
+    const updatedRingGroupBody = (await updatedRingGroup.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const updatedPublicRingGroupNode = findCallflowNodeByModule(
+      updatedRingGroupBody.data.flow,
+      'ring_group',
+    )
+    expect(updatedPublicRingGroupNode).toMatchObject({
+      settings: {
+        supported_configuration: true,
+        strategy: 'single',
+        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 30 }],
+        repeats: 1,
+        skip_module: true,
+      },
+    })
+    expect(updatedPublicRingGroupNode?.settings).not.toHaveProperty('timeout')
+    expect(updatedPublicRingGroupNode?.settings).not.toHaveProperty('ringback')
+    if (ringGroupRawDeviceId) {
+      expect(JSON.stringify(updatedRingGroupBody)).not.toContain(ringGroupRawDeviceId)
+    }
+    if (ringGroupPrivateMarker) {
+      expect(JSON.stringify(updatedRingGroupBody)).not.toContain(ringGroupPrivateMarker)
+    }
+    if (ringGroupVerificationFile) {
+      await expect.poll(() => existsSync(ringGroupVerificationFile), { timeout: 20_000 }).toBe(true)
+      const rawEvidence = JSON.parse(readFileSync(ringGroupVerificationFile, 'utf8')) as {
+        strategy?: string
+        repeats?: number
+        timeout?: number
+        skip_module?: boolean
+        ringback?: string
+        endpoint_type?: string
+        id?: string
+        delay?: number
+        endpoint_timeout?: number
+      }
+      expect(rawEvidence).toMatchObject({
+        strategy: 'single',
+        repeats: 1,
+        timeout: 30,
+        skip_module: true,
+        ...(ringGroupPrivateMarker ? { ringback: ringGroupPrivateMarker } : {}),
+        endpoint_type: 'device',
+        ...(ringGroupRawDeviceId ? { id: ringGroupRawDeviceId } : {}),
+        delay: 0,
+        endpoint_timeout: 30,
+      })
+    }
+    await expect(editRingGroup).toBeHidden()
+
+    await ringGroupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedRingGroup = page.getByRole('dialog', { name: 'Edit Ring Group' })
+    await expect(reopenedRingGroup.getByRole('button', { name: 'Ring strategy' })).toContainText(
+      'In order',
+    )
+    await expect(reopenedRingGroup.getByRole('spinbutton', { name: 'Attempts' })).toHaveValue('1')
+    await expect(reopenedRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' })).toHaveValue(
+      '0',
+    )
+    await expect(
+      reopenedRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' }),
+    ).toBeDisabled()
+    await expect(
+      reopenedRingGroup.getByRole('spinbutton', { name: 'Device 1 timeout' }),
+    ).toHaveValue('30')
+    await expect(
+      reopenedRingGroup.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedRingGroup.getByRole('button', { name: 'Close' }).click()
+    expect(issues).toEqual([])
+  } finally {
+    if (created) {
+      await page.goto('/call-routing')
+      const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+      await routeSearch.fill(routeName)
+      await expect(routeSearch).toHaveValue(routeName)
+      await page.getByRole('button', { name: 'Apply filters' }).click()
+      const viewRoute = page.getByRole('button', { name: `View ${routeName}` })
+      await expect(viewRoute).toHaveCount(1)
+
+      if ((await viewRoute.count()) === 1) {
+        await viewRoute.click()
+        const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+        const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
+
+        if (await deleteRoute.isDisabled()) {
+          await workspace.getByRole('button', { name: 'Edit guided route' }).click()
+          const editRoute = page.getByRole('dialog', { name: 'Edit guided route' })
+          const selectedNumbers = editRoute.getByRole('checkbox', { checked: true })
+
+          for (let index = (await selectedNumbers.count()) - 1; index >= 0; index--) {
+            await selectedNumbers.nth(index).uncheck()
+          }
+
+          const clearResponse = page.waitForResponse(
+            (response) =>
+              response.request().method() === 'PUT' &&
+              /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(
+                new URL(response.url()).pathname,
+              ),
+          )
+          await editRoute.getByRole('button', { name: 'Save route' }).click()
+          expect((await clearResponse).status()).toBe(200)
+        }
+
+        await deleteRoute.click()
+        const confirmation = page.getByRole('dialog', { name: 'Delete this route?' })
+        const deleteResponse = page.waitForResponse(
+          (response) =>
+            response.request().method() === 'DELETE' &&
+            /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(response.url()).pathname),
+        )
+        await confirmation.getByRole('button', { name: 'Delete route' }).click()
+        expect((await deleteResponse).status()).toBe(204)
+        await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
+        await expect(page.getByText(routeName, { exact: true })).toHaveCount(0)
+      }
+    }
+  }
 })
 
 test('keeps Callflow validation inline and its destination listbox inside the viewport', async ({

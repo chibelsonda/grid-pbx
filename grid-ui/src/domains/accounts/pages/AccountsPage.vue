@@ -58,8 +58,8 @@ async function changeStatus(): Promise<void> {
 </script>
 
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto max-w-[1500px]">
+  <section class="border-b border-slate-200/80 bg-white py-5">
+    <div class="page-container">
       <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Accounts</p>
       <h1 class="text-xl font-semibold tracking-tight text-slate-800">Accounts</h1>
       <p class="mt-1 text-xs text-slate-600">
@@ -68,7 +68,7 @@ async function changeStatus(): Promise<void> {
     </div>
   </section>
 
-  <div class="mx-auto grid max-w-[1500px] gap-5 p-4 sm:p-6 lg:grid-cols-[300px_1fr] lg:p-8">
+  <div class="page-container grid gap-5 py-4 sm:py-6 lg:grid-cols-[300px_1fr] lg:py-8">
     <aside class="card-surface h-fit overflow-hidden">
       <div class="border-b border-slate-200 px-4 py-3">
         <h2 class="text-sm font-semibold text-slate-700">Accessible accounts</h2>

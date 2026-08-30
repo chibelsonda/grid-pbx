@@ -771,6 +771,648 @@ final class CallflowResourceClientTest extends TestCase
         );
     }
 
+    public function test_it_creates_and_updates_call_priority_branch_variables_without_rebuilding_children(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-1'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'branch_variable',
+            [
+                'variable' => 'call_priority',
+                'scope' => 'custom_channel_vars',
+                'skip_module' => false,
+            ],
+        )->toSwitchData();
+        $createdChildren = (array) $created['flow']['children'];
+        $createdNode = $createdChildren['_'];
+
+        self::assertSame('branch_variable', $createdNode['module']);
+        self::assertSame('call_priority', $createdNode['data']['variable']);
+        self::assertSame('custom_channel_vars', $createdNode['data']['scope']);
+        self::assertFalse($createdNode['data']['skip_module']);
+
+        $current = [
+            'flow' => [
+                ...$created['flow'],
+                'children' => [
+                    '_' => [
+                        ...$createdNode,
+                        'data' => [...$createdNode['data'], 'server_owned' => 'preserve'],
+                        'children' => [
+                            '42' => [
+                                'module' => 'user',
+                                'data' => ['id' => 'user-42'],
+                                'children' => [],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'branch_variable',
+            [
+                'variable' => 'call_priority',
+                'scope' => 'custom_channel_vars',
+                'skip_module' => true,
+            ],
+        )->toSwitchData();
+        $updatedChildren = (array) $updated['flow']['children'];
+        $updatedNode = $updatedChildren['_'];
+        $updatedNodeChildren = (array) $updatedNode['children'];
+
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('preserve', $updatedNode['data']['server_owned']);
+        self::assertSame('user-42', $updatedNodeChildren['42']['data']['id']);
+    }
+
+    public function test_it_rejects_unsupported_call_priority_branch_variable_settings(): void
+    {
+        $base = ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]];
+
+        foreach ([
+            ['variable' => 'private_variable', 'scope' => 'custom_channel_vars', 'skip_module' => false],
+            ['variable' => 'call_priority', 'scope' => 'account', 'skip_module' => false],
+        ] as $settings) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'branch_variable', $settings);
+                self::fail('Unsupported branch variable settings must be rejected.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_branch_bnumber_modes_and_exact_capture_branches_safely(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'branch_bnumber',
+                'data' => ['hunt' => false, 'server_owned' => 'preserve'],
+                'children' => [],
+            ],
+        ];
+        $branched = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '1000',
+            'hangup',
+            ['skip_module' => false],
+        )->toSwitchData();
+        $branchChildren = (array) $branched['flow']['children'];
+
+        self::assertSame('hangup', $branchChildren['1000']['module']);
+
+        $hunted = CallflowInlineNodeWriteData::create(
+            ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+            [],
+            '_',
+            'branch_bnumber',
+            [
+                'hunt' => true,
+                'hunt_allow' => '^1\\d{3}$',
+                'hunt_deny' => '^1900$',
+                'skip_module' => false,
+            ],
+        )->toSwitchData();
+        $huntNode = ((array) $hunted['flow']['children'])['_'];
+
+        self::assertTrue($huntNode['data']['hunt']);
+        self::assertSame('^1\\d{3}$', $huntNode['data']['hunt_allow']);
+        self::assertSame('^1900$', $huntNode['data']['hunt_deny']);
+
+        foreach ([
+            ['hunt' => false, 'hunt_allow' => '^1', 'hunt_deny' => null, 'skip_module' => false],
+            ['hunt' => true, 'hunt_allow' => '(?R)', 'hunt_deny' => null, 'skip_module' => false],
+        ] as $settings) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'branch_bnumber', $settings);
+                self::fail('Invalid Branch BNumber settings must be rejected.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+
+        try {
+            CallflowInlineNodeWriteData::update(
+                [
+                    'flow' => [
+                        'module' => 'user',
+                        'data' => ['id' => 'user-1'],
+                        'children' => [
+                            '_' => [
+                                'module' => 'branch_bnumber',
+                                'data' => ['hunt' => false],
+                                'children' => [
+                                    '1000' => [
+                                        'module' => 'hangup',
+                                        'data' => [],
+                                        'children' => [],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+                ['_'],
+                'branch_bnumber',
+                ['hunt' => true, 'hunt_allow' => null, 'hunt_deny' => null, 'skip_module' => false],
+            );
+            self::fail('Hunt mode must not make exact capture branches unreachable.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+    }
+
+    public function test_it_writes_set_cav_variables_and_preserves_unmanaged_node_data(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-1'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'set_variables',
+            [
+                'custom_application_vars' => ['account_code' => 'support', 'priority-1' => '42'],
+                'export' => true,
+                'skip_module' => false,
+            ],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame(
+            ['account_code' => 'support', 'priority-1' => '42'],
+            (array) $createdNode['data']['custom_application_vars'],
+        );
+        self::assertTrue($createdNode['data']['export']);
+
+        $createdNode['data']['server_owned'] = 'preserve';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'set_variables',
+            [
+                'custom_application_vars' => ['queue' => 'sales'],
+                'export' => false,
+                'skip_module' => true,
+            ],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame(['queue' => 'sales'], (array) $updatedNode['data']['custom_application_vars']);
+        self::assertFalse($updatedNode['data']['export']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('preserve', $updatedNode['data']['server_owned']);
+
+        foreach ([
+            ['bad key' => 'value'],
+            ['valid' => "line\nbreak"],
+        ] as $variables) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'set_variables', [
+                    'custom_application_vars' => $variables,
+                    'export' => false,
+                    'skip_module' => false,
+                ]);
+                self::fail('Invalid custom application variables must be rejected.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_manual_presence_and_preserves_unmanaged_node_data(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-1'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'manual_presence',
+            ['presence_id' => '1001', 'status' => 'busy', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('1001', $createdNode['data']['presence_id']);
+        self::assertSame('busy', $createdNode['data']['status']);
+
+        $createdNode['data']['server_owned'] = 'preserve';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'manual_presence',
+            ['presence_id' => '1001@example.com', 'status' => 'idle', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('1001@example.com', $updatedNode['data']['presence_id']);
+        self::assertSame('idle', $updatedNode['data']['status']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('preserve', $updatedNode['data']['server_owned']);
+
+        foreach (['', 'bad id', 'one@two@example.com'] as $presenceId) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'manual_presence', [
+                    'presence_id' => $presenceId,
+                    'status' => 'ringing',
+                    'skip_module' => false,
+                ]);
+                self::fail('Invalid Manual Presence identifiers must be rejected.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_one_group_pickup_target_and_preserves_private_restrictions(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'group_pickup',
+            ['device_id' => 'device-1', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('device-1', $createdNode['data']['device_id']);
+        self::assertArrayNotHasKey('user_id', $createdNode['data']);
+        self::assertArrayNotHasKey('group_id', $createdNode['data']);
+
+        $createdNode['data']['approved_group_id'] = 'private-approval-group';
+        $createdNode['data']['server_owned'] = 'preserve';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'group_pickup',
+            ['user_id' => 'user-2', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('user-2', $updatedNode['data']['user_id']);
+        self::assertArrayNotHasKey('device_id', $updatedNode['data']);
+        self::assertArrayNotHasKey('group_id', $updatedNode['data']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('private-approval-group', $updatedNode['data']['approved_group_id']);
+        self::assertSame('preserve', $updatedNode['data']['server_owned']);
+
+        foreach ([
+            ['skip_module' => false],
+            ['device_id' => 'device-1', 'group_id' => 'group-1', 'skip_module' => false],
+            ['group_id' => '', 'skip_module' => false],
+        ] as $invalidSettings) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'group_pickup', $invalidSettings);
+                self::fail('Group Pickup must reject missing, ambiguous, and empty targets.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_receive_fax_and_preserves_unknown_media_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'receive_fax',
+            ['owner_id' => 'user-1', 'media' => ['fax_option' => 'auto'], 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('user-1', $createdNode['data']['owner_id']);
+        self::assertSame('auto', $createdNode['data']['media']['fax_option']);
+
+        $createdNode['data']['media']['server_owned'] = 'preserve';
+        $createdNode['data']['server_owned'] = 'preserve-node';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'receive_fax',
+            ['owner_id' => 'user-2', 'media' => ['fax_option' => true], 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('user-2', $updatedNode['data']['owner_id']);
+        self::assertTrue($updatedNode['data']['media']['fax_option']);
+        self::assertSame('preserve', $updatedNode['data']['media']['server_owned']);
+        self::assertSame('preserve-node', $updatedNode['data']['server_owned']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+
+        foreach ([null, 'invalid'] as $faxOption) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'receive_fax', [
+                    'owner_id' => 'user-1',
+                    'media' => ['fax_option' => $faxOption],
+                    'skip_module' => false,
+                ]);
+                self::fail('Receive Fax must reject unsupported fax options.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_bounded_device_page_groups_and_preserves_endpoint_fields(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'page_group',
+            [
+                'audio' => 'one-way',
+                'endpoints' => [
+                    ['endpoint_type' => 'device', 'id' => 'device-1'],
+                    ['endpoint_type' => 'device', 'id' => 'device-2'],
+                ],
+                'skip_module' => false,
+            ],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('one-way', $createdNode['data']['audio']);
+        self::assertCount(2, $createdNode['data']['endpoints']);
+
+        $createdNode['data']['timeout'] = 5;
+        $createdNode['data']['endpoints'][0]['delay'] = 0;
+        $createdNode['data']['endpoints'][0]['timeout'] = 20;
+        $createdNode['data']['endpoints'][0]['server_owned'] = 'preserve-endpoint';
+        $createdNode['data']['server_owned'] = 'preserve-node';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'page_group',
+            [
+                'audio' => 'two-way',
+                'endpoints' => [
+                    ['endpoint_type' => 'device', 'id' => 'device-1'],
+                    ['endpoint_type' => 'device', 'id' => 'device-3'],
+                ],
+                'skip_module' => true,
+            ],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('two-way', $updatedNode['data']['audio']);
+        self::assertSame(['device-1', 'device-3'], array_column($updatedNode['data']['endpoints'], 'id'));
+        self::assertSame('preserve-endpoint', $updatedNode['data']['endpoints'][0]['server_owned']);
+        self::assertSame(0, $updatedNode['data']['endpoints'][0]['delay']);
+        self::assertSame(20, $updatedNode['data']['endpoints'][0]['timeout']);
+        self::assertArrayNotHasKey('server_owned', $updatedNode['data']['endpoints'][1]);
+        self::assertSame(5, $updatedNode['data']['timeout']);
+        self::assertSame('preserve-node', $updatedNode['data']['server_owned']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+
+        $unsafe = $current;
+        $unsafe['flow']['children']['_']['data']['barge_calls'] = true;
+
+        $this->expectException(InvalidArgumentException::class);
+        CallflowInlineNodeWriteData::update(
+            $unsafe,
+            ['_'],
+            'page_group',
+            [
+                'audio' => 'one-way',
+                'endpoints' => [['endpoint_type' => 'device', 'id' => 'device-1']],
+                'skip_module' => false,
+            ],
+        );
+    }
+
+    public function test_it_writes_bounded_device_ring_groups_and_preserves_private_fields(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $settings = [
+            'strategy' => 'simultaneous',
+            'endpoints' => [[
+                'endpoint_type' => 'device',
+                'id' => 'device-1',
+                'delay' => 5,
+                'timeout' => 20,
+            ]],
+            'repeats' => 2,
+            'timeout' => 25,
+            'skip_module' => false,
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'ring_group',
+            $settings,
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame($settings, $createdNode['data']);
+
+        $createdNode['data']['ringback'] = 'private-media-id';
+        $createdNode['data']['ignore_forward'] = false;
+        $createdNode['data']['endpoints'][0]['weight'] = 25;
+        $createdNode['data']['endpoints'][0]['server_owned'] = 'preserve-endpoint';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'ring_group',
+            [
+                'strategy' => 'single',
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'device-1',
+                    'delay' => 0,
+                    'timeout' => 30,
+                ]],
+                'repeats' => 1,
+                'timeout' => 30,
+                'skip_module' => true,
+            ],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('single', $updatedNode['data']['strategy']);
+        self::assertSame(30, $updatedNode['data']['timeout']);
+        self::assertSame('private-media-id', $updatedNode['data']['ringback']);
+        self::assertFalse($updatedNode['data']['ignore_forward']);
+        self::assertSame(25, $updatedNode['data']['endpoints'][0]['weight']);
+        self::assertSame('preserve-endpoint', $updatedNode['data']['endpoints'][0]['server_owned']);
+        self::assertSame(0, $updatedNode['data']['endpoints'][0]['delay']);
+        self::assertSame(30, $updatedNode['data']['endpoints'][0]['timeout']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+
+        $this->expectException(InvalidArgumentException::class);
+        CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'ring_group',
+            [...$settings, 'strategy' => 'weighted_random'],
+        );
+    }
+
+    public function test_it_writes_conference_service_without_a_resource_id_and_preserves_unknown_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'conference',
+            ['skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('conference', $createdNode['module']);
+        self::assertSame(['skip_module' => false], $createdNode['data']);
+        self::assertArrayNotHasKey('id', $createdNode['data']);
+
+        $createdNode['data']['conference_service_prompt'] = 'server-owned';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'conference',
+            ['skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('server-owned', $updatedNode['data']['conference_service_prompt']);
+
+        $configured = $current;
+        $configured['flow']['children']['_']['data']['id'] = 'conference-raw-id';
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configured conference destinations');
+        CallflowInlineNodeWriteData::update(
+            $configured,
+            ['_'],
+            'conference',
+            ['skip_module' => false],
+        );
+    }
+
+    public function test_it_writes_check_voicemail_without_a_mailbox_id_and_preserves_unknown_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'voicemail',
+            ['action' => 'check', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('voicemail', $createdNode['module']);
+        self::assertSame(['action' => 'check', 'skip_module' => false], $createdNode['data']);
+        self::assertArrayNotHasKey('id', $createdNode['data']);
+
+        $createdNode['data']['callerid_match_login'] = true;
+        $createdNode['data']['private_prompt_id'] = 'server-owned';
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'voicemail',
+            ['action' => 'check', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertTrue($updatedNode['data']['callerid_match_login']);
+        self::assertSame('server-owned', $updatedNode['data']['private_prompt_id']);
+
+        $configured = $current;
+        $configured['flow']['children']['_']['data'] = [
+            'action' => 'compose',
+            'id' => 'voicemail-box-raw-id',
+        ];
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Configured voicemail destinations');
+        CallflowInlineNodeWriteData::update(
+            $configured,
+            ['_'],
+            'voicemail',
+            ['action' => 'check', 'skip_module' => false],
+        );
+    }
+
     public function test_it_preserves_exact_operational_action_variants_in_inline_nodes(): void
     {
         $base = [

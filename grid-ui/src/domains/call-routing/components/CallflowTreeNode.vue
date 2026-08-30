@@ -10,6 +10,7 @@ import type { CallflowAction } from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import {
   availableCallflowBranches,
+  canAddCallflowChild,
   orderedCallflowChildren,
 } from '../services/callflowTreeBranches'
 import type {
@@ -89,6 +90,12 @@ const inlineReferenceLabel = computed(() =>
 const nodeDetail = computed(() => {
   if (props.node.target) return props.node.target.label
   if (inlineReferenceLabel.value) return inlineReferenceLabel.value
+  if (
+    props.node.module === 'manual_presence' &&
+    typeof props.node.settings?.presence_id === 'string'
+  ) {
+    return props.node.settings.presence_id
+  }
   if (props.node.reference_status === 'unresolved') return 'Target is not projected'
 
   return 'Inline Switch action'
@@ -191,7 +198,7 @@ function canAcceptPaletteTarget(): boolean {
     props.node.reference_status !== 'unresolved' &&
     props.node.branch?.kind !== 'preserved' &&
     findCallflowAction(props.node.module)?.status === 'guided' &&
-    availableCallflowBranches(props.node).length > 0
+    canAddCallflowChild(props.node)
   )
 }
 
@@ -220,7 +227,6 @@ const branchClass = computed(() => {
       return 'border-slate-300 bg-white text-slate-600'
   }
 })
-
 </script>
 
 <template>

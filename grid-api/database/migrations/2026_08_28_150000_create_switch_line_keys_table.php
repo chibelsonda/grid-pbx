@@ -13,9 +13,9 @@ return new class extends Migration
         });
 
         Schema::create('switch_line_keys', function (Blueprint $table): void {
-            $table->ulid('line_key_id')->primary();
+            $table->bigIncrements('line_key_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_device_id')->references('device_id')->on('switch_devices')->cascadeOnDelete();
+            $table->foreignId('switch_device_id')->references('device_id')->on('switch_devices')->cascadeOnDelete();
             $table->string('category', 16);
             $table->unsignedSmallInteger('position');
             $table->string('type', 32);

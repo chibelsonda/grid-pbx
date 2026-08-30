@@ -6,7 +6,6 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchVoicemailMessageFactory;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -15,7 +14,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SwitchVoicemailMessage extends Model
 {
     /** @use HasFactory<SwitchVoicemailMessageFactory> */
-    use HasFactory, HasPublicUuid, HasUlids, SoftDeletes;
+    use HasFactory, HasPublicUuid, SoftDeletes;
 
     protected $primaryKey = 'voicemail_message_id';
 

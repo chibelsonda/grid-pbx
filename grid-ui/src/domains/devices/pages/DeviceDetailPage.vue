@@ -146,8 +146,8 @@ const confirmation = computed(() => {
 </script>
 
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto flex max-w-[1500px] items-center gap-4">
+  <section class="border-b border-slate-200/80 bg-white py-5">
+    <div class="page-container flex items-center gap-4">
       <RouterLink
         to="/devices"
         class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
@@ -218,7 +218,7 @@ const confirmation = computed(() => {
     </div>
   </section>
 
-  <div class="mx-auto max-w-[1500px] p-4 sm:p-6 lg:p-8">
+  <div class="page-container py-4 sm:py-6 lg:py-8">
     <p
       v-if="devices.operationMessage"
       class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"

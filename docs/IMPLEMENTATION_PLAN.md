@@ -11,7 +11,8 @@ Implemented checkpoint:
 - MySQL projections for extensions, devices, voicemail, phone numbers, and call routing
 - Queued, idempotent synchronization with per-resource run/checkpoint status
 - Full Switch list/detail hydration with safe, redacted `switch_json` snapshots
-- Public UUID API contracts with entity-named internal primary keys
+- Public UUID API contracts with entity-named `BIGINT UNSIGNED AUTO_INCREMENT`
+  internal primary keys and numeric foreign-key relationships
 - ArchitectUI-inspired Tailwind application shell, directories, and right-side
   CRUD/detail panels
 - Safe callflow trees with public-UUID target resolution and a guided
@@ -97,12 +98,88 @@ provides authoritative evidence.
 
 Every entity and workflow uses this evidence order:
 
-1. The connected Switch/Kazoo API schema and observed create, update, clear,
-   relationship, and command behavior define the accepted contract.
-2. Current Kazoo/Monster workflows inform field grouping, conditional
-   visibility, relationship prompts, and operator terminology.
-3. The old GridPBX projects are consulted only for confirmed client-specific
-   requirements or migration mappings absent from the first two sources.
+1. The installed Switch/Kazoo JSON schemas define accepted payload fields,
+   types, validation constraints, defaults, limits, and compatibility
+   boundaries.
+2. The installed Switch/Kazoo API and runtime implementation define actual
+   request and response behavior, side effects, operational commands, branch
+   semantics, and resource relationships.
+3. Current Kazoo/Monster workflows inform Basic and Advanced field grouping,
+   conditional visibility, relationship prompts, defaults, operator
+   terminology, and expected interaction behavior.
+4. Disposable live create, edit, clear, reopen, and synchronization checks
+   against the connected Switch confirm the implemented contract.
+5. The old GridPBX projects are consulted only for confirmed client-specific
+   requirements or migration mappings absent from the preceding sources.
+
+Features are not implemented from screenshots alone. Screenshots are useful
+interaction evidence, but they do not establish payload types, API ownership,
+runtime side effects, or version compatibility.
+
+### Feature implementation authority
+
+Before implementing an entity, relationship, callflow action, or operational
+command, its audit must establish:
+
+- The owning Switch resource, schema, endpoint, and runtime module.
+- The installed schema version and its valid fields, types, defaults, limits,
+  nested structures, and clear or unset behavior.
+- The raw Switch request and response shape, including the response `data`
+  projected into `switch_json`.
+- The small subset of values that require indexed MySQL columns for searching,
+  sorting, joining, uniqueness, reporting, or reconciliation. Other values
+  remain virtual accessors over `switch_json` instead of becoming one database
+  column per JSON key.
+- Related resources that must be created, updated, removed, synchronized, or
+  compensated as part of the operator workflow.
+- Whether each operation is ordinary CRUD, a synchronization operation, or a
+  separate operational command.
+- Basic and Advanced UI placement, entity-type conditions, account
+  capabilities, and Switch-version compatibility rules.
+- The bounded public API fields, public UUID references, server-side mapping to
+  raw Switch identifiers, and fields that must remain secret or internal.
+- Unknown or unsupported Switch data that must be preserved losslessly during
+  edits.
+- Focused create, edit, clear, reopen, relationship, projection, and cleanup
+  verification appropriate to the feature.
+
+When the evidence sources disagree:
+
+- The installed schema and observed runtime behavior take precedence for
+  payload correctness and operational semantics.
+- The current Kazoo/Monster workflow takes precedence for understanding the
+  established operator workflow, including Basic and Advanced controls.
+- GridPBX may simplify and modernize presentation, but it must not silently
+  remove supported behavior or submit fields unsupported by the connected
+  Switch.
+- Deployment-specific differences use explicit capability-aware or
+  version-aware controls.
+- Every intentional behavioral or field-level difference is recorded in the
+  schema parity audit with its reason.
+
+A feature is complete only when all applicable layers are implemented:
+
+1. `grid-api-switch` has typed DTOs, validated mapping, error handling, and
+   preservation of unknown Switch properties.
+2. `grid-api` has account-scoped authorization, requests, services, public-UUID
+   translation, stable resources, relationship orchestration, and MySQL
+   projection behavior.
+3. `grid-ui` has typed API integration, reusable form controls and composables,
+   Zod validation, field-local error behavior, and capability-aware Basic and
+   Advanced controls.
+4. Related-resource creation and failure compensation are handled where the
+   workflow spans multiple Switch resources.
+5. Focused automated tests pass for the layers changed.
+6. Disposable live Switch create, edit, clear, reopen, synchronization, and
+   cleanup verification passes when the required environment or provider is
+   available.
+7. The implementation plan, schema parity audit, form audit, and feature
+   roadmap accurately distinguish implemented, live-verified,
+   capability-gated, planned, and externally blocked behavior.
+
+If live Switch access or an external provider contract is unavailable, the
+feature is recorded as implemented but not live-verified, or externally
+blocked. It must not be described as fully complete.
 
 Reusable domain form components are the UI source of truth. A Device created
 from People & Extensions uses the same Device Basic/Advanced editor, Zod schema,
@@ -353,8 +430,10 @@ must produce the same result and must not duplicate records.
 Each owning bounded context defines its own normalized projection tables. A
 typical projected record includes:
 
-- An internal, entity-named primary key such as `extension_id` or `device_id`
-- A separate unique UUID column named `id` for API routes and UI contracts
+- An internal `BIGINT UNSIGNED AUTO_INCREMENT`, entity-named primary key such
+  as `extension_id` or `device_id`
+- A separate immutable UUID column named `id`, stored by MySQL as `CHAR(36)`
+  with a unique index, for API routes and UI contracts
 - Organization and Switch account mapping identifiers
 - Switch resource identifier with a composite unique constraint per account
 - Normalized fields required for filtering, sorting, joins, and display
@@ -535,8 +614,11 @@ Initial roles:
 - MySQL primary keys are named for their entity (`user_id`, `device_id`,
   `voicemail_box_id`, and so on). `switch_accounts` uses `account_id` because
   `switch_account_id` already stores the upstream Switch account identifier
-- Internal ULID/bigint key types remain implementation details; public UUIDs
-  are immutable, unique, and generated by Laravel when a record is created
+- Internal primary and foreign keys use `BIGINT UNSIGNED`; public UUIDs are
+  immutable, unique, stored as `CHAR(36)`, and generated by Laravel when a
+  record is created. MySQL 8.4 has UUID functions but no native UUID data type;
+  `BINARY(16)` is intentionally avoided here because these UUIDs are public
+  lookup values rather than relationship keys
 - Switch identifiers remain opaque strings
 - Correlation ID returned on every response
 - Validation errors use stable field keys
@@ -686,8 +768,10 @@ Acceptance criteria:
 - Directory and group foundation: typed CRUD, queued projection rebuilds,
   normalized membership relationships, complete redacted `switch_json`, safe
   public references, dependency-aware deletion, and guided callflow targets.
-  Inline `ring_group` timing/strategy canvas editing remains part of advanced
-  visual callflow work.
+  A Device-only inline `ring_group` timing/strategy foundation is delivered
+  with bounded public UUID endpoints and computed attempt duration. User/group
+  expansion, weighted-random routing, and media/private behavior remain part of
+  advanced visual callflow work.
 - Queue and agent foundation: ACDc-aware typed queue CRUD, normalized roster
   projection, redacted `switch_json`, queued synchronization, compensating
   roster updates, live agent status commands, right-side panels, and guided

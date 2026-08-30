@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_menus', function (Blueprint $table): void {
-            $table->ulid('menu_id')->primary();
+            $table->bigIncrements('menu_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->unsignedInteger('timeout')->default(10000);
@@ -25,7 +25,7 @@ return new class extends Migration
             $table->string('hunt_allow', 256)->nullable();
             $table->string('hunt_deny', 256)->nullable();
             foreach (['greeting', 'invalid', 'transfer', 'exit'] as $type) {
-                $table->foreignUlid("{$type}_media_id")->nullable()->references('media_id')->on('switch_media')->nullOnDelete();
+                $table->foreignId("{$type}_media_id")->nullable()->references('media_id')->on('switch_media')->nullOnDelete();
                 $table->string("{$type}_media_reference")->nullable();
             }
             $table->boolean('invalid_media_enabled')->default(true);

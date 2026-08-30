@@ -13,7 +13,6 @@ use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchExtensionFactory;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,7 +22,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SwitchExtension extends Model
 {
     /** @use HasFactory<SwitchExtensionFactory> */
-    use HasFactory, HasPublicUuid, HasUlids, SoftDeletes;
+    use HasFactory, HasPublicUuid, SoftDeletes;
 
     protected $primaryKey = 'extension_id';
 

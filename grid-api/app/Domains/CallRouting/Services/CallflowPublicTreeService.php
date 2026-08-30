@@ -65,13 +65,19 @@ class CallflowPublicTreeService
                 'match' => 'Caller ID matches',
                 'nomatch' => 'Caller ID does not match',
                 '*' => 'Star',
-                default => $parentModule === 'branch_variable' ? 'Priority '.$key : 'Key '.$key,
+                default => match ($parentModule) {
+                    'branch_variable' => 'Priority '.$key,
+                    'branch_bnumber' => 'Captured number '.$key,
+                    default => 'Key '.$key,
+                },
             },
             'kind' => match ($key) {
                 '_' => 'default',
                 'rule_set' => 'schedule_match',
                 'match', 'nomatch' => 'condition',
-                default => 'key',
+                default => in_array($parentModule, ['branch_variable', 'branch_bnumber'], true)
+                    ? 'condition'
+                    : 'key',
             },
         ];
     }

@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_phone_numbers', function (Blueprint $table): void {
-            $table->ulid('phone_number_id')->primary();
+            $table->bigIncrements('phone_number_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id');
-            $table->foreignUlid('assigned_callflow_id')->nullable();
+            $table->foreignId('switch_account_id');
+            $table->foreignId('assigned_callflow_id')->nullable();
             $table->string('number', 64);
             $table->string('state', 32)->nullable();
             $table->string('used_by', 64)->nullable();

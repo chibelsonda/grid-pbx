@@ -12,7 +12,6 @@ use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchDeviceFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -22,7 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class SwitchDevice extends Model
 {
     /** @use HasFactory<SwitchDeviceFactory> */
-    use HasFactory, HasPublicUuid, HasUlids, SoftDeletes;
+    use HasFactory, HasPublicUuid, SoftDeletes;
 
     protected $primaryKey = 'device_id';
 

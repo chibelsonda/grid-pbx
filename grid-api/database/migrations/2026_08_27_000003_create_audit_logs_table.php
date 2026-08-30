@@ -9,10 +9,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('audit_logs', function (Blueprint $table) {
-            $table->ulid('id')->primary();
+            $table->bigIncrements('id');
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignUlid('organization_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreignUlid('kazoo_account_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('organization_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreignId('kazoo_account_id')->nullable()->constrained()->nullOnDelete();
             $table->uuid('request_id')->index();
             $table->string('action');
             $table->string('resource_type')->nullable();

@@ -182,8 +182,8 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
 </script>
 
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto flex max-w-[1200px] items-center gap-4">
+  <section class="border-b border-slate-200/80 bg-white py-5">
+    <div class="page-container-narrow flex items-center gap-4">
       <RouterLink
         to="/voicemail"
         class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:bg-brand-50 hover:text-brand-600"
@@ -216,7 +216,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
     </div>
   </section>
 
-  <div class="mx-auto max-w-[1200px] p-4 sm:p-6 lg:p-8">
+  <div class="page-container-narrow py-4 sm:py-6 lg:py-8">
     <div
       v-if="voicemail.detailLoading"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"

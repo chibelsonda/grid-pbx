@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_caller_id_lists', function (Blueprint $table): void {
-            $table->ulid('caller_id_list_id')->primary();
+            $table->bigIncrements('caller_id_list_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->string('description', 128)->nullable();
@@ -27,9 +27,9 @@ return new class extends Migration
         });
 
         Schema::create('switch_caller_id_list_entries', function (Blueprint $table): void {
-            $table->ulid('caller_id_list_entry_id')->primary();
+            $table->bigIncrements('caller_id_list_entry_id');
             $table->uuid('id')->unique();
-            $table->ulid('switch_caller_id_list_id');
+            $table->unsignedBigInteger('switch_caller_id_list_id');
             $table->foreign('switch_caller_id_list_id', 'scile_list_fk')
                 ->references('caller_id_list_id')->on('switch_caller_id_lists')->cascadeOnDelete();
             $table->string('switch_resource_id');

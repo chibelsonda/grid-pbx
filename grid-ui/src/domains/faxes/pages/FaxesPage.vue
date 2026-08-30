@@ -48,8 +48,8 @@ async function removeBox(): Promise<void> {
 }
 </script>
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
-    <div class="mx-auto flex max-w-[1500px] items-center gap-4">
+  <section class="border-b border-slate-200/80 bg-white py-5">
+    <div class="page-container flex items-center gap-4">
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Fax</p>
         <h1 class="text-xl font-semibold text-slate-800">Fax boxes & history</h1>
@@ -78,7 +78,7 @@ async function removeBox(): Promise<void> {
       </div>
     </div>
   </section>
-  <div class="mx-auto grid max-w-[1500px] gap-6 p-4 sm:p-6 lg:p-8">
+  <div class="page-container grid gap-6 py-4 sm:py-6 lg:py-8">
     <div
       v-if="faxes.error"
       class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"

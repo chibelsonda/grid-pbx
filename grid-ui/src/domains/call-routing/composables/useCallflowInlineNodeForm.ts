@@ -1,6 +1,9 @@
 import { computed, reactive, ref, toValue, watch, type MaybeRefOrGetter } from 'vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
-import { availableCallflowBranches } from '../services/callflowTreeBranches'
+import {
+  availableCallflowBranches,
+  supportsCapturedNumberBranches,
+} from '../services/callflowTreeBranches'
 import {
   callflowDtmfDigits,
   createCallflowInlineNodeFormSchema,
@@ -9,6 +12,7 @@ import type {
   CallflowInlineModule,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeData,
+  CallflowInlineNodeFormData,
   CallflowInlineNodeUpdateInput,
   CallflowNodeEditorContext,
   CallflowTreeBranchKey,
@@ -16,14 +20,14 @@ import type {
 
 type InlineFormState = {
   branch: CallflowTreeBranchKey | null
-  data: CallflowInlineNodeData
+  data: CallflowInlineNodeFormData
 }
 
 function defaults(
   module: CallflowInlineModule,
   preset: Readonly<Partial<CallflowInlineNodeData>> = {},
-): CallflowInlineNodeData {
-  let data: CallflowInlineNodeData
+): CallflowInlineNodeFormData {
+  let data: CallflowInlineNodeFormData
 
   switch (module) {
     case 'sleep':
@@ -88,10 +92,42 @@ function defaults(
     case 'set_variable':
       data = { variable: 'call_priority', value: '0', channel: 'a', skip_module: false }
       break
+    case 'set_variables':
+      data = { custom_application_variables: [], export: false, skip_module: false }
+      break
+    case 'manual_presence':
+      data = { presence_id: '', status: 'busy', skip_module: false }
+      break
+    case 'group_pickup':
+      data = { target_type: 'extension', target_id: '', skip_module: false }
+      break
+    case 'page_group':
+      data = { audio: 'one-way', device_ids: [], skip_module: false }
+      break
+    case 'ring_group':
+      data = { strategy: 'simultaneous', endpoints: [], repeats: 1, skip_module: false }
+      break
+    case 'receive_fax':
+      data = { owner_id: '', fax_option: false, skip_module: false }
+      break
+    case 'conference':
+      data = { service_mode: true, skip_module: false }
+      break
+    case 'voicemail':
+      data = { action: 'check', skip_module: false }
+      break
     case 'branch_variable':
       data = {
         variable: 'call_priority',
         scope: 'custom_channel_vars',
+        skip_module: false,
+      }
+      break
+    case 'branch_bnumber':
+      data = {
+        hunt: false,
+        hunt_allow: null,
+        hunt_deny: null,
         skip_module: false,
       }
       break
@@ -149,7 +185,7 @@ function defaults(
 function settingsForEdit(
   module: CallflowInlineModule,
   settings: Record<string, unknown> | null | undefined,
-): CallflowInlineNodeData {
+): CallflowInlineNodeFormData {
   const data = defaults(module)
   if (!settings) return data
 
@@ -166,6 +202,22 @@ function settingsForEdit(
     data.terminators = [settings.terminator]
   }
 
+  if (module === 'set_variables') {
+    const variables = settings.custom_application_vars
+    data.custom_application_variables =
+      variables !== null && typeof variables === 'object' && !Array.isArray(variables)
+        ? Object.entries(variables)
+            .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+            .map(([key, value]) => ({ key, value }))
+        : []
+  }
+
+  if (module === 'ring_group') {
+    data.endpoints = Array.isArray(settings.endpoints)
+      ? settings.endpoints.map((endpoint) => ({ ...endpoint }))
+      : []
+  }
+
   return data
 }
 
@@ -176,6 +228,10 @@ export function useCallflowInlineNodeForm(
   const module = computed(() => context.value.module as CallflowInlineModule)
   const branches = computed(() =>
     context.value.operation === 'create' ? availableCallflowBranches(context.value.node) : [],
+  )
+  const usesCapturedNumberBranch = computed(
+    () =>
+      context.value.operation === 'create' && supportsCapturedNumberBranches(context.value.node),
   )
   const form = reactive<InlineFormState>({
     branch: null,
@@ -201,6 +257,8 @@ export function useCallflowInlineNodeForm(
         module.value,
         branches.value.map(({ value }) => value),
         context.value.operation === 'create',
+        usesCapturedNumberBranch.value,
+        Object.keys(context.value.node.children),
       ),
       { branch: form.branch, data: { ...form.data } },
     )
@@ -208,7 +266,20 @@ export function useCallflowInlineNodeForm(
 
     if (!result.success) return null
 
-    const data = result.data.data as CallflowInlineNodeData
+    const parsed = result.data.data as CallflowInlineNodeFormData
+    const data: CallflowInlineNodeData =
+      module.value === 'set_variables'
+        ? {
+            custom_application_vars: Object.fromEntries(
+              (parsed.custom_application_variables ?? []).map(({ key, value }) => [
+                key.trim(),
+                value,
+              ]),
+            ),
+            export: Boolean(parsed.export),
+            skip_module: parsed.skip_module,
+          }
+        : parsed
     if (context.value.operation === 'create') {
       return {
         parent_path: [...context.value.path],
@@ -225,5 +296,5 @@ export function useCallflowInlineNodeForm(
     }
   }
 
-  return { form, module, branches, validationErrors, validate }
+  return { form, module, branches, usesCapturedNumberBranch, validationErrors, validate }
 }

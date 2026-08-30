@@ -100,3 +100,11 @@ export function availableCallflowBranches(node: CallflowNode): CallflowBranchOpt
 
   return candidates.filter(({ value }) => !Object.hasOwn(node.children, value))
 }
+
+export function supportsCapturedNumberBranches(node: CallflowNode): boolean {
+  return node.module === 'branch_bnumber' && node.settings?.hunt !== true
+}
+
+export function canAddCallflowChild(node: CallflowNode): boolean {
+  return availableCallflowBranches(node).length > 0 || supportsCapturedNumberBranches(node)
+}

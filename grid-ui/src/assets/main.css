@@ -76,6 +76,35 @@
 }
 
 @layer components {
+  /* Keep standard page headers and bodies on the same width and responsive gutter contract. */
+  .page-container {
+    width: 100%;
+    max-width: 1500px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  .page-container-narrow {
+    width: 100%;
+    max-width: 1200px;
+    margin-inline: auto;
+    padding-inline: 1rem;
+  }
+
+  @media (min-width: 640px) {
+    .page-container,
+    .page-container-narrow {
+      padding-inline: 1.5rem;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .page-container,
+    .page-container-narrow {
+      padding-inline: 2rem;
+    }
+  }
+
   .field-control {
     @apply h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
   }

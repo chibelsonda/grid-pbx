@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_service_summaries', function (Blueprint $table): void {
-            $table->ulid('service_summary_id')->primary();
+            $table->bigIncrements('service_summary_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->unique()->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->unique()->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->boolean('status_acceptable')->default(false);
             $table->string('status_reason')->nullable();
             $table->boolean('is_reseller')->default(false);
@@ -29,9 +29,9 @@ return new class extends Migration
             $table->timestamps();
         });
         Schema::create('switch_service_limits', function (Blueprint $table): void {
-            $table->ulid('service_limit_id')->primary();
+            $table->bigIncrements('service_limit_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->unique()->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->unique()->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->boolean('enabled')->default(true);
             $table->boolean('allow_prepay')->default(true);
             $table->boolean('allow_postpay')->default(false);
@@ -50,9 +50,9 @@ return new class extends Migration
             $table->timestamps();
         });
         Schema::create('switch_service_plans', function (Blueprint $table): void {
-            $table->ulid('service_plan_id')->primary();
+            $table->bigIncrements('service_plan_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128)->nullable();
             $table->text('description')->nullable();
@@ -66,9 +66,9 @@ return new class extends Migration
             $table->unique(['switch_account_id', 'switch_resource_id'], 'ssp_account_resource_unique');
         });
         Schema::create('switch_service_quantities', function (Blueprint $table): void {
-            $table->ulid('service_quantity_id')->primary();
+            $table->bigIncrements('service_quantity_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('scope', 24);
             $table->string('category', 128);
             $table->string('item', 128);

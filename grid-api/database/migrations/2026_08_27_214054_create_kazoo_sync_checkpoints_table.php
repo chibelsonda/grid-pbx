@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('kazoo_sync_checkpoints', function (Blueprint $table) {
-            $table->ulid('id')->primary();
-            $table->foreignUlid('kazoo_account_id')->constrained()->cascadeOnDelete();
-            $table->foreignUlid('last_sync_run_id')->nullable()->constrained('kazoo_sync_runs')->nullOnDelete();
+            $table->bigIncrements('id');
+            $table->foreignId('kazoo_account_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('last_sync_run_id')->nullable()->constrained('kazoo_sync_runs')->nullOnDelete();
             $table->string('resource_type', 64);
             $table->text('cursor')->nullable();
             $table->string('status', 32)->default('stale');

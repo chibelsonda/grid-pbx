@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { PlusIcon, ShieldCheckIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import {
+  ArrowDownIcon,
+  ArrowUpIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+  TrashIcon,
+} from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
@@ -18,8 +24,10 @@ import type {
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
   CallflowAlertRecipient,
+  CallflowCapturedNumberBranchKey,
   CallflowEditor,
   CallflowNodeEditorContext,
+  CallflowRingGroupEndpoint,
   CallflowTreeBranchKey,
 } from '../types/callRouting'
 
@@ -38,10 +46,14 @@ const emit = defineEmits<{
   close: []
   save: [input: CallflowInlineNodeCreateInput | CallflowInlineNodeUpdateInput]
 }>()
-const { form, module, branches, validationErrors, validate } = useCallflowInlineNodeForm(
-  () => props.context,
+const { form, module, branches, usesCapturedNumberBranch, validationErrors, validate } =
+  useCallflowInlineNodeForm(() => props.context)
+const action = computed(() =>
+  findCallflowAction(
+    module.value,
+    form.data.action ?? (form.data.service_mode === true ? 'service' : undefined),
+  ),
 )
-const action = computed(() => findCallflowAction(module.value, form.data.action))
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
@@ -50,6 +62,12 @@ const title = computed(() =>
     : `Edit ${action.value?.label ?? 'callflow action'}`,
 )
 const actionIcon = computed(() => callflowActionIcon(module.value))
+const branchBnumberHasExactChildren = computed(
+  () =>
+    module.value === 'branch_bnumber' &&
+    props.context.operation === 'update' &&
+    Object.keys(props.context.node.children).some((branch) => branch !== '_'),
+)
 
 const unitOptions: ListboxOptionValue[] = [
   { value: 'ms', label: 'Milliseconds' },
@@ -72,6 +90,24 @@ const recordingFormatOptions: ListboxOptionValue[] = [
 const recordingActionOptions: ListboxOptionValue[] = [
   { value: 'start', label: 'Start recording' },
   { value: 'stop', label: 'Stop recording' },
+]
+const presenceStatusOptions: ListboxOptionValue[] = [
+  { value: 'idle', label: 'Idle' },
+  { value: 'ringing', label: 'Ringing' },
+  { value: 'busy', label: 'Busy' },
+]
+const pageGroupAudioOptions: ListboxOptionValue[] = [
+  { value: 'one-way', label: 'One-way', description: 'Devices listen to the page' },
+  { value: 'two-way', label: 'Two-way', description: 'Devices can speak back to the caller' },
+]
+const ringGroupStrategyOptions: ListboxOptionValue[] = [
+  { value: 'simultaneous', label: 'At the same time' },
+  { value: 'single', label: 'In order' },
+]
+const faxOptionOptions: ListboxOptionValue[] = [
+  { value: 'auto', label: 'Automatic', description: 'Let Switch negotiate T.38 when available' },
+  { value: 'enabled', label: 'Enabled', description: 'Request T.38 fax media' },
+  { value: 'disabled', label: 'Disabled', description: 'Receive fax without T.38 negotiation' },
 ]
 const recipientTypeOptions: ListboxOptionValue[] = [
   { value: 'email', label: 'Email address' },
@@ -96,6 +132,14 @@ const extensionOptions = computed<ListboxOptionValue[]>(() =>
     description: detail,
   })),
 )
+const deviceOptions = computed(() => props.editor?.destinations.device ?? [])
+const ringGroupDeviceOptions = computed<ListboxOptionValue[]>(() => {
+  const selected = new Set((form.data.endpoints ?? []).map(({ device_id }) => device_id))
+
+  return deviceOptions.value
+    .filter(({ id }) => !selected.has(id))
+    .map(({ id, label, detail }) => ({ value: id, label, description: detail }))
+})
 const callerIdentityOwnerOptions = computed<ListboxOptionValue[]>(() => [
   { value: null, label: 'Do not override caller identity' },
   ...extensionOptions.value,
@@ -115,6 +159,30 @@ const callflowOptions = computed<ListboxOptionValue[]>(() =>
     description: detail,
   })),
 )
+const groupPickupOptions = computed<ListboxOptionValue[]>(() =>
+  (
+    [
+      ['group', 'Group'],
+      ['extension', 'Extension'],
+      ['device', 'Device'],
+    ] as const
+  ).flatMap(([type, typeLabel]) =>
+    (props.editor?.destinations[type] ?? []).map(({ id, label, detail }) => ({
+      value: `${type}:${id}`,
+      label,
+      description: detail ? `${typeLabel} · ${detail}` : typeLabel,
+    })),
+  ),
+)
+const groupPickupValue = computed(() =>
+  form.data.target_type && form.data.target_id
+    ? `${form.data.target_type}:${form.data.target_id}`
+    : null,
+)
+const faxOptionValue = computed(() => {
+  if (form.data.fax_option === 'auto') return 'auto'
+  return form.data.fax_option === true ? 'enabled' : 'disabled'
+})
 const operationalModules = new Set([
   'temporal_route',
   'ring_group_toggle',
@@ -126,6 +194,33 @@ const lockedReason = computed<string | null>(() => {
   if (props.context.operation !== 'update') return null
   if (module.value === 'set_variable' && props.context.node.settings?.supported_variable !== true) {
     return 'This node uses a channel variable that the current Kazoo runtime does not support through its guided call-priority workflow. GridPBX preserves it without exposing its name or value.'
+  }
+  if (
+    module.value === 'set_variables' &&
+    props.context.node.settings?.supported_variables !== true
+  ) {
+    return 'This node contains custom application variables outside the supported Switch form contract. GridPBX preserves the complete node without exposing or rewriting those values.'
+  }
+  if (module.value === 'group_pickup' && props.context.node.settings?.supported_target !== true) {
+    return 'This Group Pickup node has no single synchronized Device, Extension, or Group target. GridPBX preserves its target and private approval restrictions without exposing or rewriting them.'
+  }
+  if (
+    module.value === 'page_group' &&
+    props.context.node.settings?.supported_configuration !== true
+  ) {
+    return 'This Page Group uses unresolved or expanded endpoints, barge mode, unsafe timing values, or more than 20 devices. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
+  }
+  if (
+    module.value === 'ring_group' &&
+    props.context.node.settings?.supported_configuration !== true
+  ) {
+    return 'This Ring Group uses unresolved or expanded endpoints, weighted-random routing, unsafe timing values, or more than 20 devices. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
+  }
+  if (
+    module.value === 'receive_fax' &&
+    props.context.node.settings?.supported_configuration !== true
+  ) {
+    return 'This Receive Fax node has no synchronized Extension owner or uses an unsupported T.38 mode. GridPBX preserves its complete configuration without exposing or rewriting it.'
   }
   if (
     module.value === 'branch_variable' &&
@@ -159,6 +254,27 @@ function setBranch(value: ListboxValue): void {
   }
 }
 
+function setFaxOption(value: ListboxValue): void {
+  form.data.fax_option = value === 'auto' ? 'auto' : value === 'enabled'
+}
+
+function setCapturedNumberBranch(value: string | number | null): void {
+  const branch = String(value ?? '').trim()
+  const defaultAvailable = branches.value.some(({ value }) => value === '_')
+
+  form.branch =
+    branch === '' ? (defaultAvailable ? '_' : null) : (branch as CallflowCapturedNumberBranchKey)
+}
+
+function setBranchBnumberHunt(value: boolean): void {
+  form.data.hunt = value
+
+  if (!value) {
+    form.data.hunt_allow = null
+    form.data.hunt_deny = null
+  }
+}
+
 function setTerminators(value: boolean | string[]): void {
   if (Array.isArray(value)) form.data.terminators = value
 }
@@ -167,8 +283,84 @@ function setTemporalRules(value: boolean | string[]): void {
   if (Array.isArray(value)) form.data.rules = value
 }
 
+function setPageGroupDevices(value: boolean | string[]): void {
+  if (Array.isArray(value)) form.data.device_ids = value
+}
+
+function pageGroupDeviceIsDisabled(id: string): boolean {
+  const selected = form.data.device_ids ?? []
+  return selected.length >= 20 && !selected.includes(id)
+}
+
+function ringGroupEndpoints(): CallflowRingGroupEndpoint[] {
+  return form.data.endpoints ?? (form.data.endpoints = [])
+}
+
+function addRingGroupEndpoint(value: ListboxValue): void {
+  if (
+    typeof value !== 'string' ||
+    ringGroupEndpoints().some(({ device_id }) => device_id === value)
+  ) {
+    return
+  }
+
+  if (ringGroupEndpoints().length < 20) {
+    ringGroupEndpoints().push({ device_id: value, delay: 0, timeout: 20 })
+  }
+}
+
+function setRingGroupStrategy(value: ListboxValue): void {
+  if (value !== 'simultaneous' && value !== 'single') return
+
+  form.data.strategy = value
+  if (value === 'single') {
+    ringGroupEndpoints().forEach((endpoint) => {
+      endpoint.delay = 0
+    })
+  }
+}
+
+function setRingGroupTiming(
+  index: number,
+  field: 'delay' | 'timeout',
+  value: string | number | null,
+): void {
+  const endpoint = ringGroupEndpoints()[index]
+  if (endpoint) endpoint[field] = Number(value)
+}
+
+function moveRingGroupEndpoint(index: number, direction: -1 | 1): void {
+  const target = index + direction
+  const endpoints = ringGroupEndpoints()
+  if (target < 0 || target >= endpoints.length) return
+
+  const [endpoint] = endpoints.splice(index, 1)
+  if (endpoint) endpoints.splice(target, 0, endpoint)
+}
+
+function removeRingGroupEndpoint(index: number): void {
+  ringGroupEndpoints().splice(index, 1)
+}
+
+function ringGroupDeviceLabel(deviceId: string): string {
+  return deviceOptions.value.find(({ id }) => id === deviceId)?.label ?? 'Unavailable device'
+}
+
 function setRingGroupCallflow(value: ListboxValue): void {
   if (typeof value === 'string') form.data.callflow_id = value
+}
+
+function setGroupPickupTarget(value: ListboxValue): void {
+  if (typeof value !== 'string') return
+
+  const separator = value.indexOf(':')
+  const type = value.slice(0, separator)
+  const id = value.slice(separator + 1)
+
+  if (separator < 1 || !['extension', 'device', 'group'].includes(type) || id === '') return
+
+  form.data.target_type = type as 'extension' | 'device' | 'group'
+  form.data.target_id = id
 }
 
 function recipients(): CallflowAlertRecipient[] {
@@ -192,6 +384,27 @@ function setRecipientId(index: number, value: string): void {
 
 function removeRecipient(index: number): void {
   recipients().splice(index, 1)
+}
+
+function customApplicationVariables() {
+  return form.data.custom_application_variables ?? (form.data.custom_application_variables = [])
+}
+
+function addCustomApplicationVariable(): void {
+  customApplicationVariables().push({ key: '', value: '' })
+}
+
+function setCustomApplicationVariable(
+  index: number,
+  field: 'key' | 'value',
+  value: string | number | null,
+): void {
+  const variable = customApplicationVariables()[index]
+  if (variable) variable[field] = String(value ?? '')
+}
+
+function removeCustomApplicationVariable(index: number): void {
+  customApplicationVariables().splice(index, 1)
 }
 
 function setCallerIdentityOwner(value: ListboxValue): void {
@@ -248,7 +461,16 @@ function submit(): void {
         </header>
 
         <div class="grid gap-5 p-5">
-          <label v-if="context.operation === 'create'" class="grid gap-2">
+          <FormInput
+            v-if="context.operation === 'create' && usesCapturedNumberBranch"
+            :model-value="form.branch === '_' ? '' : (form.branch ?? '')"
+            label="Captured number branch"
+            description="Enter the exact captured dial string, or leave empty for the default continuation."
+            placeholder="1000"
+            :error="fieldError('branch')"
+            @update:model-value="setCapturedNumberBranch"
+          />
+          <label v-else-if="context.operation === 'create'" class="grid gap-2">
             <span class="text-xs font-semibold text-slate-700">Parent branch</span>
             <FormListbox
               :model-value="form.branch"
@@ -270,8 +492,26 @@ function submit(): void {
             <p class="text-xs font-semibold text-blue-900">{{ action?.label }}</p>
             <p class="mt-1 text-[10px] leading-4 text-blue-700">
               The selected Switch operation is carried from the palette and saved as
-              <span class="font-mono">action={{ form.data.action }}</span>.
+              <span class="font-mono">action={{ form.data.action }}</span
+              >.
             </p>
+          </div>
+
+          <div
+            v-if="module === 'conference'"
+            class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+          >
+            Conference Service asks Kazoo to discover a conference by an account conference number
+            entered by the caller. It does not store or expose a conference resource ID.
+          </div>
+
+          <div
+            v-if="module === 'voicemail'"
+            class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+          >
+            Check Voicemail asks Kazoo to identify an account mailbox and enforce that mailbox's
+            login policy. It does not store or expose a voicemail box resource ID, enable caller-ID
+            matching, or enable single-mailbox auto-login.
           </div>
 
           <template v-if="module === 'temporal_route'">
@@ -471,6 +711,295 @@ function submit(): void {
             @update:model-value="form.data.language = String($event)"
           />
 
+          <template v-if="module === 'manual_presence'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <FormInput
+                :model-value="form.data.presence_id ?? ''"
+                label="Presence ID"
+                description="Use a local ID or a complete ID with realm, such as 1001@example.com."
+                placeholder="1001"
+                maxlength="256"
+                required
+                :error="fieldError('data.presence_id')"
+                @update:model-value="form.data.presence_id = String($event)"
+              />
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Presence status</span>
+                <FormListbox
+                  :model-value="form.data.status ?? 'busy'"
+                  :options="presenceStatusOptions"
+                  aria-label="Presence status"
+                  :invalid="Boolean(fieldError('data.status'))"
+                  @update:model-value="form.data.status = $event as 'idle' | 'ringing' | 'busy'"
+                />
+                <span v-if="fieldError('data.status')" class="text-[10px] text-danger">
+                  {{ fieldError('data.status') }}
+                </span>
+              </label>
+            </div>
+            <div
+              class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+            >
+              Idle clears active-call presence, Ringing publishes an early call state, and Busy
+              publishes an answered-call state. A local ID inherits the account realm in Switch.
+            </div>
+          </template>
+
+          <template v-if="module === 'group_pickup'">
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Pickup target</span>
+              <FormListbox
+                :model-value="groupPickupValue"
+                :options="groupPickupOptions"
+                aria-label="Pickup target"
+                placeholder="Select a device, extension, or group"
+                :disabled="loading || groupPickupOptions.length === 0"
+                :invalid="Boolean(fieldError('data.target_type') || fieldError('data.target_id'))"
+                @update:model-value="setGroupPickupTarget"
+              />
+              <span
+                v-if="fieldError('data.target_type') || fieldError('data.target_id')"
+                class="text-[10px] text-danger"
+              >
+                {{ fieldError('data.target_type') || fieldError('data.target_id') }}
+              </span>
+            </label>
+            <div
+              class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+            >
+              Switch picks up one ringing call for the selected endpoint scope. Device is the most
+              specific target, followed by Extension and then Group. Existing private
+              <span class="font-mono">approved_*</span> caller restrictions are preserved but not
+              exposed by this form.
+            </div>
+          </template>
+
+          <template v-if="module === 'receive_fax'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Fax owner</span>
+                <FormListbox
+                  :model-value="form.data.owner_id ?? null"
+                  :options="extensionOptions"
+                  aria-label="Fax owner"
+                  placeholder="Select an extension"
+                  :disabled="loading || extensionOptions.length === 0"
+                  :invalid="Boolean(fieldError('data.owner_id'))"
+                  @update:model-value="form.data.owner_id = String($event ?? '')"
+                />
+                <span v-if="fieldError('data.owner_id')" class="text-[10px] text-danger">
+                  {{ fieldError('data.owner_id') }}
+                </span>
+              </label>
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">T.38 negotiation</span>
+                <FormListbox
+                  :model-value="faxOptionValue"
+                  :options="faxOptionOptions"
+                  aria-label="T.38 negotiation"
+                  :invalid="Boolean(fieldError('data.fax_option'))"
+                  @update:model-value="setFaxOption"
+                />
+                <span v-if="fieldError('data.fax_option')" class="text-[10px] text-danger">
+                  {{ fieldError('data.fax_option') }}
+                </span>
+              </label>
+            </div>
+            <div
+              class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+            >
+              Incoming fax content is delivered to the selected Extension owner. Automatic uses
+              Kazoo's schema-supported negotiation mode; Enabled and Disabled match Monster's T.38
+              checkbox states. Other Switch-managed media properties are preserved.
+            </div>
+          </template>
+
+          <template v-if="module === 'page_group'">
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Page audio</span>
+              <FormListbox
+                :model-value="form.data.audio ?? 'one-way'"
+                :options="pageGroupAudioOptions"
+                aria-label="Page audio"
+                :invalid="Boolean(fieldError('data.audio'))"
+                @update:model-value="form.data.audio = $event as 'one-way' | 'two-way'"
+              />
+              <span v-if="fieldError('data.audio')" class="text-[10px] text-danger">
+                {{ fieldError('data.audio') }}
+              </span>
+            </label>
+            <div>
+              <h3 class="text-xs font-semibold text-slate-700">Devices</h3>
+              <p class="mt-1 text-[10px] text-slate-500">
+                Select 1–20 synchronized devices. {{ form.data.device_ids?.length ?? 0 }} selected.
+              </p>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <FormCheckbox
+                v-for="device in deviceOptions"
+                :key="device.id"
+                :model-value="form.data.device_ids ?? []"
+                :value="device.id"
+                :label="device.label"
+                :description="device.detail"
+                :disabled="loading || pageGroupDeviceIsDisabled(device.id)"
+                variant="compact"
+                @update:model-value="setPageGroupDevices"
+              />
+            </div>
+            <p v-if="fieldError('data.device_ids')" class="text-[10px] text-danger">
+              {{ fieldError('data.device_ids') }}
+            </p>
+            <div
+              class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+            >
+              GridPBX uses direct Device endpoints so the fan-out limit is enforceable. Existing
+              group expansion and barge mode remain read-only. Safe schema timing values stay
+              server-owned and are preserved during edits.
+            </div>
+          </template>
+
+          <template v-if="module === 'ring_group'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Ring strategy</span>
+                <FormListbox
+                  :model-value="form.data.strategy ?? 'simultaneous'"
+                  :options="ringGroupStrategyOptions"
+                  aria-label="Ring strategy"
+                  :invalid="Boolean(fieldError('data.strategy'))"
+                  @update:model-value="setRingGroupStrategy"
+                />
+                <span v-if="fieldError('data.strategy')" class="text-[10px] text-danger">
+                  {{ fieldError('data.strategy') }}
+                </span>
+              </label>
+              <FormInput
+                :model-value="form.data.repeats ?? 1"
+                label="Attempts"
+                description="Retry the complete group one to three times."
+                type="number"
+                min="1"
+                max="3"
+                required
+                :model-modifiers="{ number: true }"
+                :error="fieldError('data.repeats')"
+                @update:model-value="form.data.repeats = Number($event)"
+              />
+            </div>
+
+            <section class="grid gap-3">
+              <div>
+                <h3 class="text-xs font-semibold text-slate-700">Devices</h3>
+                <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                  Add 1–20 synchronized devices. In-order strategy follows the displayed order.
+                </p>
+              </div>
+              <FormListbox
+                :model-value="null"
+                :options="ringGroupDeviceOptions"
+                aria-label="Add Ring Group device"
+                placeholder="Add a device"
+                :disabled="
+                  loading ||
+                  ringGroupDeviceOptions.length === 0 ||
+                  ringGroupEndpoints().length >= 20
+                "
+                :invalid="Boolean(fieldError('data.endpoints'))"
+                @update:model-value="addRingGroupEndpoint"
+              />
+
+              <p
+                v-if="ringGroupEndpoints().length === 0"
+                class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-[10px] text-slate-600"
+              >
+                No devices selected.
+              </p>
+
+              <div
+                v-for="(endpoint, index) in ringGroupEndpoints()"
+                :key="endpoint.device_id"
+                class="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+              >
+                <div class="flex items-center gap-2">
+                  <span
+                    class="grid size-7 place-items-center rounded-md bg-brand-50 text-[10px] font-bold text-brand-700"
+                  >
+                    {{ index + 1 }}
+                  </span>
+                  <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">
+                    {{ ringGroupDeviceLabel(endpoint.device_id) }}
+                  </span>
+                  <button
+                    type="button"
+                    :disabled="index === 0"
+                    :aria-label="`Move ${ringGroupDeviceLabel(endpoint.device_id)} up`"
+                    class="rounded p-1.5 text-slate-500 hover:bg-white disabled:opacity-20"
+                    @click="moveRingGroupEndpoint(index, -1)"
+                  >
+                    <ArrowUpIcon class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="index === ringGroupEndpoints().length - 1"
+                    :aria-label="`Move ${ringGroupDeviceLabel(endpoint.device_id)} down`"
+                    class="rounded p-1.5 text-slate-500 hover:bg-white disabled:opacity-20"
+                    @click="moveRingGroupEndpoint(index, 1)"
+                  >
+                    <ArrowDownIcon class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="`Remove ${ringGroupDeviceLabel(endpoint.device_id)}`"
+                    class="rounded p-1.5 text-danger hover:bg-red-50"
+                    @click="removeRingGroupEndpoint(index)"
+                  >
+                    <TrashIcon class="size-4" />
+                  </button>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <FormInput
+                    :model-value="endpoint.delay"
+                    :label="`Device ${index + 1} delay`"
+                    description="Seconds before this device starts ringing."
+                    type="number"
+                    min="0"
+                    max="60"
+                    required
+                    :disabled="form.data.strategy === 'single'"
+                    :model-modifiers="{ number: true }"
+                    :error="fieldError(`data.endpoints.${index}.delay`)"
+                    @update:model-value="setRingGroupTiming(index, 'delay', $event)"
+                  />
+                  <FormInput
+                    :model-value="endpoint.timeout"
+                    :label="`Device ${index + 1} timeout`"
+                    description="Ring this device for 1–60 seconds."
+                    type="number"
+                    min="1"
+                    max="60"
+                    required
+                    :model-modifiers="{ number: true }"
+                    :error="fieldError(`data.endpoints.${index}.timeout`)"
+                    @update:model-value="setRingGroupTiming(index, 'timeout', $event)"
+                  />
+                </div>
+              </div>
+              <p v-if="fieldError('data.endpoints')" class="text-[10px] text-danger">
+                {{ fieldError('data.endpoints') }}
+              </p>
+            </section>
+
+            <div
+              class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+            >
+              GridPBX computes Kazoo's overall attempt timeout from the ordered Device rows.
+              Ringback, ringtones, forwarding and reject flags, endpoint weights, and unknown fields
+              stay private and are preserved. Expanded user/group endpoints and weighted-random
+              routing remain read-only.
+            </div>
+          </template>
+
           <template v-if="module === 'response'">
             <div class="grid gap-4 sm:grid-cols-2">
               <FormInput
@@ -517,6 +1046,67 @@ function submit(): void {
             Hangup ends this callflow path and disconnects the call. The current Switch schema has
             no additional user-managed settings for this action.
           </div>
+
+          <section v-if="module === 'set_variables'" class="grid gap-4">
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="mr-auto">
+                <h3 class="text-xs font-semibold text-slate-700">Custom application variables</h3>
+                <p class="mt-0.5 text-[10px] leading-4 text-slate-500">
+                  Set the key/value variables made available to this call and subsequent actions.
+                </p>
+              </div>
+              <button
+                type="button"
+                class="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+                @click="addCustomApplicationVariable"
+              >
+                <PlusIcon class="size-3.5" /> Add variable
+              </button>
+            </div>
+
+            <p
+              v-if="(form.data.custom_application_variables ?? []).length === 0"
+              class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-[10px] leading-4 text-slate-600"
+            >
+              No variables configured. An empty variable object is valid in the Switch schema.
+            </p>
+
+            <div
+              v-for="(variable, index) in form.data.custom_application_variables ?? []"
+              :key="index"
+              class="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_2rem]"
+            >
+              <FormInput
+                :model-value="variable.key"
+                :label="`Variable ${index + 1} name`"
+                placeholder="account_code"
+                required
+                :error="fieldError(`data.custom_application_variables.${index}.key`)"
+                @update:model-value="setCustomApplicationVariable(index, 'key', $event)"
+              />
+              <FormInput
+                :model-value="variable.value"
+                :label="`Variable ${index + 1} value`"
+                placeholder="support"
+                :error="fieldError(`data.custom_application_variables.${index}.value`)"
+                @update:model-value="setCustomApplicationVariable(index, 'value', $event)"
+              />
+              <button
+                type="button"
+                :aria-label="`Remove variable ${index + 1}`"
+                class="mt-6 grid size-8 place-items-center rounded-md border border-red-200 bg-white text-danger hover:bg-red-50"
+                @click="removeCustomApplicationVariable(index)"
+              >
+                <TrashIcon class="size-4" />
+              </button>
+            </div>
+            <p
+              v-if="fieldError('data.custom_application_variables')"
+              class="text-[10px] text-danger"
+            >
+              {{ fieldError('data.custom_application_variables') }}
+            </p>
+          </section>
 
           <template v-if="module === 'set_variable'">
             <div class="grid gap-4 sm:grid-cols-2">
@@ -574,6 +1164,52 @@ function submit(): void {
               Add subsequent actions to a <strong>Priority 0–255</strong> branch or the
               <strong>Default</strong> branch on the route map. Priorities must use canonical whole
               numbers without leading zeroes.
+            </div>
+          </template>
+
+          <template v-if="module === 'branch_bnumber'">
+            <ToggleSwitch
+              :model-value="Boolean(form.data.hunt)"
+              label="Hunt for a matching callflow"
+              description="Use the feature-code capture group to find and run an account callflow instead of an exact child branch."
+              :disabled="branchBnumberHasExactChildren"
+              @update:model-value="setBranchBnumberHunt"
+            />
+            <p
+              v-if="branchBnumberHasExactChildren"
+              class="rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] leading-4 text-amber-900"
+            >
+              Remove the existing exact captured-number branches before enabling hunt mode.
+            </p>
+            <div v-if="form.data.hunt" class="grid gap-4 sm:grid-cols-2">
+              <FormInput
+                :model-value="form.data.hunt_allow ?? ''"
+                label="Allowed-number pattern"
+                description="Optional safe regular expression that captured numbers must match."
+                placeholder="^1\\d{3}$"
+                :error="fieldError('data.hunt_allow')"
+                @update:model-value="form.data.hunt_allow = String($event)"
+              />
+              <FormInput
+                :model-value="form.data.hunt_deny ?? ''"
+                label="Denied-number pattern"
+                description="Optional safe regular expression that blocks matching captured numbers."
+                placeholder="^1900"
+                :error="fieldError('data.hunt_deny')"
+                @update:model-value="form.data.hunt_deny = String($event)"
+              />
+            </div>
+            <div
+              class="rounded-md border border-violet-200 bg-violet-50 p-4 text-xs leading-5 text-violet-900"
+            >
+              <template v-if="form.data.hunt">
+                Hunt mode resolves another account callflow dynamically. Only the default
+                continuation runs when no eligible callflow is found.
+              </template>
+              <template v-else>
+                Add subsequent actions to exact captured-number branches such as
+                <strong>1000</strong>, plus an optional <strong>Default</strong> continuation.
+              </template>
             </div>
           </template>
 
@@ -944,6 +1580,13 @@ function submit(): void {
           label="Follow transfers"
           description="Continue recording if the call is transferred."
           @update:model-value="form.data.should_follow_transfer = $event"
+        />
+        <ToggleSwitch
+          v-if="module === 'set_variables'"
+          :model-value="Boolean(form.data.export)"
+          label="Export to future bridged legs"
+          description="Ask Switch to carry these variables to channels bridged later in this call."
+          @update:model-value="form.data.export = $event"
         />
         <ToggleSwitch
           :model-value="Boolean(form.data.skip_module)"

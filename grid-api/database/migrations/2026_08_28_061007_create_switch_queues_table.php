@@ -12,10 +12,10 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_queues', function (Blueprint $table): void {
-            $table->ulid('queue_id')->primary();
+            $table->bigIncrements('queue_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
-            $table->foreignUlid('music_on_hold_media_id')->nullable()->references('media_id')->on('switch_media')->nullOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('music_on_hold_media_id')->nullable()->references('media_id')->on('switch_media')->nullOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->string('strategy', 20)->default('round_robin');
@@ -40,10 +40,10 @@ return new class extends Migration
         });
 
         Schema::create('switch_queue_agents', function (Blueprint $table): void {
-            $table->ulid('queue_agent_id')->primary();
+            $table->bigIncrements('queue_agent_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_queue_id')->references('queue_id')->on('switch_queues')->cascadeOnDelete();
-            $table->foreignUlid('switch_extension_id')->nullable()->references('extension_id')->on('switch_extensions')->nullOnDelete();
+            $table->foreignId('switch_queue_id')->references('queue_id')->on('switch_queues')->cascadeOnDelete();
+            $table->foreignId('switch_extension_id')->nullable()->references('extension_id')->on('switch_extensions')->nullOnDelete();
             $table->string('switch_user_resource_id');
             $table->timestamps();
 

@@ -9,9 +9,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_temporal_rules', function (Blueprint $table): void {
-            $table->ulid('temporal_rule_id')->primary();
+            $table->bigIncrements('temporal_rule_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->string('cycle', 16);
@@ -35,9 +35,9 @@ return new class extends Migration
             $table->index(['switch_account_id', 'name'], 'str_account_name_index');
         });
         Schema::create('switch_temporal_rule_sets', function (Blueprint $table): void {
-            $table->ulid('temporal_rule_set_id')->primary();
+            $table->bigIncrements('temporal_rule_set_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->timestamp('last_synced_at')->nullable();
@@ -50,11 +50,11 @@ return new class extends Migration
             $table->index(['switch_account_id', 'name'], 'strs_account_name_index');
         });
         Schema::create('switch_temporal_rule_set_rules', function (Blueprint $table): void {
-            $table->ulid('temporal_rule_set_rule_id')->primary();
+            $table->bigIncrements('temporal_rule_set_rule_id');
             $table->uuid('id')->unique();
-            $table->ulid('switch_temporal_rule_set_id');
+            $table->unsignedBigInteger('switch_temporal_rule_set_id');
             $table->foreign('switch_temporal_rule_set_id', 'strsr_set_fk')->references('temporal_rule_set_id')->on('switch_temporal_rule_sets')->cascadeOnDelete();
-            $table->ulid('switch_temporal_rule_id')->nullable();
+            $table->unsignedBigInteger('switch_temporal_rule_id')->nullable();
             $table->foreign('switch_temporal_rule_id', 'strsr_rule_fk')->references('temporal_rule_id')->on('switch_temporal_rules')->nullOnDelete();
             $table->string('switch_rule_resource_id');
             $table->unsignedSmallInteger('position');

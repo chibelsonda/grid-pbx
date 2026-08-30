@@ -6,7 +6,6 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchServiceSummaryFactory;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,7 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SwitchServiceSummary extends Model
 {
-    use HasFactory, HasPublicUuid, HasUlids;
+    use HasFactory, HasPublicUuid;
 
     protected $primaryKey = 'service_summary_id';
 

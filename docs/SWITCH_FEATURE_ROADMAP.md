@@ -1,7 +1,7 @@
 # Switch Feature Implementation Roadmap
 
 Status: Active delivery roadmap
-Last updated: 2026-08-29
+Last updated: 2026-08-30
 
 ## 1. Purpose
 
@@ -406,10 +406,13 @@ showing the public branch path, module, resolved destination label, reference
 state, child count, and editing status. Unknown child-map keys are replaced in
 the public response by numbered preserved-branch labels so upstream Switch
 resource IDs cannot leak; the original keys remain internal for lossless
-writes. A searchable, categorized reference palette covers all 73 primary
-module schemas in the checked-in Switch source and distinguishes guided,
-planned, and capability-gated actions without presenting unsupported mutations
-as available. Guided palette drag-and-drop, recursive subtree moves,
+writes. A searchable palette uses the installed Kazoo section names, membership,
+and action order; there is no GridPBX-only “Schema extensions” section. The
+expanded categories retain the exact installed Kazoo membership and order. Guided current-schema
+actions that are absent from that installed palette remain explicitly
+searchable without changing the native category lists. Guided, planned, and
+capability-gated actions remain visually distinct without presenting unsupported
+mutations as available. Guided palette drag-and-drop, recursive subtree moves,
 insert-before, and safe subtree swaps are now implemented. Bounded inline forms
 cover Sleep, TTS, DTMF collection,
 send and flush, Dead Air, Language, recording actions, Missed Call Alert, Set
@@ -425,12 +428,188 @@ redacted `switch_json`; they remain a separate resource from Blacklists.
 Set Variable is deliberately limited to `call_priority`, the only variable
 mapped by the checked-in Kazoo runtime. Values are bounded to the queue-supported
 range `0`–`255`; arbitrary channel-variable names remain redacted and read-only.
+Branch Variable follows the same contract boundary: the guided editor accepts
+only `custom_channel_vars.call_priority`, exposes the fallback plus priority
+`0`–`255` branches, and preserves unknown data and children losslessly. Its
+API, Switch DTO, Zod form, condition rendering, and disposable live
+create/edit/reopen/Priority-42/delete lifecycle are verified end to end.
+Branch Bnumber follows Kazoo's documented branching-versus-hunting contract.
+Branch mode accepts bounded exact captured dial strings and exposes them as
+condition branches; hunt mode accepts optional safe allow/deny patterns and
+uses only the normal continuation when lookup fails. Enabling hunt is blocked
+until exact child branches are removed. The API, Switch DTO, Zod form, public
+tree labels, create/edit/filter-clear/exact-1000 branch lifecycle, deletion,
+and independent Switch/MySQL cleanup are verified end to end.
+Set CAV follows the checked-in `set_variables` schema and Monster row workflow.
+GridPBX exposes repeatable validated key/value rows while its API boundary writes
+the exact `custom_application_vars` object plus `export` and `skip_module`.
+Duplicate or unsafe keys and control characters are rejected, and unsupported
+existing maps remain redacted and losslessly preserved. Focused package, API,
+Zod, component, and disposable live Switch create/edit/reopen/delete coverage
+protects the complete round trip.
+Manual Presence follows the checked-in schema and runtime mappings. GridPBX
+accepts a local presence ID or one realm-qualified ID, exposes only `idle`,
+`ringing`, and `busy`, and supports `skip_module`. New forms explicitly use
+Monster's `busy` default; omitted legacy status is interpreted as the schema
+default `idle`. Focused package, API, Zod, component, and disposable live Switch
+create/edit/reopen/delete coverage protects the complete round trip.
+Group Pickup follows the checked-in schema and Monster's single endpoint
+selector. GridPBX accepts exactly one account-scoped public Device, Extension,
+or Group UUID and maps it server-side to Kazoo's mutually exclusive `device_id`,
+`user_id`, or `group_id`. Private `approved_*` restrictions and unknown node
+properties never cross the public boundary and remain losslessly preserved;
+ambiguous or unresolved existing targets are read-only. Focused package, API,
+Zod, component, and disposable live Switch Extension-to-Device create/edit/
+reopen/delete coverage protects the complete round trip.
+Page Group now has a verified guided Device-only foundation. GridPBX accepts
+one to twenty distinct account-scoped public Device UUIDs, resolves them to raw
+Kazoo `device` endpoint IDs only at the server boundary, and exposes the schema
+audio choices `one-way` and `two-way` plus `skip_module`. Kazoo's materialized
+top-level and endpoint timing values remain private, bounded, and preserved;
+unknown endpoint fields are also preserved by the Switch DTO and covered by a
+focused regression test. Existing user/group endpoint expansion,
+`barge_calls = true`, unsafe timings, or unresolved endpoints remain read-only because their
+runtime fan-out and call-interruption effects are not yet safely modeled. A
+2026-08-30 disposable live run verified create/edit/reopen/delete, public/raw
+Device mapping, `one-way`-to-`two-way`, `skip_module`, preservation of Kazoo's
+materialized timing defaults, MySQL soft deletion, and no remaining active
+Switch callflow. No media-leg page was originated, so this is not yet the
+globally complete Page Group feature.
+Ring Group now has a verified guided Device-only foundation. GridPBX accepts
+one to twenty ordered account-scoped public Device UUIDs and resolves raw
+Kazoo endpoint IDs only at the server boundary. The public form exposes
+`simultaneous` and `single` strategies, endpoint delay and timeout, one to
+three attempts, and `skip_module`; Laravel computes Kazoo's top-level attempt
+`timeout` and enforces a 120-second cap. In-order endpoints cannot use delay.
+Existing user/group expansion, `weighted_random`, unresolved endpoints, unsafe
+timings, ringback/ringtones, reject/forward flags, endpoint weights, and
+unknown properties remain private and read-only unless the configuration fits
+the guided subset. The Switch DTO merges managed values into the current node
+and preserves private endpoint/node fields. A 2026-08-30 disposable live run
+named `E2E Ring Group 1788090166193` verified creation below Page Group,
+public-to-raw Device mapping, simultaneous delay `5`/timeout `20` with two
+attempts, edit to in-order delay `0`/timeout `30` with one attempt,
+`skip_module`, authoritative reopen, raw computed timeout `30`, browser
+deletion, MySQL soft deletion, and no remaining active Switch callflow. Crossbar
+sanitized attempted live private markers, so lossless private/unknown-field
+preservation is claimed from the focused SDK regression test rather than a
+direct CouchDB write. No media leg was originated, so this is not yet the
+globally complete Ring Group feature.
+
+The exact next callflow priority is the installed Ring Group Toggle category:
+audit `ring_group_toggle` login/logout schemas and runtime authorization,
+confirm the target callflow contract and membership side effects, then close
+its existing partial public-UUID implementation with focused and disposable
+live evidence.
+Receive Fax follows the installed Kazoo schema and runtime shape. GridPBX accepts
+an account-scoped public Extension UUID, resolves it only on the server to raw
+`owner_id`, nests `fax_option` under `media`, and supports the schema values
+`auto`, `true`, and `false` plus `skip_module`. Unknown nested `media` properties
+remain private and losslessly preserved. Focused package, API, resolver, Zod,
+component, and isolated headless coverage protects the boundary. A 2026-08-30
+disposable live run verified create below Group Pickup, `auto`-to-`true` edit,
+`skip_module`, authoritative reopen, raw/public owner mapping, injected unknown
+media preservation, deletion, MySQL soft deletion, and no remaining active
+Switch callflow.
+Pivot remains capability-gated after inspection of the installed schema and
+compiled runtime. It can send caller, account, call, custom-variable, SIP-header,
+recording, and transcription data to operator-entered HTTP(S) endpoints; accept
+response-driven Kazoo or TwiML call control and follow-up URLs; persist debug
+request/response bodies; and issue an unauthenticated end-of-call CDR POST. The
+runtime provides no destination allowlist, private-network/DNS-rebinding guard,
+application authentication header, callback signature, or explicit TLS policy.
+It must not become editable until those controls are server-owned and enforced
+outside callflow JSON.
+DISA also remains capability-gated. Its installed public schema exposes only
+`skip_module`, while the runtime consumes undeclared legacy dialing controls,
+explicitly permits access when the PIN is empty, and defaults call-restriction
+enforcement off. Mandatory authentication, lockout/rate limiting, default-on
+destination restrictions, abuse auditing, and live toll-fraud tests are required
+before a guided form is safe.
+Conference Service is guided as a distinct resource-free variant of the existing
+`conference` module. The UI and public API use only `service_mode: true` and
+`skip_module`; Laravel removes the public discriminator, Switch receives no
+conference `id`, and configured Conference routing continues to resolve an
+account-scoped public UUID server-side. The installed runtime treats the missing
+ID as account-scoped discovery, prompts up to three times for a 1–16 digit
+conference number, and applies the selected conference's existing member or
+moderator PINs. Focused SDK/API/resolver/Zod/component tests cover variant
+collision and unknown-field preservation. A 2026-08-30 disposable isolated
+headless run verified create below Receive Fax, skip edit, authoritative reopen,
+raw absence of `id`, injected private-field preservation and public redaction,
+delete, MySQL soft deletion, and zero matching active Switch callflows. The run
+validated configuration lifecycle and cleanup; it did not originate a media-leg
+prompt call. The connected local topology currently has Kazoo applications and
+CouchDB but no FreeSWITCH/media process, so prompt observation remains pending
+until a disposable media leg can be originated without expanding repository
+scope.
+Check Voicemail is guided only as Kazoo's resource-free `voicemail` action with
+`action: check` and `skip_module`; it never accepts or emits a mailbox `id`.
+Installed runtime inspection confirmed account-scoped mailbox-number discovery,
+bounded login retries, PIN enforcement, and the existing authenticated-owner
+`require_pin = false` exception. GridPBX does not expose or accept
+`single_mailbox_login` or `callerid_match_login`. A 2026-08-30 disposable live
+run verified create below Conference Service, skip edit, authoritative reopen,
+raw absence of `id`, public redaction, unknown-field preservation, deletion,
+MySQL soft deletion, and zero matching active Switch callflows. Kazoo
+materialized both private login flags as `false` in the raw node; they remained
+private and unchanged.
+Global Carrier and Account Carrier remain capability-gated after inspection of
+the installed `offnet`/`resources`, route-entry, selector, and StepSwitch bridge
+runtime. Both schemas can override the final DID and normalization, caller-ID
+source, SIP headers, resource type, and carrier-selection flags after the
+originating endpoint restriction check classified the original request.
+`offnet` forcibly selects system-wide resources. `resources` defaults to the
+current account's local pool and permits a raw `hunt_account_id`; StepSwitch
+checks account hierarchy, but raw account identifiers cannot cross GridPBX's
+public boundary. Installed StepSwitch also bypasses emergency caller-ID
+validation whenever a hunt account is present, while global routing defaults to
+continuing with an anonymous caller ID when invalid emergency CID denial is not
+explicitly enabled. Enabling either action requires an authenticated outbound-
+only route context, classification of the final normalized destination,
+default-deny premium/international/emergency policy, loop prevention, spend/
+rate/concurrency limits, immutable audit events, server-owned SIP/resource
+settings, and public-UUID account authorization for any local carrier pool.
+Webhook remains capability-gated after inspection of the installed callflow
+schema, compiled `cf_webhook`/webhooks runtime, active URL blacklist, and Erlang
+HTTP/TLS defaults. It asynchronously sends a broad call snapshot with raw
+Switch identifiers, caller/callee data, SIP headers, application variables, and
+Switch-host details to an operator-entered HTTP(S) URI. Delivery has no signed
+authentication, exposes raw account and hook IDs in headers, follows up to four
+redirects, has no total request timeout, and does not verify TLS certificates or
+hostnames. The deployment blocks only literal `localhost`, `127.0.0.1`, and
+`0.0.0.0`; hostname resolution, private/link-local/metadata ranges, DNS
+rebinding, and redirect destinations are not safely enforced. Failed attempts
+persist complete request and response bodies in the account MODB. GridPBX did
+not issue a live callback. A guided form requires server-owned HTTPS allowlists,
+per-hop DNS/IP enforcement, verified TLS, bounded request/response handling,
+signed minimal public-safe payloads with replay protection, redacted retention-
+bounded delivery records, safe retry/rate/circuit policy, audit events, and a
+kill switch.
+Dynamic CID remains capability-gated after inspection of the installed schema,
+compiled runtime, Monster workflow, downstream caller-ID selection, and active
+system configuration. Monster creates an empty node, which the runtime treats
+as manual mode and uses to collect any replacement caller-ID number matching the
+default ten-digit `\d+` policy. The runtime does not establish that the asserted
+number belongs to the account. Static mode also accepts arbitrary caller-ID
+name/number data, while list modes consume raw list IDs and may reroute the
+captured destination. Their destination restriction check fails open when the
+endpoint cannot be loaded and can be explicitly disabled. Downstream dynamic
+external caller-ID ownership validation depends on
+`callflow.ensure_valid_caller_id`; it is unset in this deployment and therefore
+uses the installed false default. Enabling a safe variant requires only
+account-scoped public Phone Number UUIDs or projected caller-ID profiles,
+server-side ownership and E911 validation, authenticated feature-code context,
+fail-closed final-destination restrictions, anti-spoofing audit and rate limits,
+and live carrier-level verification. Raw list IDs, arbitrary static/manual
+numbers, restriction bypasses, and custom-route overrides remain private and
+unavailable.
 
 ## 6. P2 operational features
 
 | Domain | User-facing capabilities | Switch boundary | Projection notes | Status |
 | --- | --- | --- | --- | --- |
-| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Interactive recursive canvas, safe node inspector, complete schema-backed palette, guided root/fallback/Menu/Rule Set writes, palette drag/drop, guarded subtree moves/reorders, public Caller-ID result branches, resource forms, and bounded inline action forms delivered; remaining module-specific forms and dynamic branches stay gated | Foundation |
+| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Interactive recursive canvas, safe node inspector, Kazoo-grouped version-aware palette, guided root/fallback/Menu/Rule Set/Branch Bnumber writes, palette drag/drop, guarded subtree moves/reorders, public condition branches, resource forms, and bounded inline action forms delivered; remaining module-specific forms and dynamic branches stay gated | Foundation |
 | IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, guided routing, and safe root-level DTMF/timeout branches delivered; deeper recursive editing remains planned | Foundation |
 | Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Rule and ordered Rule Set CRUD, projection/sync, safe deletion, effective status and controls, plus schema-correct `rule_set`/`_` guided routing delivered | Foundation |
 | Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Validated upload/audio panels, protected range streaming, dependency-safe deletion, non-clipping account-default choice, hidden schema-field preservation, and metadata-only MySQL projection delivered | Foundation |

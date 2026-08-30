@@ -31,7 +31,6 @@ use App\Domains\Voicemail\Models\SwitchVoicemailGreeting;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchAccountFactory;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -41,7 +40,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class SwitchAccount extends Model
 {
     /** @use HasFactory<SwitchAccountFactory> */
-    use HasFactory, HasPublicUuid, HasUlids;
+    use HasFactory, HasPublicUuid;
 
     protected $primaryKey = 'account_id';
 

@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_directories', function (Blueprint $table): void {
-            $table->ulid('directory_id')->primary();
+            $table->bigIncrements('directory_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
+            $table->foreignId('switch_account_id')->references('account_id')->on('switch_accounts')->cascadeOnDelete();
             $table->string('switch_resource_id');
             $table->string('name', 128);
             $table->boolean('confirm_match')->default(true);
@@ -33,11 +33,11 @@ return new class extends Migration
         });
 
         Schema::create('switch_directory_members', function (Blueprint $table): void {
-            $table->ulid('directory_member_id')->primary();
+            $table->bigIncrements('directory_member_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_directory_id')->references('directory_id')->on('switch_directories')->cascadeOnDelete();
-            $table->foreignUlid('switch_extension_id')->nullable()->references('extension_id')->on('switch_extensions')->nullOnDelete();
-            $table->foreignUlid('switch_callflow_id')->nullable()->references('callflow_id')->on('switch_callflows')->nullOnDelete();
+            $table->foreignId('switch_directory_id')->references('directory_id')->on('switch_directories')->cascadeOnDelete();
+            $table->foreignId('switch_extension_id')->nullable()->references('extension_id')->on('switch_extensions')->nullOnDelete();
+            $table->foreignId('switch_callflow_id')->nullable()->references('callflow_id')->on('switch_callflows')->nullOnDelete();
             $table->string('switch_user_resource_id');
             $table->string('switch_callflow_resource_id');
             $table->timestamps();

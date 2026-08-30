@@ -7,7 +7,6 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Recordings\Models\SwitchRecording;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\SwitchCallDetailRecordFactory;
-use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -16,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class SwitchCallDetailRecord extends Model
 {
     /** @use HasFactory<SwitchCallDetailRecordFactory> */
-    use HasFactory, HasPublicUuid, HasUlids;
+    use HasFactory, HasPublicUuid;
 
     protected $primaryKey = 'call_detail_record_id';
 

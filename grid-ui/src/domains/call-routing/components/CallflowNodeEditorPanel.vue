@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { ShieldCheckIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -11,6 +12,7 @@ import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import { useCallflowNodeForm } from '../composables/useCallflowNodeForm'
 import type {
   CallflowEditor,
+  CallflowCapturedNumberBranchKey,
   CallflowNodeEditorContext,
   CallflowTreeBranchKey,
   CallflowTreeNodeCreateInput,
@@ -29,10 +31,11 @@ const emit = defineEmits<{
   close: []
   save: [input: CallflowTreeNodeCreateInput | CallflowTreeNodeUpdateInput]
 }>()
-const { form, validationErrors, destinations, branches, validate } = useCallflowNodeForm(
-  () => props.context,
-  () => props.editor,
-)
+const { form, validationErrors, destinations, branches, usesCapturedNumberBranch, validate } =
+  useCallflowNodeForm(
+    () => props.context,
+    () => props.editor,
+  )
 const action = computed(() => findCallflowAction(props.context.module))
 const actionIcon = computed(() => callflowActionIcon(props.context.module))
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
@@ -58,6 +61,14 @@ function setBranch(value: ListboxValue): void {
   if (branches.value.some((option) => option.value === value)) {
     form.branch = value as CallflowTreeBranchKey
   }
+}
+
+function setCapturedNumberBranch(value: string | number | null): void {
+  const branch = String(value ?? '').trim()
+  const defaultAvailable = branches.value.some(({ value }) => value === '_')
+
+  form.branch =
+    branch === '' ? (defaultAvailable ? '_' : null) : (branch as CallflowCapturedNumberBranchKey)
 }
 
 function setDestination(value: ListboxValue): void {
@@ -102,7 +113,16 @@ function submit(): void {
           </div>
         </header>
         <div class="grid gap-5 p-5">
-          <label v-if="context.operation === 'create'" class="grid gap-2">
+          <FormInput
+            v-if="context.operation === 'create' && usesCapturedNumberBranch"
+            :model-value="form.branch === '_' ? '' : (form.branch ?? '')"
+            label="Captured number branch"
+            description="Enter the exact captured dial string, or leave empty for the default continuation."
+            placeholder="1000"
+            :error="fieldError('branch')"
+            @update:model-value="setCapturedNumberBranch"
+          />
+          <label v-else-if="context.operation === 'create'" class="grid gap-2">
             <span class="text-xs font-semibold text-slate-700">Parent branch</span>
             <FormListbox
               :model-value="form.branch"

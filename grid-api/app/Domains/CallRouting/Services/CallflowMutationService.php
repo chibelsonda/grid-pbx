@@ -360,7 +360,12 @@ class CallflowMutationService
             $data['module'],
             $this->inlineNodeDataValidator->validate($data['module'], $data['data']),
         );
-        $this->treeNodeWriteValidator->assertCanUpdate($callflow, $data['node_path'], $data['module']);
+        $this->treeNodeWriteValidator->assertCanUpdate(
+            $callflow,
+            $data['node_path'],
+            $data['module'],
+            $settings,
+        );
 
         return $this->writeInlineTreeNode(
             $account,
@@ -472,7 +477,132 @@ class CallflowMutationService
             return $this->ringGroupToggleSettingsForSwitch($account, $settings);
         }
 
+        if ($module === 'group_pickup') {
+            return $this->groupPickupSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'page_group') {
+            return $this->pageGroupSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'ring_group') {
+            return $this->ringGroupSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'receive_fax') {
+            return $this->receiveFaxSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'conference') {
+            return ['skip_module' => $settings['skip_module']];
+        }
+
         return $settings;
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function groupPickupSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        [$relation, $switchKey, $label] = match ($settings['target_type']) {
+            'extension' => [$account->extensions(), 'user_id', 'extension'],
+            'device' => [$account->devices(), 'device_id', 'device'],
+            'group' => [$account->groups(), 'group_id', 'group'],
+        };
+        $resourceId = $relation
+            ->where('id', $settings['target_id'])
+            ->value('switch_resource_id');
+
+        if (! is_string($resourceId) || $resourceId === '') {
+            throw ValidationException::withMessages([
+                'data.target_id' => ["Select a synchronized {$label} in this account."],
+            ]);
+        }
+
+        return [
+            $switchKey => $resourceId,
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function receiveFaxSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $resourceId = $account->extensions()
+            ->where('id', $settings['owner_id'])
+            ->value('switch_resource_id');
+
+        if (! is_string($resourceId) || $resourceId === '') {
+            throw ValidationException::withMessages([
+                'data.owner_id' => ['Select a synchronized extension in this account.'],
+            ]);
+        }
+
+        return [
+            'owner_id' => $resourceId,
+            'media' => ['fax_option' => $settings['fax_option']],
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function pageGroupSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $publicIds = collect($settings['device_ids'])->unique()->values();
+        $resources = $account->devices()
+            ->whereIn('id', $publicIds)
+            ->get()
+            ->mapWithKeys(fn ($device): array => [(string) $device->id => $device->switch_resource_id]);
+        $missing = $publicIds->reject(
+            fn (string $id): bool => is_string($resources->get($id)) && $resources->get($id) !== '',
+        );
+
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'data.device_ids' => ['Select only synchronized devices in this account.'],
+            ]);
+        }
+
+        return [
+            'audio' => $settings['audio'],
+            'endpoints' => $publicIds->map(fn (string $id): array => [
+                'endpoint_type' => 'device',
+                'id' => $resources->get($id),
+            ])->all(),
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function ringGroupSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $endpoints = collect($settings['endpoints']);
+        $publicIds = $endpoints->pluck('device_id')->unique()->values();
+        $resources = $account->devices()
+            ->whereIn('id', $publicIds)
+            ->get()
+            ->mapWithKeys(fn ($device): array => [(string) $device->id => $device->switch_resource_id]);
+        $missing = $publicIds->reject(
+            fn (string $id): bool => is_string($resources->get($id)) && $resources->get($id) !== '',
+        );
+
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'data.endpoints' => ['Select only synchronized devices in this account.'],
+            ]);
+        }
+
+        return [
+            'strategy' => $settings['strategy'],
+            'endpoints' => $endpoints->map(fn (array $endpoint): array => [
+                'endpoint_type' => 'device',
+                'id' => $resources->get($endpoint['device_id']),
+                'delay' => $endpoint['delay'],
+                'timeout' => $endpoint['timeout'],
+            ])->all(),
+            'repeats' => $settings['repeats'],
+            'timeout' => RingGroupPolicy::attemptTimeout($settings['strategy'], $settings['endpoints']),
+            'skip_module' => $settings['skip_module'],
+        ];
     }
 
     /** @param array<string, mixed> $settings @return array<string, mixed> */

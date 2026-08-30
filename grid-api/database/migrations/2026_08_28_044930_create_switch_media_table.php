@@ -12,9 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('switch_media', function (Blueprint $table): void {
-            $table->ulid('media_id')->primary();
+            $table->bigIncrements('media_id');
             $table->uuid('id')->unique();
-            $table->foreignUlid('switch_account_id')
+            $table->foreignId('switch_account_id')
                 ->references('account_id')
                 ->on('switch_accounts')
                 ->cascadeOnDelete();
@@ -42,7 +42,7 @@ return new class extends Migration
         });
 
         Schema::table('switch_accounts', function (Blueprint $table): void {
-            $table->foreignUlid('music_on_hold_media_id')
+            $table->foreignId('music_on_hold_media_id')
                 ->nullable()
                 ->after('realm')
                 ->references('media_id')

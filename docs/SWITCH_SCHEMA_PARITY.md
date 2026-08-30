@@ -909,7 +909,63 @@ require an explicit default region when the user omits a country code. Internal
 extensions and projected Phone Number UUID selections are separate concepts and
 must not be rejected by public-number validation.
 
-## 21. Next matrices
+## 21. Page Group guided field-level matrix
+
+The installed `callflows.page_group` schema and compiled runtime are the payload
+and behavior authority. Monster confirms the Basic workflow, but GridPBX exposes
+only the subset whose public references and fan-out are bounded safely.
+
+| Schema path or operation | GridPBX treatment | Current status |
+| --- | --- | --- |
+| `audio` | Required guided enum: `one-way` or `two-way` | Implemented |
+| `endpoints[]` with `endpoint_type = device` and raw `id` | One to twenty distinct account-scoped public Device UUIDs; Laravel resolves raw Switch resource IDs only for the SDK write | Implemented |
+| `endpoints[]` with `endpoint_type = user` or `group` | Runtime expands these references into devices; kept read-only until expansion, deduplication, authorization, and the final fan-out cap can be enforced reliably | Capability-gated |
+| endpoint `delay`, `timeout`, and `weight` | Private server-owned values; safe installed values are bounded and preserved but are neither accepted nor exposed publicly | Preservation boundary implemented |
+| top-level `timeout` | Private server-owned value, bounded to the installed safe range and preserved; live Crossbar materialized the default `5` | Preservation boundary implemented |
+| `barge_calls` | `true` can interrupt active endpoint calls; existing enabled configurations remain private and read-only | Capability-gated |
+| `skip_module` | Guided boolean | Implemented |
+| unknown node and endpoint properties | Hidden from public API/UI and merged losslessly by the Switch DTO; endpoint preservation is focused-test verified | Implemented boundary |
+
+A 2026-08-30 disposable isolated-headless lifecycle verified one-way creation,
+two-way edit, `skip_module`, authoritative reopen, public Device UUID to raw
+Switch endpoint mapping, hidden Kazoo timing preservation, browser deletion,
+MySQL soft deletion, and no matching active Switch callflow. Crossbar stripped
+attempted unknown live endpoint properties, so unknown-field preservation is
+claimed only from the focused SDK regression test; direct CouchDB writes were
+not used. No media-leg page was originated, so this matrix records a verified
+guided foundation rather than full Page Group completion.
+
+## 22. Ring Group guided field-level matrix
+
+The installed `callflows.ring_group` schema and compiled `cf_ring_group`
+runtime define the payload and execution contract. Monster confirms the
+Device/User/Group ordering workflow; GridPBX currently exposes only direct
+Device endpoints so fan-out and total attempt duration remain enforceable.
+
+| Schema path or operation | GridPBX treatment | Current status |
+| --- | --- | --- |
+| `strategy = simultaneous` or `single` | Guided as At the same time or In order | Implemented |
+| `strategy = weighted_random` | Existing values remain private and read-only until weight semantics and operator expectations are modeled | Capability-gated |
+| `endpoints[]` with `endpoint_type = device` and raw `id` | One to twenty ordered account-scoped public Device UUIDs; Laravel resolves raw Switch IDs only for the SDK write | Implemented |
+| `endpoints[]` with `endpoint_type = user` or `group` | Runtime expands memberships into devices; kept read-only until expansion, deduplication, inactive-member filtering, authorization, and final fan-out can be enforced | Capability-gated |
+| endpoint `delay` | Guided integer `0`–`60`; in-order strategy requires `0` | Implemented |
+| endpoint `timeout` | Guided integer `1`–`60` | Implemented |
+| top-level `timeout` | Server-computed per attempt: maximum `delay + timeout` for simultaneous and sum of endpoint timeouts for in-order; capped at `120`; never accepted or exposed publicly | Implemented |
+| `repeats` | Guided integer `1`–`3` | Implemented |
+| `skip_module` | Guided boolean | Implemented |
+| `ringback`, `ringtones`, `ignore_forward`, `fail_on_single_reject`, endpoint `weight`/`disable_until`, and unknown properties | Hidden from public API/UI and merged losslessly by the Switch DTO; unsafe or unsupported current shapes are read-only | Preservation boundary implemented |
+
+A 2026-08-30 disposable isolated-headless lifecycle verified creation below
+Page Group, simultaneous-to-in-order editing, delay reset, bounded timeout and
+attempts, `skip_module`, authoritative reopen, public Device UUID to raw Switch
+endpoint mapping, computed top-level timeout, browser deletion, MySQL soft
+deletion, and no matching active Switch callflow. Crossbar stripped attempted
+live private markers, so private/unknown-field preservation is claimed from the
+focused SDK regression test; direct CouchDB writes were not used. No media-leg
+call was originated, so this matrix records a verified guided foundation rather
+than full Ring Group completion.
+
+## 23. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 
