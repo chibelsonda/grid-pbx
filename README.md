@@ -125,6 +125,17 @@ or its storage provider and are streamed only after an authorized request.
 Outbound sending, forwarding, resubmission, and deletion are intentionally not
 enabled until retention, notification, and abuse-control policies are agreed.
 
+Caller-ID List management requires the version-neutral Crossbar lists module:
+
+```bash
+sup crossbar_maintenance start_module cb_lists
+```
+
+GridPBX supports deployments where the list-entry collection returns summaries
+by hydrating each entry from its detail endpoint before projecting or editing
+it. The adapter also supplies the parent `list_id` required by current schemas
+without exposing that private Switch identifier to the UI.
+
 The read-only Services overview requires the account services and v2 limits
 Crossbar modules:
 

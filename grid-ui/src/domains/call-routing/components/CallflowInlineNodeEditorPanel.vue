@@ -41,7 +41,7 @@ const emit = defineEmits<{
 const { form, module, branches, validationErrors, validate } = useCallflowInlineNodeForm(
   () => props.context,
 )
-const action = computed(() => findCallflowAction(module.value))
+const action = computed(() => findCallflowAction(module.value, form.data.action))
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
@@ -77,6 +77,18 @@ const recipientTypeOptions: ListboxOptionValue[] = [
   { value: 'email', label: 'Email address' },
   { value: 'user', label: 'Extension user' },
 ]
+const prependActionOptions: ListboxOptionValue[] = [
+  { value: 'prepend', label: 'Prepend values' },
+  { value: 'reset', label: 'Reset prefixes' },
+]
+const prependTargetOptions: ListboxOptionValue[] = [
+  { value: 'original', label: 'Original caller ID' },
+  { value: 'current', label: 'Current accumulated caller ID' },
+]
+const channelOptions: ListboxOptionValue[] = [
+  { value: 'a', label: 'A leg only' },
+  { value: 'both', label: 'Both call legs' },
+]
 const extensionOptions = computed<ListboxOptionValue[]>(() =>
   (props.editor?.destinations.extension ?? []).map(({ id, label, detail }) => ({
     value: id,
@@ -84,6 +96,58 @@ const extensionOptions = computed<ListboxOptionValue[]>(() =>
     description: detail,
   })),
 )
+const callerIdentityOwnerOptions = computed<ListboxOptionValue[]>(() => [
+  { value: null, label: 'Do not override caller identity' },
+  ...extensionOptions.value,
+])
+const callerIdListOptions = computed<ListboxOptionValue[]>(() =>
+  (props.editor?.caller_id_lists ?? []).map(({ id, label, detail }) => ({
+    value: id,
+    label,
+    description: detail,
+  })),
+)
+const temporalRuleOptions = computed(() => props.editor?.temporal_rules ?? [])
+const callflowOptions = computed<ListboxOptionValue[]>(() =>
+  (props.editor?.destinations.callflow ?? []).map(({ id, label, detail }) => ({
+    value: id,
+    label,
+    description: detail,
+  })),
+)
+const operationalModules = new Set([
+  'temporal_route',
+  'ring_group_toggle',
+  'hotdesk',
+  'do_not_disturb',
+  'call_forward',
+])
+const lockedReason = computed<string | null>(() => {
+  if (props.context.operation !== 'update') return null
+  if (module.value === 'set_variable' && props.context.node.settings?.supported_variable !== true) {
+    return 'This node uses a channel variable that the current Kazoo runtime does not support through its guided call-priority workflow. GridPBX preserves it without exposing its name or value.'
+  }
+  if (
+    module.value === 'branch_variable' &&
+    props.context.node.settings?.supported_variable !== true
+  ) {
+    return 'This node branches on a variable or scope outside the supported Kazoo call-priority workflow. GridPBX preserves its settings and dynamic branches without exposing or rewriting them.'
+  }
+  if (
+    module.value === 'cidlistmatch' &&
+    props.context.node.settings?.reference_status === 'unresolved'
+  ) {
+    return 'This Caller-ID List is not available in the current account projection. Synchronize Caller-ID Lists before editing this node.'
+  }
+  if (module.value !== 'check_cid') return null
+  if (props.context.node.settings?.use_absolute_mode === true) {
+    return 'This node uses Kazoo absolute caller-number branches. GridPBX preserves those dynamic branches but does not rewrite them.'
+  }
+  if (props.context.node.settings?.identity_reference_status === 'unresolved') {
+    return 'The caller identity owner is not available in the current projection. Synchronize extensions before editing this node.'
+  }
+  return null
+})
 
 function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
@@ -97,6 +161,14 @@ function setBranch(value: ListboxValue): void {
 
 function setTerminators(value: boolean | string[]): void {
   if (Array.isArray(value)) form.data.terminators = value
+}
+
+function setTemporalRules(value: boolean | string[]): void {
+  if (Array.isArray(value)) form.data.rules = value
+}
+
+function setRingGroupCallflow(value: ListboxValue): void {
+  if (typeof value === 'string') form.data.callflow_id = value
 }
 
 function recipients(): CallflowAlertRecipient[] {
@@ -122,6 +194,14 @@ function removeRecipient(index: number): void {
   recipients().splice(index, 1)
 }
 
+function setCallerIdentityOwner(value: ListboxValue): void {
+  form.data.user_id = typeof value === 'string' ? value : null
+  if (form.data.user_id === null) {
+    form.data.external_caller_id_name = null
+    form.data.external_caller_id_number = null
+  }
+}
+
 function submit(): void {
   const input = validate()
   if (input) emit('save', input)
@@ -136,7 +216,24 @@ function submit(): void {
     width="medium"
     @close="emit('close')"
   >
-    <form class="grid gap-5" novalidate @submit.prevent="submit">
+    <div v-if="lockedReason" class="grid gap-5">
+      <div
+        class="flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"
+      >
+        <ShieldCheckIcon class="mt-0.5 size-5 shrink-0" />
+        <p>{{ lockedReason }}</p>
+      </div>
+      <div class="flex justify-end">
+        <button
+          type="button"
+          class="h-10 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-700"
+          @click="emit('close')"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+    <form v-else class="grid gap-5" novalidate @submit.prevent="submit">
       <section class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
@@ -163,6 +260,55 @@ function submit(): void {
             />
             <span v-if="fieldError('branch')" class="text-[10px] font-medium text-danger">
               {{ fieldError('branch') }}
+            </span>
+          </label>
+
+          <div
+            v-if="operationalModules.has(module)"
+            class="rounded-md border border-blue-100 bg-blue-50 p-4"
+          >
+            <p class="text-xs font-semibold text-blue-900">{{ action?.label }}</p>
+            <p class="mt-1 text-[10px] leading-4 text-blue-700">
+              The selected Switch operation is carried from the palette and saved as
+              <span class="font-mono">action={{ form.data.action }}</span>.
+            </p>
+          </div>
+
+          <template v-if="module === 'temporal_route'">
+            <div>
+              <h3 class="text-xs font-semibold text-slate-700">Affected time-of-day rules</h3>
+              <p class="mt-1 text-[10px] text-slate-500">
+                Leave all rules clear to apply the Switch operation without a rule filter.
+              </p>
+            </div>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <FormCheckbox
+                v-for="rule in temporalRuleOptions"
+                :key="rule.id"
+                :model-value="form.data.rules ?? []"
+                :value="rule.id"
+                :label="rule.label"
+                variant="compact"
+                @update:model-value="setTemporalRules"
+              />
+            </div>
+            <p v-if="fieldError('data.rules')" class="text-[10px] text-danger">
+              {{ fieldError('data.rules') }}
+            </p>
+          </template>
+
+          <label v-if="module === 'ring_group_toggle'" class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-700">Ring-group callflow</span>
+            <FormListbox
+              :model-value="form.data.callflow_id ?? ''"
+              :options="callflowOptions"
+              aria-label="Ring-group callflow"
+              :invalid="Boolean(fieldError('data.callflow_id'))"
+              placeholder="Select a callflow containing a ring group"
+              @update:model-value="setRingGroupCallflow"
+            />
+            <span v-if="fieldError('data.callflow_id')" class="text-[10px] text-danger">
+              {{ fieldError('data.callflow_id') }}
             </span>
           </label>
 
@@ -325,6 +471,37 @@ function submit(): void {
             @update:model-value="form.data.language = String($event)"
           />
 
+          <template v-if="module === 'response'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <FormInput
+                :model-value="form.data.code ?? null"
+                label="SIP response code"
+                description="A final error response from 400 through 699."
+                type="number"
+                min="400"
+                max="699"
+                required
+                :error="fieldError('data.code')"
+                :model-modifiers="{ number: true }"
+                @update:model-value="form.data.code = Number($event)"
+              />
+              <FormInput
+                :model-value="form.data.message ?? ''"
+                label="Cause text"
+                description="Optional reason phrase returned with the response."
+                maxlength="128"
+                :error="fieldError('data.message')"
+                @update:model-value="form.data.message = String($event)"
+              />
+            </div>
+            <div
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"
+            >
+              Response ends this callflow path. Any existing Switch-managed response media remains
+              attached and is not exposed by this form.
+            </div>
+          </template>
+
           <div
             v-if="module === 'dead_air'"
             class="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800"
@@ -332,6 +509,234 @@ function submit(): void {
             Dead Air suppresses media and waits for the caller to hang up. It is normally used as a
             terminal action.
           </div>
+
+          <div
+            v-if="module === 'hangup'"
+            class="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"
+          >
+            Hangup ends this callflow path and disconnects the call. The current Switch schema has
+            no additional user-managed settings for this action.
+          </div>
+
+          <template v-if="module === 'set_variable'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <FormInput
+                :model-value="form.data.variable ?? 'call_priority'"
+                label="Variable"
+                description="Kazoo currently supports only the call-priority variable."
+                disabled
+              />
+              <FormInput
+                :model-value="form.data.value ?? ''"
+                label="Call priority"
+                description="Higher values are handled before lower-priority queued calls."
+                type="number"
+                min="0"
+                max="255"
+                required
+                :error="fieldError('data.value')"
+                @update:model-value="form.data.value = String($event)"
+              />
+            </div>
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Apply to</span>
+              <FormListbox
+                :model-value="form.data.channel ?? 'a'"
+                :options="channelOptions"
+                aria-label="Call priority channel"
+                :invalid="Boolean(fieldError('data.channel'))"
+                @update:model-value="form.data.channel = $event as 'a' | 'both'"
+              />
+              <span v-if="fieldError('data.channel')" class="text-[10px] text-danger">
+                {{ fieldError('data.channel') }}
+              </span>
+            </label>
+          </template>
+
+          <template v-if="module === 'branch_variable'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <FormInput
+                :model-value="form.data.variable ?? 'call_priority'"
+                label="Variable"
+                description="The guided workflow is restricted to Kazoo Call Priority."
+                disabled
+              />
+              <FormInput
+                :model-value="form.data.scope ?? 'custom_channel_vars'"
+                label="Scope"
+                description="Reads the call-priority custom channel variable set earlier in the route."
+                disabled
+              />
+            </div>
+            <div
+              class="rounded-md border border-violet-200 bg-violet-50 p-4 text-xs leading-5 text-violet-900"
+            >
+              Add subsequent actions to a <strong>Priority 0–255</strong> branch or the
+              <strong>Default</strong> branch on the route map. Priorities must use canonical whole
+              numbers without leading zeroes.
+            </div>
+          </template>
+
+          <div v-if="module === 'set_cid'" class="grid gap-4 sm:grid-cols-2">
+            <FormInput
+              :model-value="form.data.caller_id_name ?? ''"
+              label="Caller ID name"
+              description="Leave empty to restore the original name."
+              :error="fieldError('data.caller_id_name')"
+              @update:model-value="form.data.caller_id_name = String($event)"
+            />
+            <FormInput
+              :model-value="form.data.caller_id_number ?? ''"
+              label="Caller ID number"
+              description="Leave empty to restore the original number."
+              :error="fieldError('data.caller_id_number')"
+              @update:model-value="form.data.caller_id_number = String($event)"
+            />
+          </div>
+
+          <template v-if="module === 'prepend_cid'">
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Action</span>
+                <FormListbox
+                  :model-value="form.data.action ?? 'prepend'"
+                  :options="prependActionOptions"
+                  aria-label="Caller ID prefix action"
+                  :invalid="Boolean(fieldError('data.action'))"
+                  @update:model-value="form.data.action = $event as 'prepend' | 'reset'"
+                />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Apply to</span>
+                <FormListbox
+                  :model-value="form.data.apply_to ?? 'original'"
+                  :options="prependTargetOptions"
+                  aria-label="Caller ID prefix target"
+                  :invalid="Boolean(fieldError('data.apply_to'))"
+                  :disabled="form.data.action === 'reset'"
+                  @update:model-value="form.data.apply_to = $event as 'original' | 'current'"
+                />
+              </label>
+              <FormInput
+                :model-value="form.data.caller_id_name_prefix ?? ''"
+                label="Name prefix"
+                :disabled="form.data.action === 'reset'"
+                :error="fieldError('data.caller_id_name_prefix')"
+                @update:model-value="form.data.caller_id_name_prefix = String($event)"
+              />
+              <FormInput
+                :model-value="form.data.caller_id_number_prefix ?? ''"
+                label="Number prefix"
+                :disabled="form.data.action === 'reset'"
+                :error="fieldError('data.caller_id_number_prefix')"
+                @update:model-value="form.data.caller_id_number_prefix = String($event)"
+              />
+            </div>
+          </template>
+
+          <FormInput
+            v-if="module === 'set_alert_info'"
+            :model-value="form.data.alert_info ?? ''"
+            label="Alert-Info"
+            description="Distinctive-ring header value sent to the called endpoint."
+            placeholder="Bellcore-dr2"
+            required
+            :error="fieldError('data.alert_info')"
+            @update:model-value="form.data.alert_info = String($event)"
+          />
+
+          <template v-if="module === 'check_cid'">
+            <FormInput
+              :model-value="form.data.regex ?? ''"
+              label="Caller ID pattern"
+              description="A safe regular expression matched against the incoming caller ID number."
+              placeholder="^\\+1555"
+              required
+              :error="fieldError('data.regex')"
+              @update:model-value="form.data.regex = String($event)"
+            />
+            <section class="grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 class="text-xs font-semibold text-slate-700">Matched-call identity override</h3>
+                <p class="mt-0.5 text-[10px] leading-4 text-slate-500">
+                  Optional. Kazoo applies the override only when owner, name, and number are all
+                  set.
+                </p>
+              </div>
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Owner extension</span>
+                <FormListbox
+                  :model-value="form.data.user_id ?? null"
+                  :options="callerIdentityOwnerOptions"
+                  aria-label="Caller identity owner"
+                  :invalid="Boolean(fieldError('data.user_id'))"
+                  :disabled="loading"
+                  @update:model-value="setCallerIdentityOwner"
+                />
+                <span v-if="fieldError('data.user_id')" class="text-[10px] text-danger">
+                  {{ fieldError('data.user_id') }}
+                </span>
+              </label>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <FormInput
+                  :model-value="form.data.external_caller_id_name ?? ''"
+                  label="External caller ID name"
+                  :required="form.data.user_id !== null"
+                  :disabled="form.data.user_id === null"
+                  :error="fieldError('data.external_caller_id_name')"
+                  @update:model-value="form.data.external_caller_id_name = String($event)"
+                />
+                <FormInput
+                  :model-value="form.data.external_caller_id_number ?? ''"
+                  label="External caller ID number"
+                  :required="form.data.user_id !== null"
+                  :disabled="form.data.user_id === null"
+                  :error="fieldError('data.external_caller_id_number')"
+                  @update:model-value="form.data.external_caller_id_number = String($event)"
+                />
+              </div>
+            </section>
+            <div
+              class="rounded-md border border-violet-200 bg-violet-50 p-4 text-xs leading-5 text-violet-900"
+            >
+              Add subsequent actions to the <strong>Caller ID matches</strong> and
+              <strong>Caller ID does not match</strong> branches on the route map.
+            </div>
+          </template>
+
+          <template v-if="module === 'cidlistmatch'">
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-600">Caller-ID List</span>
+              <FormListbox
+                :model-value="form.data.caller_id_list_id ?? null"
+                :options="callerIdListOptions"
+                aria-label="Caller-ID List"
+                :invalid="Boolean(fieldError('data.caller_id_list_id'))"
+                :disabled="loading"
+                placeholder="Select a synchronized list"
+                @update:model-value="form.data.caller_id_list_id = String($event ?? '')"
+              />
+              <span
+                v-if="fieldError('data.caller_id_list_id')"
+                class="text-[10px] font-medium text-danger"
+              >
+                {{ fieldError('data.caller_id_list_id') }}
+              </span>
+            </label>
+            <p
+              v-if="!loading && callerIdListOptions.length === 0"
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"
+            >
+              No Caller-ID Lists are projected for this account. Synchronize Caller-ID Lists before
+              adding this action.
+            </p>
+            <div
+              class="rounded-md border border-violet-200 bg-violet-50 p-4 text-xs leading-5 text-violet-900"
+            >
+              Add subsequent actions to the <strong>Caller ID matches</strong> and
+              <strong>Caller ID does not match</strong> branches on the route map.
+            </div>
+          </template>
 
           <section v-if="module === 'missed_call_alert'" class="grid gap-4">
             <div class="flex flex-wrap items-center gap-2">

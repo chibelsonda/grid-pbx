@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Callflows\Dto;
 
+use GridPbx\Switch\Domains\Callflows\Support\CallflowBranchPolicy;
 use InvalidArgumentException;
 
 /**
@@ -14,23 +15,6 @@ use InvalidArgumentException;
  */
 final readonly class CallflowTreeMoveData
 {
-    private const PUBLIC_BRANCH_KEYS = [
-        '_',
-        'timeout',
-        '0',
-        '1',
-        '2',
-        '3',
-        '4',
-        '5',
-        '6',
-        '7',
-        '8',
-        '9',
-        '*',
-        'rule_set',
-    ];
-
     /**
      * @param  array<string, mixed>  $current
      * @param  list<string>  $sourcePath
@@ -53,7 +37,7 @@ final readonly class CallflowTreeMoveData
         $this->assertPublicPath($this->sourcePath, 'source');
         $this->assertPublicPath($this->destinationParentPath, 'destination');
 
-        if (! in_array($this->destinationBranch, self::PUBLIC_BRANCH_KEYS, true)) {
+        if (! CallflowBranchPolicy::isPublicKey($this->destinationBranch)) {
             throw new InvalidArgumentException('The destination branch is not editable.');
         }
 
@@ -76,11 +60,11 @@ final readonly class CallflowTreeMoveData
             throw new InvalidArgumentException('The source callflow node is invalid.');
         }
 
-        $destinationModule = is_string($destination['module'] ?? null)
-            ? $destination['module']
-            : '';
+        if (CallflowBranchPolicy::childrenAreLocked($destination)) {
+            throw new InvalidArgumentException('This conditional action has preserved branches that cannot be edited.');
+        }
 
-        if (! $this->supportsBranch($destinationModule, $this->destinationBranch)) {
+        if (! CallflowBranchPolicy::supports($destination, $this->destinationBranch)) {
             throw new InvalidArgumentException('The destination branch is not valid for the selected callflow node.');
         }
 
@@ -115,7 +99,7 @@ final readonly class CallflowTreeMoveData
     private function assertPublicPath(array $path, string $name): void
     {
         foreach ($path as $segment) {
-            if (! is_string($segment) || ! in_array($segment, self::PUBLIC_BRANCH_KEYS, true)) {
+            if (! is_string($segment) || ! CallflowBranchPolicy::isPublicKey($segment)) {
                 throw new InvalidArgumentException(sprintf(
                     'The callflow %s path contains a preserved or unsupported branch.',
                     $name,
@@ -132,6 +116,10 @@ final readonly class CallflowTreeMoveData
     private function nodeAt(array $node, array $path, string $name): array
     {
         foreach ($path as $segment) {
+            if (! is_string($segment) || ! CallflowBranchPolicy::supports($node, $segment)) {
+                throw new InvalidArgumentException(sprintf('The callflow %s path contains a preserved branch.', $name));
+            }
+
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
             $child = $children[$segment] ?? null;
 
@@ -216,19 +204,6 @@ final readonly class CallflowTreeMoveData
     {
         return count($path) >= count($prefix)
             && array_slice($path, 0, count($prefix)) === $prefix;
-    }
-
-    private function supportsBranch(string $module, string $branch): bool
-    {
-        if ($branch === '_') {
-            return true;
-        }
-
-        if ($module === 'menu') {
-            return in_array($branch, ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*'], true);
-        }
-
-        return $module === 'temporal_route' && $branch === 'rule_set';
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */

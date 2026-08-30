@@ -1,6 +1,7 @@
 import { z } from 'zod'
+import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
 import {
-  callflowTreeBranchKeys,
+  isCallflowTreeBranchKey,
   type CallflowInlineModule,
   type CallflowTreeBranchKey,
 } from '../types/callRouting'
@@ -21,7 +22,10 @@ export const callflowDtmfDigits = [
 ] as const
 
 const nullableString = (maximum: number) =>
-  z.preprocess((value) => (value === '' ? null : value), z.string().trim().max(maximum).nullable())
+  z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? null : value),
+    z.string().trim().max(maximum).nullable(),
+  )
 
 const nullableInteger = (minimum: number, maximum: number) =>
   z.preprocess(
@@ -107,6 +111,33 @@ const schemas = {
       skip_module: z.boolean(),
     })
     .strict(),
+  response: z
+    .object({
+      code: z.number().int().min(400).max(699),
+      message: nullableString(128),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  hangup: z.object({ skip_module: z.boolean() }).strict(),
+  set_variable: z
+    .object({
+      variable: z.literal('call_priority'),
+      value: z
+        .string()
+        .trim()
+        .regex(/^\d{1,3}$/, 'Enter a whole-number priority from 0 through 255.')
+        .refine((value) => Number(value) <= 255, 'Enter a priority from 0 through 255.'),
+      channel: z.enum(['a', 'both']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  branch_variable: z
+    .object({
+      variable: z.literal('call_priority'),
+      scope: z.literal('custom_channel_vars'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
   missed_call_alert: z
     .object({
       recipients: z
@@ -127,6 +158,103 @@ const schemas = {
       skip_module: z.boolean(),
     })
     .strict(),
+  set_cid: z
+    .object({
+      caller_id_name: z.string().trim().max(128),
+      caller_id_number: z.string().trim().max(64),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  prepend_cid: z
+    .object({
+      action: z.enum(['reset', 'prepend']),
+      apply_to: z.enum(['original', 'current']),
+      caller_id_name_prefix: z.string().max(128),
+      caller_id_number_prefix: z.string().max(64),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  set_alert_info: z
+    .object({
+      alert_info: z
+        .string()
+        .trim()
+        .min(1, 'Enter an Alert-Info value.')
+        .max(256)
+        .refine((value) => !/[\r\n]/.test(value), 'Alert-Info cannot contain line breaks.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  check_cid: z
+    .object({
+      regex: z
+        .string()
+        .trim()
+        .min(1, 'Enter a caller ID pattern.')
+        .max(512)
+        .refine(isSafeSwitchRegex, 'Enter a supported regular expression.'),
+      use_absolute_mode: z.literal(false),
+      external_caller_id_name: nullableString(128),
+      external_caller_id_number: nullableString(64),
+      user_id: z.string().uuid('Select a synchronized extension.').nullable(),
+      skip_module: z.boolean(),
+    })
+    .strict()
+    .superRefine((data, context) => {
+      const identity = [data.external_caller_id_name, data.external_caller_id_number, data.user_id]
+      const configured = identity.filter((value) => value !== null)
+
+      if (configured.length === 0 || configured.length === identity.length) return
+
+      const message = 'Complete all caller identity override fields or clear all three.'
+      if (data.external_caller_id_name === null) {
+        context.addIssue({ code: 'custom', path: ['external_caller_id_name'], message })
+      }
+      if (data.external_caller_id_number === null) {
+        context.addIssue({ code: 'custom', path: ['external_caller_id_number'], message })
+      }
+      if (data.user_id === null) {
+        context.addIssue({ code: 'custom', path: ['user_id'], message })
+      }
+    }),
+  cidlistmatch: z
+    .object({
+      caller_id_list_id: z.string().uuid('Select a synchronized Caller-ID List.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  temporal_route: z
+    .object({
+      action: z.enum(['disable', 'enable', 'reset']),
+      rules: z.array(z.string().uuid('Select a synchronized temporal rule.')).max(250),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  ring_group_toggle: z
+    .object({
+      action: z.enum(['login', 'logout']),
+      callflow_id: z.string().uuid('Select a synchronized ring-group callflow.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  hotdesk: z
+    .object({
+      action: z.enum(['login', 'logout', 'toggle']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  do_not_disturb: z
+    .object({
+      action: z.enum(['activate', 'deactivate', 'toggle']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  call_forward: z
+    .object({
+      action: z.enum(['activate', 'deactivate', 'update']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
 } satisfies Record<CallflowInlineModule, z.ZodType>
 
 export function createCallflowInlineNodeFormSchema(
@@ -138,7 +266,9 @@ export function createCallflowInlineNodeFormSchema(
 
   return z
     .object({
-      branch: z.enum(callflowTreeBranchKeys).nullable(),
+      branch: z
+        .custom<CallflowTreeBranchKey>(isCallflowTreeBranchKey, 'Choose a supported callflow branch.')
+        .nullable(),
       data: schemas[module],
     })
     .strict()

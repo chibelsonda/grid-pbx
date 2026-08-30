@@ -42,6 +42,7 @@ function editor(mode: 'create' | 'update'): CallflowEditor {
       { id: temporalRuleId, label: 'Weekdays', detail: 'Weekly recurrence' },
       { id: secondTemporalRuleId, label: 'Holidays', detail: 'Yearly recurrence' },
     ],
+    caller_id_lists: [],
     destination_types: [
       { value: 'extension', label: 'Extension' },
       { value: 'menu', label: 'Menu / IVR' },

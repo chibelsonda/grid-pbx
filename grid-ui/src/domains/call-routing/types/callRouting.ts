@@ -16,7 +16,7 @@ export type CallflowNode = {
   branch?: {
     key: string
     label: string
-    kind: 'default' | 'schedule_match' | 'key' | 'preserved'
+    kind: 'default' | 'schedule_match' | 'condition' | 'key' | 'preserved'
   } | null
   temporal_rules?: CallflowTemporalRuleOption[]
   settings?: Record<string, unknown> | null
@@ -28,7 +28,7 @@ export type CallflowNodeSelection = {
   path: string[]
 }
 
-export const callflowTreeBranchKeys = [
+const fixedCallflowTreeBranchKeys = [
   '_',
   'timeout',
   '0',
@@ -43,9 +43,28 @@ export const callflowTreeBranchKeys = [
   '9',
   '*',
   'rule_set',
+  'match',
+  'nomatch',
 ] as const
 
-export type CallflowTreeBranchKey = (typeof callflowTreeBranchKeys)[number]
+export type CallflowPriorityBranchKey = `${number}`
+export type CallflowTreeBranchKey =
+  | (typeof fixedCallflowTreeBranchKeys)[number]
+  | CallflowPriorityBranchKey
+
+export const callflowPriorityBranchKeys = Array.from(
+  { length: 256 },
+  (_, priority) => String(priority) as CallflowPriorityBranchKey,
+)
+
+export const callflowTreeBranchKeys: readonly CallflowTreeBranchKey[] = [
+  ...fixedCallflowTreeBranchKeys,
+  ...callflowPriorityBranchKeys.slice(10),
+]
+
+export function isCallflowTreeBranchKey(value: unknown): value is CallflowTreeBranchKey {
+  return typeof value === 'string' && callflowTreeBranchKeys.includes(value as CallflowTreeBranchKey)
+}
 
 export type CallflowTreeMoveInput = {
   source_path: string[]
@@ -82,7 +101,21 @@ export const callflowInlineModules = [
   'flush_dtmf',
   'dead_air',
   'language',
+  'response',
+  'hangup',
+  'set_variable',
+  'branch_variable',
   'missed_call_alert',
+  'set_cid',
+  'prepend_cid',
+  'set_alert_info',
+  'check_cid',
+  'cidlistmatch',
+  'temporal_route',
+  'ring_group_toggle',
+  'hotdesk',
+  'do_not_disturb',
+  'call_forward',
 ] as const
 
 export type CallflowInlineModule = (typeof callflowInlineModules)[number]
@@ -99,7 +132,19 @@ export type CallflowInlineNodeData = {
   interdigit_timeout?: number
   max_digits?: number
   terminators?: string[]
-  action?: 'start' | 'stop'
+  action?:
+    | 'start'
+    | 'stop'
+    | 'reset'
+    | 'prepend'
+    | 'enable'
+    | 'disable'
+    | 'login'
+    | 'logout'
+    | 'toggle'
+    | 'activate'
+    | 'deactivate'
+    | 'update'
   format?: 'mp3' | 'wav' | null
   label?: string | null
   record_min_sec?: number | null
@@ -111,7 +156,28 @@ export type CallflowInlineNodeData = {
   timeout?: number
   digits?: string
   duration_ms?: number
+  code?: number
+  message?: string | null
+  variable?: 'call_priority'
+  value?: string
+  channel?: 'a' | 'both'
+  scope?: 'custom_channel_vars'
   recipients?: CallflowAlertRecipient[]
+  caller_id_name?: string
+  caller_id_number?: string
+  caller_id_name_prefix?: string
+  caller_id_number_prefix?: string
+  apply_to?: 'original' | 'current'
+  alert_info?: string
+  regex?: string
+  use_absolute_mode?: false
+  external_caller_id_name?: string | null
+  external_caller_id_number?: string | null
+  user_id?: string | null
+  caller_id_list_id?: string
+  rules?: string[]
+  callflow_id?: string
+  id?: string | null
   skip_module: boolean
 }
 
@@ -138,6 +204,7 @@ export type CallflowNodeEditorContext = {
   path: string[]
   node: CallflowNode
   module: string
+  preset?: Readonly<Partial<CallflowInlineNodeData>>
 }
 
 export const callflowDestinationTypes = [
@@ -257,6 +324,7 @@ export type CallflowEditor = {
   direct_temporal_routes: CallflowDirectTemporalRoute[]
   temporal_rule_sets: Record<string, CallflowTemporalRuleOption[]>
   temporal_rules: CallflowDestination[]
+  caller_id_lists: CallflowDestination[]
   destination_types: Array<{ value: CallflowDestinationType; label: string }>
   destinations: Record<CallflowDestinationType, CallflowDestination[]>
   phone_numbers: Array<{

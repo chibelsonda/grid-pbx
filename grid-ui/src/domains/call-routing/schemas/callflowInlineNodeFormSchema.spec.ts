@@ -42,6 +42,19 @@ describe('callflow inline node form schema', () => {
       flush_dtmf: { collection_name: 'default', skip_module: false },
       dead_air: { skip_module: false },
       language: { language: 'en-US', skip_module: false },
+      response: { code: 486, message: null, skip_module: false },
+      hangup: { skip_module: false },
+      set_variable: {
+        variable: 'call_priority',
+        value: '6',
+        channel: 'a',
+        skip_module: false,
+      },
+      branch_variable: {
+        variable: 'call_priority',
+        scope: 'custom_channel_vars',
+        skip_module: false,
+      },
       missed_call_alert: {
         recipients: [
           { type: 'email', id: 'alerts@example.com' },
@@ -49,6 +62,36 @@ describe('callflow inline node form schema', () => {
         ],
         skip_module: false,
       },
+      set_cid: { caller_id_name: 'Support', caller_id_number: '+15551234567', skip_module: false },
+      prepend_cid: {
+        action: 'prepend',
+        apply_to: 'original',
+        caller_id_name_prefix: 'Sales ',
+        caller_id_number_prefix: '9',
+        skip_module: false,
+      },
+      set_alert_info: { alert_info: 'Bellcore-dr2', skip_module: false },
+      check_cid: {
+        regex: '^\\+1555',
+        use_absolute_mode: false,
+        external_caller_id_name: null,
+        external_caller_id_number: null,
+        user_id: null,
+        skip_module: false,
+      },
+      cidlistmatch: {
+        caller_id_list_id: 'dded4533-55cb-4b40-acb6-b02248532c09',
+        skip_module: false,
+      },
+      temporal_route: { action: 'disable', rules: [], skip_module: false },
+      ring_group_toggle: {
+        action: 'login',
+        callflow_id: '73574264-0951-41c4-a2ec-a0ab7e027c1c',
+        skip_module: false,
+      },
+      hotdesk: { action: 'logout', skip_module: false },
+      do_not_disturb: { action: 'toggle', skip_module: false },
+      call_forward: { action: 'update', skip_module: false },
     } as const
 
     for (const [module, data] of Object.entries(fixtures)) {
@@ -135,5 +178,127 @@ describe('callflow inline node form schema', () => {
 
     expect(language.success).toBe(false)
     expect(alert.success).toBe(false)
+  })
+
+  it('bounds Response to a final SIP error code and rejects server-owned media', () => {
+    const schema = createCallflowInlineNodeFormSchema('response', ['_'], true)
+
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { code: 486, message: 'Busy here', skip_module: false },
+      }).success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { code: 399, message: null, skip_module: false },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { code: 486, message: null, media: 'private-media-id', skip_module: false },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('keeps Hangup limited to the current Switch schema', () => {
+    const schema = createCallflowInlineNodeFormSchema('hangup', ['_'], true)
+
+    expect(schema.safeParse({ branch: '_', data: { skip_module: false } }).success).toBe(true)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { cause: 'NORMAL_CLEARING', skip_module: false },
+      }).success,
+    ).toBe(false)
+  })
+
+  it('allows only Kazoo call priority with a bounded value', () => {
+    const schema = createCallflowInlineNodeFormSchema('set_variable', ['_'], true)
+    const valid = {
+      branch: '_',
+      data: { variable: 'call_priority', value: '255', channel: 'both', skip_module: false },
+    } as const
+
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...valid,
+        data: { ...valid.data, variable: 'sip_h_X-Unsafe' },
+      }).success,
+    ).toBe(false)
+    expect(schema.safeParse({ ...valid, data: { ...valid.data, value: '256' } }).success).toBe(
+      false,
+    )
+  })
+
+  it('allows only the Kazoo Call Priority branch scope', () => {
+    const schema = createCallflowInlineNodeFormSchema('branch_variable', ['42'], true)
+    const valid = {
+      branch: '42',
+      data: {
+        variable: 'call_priority',
+        scope: 'custom_channel_vars',
+        skip_module: false,
+      },
+    } as const
+
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, variable: 'x_secret' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, scope: 'account' } }).success,
+    ).toBe(false)
+    expect(schema.safeParse({ ...valid, branch: '256' }).success).toBe(false)
+  })
+
+  it('rejects header injection in Alert-Info', () => {
+    const result = createCallflowInlineNodeFormSchema('set_alert_info', ['_'], true).safeParse({
+      branch: '_',
+      data: { alert_info: 'Bellcore-dr2\r\nX-Injected: yes', skip_module: false },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it('rejects unsafe Check CID patterns and partial identity overrides', () => {
+    const schema = createCallflowInlineNodeFormSchema('check_cid', ['_'], true)
+    const base = {
+      branch: '_',
+      data: {
+        regex: '^\\+1555',
+        use_absolute_mode: false,
+        external_caller_id_name: null,
+        external_caller_id_number: null,
+        user_id: null,
+        skip_module: false,
+      },
+    } as const
+
+    expect(schema.safeParse({ ...base, data: { ...base.data, regex: '(?R)' } }).success).toBe(false)
+    const partial = schema.safeParse({
+      ...base,
+      data: { ...base.data, external_caller_id_name: 'Support' },
+    })
+    expect(partial.success).toBe(false)
+    if (!partial.success) {
+      expect(partial.error.issues.map(({ path }) => path.join('.'))).toEqual(
+        expect.arrayContaining(['data.external_caller_id_number', 'data.user_id']),
+      )
+    }
+  })
+
+  it('requires a public Caller-ID List UUID', () => {
+    const schema = createCallflowInlineNodeFormSchema('cidlistmatch', ['_'], true)
+
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { caller_id_list_id: 'switch-list-secret', skip_module: false },
+      }).success,
+    ).toBe(false)
   })
 })

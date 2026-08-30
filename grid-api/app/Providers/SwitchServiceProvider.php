@@ -6,6 +6,8 @@ use App\Domains\Blacklists\Contracts\SwitchBlacklistGateway;
 use App\Domains\Blacklists\Gateways\CrossbarSwitchBlacklistGateway;
 use App\Domains\CallDetailRecords\Contracts\SwitchCallDetailRecordGateway;
 use App\Domains\CallDetailRecords\Gateways\CrossbarSwitchCallDetailRecordGateway;
+use App\Domains\CallerIdLists\Contracts\SwitchCallerIdListGateway;
+use App\Domains\CallerIdLists\Gateways\CrossbarSwitchCallerIdListGateway;
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Gateways\CrossbarSwitchCallflowGateway;
 use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
@@ -62,6 +64,7 @@ use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Agents\AgentResourceClient;
 use GridPbx\Switch\Domains\Blacklists\BlacklistResourceClient;
 use GridPbx\Switch\Domains\CallDetailRecords\CallDetailRecordResourceClient;
+use GridPbx\Switch\Domains\CallerIdLists\CallerIdListResourceClient;
 use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
 use GridPbx\Switch\Domains\Conferences\ConferenceResourceClient;
 use GridPbx\Switch\Domains\Devices\DeviceResourceClient;
@@ -100,6 +103,7 @@ class SwitchServiceProvider extends ServiceProvider
         $this->app->bind(SwitchAccountGateway::class, CrossbarSwitchAccountGateway::class);
         $this->app->bind(SwitchConferenceGateway::class, CrossbarSwitchConferenceGateway::class);
         $this->app->bind(SwitchBlacklistGateway::class, CrossbarSwitchBlacklistGateway::class);
+        $this->app->bind(SwitchCallerIdListGateway::class, CrossbarSwitchCallerIdListGateway::class);
         $this->app->bind(SwitchCallDetailRecordGateway::class, CrossbarSwitchCallDetailRecordGateway::class);
         $this->app->bind(SwitchDeviceGateway::class, CrossbarSwitchDeviceGateway::class);
         $this->app->singleton(
@@ -175,6 +179,10 @@ class SwitchServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(BlacklistResourceClient::class, fn ($app) => new BlacklistResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(CallerIdListResourceClient::class, fn ($app) => new CallerIdListResourceClient(
             $app->make(SwitchClient::class),
         ));
 

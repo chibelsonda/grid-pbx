@@ -30,7 +30,20 @@ class CallflowTreeNodeWriteValidator
         'flush_dtmf',
         'dead_air',
         'language',
+        'response',
+        'hangup',
+        'set_variable',
+        'branch_variable',
         'missed_call_alert',
+        'set_cid',
+        'prepend_cid',
+        'set_alert_info',
+        'check_cid',
+        'cidlistmatch',
+        'ring_group_toggle',
+        'hotdesk',
+        'do_not_disturb',
+        'call_forward',
     ];
 
     /** @param list<string> $parentPath */
@@ -44,6 +57,10 @@ class CallflowTreeNodeWriteValidator
         $parent = $this->nodeAt($flow, $parentPath, 'parent_path');
         $parentModule = is_string($parent['module'] ?? null) ? $parent['module'] : '';
 
+        if (CallflowBranchPolicy::childrenAreLocked($parent)) {
+            $this->fail('parent_path', 'This conditional action has preserved branches that cannot be edited.');
+        }
+
         if (! in_array($parentModule, self::GUIDED_MODULES, true)) {
             $this->fail('parent_path', 'New actions cannot be attached to this unsupported callflow module.');
         }
@@ -56,7 +73,7 @@ class CallflowTreeNodeWriteValidator
             $this->fail('destination_type', 'This callflow action is not available in the guided editor.');
         }
 
-        if (! $this->supportsBranch($parentModule, $branch)) {
+        if (! CallflowBranchPolicy::supports($parent, $branch)) {
             $this->fail('branch', 'The selected branch is not valid for the parent callflow action.');
         }
 
@@ -87,6 +104,33 @@ class CallflowTreeNodeWriteValidator
         if ($currentModule !== $module) {
             $this->fail('destination_type', 'The selected destination does not match the callflow action module.');
         }
+
+        if ($currentModule === 'check_cid') {
+            $settings = is_array($node['settings'] ?? null) ? $node['settings'] : [];
+
+            if (($settings['use_absolute_mode'] ?? false) === true) {
+                $this->fail('node_path', 'Absolute-mode caller ID checks are preserved but cannot be edited.');
+            }
+
+            if (($settings['identity_reference_status'] ?? 'not_applicable') === 'unresolved') {
+                $this->fail('node_path', 'Synchronize the caller identity owner before editing this check.');
+            }
+        }
+
+        if ($currentModule === 'cidlistmatch'
+            && ($node['settings']['reference_status'] ?? 'unresolved') === 'unresolved') {
+            $this->fail('node_path', 'Synchronize the Caller-ID List before editing this match action.');
+        }
+
+        if ($currentModule === 'set_variable'
+            && ($node['settings']['supported_variable'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing channel variable is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'branch_variable'
+            && ($node['settings']['supported_variable'] ?? false) !== true) {
+            $this->fail('node_path', 'This existing branch variable is not supported by the guided editor.');
+        }
     }
 
     /** @return array<string, mixed> */
@@ -107,6 +151,10 @@ class CallflowTreeNodeWriteValidator
     private function nodeAt(array $node, array $path, string $field): array
     {
         foreach ($path as $segment) {
+            if (! CallflowBranchPolicy::supports($node, $segment)) {
+                $this->fail($field, 'The selected callflow path contains a preserved branch.');
+            }
+
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
             $child = $children[$segment] ?? null;
 
@@ -118,19 +166,6 @@ class CallflowTreeNodeWriteValidator
         }
 
         return $node;
-    }
-
-    private function supportsBranch(string $module, string $branch): bool
-    {
-        if ($branch === '_') {
-            return true;
-        }
-
-        if ($module === 'menu') {
-            return in_array($branch, ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*'], true);
-        }
-
-        return $module === 'temporal_route' && $branch === 'rule_set';
     }
 
     private function fail(string $field, string $message): never

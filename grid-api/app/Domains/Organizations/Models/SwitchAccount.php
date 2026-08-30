@@ -4,6 +4,7 @@ namespace App\Domains\Organizations\Models;
 
 use App\Domains\Blacklists\Models\SwitchBlacklist;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
+use App\Domains\CallerIdLists\Models\SwitchCallerIdList;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Conferences\Models\SwitchConference;
 use App\Domains\Devices\Models\SwitchDevice;
@@ -171,6 +172,12 @@ class SwitchAccount extends Model
     public function blacklists(): HasMany
     {
         return $this->hasMany(SwitchBlacklist::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchCallerIdList, $this> */
+    public function callerIdLists(): HasMany
+    {
+        return $this->hasMany(SwitchCallerIdList::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchRecording, $this> */

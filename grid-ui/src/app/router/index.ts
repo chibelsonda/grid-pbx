@@ -97,6 +97,11 @@ const router = createRouter({
           component: () => import('@/domains/blacklists/pages/BlacklistsPage.vue'),
         },
         {
+          path: 'caller-id-lists',
+          name: 'caller-id-lists',
+          component: () => import('@/domains/caller-id-lists/pages/CallerIdListsPage.vue'),
+        },
+        {
           path: 'recordings',
           name: 'recordings',
           component: () => import('@/domains/recordings/pages/RecordingsPage.vue'),

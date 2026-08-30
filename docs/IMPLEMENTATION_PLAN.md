@@ -49,10 +49,19 @@ Implemented checkpoint:
   target editing. These reuse the account-scoped destination catalog, Zod and
   API validation, public UUIDs, and lossless server-side node-data preservation
 - Schema-backed side-panel forms for Sleep, Text to Speech, Collect/Send/Flush
-  DTMF, Dead Air, Language, Record Call, Record Caller, and Missed Call Alert.
-  Only bounded public properties are accepted; alert extension UUIDs are
-  translated server-side, recording storage values remain server-owned, and
-  unknown node data plus complete children are preserved losslessly
+  DTMF, Dead Air, Language, Record Call, Record Caller, Missed Call Alert, Set
+  Caller ID, Prepend Caller ID, Set Alert Info, and regex-mode Check Caller ID.
+  Only bounded public
+  properties are accepted; alert extension UUIDs are translated server-side,
+  CR/LF is rejected in Alert-Info, recording storage values remain
+  server-owned, and unknown node data plus complete children are preserved
+  losslessly
+- Check Caller ID uses safe-regex validation, stable `match` and `nomatch`
+  paths, virtual identity fields, and server-only translation of a public
+  Extension UUID into Kazoo's nested caller identity payload. Absolute
+  caller-number keys remain preserved and non-editable; Privacy and Caller-ID
+  List Match remain capability-gated until their route-capture and
+  projected-list dependencies are available
 - Conflict-safe phone-number entry-point assignment within the routing editor
 - Guided Switch-first callflow creation and dependency-aware deletion
 - Shared Axios response-envelope unwrapping for clean domain API clients
@@ -574,6 +583,8 @@ PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/nodes
 POST   /api/v1/accounts/{account}/callflows/{callflow}/tree/inline-nodes
 PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/inline-nodes
 DELETE /api/v1/accounts/{account}/callflows/{callflow}
+POST   /api/v1/accounts/{account}/sync/caller-id-lists
+GET    /api/v1/accounts/{account}/sync/caller-id-lists/{run}
 GET    /api/v1/accounts/{account}/call-detail-records
 GET    /api/v1/accounts/{account}/call-detail-records/{callDetailRecord}
 POST   /api/v1/accounts/{account}/sync/call-detail-records
@@ -731,8 +742,12 @@ Acceptance criteria:
   Media, Directory, Group, Queue Member, Menu, Conference, Fax Box, and
   Temporal Rule Set references without exposing Switch identifiers.
   Sleep, Text to Speech, Collect/Send/Flush DTMF, Dead Air, Language, Record
-  Call, Record Caller, and Missed Call Alert use a separate schema-driven panel
-  with current Switch bounds. The visual route
+  Call, Record Caller, Missed Call Alert, Set Caller ID, Prepend Caller ID, and
+  Set Alert Info and regex-mode Check Caller ID use a separate schema-driven
+  panel with current Switch bounds. Check Caller ID maps optional identity
+  overrides through public Extension UUIDs and exposes a safe public
+  `match`/`nomatch` branch contract; absolute caller-number branches stay
+  preserved. The visual route
   begins with document entry data (`numbers[]`/`patterns[]`) and only then the
   real action tree; this display-only entry card is never written into `flow`.
 - Conference foundation: typed CRUD, normalized general/member/moderator
@@ -768,10 +783,11 @@ Acceptance criteria:
   categorized module palette, recursive linear and keyed branches,
   module-specific right-side forms, public-reference resolution, schema-aware
   validation, and lossless read-only preservation for unsupported nodes. The
-  selectable recursive read-only canvas, safe public branch-label contract,
+  selectable recursive canvas, safe public branch-label contract,
   selected-node modal, compact searchable 73-module schema reference palette,
   guided reference-node add/edit forms, empty-branch moves, insert-before, and
-  disjoint-subtree swaps are delivered. Remaining non-reference module forms
+  disjoint-subtree swaps and the first bounded non-reference module forms are
+  delivered. Remaining module-specific forms and dynamic branch contracts
   remain next.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after

@@ -8,6 +8,7 @@ import {
   PhoneArrowDownLeftIcon,
   QueueListIcon,
   PlusIcon,
+  SquaresPlusIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
@@ -16,6 +17,7 @@ import CallflowEditorPanel from '../components/CallflowEditorPanel.vue'
 import CallflowInlineNodeEditorPanel from '../components/CallflowInlineNodeEditorPanel.vue'
 import CallflowNodeEditorPanel from '../components/CallflowNodeEditorPanel.vue'
 import { isGuidedInlineCallflowModule } from '../catalog/callflowActionCatalog'
+import { createComplexCallflowDemo } from '../services/complexCallflowDemo'
 import { useCallflowStore } from '../stores/callflowStore'
 import type {
   CallflowNodeEditorContext,
@@ -31,6 +33,13 @@ import type {
 const accounts = useAccountStore()
 const callflows = useCallflowStore()
 const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
+
+function nodeEditorAction(context: CallflowNodeEditorContext): unknown {
+  return context.preset?.action ?? context.node.settings?.action
+}
+const demoOpen = ref(false)
+const complexDemo = createComplexCallflowDemo()
+const activeRecord = computed(() => (demoOpen.value ? complexDemo : callflows.detail))
 const nodesOnPage = computed(() =>
   callflows.records.reduce((total, route) => total + route.node_count, 0),
 )
@@ -46,7 +55,10 @@ const availableModules = computed(() =>
 const workspaceOpen = computed(
   () =>
     !callflows.editorOpen &&
-    (callflows.detailLoading || callflows.detail !== null || callflows.detailError !== null),
+    (demoOpen.value ||
+      callflows.detailLoading ||
+      callflows.detail !== null ||
+      callflows.detailError !== null),
 )
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const freshnessLabel = computed(() =>
@@ -59,6 +71,7 @@ watch(
   () => accounts.selectedId,
   (accountId) => {
     nodeEditorContext.value = null
+    demoOpen.value = false
     callflows.reset()
     if (accountId) void callflows.load(accountId, 1)
   },
@@ -74,7 +87,20 @@ function synchronize(): void {
 }
 
 function openDetail(id: string): void {
+  demoOpen.value = false
   if (accounts.selectedId) void callflows.loadDetail(accounts.selectedId, id)
+}
+
+function openComplexDemo(): void {
+  nodeEditorContext.value = null
+  callflows.closeDetail()
+  callflows.closeEditor()
+  demoOpen.value = true
+}
+
+function closeWorkspace(): void {
+  if (demoOpen.value) demoOpen.value = false
+  else callflows.closeDetail()
 }
 
 function openEditor(): void {
@@ -109,7 +135,16 @@ function reorderTreeNodes(input: CallflowTreeReorderInput): void {
 function openNodeEditor(context: CallflowNodeEditorContext): void {
   if (!accounts.selectedId || !callflows.detail) return
   nodeEditorContext.value = context
-  if (isGuidedInlineCallflowModule(context.module) && context.module !== 'missed_call_alert') {
+  if (
+    isGuidedInlineCallflowModule(context.module, nodeEditorAction(context)) &&
+    ![
+      'missed_call_alert',
+      'check_cid',
+      'cidlistmatch',
+      'temporal_route',
+      'ring_group_toggle',
+    ].includes(context.module)
+  ) {
     callflows.closeTreeEditor()
   } else {
     void callflows.loadTreeEditor(accounts.selectedId, callflows.detail.id)
@@ -179,6 +214,13 @@ function routeTitle(route: {
       </div>
       <div class="flex gap-3 sm:ml-auto">
         <button
+          type="button"
+          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-brand-200 bg-brand-50 px-4 text-xs font-semibold text-brand-700 shadow-sm hover:bg-brand-100"
+          @click="openComplexDemo"
+        >
+          <SquaresPlusIcon class="size-4" /> Open complex demo
+        </button>
+        <button
           v-if="canManage"
           type="button"
           :disabled="!accounts.selectedId"
@@ -207,24 +249,36 @@ function routeTitle(route: {
         : 'mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8'
     "
   >
-    <CallflowDetailPanel
-      v-if="workspaceOpen"
-      :record="callflows.detail"
-      :loading="callflows.detailLoading"
-      :error="callflows.detailError"
-      :can-manage="canManage"
-      :deleting="callflows.deleting"
-      :mutation-error="callflows.mutationError"
-      :tree-moving="callflows.treeMoving"
-      :tree-mutation-error="callflows.treeMutationError"
-      @close="callflows.closeDetail"
-      @edit="openEditor"
-      @delete="deleteRoute"
-      @move-node="moveTreeNode"
-      @reorder-nodes="reorderTreeNodes"
-      @create-node="openNodeEditor"
-      @edit-node="openNodeEditor"
-    />
+    <template v-if="workspaceOpen">
+      <div
+        v-if="demoOpen"
+        class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900"
+      >
+        <SquaresPlusIcon class="size-5 shrink-0" />
+        <p>
+          <strong>UI-only demonstration.</strong> Select nodes and move the action palette freely.
+          Editing and drag-to-mutate controls are disabled, and nothing is written to Switch or
+          MySQL.
+        </p>
+      </div>
+      <CallflowDetailPanel
+        :record="activeRecord"
+        :loading="demoOpen ? false : callflows.detailLoading"
+        :error="demoOpen ? null : callflows.detailError"
+        :can-manage="demoOpen ? false : canManage"
+        :deleting="demoOpen ? false : callflows.deleting"
+        :mutation-error="demoOpen ? null : callflows.mutationError"
+        :tree-moving="demoOpen ? false : callflows.treeMoving"
+        :tree-mutation-error="demoOpen ? null : callflows.treeMutationError"
+        @close="closeWorkspace"
+        @edit="openEditor"
+        @delete="deleteRoute"
+        @move-node="moveTreeNode"
+        @reorder-nodes="reorderTreeNodes"
+        @create-node="openNodeEditor"
+        @edit-node="openNodeEditor"
+      />
+    </template>
 
     <template v-else>
       <div class="mb-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -445,7 +499,10 @@ function routeTitle(route: {
     @save="saveRoute"
   />
   <CallflowNodeEditorPanel
-    v-if="nodeEditorContext && !isGuidedInlineCallflowModule(nodeEditorContext.module)"
+    v-if="
+      nodeEditorContext &&
+      !isGuidedInlineCallflowModule(nodeEditorContext.module, nodeEditorAction(nodeEditorContext))
+    "
     :context="nodeEditorContext"
     :editor="callflows.treeEditor"
     :loading="callflows.treeEditorLoading"
@@ -456,7 +513,10 @@ function routeTitle(route: {
     @save="saveTreeNode"
   />
   <CallflowInlineNodeEditorPanel
-    v-if="nodeEditorContext && isGuidedInlineCallflowModule(nodeEditorContext.module)"
+    v-if="
+      nodeEditorContext &&
+      isGuidedInlineCallflowModule(nodeEditorContext.module, nodeEditorAction(nodeEditorContext))
+    "
     :context="nodeEditorContext"
     :editor="callflows.treeEditor"
     :loading="callflows.treeEditorLoading"

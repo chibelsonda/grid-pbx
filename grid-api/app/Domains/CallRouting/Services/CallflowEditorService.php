@@ -74,6 +74,17 @@ class CallflowEditorService
                     ? 'Temporal Rule'
                     : ucfirst(str_replace('_', ' ', $rule->cycle)).' recurrence',
             ])->values()->all(),
+            'caller_id_lists' => $account->callerIdLists()
+                ->withCount('entries')
+                ->orderBy('name')
+                ->get()
+                ->map(fn ($list): array => [
+                    'id' => $list->id,
+                    'label' => $list->name,
+                    'detail' => $list->entries_count.' entries',
+                ])
+                ->values()
+                ->all(),
             'destination_types' => [
                 ['value' => 'extension', 'label' => 'Extension'],
                 ['value' => 'device', 'label' => 'Device'],

@@ -6,6 +6,8 @@ use App\Domains\Blacklists\Models\SwitchBlacklist;
 use App\Domains\Blacklists\Policies\BlacklistPolicy;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\CallDetailRecords\Policies\CallDetailRecordPolicy;
+use App\Domains\CallerIdLists\Models\SwitchCallerIdList;
+use App\Domains\CallerIdLists\Policies\CallerIdListPolicy;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\CallRouting\Policies\CallflowPolicy;
 use App\Domains\Conferences\Models\SwitchConference;
@@ -66,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SwitchAccount::class, AccountPolicy::class);
         Gate::policy(SwitchConference::class, ConferencePolicy::class);
         Gate::policy(SwitchBlacklist::class, BlacklistPolicy::class);
+        Gate::policy(SwitchCallerIdList::class, CallerIdListPolicy::class);
         Gate::policy(SwitchCallDetailRecord::class, CallDetailRecordPolicy::class);
         Gate::policy(SwitchDevice::class, DevicePolicy::class);
         Gate::policy(SwitchDirectory::class, DirectoryPolicy::class);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Callflows\Dto;
 
+use GridPbx\Switch\Domains\Callflows\Support\CallflowBranchPolicy;
 use InvalidArgumentException;
 
 /**
@@ -11,10 +12,6 @@ use InvalidArgumentException;
  */
 final readonly class CallflowInlineNodeWriteData
 {
-    private const PUBLIC_BRANCH_KEYS = [
-        '_', 'timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', 'rule_set',
-    ];
-
     /** @var array<string, list<string>> */
     private const MANAGED_KEYS = [
         'sleep' => ['duration', 'unit', 'skip_module'],
@@ -29,7 +26,23 @@ final readonly class CallflowInlineNodeWriteData
         'flush_dtmf' => ['collection_name', 'skip_module'],
         'dead_air' => ['skip_module'],
         'language' => ['language', 'skip_module'],
+        'response' => ['code', 'message', 'skip_module'],
+        'hangup' => ['skip_module'],
+        'set_variable' => ['variable', 'value', 'channel', 'skip_module'],
+        'branch_variable' => ['variable', 'scope', 'skip_module'],
         'missed_call_alert' => ['recipients', 'skip_module'],
+        'set_cid' => ['caller_id_name', 'caller_id_number', 'skip_module'],
+        'prepend_cid' => [
+            'action', 'apply_to', 'caller_id_name_prefix', 'caller_id_number_prefix', 'skip_module',
+        ],
+        'set_alert_info' => ['alert_info', 'skip_module'],
+        'check_cid' => ['regex', 'use_absolute_mode', 'caller_id', 'user_id', 'skip_module'],
+        'cidlistmatch' => ['id', 'skip_module'],
+        'temporal_route' => ['action', 'rules', 'skip_module'],
+        'ring_group_toggle' => ['action', 'callflow_id', 'skip_module'],
+        'hotdesk' => ['action', 'skip_module'],
+        'do_not_disturb' => ['action', 'skip_module'],
+        'call_forward' => ['action', 'skip_module'],
     ];
 
     /**
@@ -60,13 +73,16 @@ final readonly class CallflowInlineNodeWriteData
         $flow = $this->current['flow'];
 
         if ($this->operation === 'create') {
-            if ($this->branch === null || ! in_array($this->branch, self::PUBLIC_BRANCH_KEYS, true)) {
+            if ($this->branch === null || ! CallflowBranchPolicy::isPublicKey($this->branch)) {
                 throw new InvalidArgumentException('The destination branch is not editable.');
             }
             $parent = $this->nodeAt($flow, $this->path, 'parent');
-            $parentModule = is_string($parent['module'] ?? null) ? $parent['module'] : '';
 
-            if (! $this->supportsBranch($parentModule, $this->branch)) {
+            if (CallflowBranchPolicy::childrenAreLocked($parent)) {
+                throw new InvalidArgumentException('This conditional action has preserved branches that cannot be edited.');
+            }
+
+            if (! CallflowBranchPolicy::supports($parent, $this->branch)) {
                 throw new InvalidArgumentException('The destination branch is not valid for the selected callflow node.');
             }
 
@@ -86,6 +102,27 @@ final readonly class CallflowInlineNodeWriteData
 
         if (($node['module'] ?? null) !== $this->module) {
             throw new InvalidArgumentException('The selected inline action module changed and must be reloaded.');
+        }
+
+        if ($this->module === 'check_cid') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+
+            if (($currentData['use_absolute_mode'] ?? false) === true) {
+                throw new InvalidArgumentException('Absolute-mode caller ID checks are preserved but cannot be edited.');
+            }
+        }
+
+        if ($this->module === 'set_variable') {
+            $currentData = is_array($node['data'] ?? null) ? $node['data'] : [];
+
+            if (($currentData['variable'] ?? null) !== 'call_priority') {
+                throw new InvalidArgumentException('The existing inline channel variable is not supported.');
+            }
+        }
+
+        if ($this->module === 'branch_variable'
+            && ! CallflowBranchPolicy::supportsCallPriority($node)) {
+            throw new InvalidArgumentException('The existing branch variable is not supported.');
         }
     }
 
@@ -148,7 +185,21 @@ final readonly class CallflowInlineNodeWriteData
             'flush_dtmf' => $this->assertFlushDtmf(),
             'dead_air' => null,
             'language' => $this->assertLanguage(),
+            'response' => $this->assertResponse(),
+            'hangup' => null,
+            'set_variable' => $this->assertSetVariable(),
+            'branch_variable' => $this->assertBranchVariable(),
             'missed_call_alert' => $this->assertMissedCallAlert(),
+            'set_cid' => $this->assertSetCid(),
+            'prepend_cid' => $this->assertPrependCid(),
+            'set_alert_info' => $this->assertSetAlertInfo(),
+            'check_cid' => $this->assertCheckCid(),
+            'cidlistmatch' => $this->string('id', 1, 128),
+            'temporal_route' => $this->assertTemporalRouteOperation(),
+            'ring_group_toggle' => $this->assertRingGroupToggle(),
+            'hotdesk' => $this->oneOf('action', ['login', 'logout', 'toggle']),
+            'do_not_disturb' => $this->oneOf('action', ['activate', 'deactivate', 'toggle']),
+            'call_forward' => $this->oneOf('action', ['activate', 'deactivate', 'update']),
         };
 
         if (array_key_exists('skip_module', $this->settings) && ! is_bool($this->settings['skip_module'])) {
@@ -220,6 +271,36 @@ final readonly class CallflowInlineNodeWriteData
         }
     }
 
+    private function assertResponse(): void
+    {
+        $this->integer('code', 400, 699);
+        $this->nullableString('message', 128);
+    }
+
+    private function assertSetVariable(): void
+    {
+        if (($this->settings['variable'] ?? null) !== 'call_priority') {
+            throw new InvalidArgumentException('The inline action variable setting is not supported.');
+        }
+
+        $this->string('value', 1, 3);
+
+        if (preg_match('/^\d{1,3}$/', $this->settings['value']) !== 1
+            || (int) $this->settings['value'] > 255) {
+            throw new InvalidArgumentException('The inline action value setting is invalid.');
+        }
+
+        $this->oneOf('channel', ['a', 'both']);
+    }
+
+    private function assertBranchVariable(): void
+    {
+        if (($this->settings['variable'] ?? null) !== 'call_priority'
+            || ($this->settings['scope'] ?? null) !== 'custom_channel_vars') {
+            throw new InvalidArgumentException('The inline action branch variable setting is not supported.');
+        }
+    }
+
     private function assertMissedCallAlert(): void
     {
         $recipients = $this->settings['recipients'] ?? null;
@@ -248,6 +329,96 @@ final readonly class CallflowInlineNodeWriteData
                 throw new InvalidArgumentException('The inline action user recipient is invalid.');
             }
         }
+    }
+
+    private function assertSetCid(): void
+    {
+        $this->string('caller_id_name', 0, 128);
+        $this->string('caller_id_number', 0, 64);
+    }
+
+    private function assertPrependCid(): void
+    {
+        $this->oneOf('action', ['reset', 'prepend']);
+        $this->oneOf('apply_to', ['original', 'current']);
+        $this->string('caller_id_name_prefix', 0, 128);
+        $this->string('caller_id_number_prefix', 0, 64);
+    }
+
+    private function assertTemporalRouteOperation(): void
+    {
+        $this->oneOf('action', ['disable', 'enable', 'reset']);
+        $rules = $this->settings['rules'] ?? null;
+
+        if (! is_array($rules) || count($rules) > 250) {
+            throw new InvalidArgumentException('The inline temporal-rule selection is invalid.');
+        }
+
+        foreach ($rules as $rule) {
+            if (! is_string($rule) || $rule === '' || strlen($rule) > 128) {
+                throw new InvalidArgumentException('The inline temporal-rule selection is invalid.');
+            }
+        }
+    }
+
+    private function assertRingGroupToggle(): void
+    {
+        $this->oneOf('action', ['login', 'logout']);
+        $this->string('callflow_id', 1, 128);
+    }
+
+    private function assertSetAlertInfo(): void
+    {
+        $this->string('alert_info', 1, 256);
+
+        if (str_contains($this->settings['alert_info'], "\r") || str_contains($this->settings['alert_info'], "\n")) {
+            throw new InvalidArgumentException('The inline action alert_info setting is invalid.');
+        }
+    }
+
+    private function assertCheckCid(): void
+    {
+        $this->string('regex', 1, 512);
+
+        if (! $this->safeRegex($this->settings['regex'])
+            || ($this->settings['use_absolute_mode'] ?? null) !== false) {
+            throw new InvalidArgumentException('The inline action caller ID check mode is invalid.');
+        }
+
+        $callerId = $this->settings['caller_id'] ?? null;
+        $userId = $this->settings['user_id'] ?? null;
+
+        if ($callerId === null && $userId === null) {
+            return;
+        }
+
+        if (! is_array($callerId)
+            || array_diff(array_keys($callerId), ['external']) !== []
+            || ! is_array($callerId['external'] ?? null)
+            || array_diff(array_keys($callerId['external']), ['name', 'number']) !== []
+            || ! is_string($userId)
+            || $userId === '') {
+            throw new InvalidArgumentException('The inline action caller identity override is invalid.');
+        }
+
+        $external = $callerId['external'];
+        $name = $external['name'] ?? null;
+        $number = $external['number'] ?? null;
+
+        if (! is_string($name) || $name === '' || strlen($name) > 128
+            || ! is_string($number) || $number === '' || strlen($number) > 64
+            || strlen($userId) > 128) {
+            throw new InvalidArgumentException('The inline action caller identity override is invalid.');
+        }
+    }
+
+    private function safeRegex(mixed $value): bool
+    {
+        return is_string($value)
+            && ! str_contains($value, "\x1F")
+            && preg_match('/\(\?(?:R|0|&|P>|\{|\?)/', $value) !== 1
+            && ! str_contains($value, '(*')
+            && @preg_match("\x1F{$value}\x1Fu", '') !== false;
     }
 
     private function integer(string $key, int $minimum, int $maximum): void
@@ -334,29 +505,20 @@ final readonly class CallflowInlineNodeWriteData
     private function assertPublicPath(array $path): void
     {
         foreach ($path as $segment) {
-            if (! is_string($segment) || ! in_array($segment, self::PUBLIC_BRANCH_KEYS, true)) {
+            if (! is_string($segment) || ! CallflowBranchPolicy::isPublicKey($segment)) {
                 throw new InvalidArgumentException('The callflow path contains a preserved or unsupported branch.');
             }
         }
-    }
-
-    private function supportsBranch(string $module, string $branch): bool
-    {
-        if ($branch === '_') {
-            return true;
-        }
-
-        if ($module === 'menu') {
-            return in_array($branch, ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*'], true);
-        }
-
-        return $module === 'temporal_route' && $branch === 'rule_set';
     }
 
     /** @param array<string, mixed> $node @param list<string> $path @return array<string, mixed> */
     private function nodeAt(array $node, array $path, string $name): array
     {
         foreach ($path as $segment) {
+            if (! is_string($segment) || ! CallflowBranchPolicy::supports($node, $segment)) {
+                throw new InvalidArgumentException(sprintf('The callflow %s path contains a preserved branch.', $name));
+            }
+
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
             $child = $children[$segment] ?? null;
 

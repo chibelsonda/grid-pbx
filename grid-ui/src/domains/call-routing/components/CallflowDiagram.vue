@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ArrowDownIcon, LockClosedIcon } from '@heroicons/vue/24/outline'
+import { computed, ref } from 'vue'
+import { LockClosedIcon } from '@heroicons/vue/24/outline'
 import { callflowEntryIcon } from '../catalog/callflowActionIcons'
+import { useDragToPan } from '../composables/useDragToPan'
 import type { CallflowAction } from '../catalog/callflowActionCatalog'
+import CallflowConnectorArrow from './CallflowConnectorArrow.vue'
 import CallflowTreeNode from './CallflowTreeNode.vue'
 import type {
   CallflowNode,
@@ -35,6 +37,8 @@ const entryPoints = computed(() => [
   ...props.numbers.map((value) => ({ value, kind: 'Number' })),
   ...props.patterns.map((value) => ({ value, kind: 'Pattern' })),
 ])
+const panCanvas = ref<HTMLElement | null>(null)
+const { isPanning, startPanning, pan, stopPanning } = useDragToPan(panCanvas)
 </script>
 
 <template>
@@ -71,7 +75,17 @@ const entryPoints = computed(() => [
         </span>
       </div>
     </header>
-    <div class="min-h-0 flex-1 overflow-auto p-6">
+    <div
+      ref="panCanvas"
+      data-callflow-pan-canvas
+      class="min-h-0 flex-1 overflow-auto p-4 select-none"
+      :class="isPanning ? 'cursor-grabbing' : 'cursor-grab'"
+      @pointerdown="startPanning"
+      @pointermove="pan"
+      @pointerup="stopPanning"
+      @pointercancel="stopPanning"
+      @lostpointercapture="stopPanning"
+    >
       <div
         role="tree"
         aria-label="Callflow diagram"
@@ -80,25 +94,25 @@ const entryPoints = computed(() => [
         <article
           role="treeitem"
           :aria-label="`Callflow entry${entryPoints[0] ? `: ${entryPoints[0].value}` : ''}`"
-          class="w-64 overflow-hidden rounded-lg border border-brand-400 bg-white shadow-sm"
+          class="h-14 w-80 overflow-hidden rounded-md border border-brand-500 bg-white shadow-sm"
         >
-          <header class="flex items-center gap-2 bg-brand-500 px-3 py-2 text-white">
-            <component :is="callflowEntryIcon" class="size-4" />
-            <p class="text-xs font-semibold">Callflow</p>
+          <header class="flex h-6 items-center gap-2 bg-brand-600 px-2 text-white">
+            <component :is="callflowEntryIcon" class="size-3.5" />
+            <p class="text-[10px] font-semibold">Callflow</p>
             <span v-if="entryName" class="ml-auto max-w-28 truncate text-[9px] text-blue-100">
               {{ entryName }}
             </span>
           </header>
-          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5">
+          <div class="grid h-8 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-2">
             <div class="min-w-0">
               <p
                 v-if="entryPoints[0]"
-                class="truncate font-mono text-xs font-semibold text-slate-700"
+                class="truncate font-mono text-[10px] font-semibold text-slate-700"
               >
                 {{ entryPoints[0].value }}
               </p>
               <p v-else class="text-[10px] font-medium text-amber-700">No assigned number</p>
-              <p class="mt-0.5 text-[9px] font-medium text-slate-500">
+              <p class="text-[8px] font-medium text-slate-500">
                 {{ entryPoints[0]?.kind ?? 'Unassigned route' }}
               </p>
             </div>
@@ -110,10 +124,7 @@ const entryPoints = computed(() => [
             </span>
           </div>
         </article>
-        <div class="flex h-8 flex-col items-center justify-center" aria-hidden="true">
-          <div class="h-4 w-px bg-slate-300"></div>
-          <ArrowDownIcon class="size-3.5 text-slate-400" />
-        </div>
+        <CallflowConnectorArrow />
         <CallflowTreeNode
           :node="node"
           :selected-path="selectedPath"

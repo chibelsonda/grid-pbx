@@ -54,6 +54,7 @@ watch(
               leave-to="translate-x-full"
             >
               <DialogPanel
+                data-testid="slide-over-panel"
                 class="pointer-events-auto flex w-screen flex-col bg-slate-50 shadow-2xl"
                 :class="width === 'medium' ? 'max-w-2xl' : 'max-w-5xl'"
               >

@@ -104,7 +104,7 @@ describe('CallflowDetailPanel', () => {
       .find((button) => button.text().includes('Move or reorder this subtree'))
     expect(begin).toBeDefined()
     await begin!.trigger('click')
-    await wrapper.get('[aria-label="Temporal Route: Business hours"]').trigger('click')
+    await wrapper.get('[aria-label="Time of Day: Business hours"]').trigger('click')
     const move = wrapper
       .findAll('button')
       .find((button) => button.text().includes('Move subtree here'))

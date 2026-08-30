@@ -452,9 +452,92 @@ class CallflowMutationService
         string $module,
         array $settings,
     ): array {
-        if ($module !== 'missed_call_alert') {
-            return $settings;
+        if ($module === 'check_cid') {
+            return $this->checkCidSettingsForSwitch($account, $settings);
         }
+
+        if ($module === 'cidlistmatch') {
+            return $this->callerIdListMatchSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'missed_call_alert') {
+            return $this->missedCallAlertSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'temporal_route') {
+            return $this->temporalOperationSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'ring_group_toggle') {
+            return $this->ringGroupToggleSettingsForSwitch($account, $settings);
+        }
+
+        return $settings;
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function temporalOperationSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $publicIds = collect($settings['rules'])->unique()->values();
+        $resources = $account->temporalRules()
+            ->whereIn('id', $publicIds)
+            ->get()
+            ->mapWithKeys(fn ($rule): array => [(string) $rule->id => $rule->switch_resource_id]);
+        $missing = $publicIds->reject(fn (string $id): bool => $resources->has($id));
+
+        if ($missing->isNotEmpty()) {
+            throw ValidationException::withMessages([
+                'data.rules' => ['Select only synchronized temporal rules in this account.'],
+            ]);
+        }
+
+        return [
+            'action' => $settings['action'],
+            'rules' => $publicIds->map(fn (string $id): string => $resources->get($id))->all(),
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function ringGroupToggleSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $resourceId = $account->callflows()
+            ->where('id', $settings['callflow_id'])
+            ->value('switch_resource_id');
+
+        if (! is_string($resourceId) || $resourceId === '') {
+            throw ValidationException::withMessages([
+                'data.callflow_id' => ['Select a synchronized callflow in this account.'],
+            ]);
+        }
+
+        return [
+            'action' => $settings['action'],
+            'callflow_id' => $resourceId,
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function callerIdListMatchSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $list = $account->callerIdLists()->where('id', $settings['caller_id_list_id'])->first();
+
+        if ($list === null) {
+            throw ValidationException::withMessages([
+                'data.caller_id_list_id' => ['Select a synchronized Caller-ID List in this account.'],
+            ]);
+        }
+
+        return [
+            'id' => $list->switch_resource_id,
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function missedCallAlertSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
 
         /** @var list<array{type: string, id: string}> $recipients */
         $recipients = $settings['recipients'];
@@ -493,6 +576,38 @@ class CallflowMutationService
         $settings['recipients'] = $recipients;
 
         return $settings;
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function checkCidSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $publicUserId = $settings['user_id'];
+        $resourceId = null;
+
+        if (is_string($publicUserId)) {
+            $resourceId = $account->extensions()
+                ->where('id', $publicUserId)
+                ->value('switch_resource_id');
+
+            if (! is_string($resourceId) || $resourceId === '') {
+                throw ValidationException::withMessages([
+                    'data.user_id' => ['Select a synchronized extension in this account.'],
+                ]);
+            }
+        }
+
+        return [
+            'regex' => $settings['regex'],
+            'use_absolute_mode' => false,
+            'caller_id' => $resourceId === null ? null : [
+                'external' => [
+                    'name' => $settings['external_caller_id_name'],
+                    'number' => $settings['external_caller_id_number'],
+                ],
+            ],
+            'user_id' => $resourceId,
+            'skip_module' => $settings['skip_module'],
+        ];
     }
 
     /** @param array<string, mixed> $data */

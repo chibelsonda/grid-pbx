@@ -409,14 +409,28 @@ resource IDs cannot leak; the original keys remain internal for lossless
 writes. A searchable, categorized reference palette covers all 73 primary
 module schemas in the checked-in Switch source and distinguishes guided,
 planned, and capability-gated actions without presenting unsupported mutations
-as available. General multi-node creation, number acquisition/release, and
-editable canvas interactions remain planned and module-gated.
+as available. Guided palette drag-and-drop, recursive subtree moves,
+insert-before, and safe subtree swaps are now implemented. Bounded inline forms
+cover Sleep, TTS, DTMF collection,
+send and flush, Dead Air, Language, recording actions, Missed Call Alert, Set
+Caller ID, Prepend Caller ID, Set Alert Info, regex-mode Check Caller ID, and
+Caller-ID List Match, terminal SIP Response and Hangup, and Kazoo-supported Call
+Priority.
+Check Caller ID validates a portable regex, maps optional identity overrides
+through public Extension UUIDs, and uses typed `match`/`nomatch` branches;
+dynamic absolute-number branches are preserved read-only.
+Caller-ID List Match resolves an account-scoped public List UUID to its private
+Switch ID. List metadata and list entries are projected independently with
+redacted `switch_json`; they remain a separate resource from Blacklists.
+Set Variable is deliberately limited to `call_priority`, the only variable
+mapped by the checked-in Kazoo runtime. Values are bounded to the queue-supported
+range `0`–`255`; arbitrary channel-variable names remain redacted and read-only.
 
 ## 6. P2 operational features
 
 | Domain | User-facing capabilities | Switch boundary | Projection notes | Status |
 | --- | --- | --- | --- | --- |
-| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Selectable read-only recursive canvas, safe node inspector, complete schema-backed reference palette, and guided root/fallback/Menu/Rule Set writes delivered; drag/drop, arbitrary node mutation, and module forms remain planned | Foundation |
+| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Interactive recursive canvas, safe node inspector, complete schema-backed palette, guided root/fallback/Menu/Rule Set writes, palette drag/drop, guarded subtree moves/reorders, public Caller-ID result branches, resource forms, and bounded inline action forms delivered; remaining module-specific forms and dynamic branches stay gated | Foundation |
 | IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, guided routing, and safe root-level DTMF/timeout branches delivered; deeper recursive editing remains planned | Foundation |
 | Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Rule and ordered Rule Set CRUD, projection/sync, safe deletion, effective status and controls, plus schema-correct `rule_set`/`_` guided routing delivered | Foundation |
 | Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Validated upload/audio panels, protected range streaming, dependency-safe deletion, non-clipping account-default choice, hidden schema-field preservation, and metadata-only MySQL projection delivered | Foundation |
@@ -425,6 +439,7 @@ editable canvas interactions remain planned and module-gated.
 | Conferences | CRUD, role numbers, write-only PIN replacement/removal, participant behavior, and runtime summary | Conferences and callflows | Normalized role-number projection, owner relationship, redacted source snapshot, dependency-safe deletion, guided routing, and right-side panel delivered; live participant commands remain planned | Foundation |
 | Fax boxes | CRUD, owner assignment, inbound/outbound message metadata, protected document access, and guided callflow destinations | Fax boxes, faxes, users, and callflows | Normalized fax-box/message projections, redacted `switch_json`, bounded import window, dependency-safe deletion, right-side panels, and audited document streaming delivered; sending, forwarding, resubmission, and message deletion remain policy-gated | Foundation |
 | Blacklists | CRUD, number entries, anonymous-caller policy, and account activation | Blacklists and account settings | Normalized entries, redacted source snapshot, safe activation/deactivation, sync, and right-side UI panel delivered | Foundation |
+| Caller-ID Lists | Reusable number/pattern lists for conditional routing | Lists, list entries, and `cidlistmatch` callflows | Account-scoped list and entry projection, separate redacted `switch_json`, queued sync, public UUID selector, private Switch-ID resolution, compensated API mutations, and standalone slide-over CRUD UI delivered. Authenticated create, edit, authoritative reopen, entry clear, and delete are verified against the local Switch; the deployment must autoload `cb_lists` | Foundation |
 | Phone numbers | Inventory, routing assignment, CNAM, E911, porting, purchasing, and release | Phone numbers, number manager, callflows, and carrier providers | Safe inventory/detail projection and runtime feature-availability matrix delivered; billable and regulated mutations remain disabled until provider, billing, compliance, and confirmation policies are configured | Foundation |
 | Feature codes | View and manage supported star-code callflows for DND, hotdesk, voicemail, and related actions | Callflows | Code, action, enabled state, and dependency summary | Planned |
 | Account voice settings | Caller ID, timezone, language, music on hold, restrictions, recording defaults, dial plans, request formatters, preflow, metaflow activation/actions, and supported account defaults | Accounts, media, phone-number classifiers, callflows, devices, extensions, and configs | Typed virtual settings from redacted `switch_json`; safe regex rules, shared recursive action editor, locked-tree/unknown-option preservation, public UUID references, unresolved-reference controls, and protected storage URL preservation | Foundation |

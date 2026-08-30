@@ -197,6 +197,7 @@ describe('callflow store', () => {
       direct_temporal_routes: [],
       temporal_rule_sets: {},
       temporal_rules: [],
+      caller_id_lists: [],
       destination_types: [{ value: 'extension', label: 'Extension' }],
       destinations: {
         extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
@@ -278,6 +279,7 @@ describe('callflow store', () => {
       direct_temporal_routes: [],
       temporal_rule_sets: {},
       temporal_rules: [],
+      caller_id_lists: [],
       destination_types: [{ value: 'extension', label: 'Extension' }],
       destinations: {
         extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],

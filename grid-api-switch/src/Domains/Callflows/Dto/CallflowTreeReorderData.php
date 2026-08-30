@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Callflows\Dto;
 
+use GridPbx\Switch\Domains\Callflows\Support\CallflowBranchPolicy;
 use InvalidArgumentException;
 
 /**
@@ -12,10 +13,6 @@ use InvalidArgumentException;
 final readonly class CallflowTreeReorderData
 {
     private const MODES = ['insert_before', 'swap'];
-
-    private const PUBLIC_BRANCH_KEYS = [
-        '_', 'timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*', 'rule_set',
-    ];
 
     /**
      * @param  array<string, mixed>  $current
@@ -97,7 +94,7 @@ final readonly class CallflowTreeReorderData
     private function assertPublicPath(array $path): void
     {
         foreach ($path as $segment) {
-            if (! is_string($segment) || ! in_array($segment, self::PUBLIC_BRANCH_KEYS, true)) {
+            if (! is_string($segment) || ! CallflowBranchPolicy::isPublicKey($segment)) {
                 throw new InvalidArgumentException('The callflow path contains a preserved or unsupported branch.');
             }
         }
@@ -111,6 +108,10 @@ final readonly class CallflowTreeReorderData
     private function nodeAt(array $node, array $path, string $name): array
     {
         foreach ($path as $segment) {
+            if (! is_string($segment) || ! CallflowBranchPolicy::supports($node, $segment)) {
+                throw new InvalidArgumentException(sprintf('The callflow %s path contains a preserved branch.', $name));
+            }
+
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
             $child = $children[$segment] ?? null;
 

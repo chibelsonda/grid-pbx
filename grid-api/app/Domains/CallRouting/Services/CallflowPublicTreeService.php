@@ -4,24 +4,6 @@ namespace App\Domains\CallRouting\Services;
 
 class CallflowPublicTreeService
 {
-    /** @var list<string> */
-    private const PUBLIC_BRANCH_KEYS = [
-        'timeout',
-        '0',
-        '1',
-        '2',
-        '3',
-        '4',
-        '5',
-        '6',
-        '7',
-        '8',
-        '9',
-        '*',
-        '_',
-        'rule_set',
-    ];
-
     /**
      * @param  array<string, mixed>  $node
      * @param  array{key: string, label: string, kind: string}|null  $branch
@@ -40,7 +22,7 @@ class CallflowPublicTreeService
 
             $key = (string) $rawKey;
 
-            if (in_array($key, self::PUBLIC_BRANCH_KEYS, true)) {
+            if (CallflowBranchPolicy::supports($node, $key)) {
                 $publicKey = $key;
                 $publicBranch = $this->knownBranch($module, $key);
             } else {
@@ -80,12 +62,15 @@ class CallflowPublicTreeService
                 '_' => $parentModule === 'temporal_route' ? 'No schedule match' : 'Default branch',
                 'rule_set' => 'Schedule matches',
                 'timeout' => 'Timeout',
+                'match' => 'Caller ID matches',
+                'nomatch' => 'Caller ID does not match',
                 '*' => 'Star',
-                default => 'Key '.$key,
+                default => $parentModule === 'branch_variable' ? 'Priority '.$key : 'Key '.$key,
             },
             'kind' => match ($key) {
                 '_' => 'default',
                 'rule_set' => 'schedule_match',
+                'match', 'nomatch' => 'condition',
                 default => 'key',
             },
         ];

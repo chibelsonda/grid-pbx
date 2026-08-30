@@ -87,6 +87,10 @@ class CallflowReferenceResolver
                 'label' => $target['label'],
             ],
             'reference_status' => match (true) {
+                $module === 'cidlistmatch'
+                    && is_string($data['id'] ?? null)
+                    && isset($targets['caller_id_list'][$data['id']]) => 'resolved',
+                $module === 'cidlistmatch' => 'unresolved',
                 $directTemporalRuleIds !== []
                     && ! in_array(false, array_column($directTemporalRules, 'resolved'), true) => 'resolved',
                 $directTemporalRuleIds !== [] => 'unresolved',
@@ -107,11 +111,82 @@ class CallflowReferenceResolver
      */
     private function publicInlineSettings(string $module, array $data, array $targets): ?array
     {
+        if ($module === 'conference') {
+            return [
+                'service_mode' => ! is_string($data['id'] ?? null) || $data['id'] === '',
+            ];
+        }
+
+        if ($module === 'temporal_route' && is_array($data['rules'] ?? null)) {
+            return [
+                'action' => is_string($data['action'] ?? null) ? $data['action'] : null,
+                'rules' => array_values(array_filter(array_map(
+                    fn (mixed $id): ?string => is_string($id)
+                        ? ($targets['temporal_rule'][$id]['id'] ?? null)
+                        : null,
+                    $data['rules'],
+                ))),
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'ring_group_toggle') {
+            $resourceId = is_string($data['callflow_id'] ?? null) ? $data['callflow_id'] : null;
+
+            return [
+                'action' => is_string($data['action'] ?? null) ? $data['action'] : null,
+                'callflow_id' => $resourceId === null ? null : ($targets['callflow'][$resourceId]['id'] ?? null),
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'voicemail') {
+            $action = $data['action'] ?? null;
+
+            return is_string($action) && $action !== '' ? ['action' => $action] : null;
+        }
+
+        if (in_array($module, [
+            'hotdesk',
+            'do_not_disturb',
+            'call_forward',
+        ], true)) {
+            $action = $data['action'] ?? null;
+
+            return is_string($action) && $action !== ''
+                ? ['action' => $action, 'skip_module' => (bool) ($data['skip_module'] ?? false)]
+                : null;
+        }
+
         if ($module === 'missed_call_alert') {
             return [
                 'recipients' => $this->publicMissedCallAlertRecipients($data['recipients'] ?? null, $targets),
                 'skip_module' => (bool) ($data['skip_module'] ?? false),
             ];
+        }
+
+        if ($module === 'check_cid') {
+            return $this->publicCheckCidSettings($data, $targets);
+        }
+
+        if ($module === 'cidlistmatch') {
+            $rawListId = is_string($data['id'] ?? null) && $data['id'] !== '' ? $data['id'] : null;
+            $list = $rawListId === null ? null : ($targets['caller_id_list'][$rawListId] ?? null);
+
+            return [
+                'caller_id_list_id' => $list['id'] ?? null,
+                'caller_id_list_label' => $list['label'] ?? null,
+                'reference_status' => $list === null ? 'unresolved' : 'resolved',
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'set_variable') {
+            return $this->publicSetVariableSettings($data);
+        }
+
+        if ($module === 'branch_variable') {
+            return $this->publicBranchVariableSettings($data);
         }
 
         $keys = match ($module) {
@@ -127,6 +202,13 @@ class CallflowReferenceResolver
             'flush_dtmf' => ['collection_name', 'skip_module'],
             'dead_air' => ['skip_module'],
             'language' => ['language', 'skip_module'],
+            'response' => ['code', 'message', 'skip_module'],
+            'hangup' => ['skip_module'],
+            'set_cid' => ['caller_id_name', 'caller_id_number', 'skip_module'],
+            'prepend_cid' => [
+                'action', 'apply_to', 'caller_id_name_prefix', 'caller_id_number_prefix', 'skip_module',
+            ],
+            'set_alert_info' => ['alert_info', 'skip_module'],
             default => [],
         };
 
@@ -145,6 +227,88 @@ class CallflowReferenceResolver
         }
 
         return $settings;
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function publicSetVariableSettings(array $data): array
+    {
+        $value = is_string($data['value'] ?? null) ? $data['value'] : null;
+        $channel = is_string($data['channel'] ?? null) ? $data['channel'] : 'a';
+        $supported = ($data['variable'] ?? null) === 'call_priority'
+            && $value !== null
+            && preg_match('/^\d{1,3}$/', $value) === 1
+            && (int) $value <= 255
+            && in_array($channel, ['a', 'both'], true);
+
+        if (! $supported) {
+            return [
+                'supported_variable' => false,
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        return [
+            'supported_variable' => true,
+            'variable' => 'call_priority',
+            'value' => $value,
+            'channel' => $channel,
+            'skip_module' => (bool) ($data['skip_module'] ?? false),
+        ];
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function publicBranchVariableSettings(array $data): array
+    {
+        $supported = ($data['variable'] ?? null) === 'call_priority'
+            && in_array($data['scope'] ?? 'custom_channel_vars', ['custom_channel_vars'], true);
+
+        if (! $supported) {
+            return [
+                'supported_variable' => false,
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        return [
+            'supported_variable' => true,
+            'variable' => 'call_priority',
+            'scope' => 'custom_channel_vars',
+            'skip_module' => (bool) ($data['skip_module'] ?? false),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @return array<string, mixed>
+     */
+    private function publicCheckCidSettings(array $data, array $targets): array
+    {
+        $external = is_array($data['caller_id'] ?? null)
+            && is_array($data['caller_id']['external'] ?? null)
+                ? $data['caller_id']['external']
+                : [];
+        $name = is_string($external['name'] ?? null) ? $external['name'] : null;
+        $number = is_string($external['number'] ?? null) ? $external['number'] : null;
+        $rawUserId = is_string($data['user_id'] ?? null) && $data['user_id'] !== ''
+            ? $data['user_id']
+            : null;
+        $user = $rawUserId === null ? null : ($targets['extension'][$rawUserId] ?? null);
+        $identityConfigured = $name !== null || $number !== null || $rawUserId !== null;
+
+        return [
+            'regex' => is_string($data['regex'] ?? null) && $data['regex'] !== '' ? $data['regex'] : '.*',
+            'use_absolute_mode' => ($data['use_absolute_mode'] ?? false) === true,
+            'external_caller_id_name' => $name,
+            'external_caller_id_number' => $number,
+            'user_id' => $user['id'] ?? null,
+            'identity_reference_status' => match (true) {
+                ! $identityConfigured => 'not_applicable',
+                $user !== null => 'resolved',
+                default => 'unresolved',
+            },
+            'skip_module' => (bool) ($data['skip_module'] ?? false),
+        ];
     }
 
     /**
@@ -250,6 +414,9 @@ class CallflowReferenceResolver
             ])->all(),
             'temporal_rule' => $account->temporalRules()->get()->mapWithKeys(fn ($rule): array => [
                 $rule->switch_resource_id => ['id' => $rule->id, 'label' => $rule->name],
+            ])->all(),
+            'caller_id_list' => $account->callerIdLists()->get()->mapWithKeys(fn ($list): array => [
+                $list->switch_resource_id => ['id' => $list->id, 'label' => $list->name],
             ])->all(),
         ];
     }

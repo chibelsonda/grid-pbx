@@ -13,6 +13,173 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
+test('opens a deep UI-only callflow demo without mutating Switch', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/callflows') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Open complex demo' }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+
+  await expect(
+    workspace.getByRole('heading', { name: 'Complex callflow demo · UI only' }),
+  ).toBeVisible()
+  await expect(page.getByText('UI-only demonstration.')).toBeVisible()
+  await expect(workspace.getByText('20', { exact: true }).first()).toBeVisible()
+  await expect(workspace.getByText('8', { exact: true }).first()).toBeVisible()
+  await expect(
+    workspace.getByRole('treeitem', { name: 'Time of Day: Office hours and holidays' }),
+  ).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'Check CID' })).toBeVisible()
+  await expect(
+    workspace.getByRole('treeitem', { name: 'ACDC Member: General support queue' }),
+  ).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'Response' })).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'Hangup' })).toHaveCount(2)
+
+  await workspace.getByRole('treeitem', { name: 'Check CID' }).click()
+  const nodeInfo = page.getByRole('dialog', { name: 'Check Cid' })
+  await expect(nodeInfo).toContainText('Business hours match')
+  await expect(nodeInfo).toContainText('Key 1 · Support')
+  await expect(nodeInfo).toContainText('2')
+  await expect(nodeInfo.getByRole('button', { name: 'Edit action target' })).toHaveCount(0)
+  await nodeInfo.getByRole('button', { name: 'Close node information' }).click()
+
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await expect(palette.getByRole('button', { name: 'Move action palette' })).toBeVisible()
+  const compactAction = palette.getByRole('button', { name: 'User unavailable in read-only mode' })
+  await expect(compactAction).toBeDisabled()
+
+  const panCanvas = workspace.locator('[data-callflow-pan-canvas]')
+  const panBox = await panCanvas.boundingBox()
+  const panDimensions = await panCanvas.evaluate((element) => ({
+    clientHeight: element.clientHeight,
+    scrollHeight: element.scrollHeight,
+  }))
+  expect(panBox).not.toBeNull()
+  expect(panDimensions.scrollHeight).toBeGreaterThan(panDimensions.clientHeight)
+  await expect(panCanvas).toHaveCSS('cursor', 'grab')
+  await panCanvas.evaluate((element) => {
+    element.scrollTop = 0
+    element.scrollLeft = 0
+  })
+  await panCanvas.dispatchEvent('pointerdown', {
+    button: 0,
+    pointerId: 41,
+    pointerType: 'mouse',
+    clientX: 100,
+    clientY: 180,
+  })
+  await expect(panCanvas).toHaveCSS('cursor', 'grabbing')
+  await panCanvas.dispatchEvent('pointermove', {
+    pointerId: 41,
+    pointerType: 'mouse',
+    clientX: 100,
+    clientY: 60,
+  })
+  await panCanvas.dispatchEvent('pointerup', { pointerId: 41, pointerType: 'mouse' })
+  expect(await panCanvas.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+  await expect(panCanvas).toHaveCSS('cursor', 'grab')
+  await panCanvas.evaluate((element) => {
+    element.scrollTop = 0
+    element.scrollLeft = 0
+  })
+
+  const paletteBox = await palette.boundingBox()
+  const actionBox = await compactAction.boundingBox()
+  const compactActionAppearance = await compactAction.locator(':scope > div').evaluate((card) => ({
+    background: getComputedStyle(card).backgroundColor,
+    border: getComputedStyle(card).borderColor,
+  }))
+  const nodeBoxes = await workspace.locator('button[role="treeitem"]').evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect()
+      return { width: box.width, height: box.height }
+    }),
+  )
+  const nodeAppearance = await workspace
+    .locator('button[role="treeitem"] > div')
+    .evaluateAll((cards) =>
+      cards.map((card) => {
+        const icon = card.querySelector('div.absolute > svg')
+        return {
+          background: getComputedStyle(card).backgroundColor,
+          border: getComputedStyle(card).borderColor,
+          icon: icon ? getComputedStyle(icon).color : null,
+        }
+      }),
+    )
+  expect(paletteBox).not.toBeNull()
+  expect(actionBox).not.toBeNull()
+  expect(paletteBox!.width).toBeGreaterThanOrEqual(183)
+  expect(paletteBox!.width).toBeLessThanOrEqual(185)
+  expect(actionBox!.height).toBeGreaterThanOrEqual(55)
+  expect(actionBox!.height).toBeLessThanOrEqual(57)
+  expect(nodeBoxes.length).toBeGreaterThan(10)
+  expect(Math.max(...nodeBoxes.map(({ width }) => width))).toBeLessThanOrEqual(145)
+  expect(Math.max(...nodeBoxes.map(({ height }) => height))).toBeLessThanOrEqual(85)
+  const nodeBackgrounds = new Set(nodeAppearance.map(({ background }) => background))
+  expect(nodeBackgrounds.size).toBe(1)
+  expect([...nodeBackgrounds][0]).not.toBe('rgba(0, 0, 0, 0)')
+  expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+    [...nodeBackgrounds][0],
+  )
+  expect(compactActionAppearance.background).toBe([...nodeBackgrounds][0])
+  expect(compactActionAppearance.border).not.toBe([...nodeBackgrounds][0])
+  expect(compactActionAppearance.border).not.toBe('rgba(0, 0, 0, 0)')
+  expect(new Set(nodeAppearance.map(({ border }) => border)).size).toBeGreaterThanOrEqual(4)
+  expect(new Set(nodeAppearance.map(({ icon }) => icon)).size).toBeGreaterThanOrEqual(4)
+  const connectorAppearance = await workspace.locator('svg.h-10.w-5').evaluateAll((arrows) =>
+    arrows.map((arrow) => ({
+      height: arrow.getBoundingClientRect().height,
+      color: getComputedStyle(arrow).color,
+      shaftWidth: arrow.querySelector('line')?.getAttribute('stroke-width'),
+    })),
+  )
+  expect(connectorAppearance.length).toBeGreaterThan(10)
+  expect(Math.min(...connectorAppearance.map(({ height }) => height))).toBeGreaterThanOrEqual(39)
+  const connectorColors = new Set(connectorAppearance.map(({ color }) => color))
+  expect(connectorColors.size).toBe(1)
+  expect([...connectorColors][0]).toBe([...nodeBackgrounds][0])
+  expect(new Set(connectorAppearance.map(({ shaftWidth }) => shaftWidth))).toEqual(new Set(['8']))
+  const branchBusAppearance = await workspace
+    .locator('[data-callflow-branch-bus]')
+    .evaluateAll((segments) =>
+      segments.map((segment) => ({
+        width: segment.getBoundingClientRect().width,
+        height: segment.getBoundingClientRect().height,
+        color: getComputedStyle(segment).color,
+        tagName: segment.tagName.toLowerCase(),
+        shaftWidth: segment.querySelector('line')?.getAttribute('stroke-width'),
+      })),
+    )
+  expect(branchBusAppearance.length).toBeGreaterThanOrEqual(3)
+  expect(Math.max(...branchBusAppearance.map(({ width }) => width))).toBeGreaterThan(70)
+  expect(Math.min(...branchBusAppearance.map(({ height }) => height))).toBeGreaterThanOrEqual(7)
+  expect(new Set(branchBusAppearance.map(({ tagName }) => tagName))).toEqual(new Set(['svg']))
+  expect(new Set(branchBusAppearance.map(({ color }) => color))).toEqual(nodeBackgrounds)
+  expect(new Set(branchBusAppearance.map(({ shaftWidth }) => shaftWidth))).toEqual(new Set(['8']))
+  const categoryContainer = palette.locator('[data-callflow-palette-categories]')
+  await expect(categoryContainer).toHaveCSS('overflow-y', 'visible')
+  let categoryToggles = palette.locator('button[aria-expanded="true"]')
+  await expect(categoryToggles).toHaveCount(1)
+  await palette.locator('button[aria-expanded]').nth(1).click()
+  categoryToggles = palette.locator('button[aria-expanded="true"]')
+  await expect(categoryToggles).toHaveCount(1)
+  await expect(workspace.getByText('1 path', { exact: true })).toHaveCount(0)
+  await expect(workspace.getByText('Default branch', { exact: true })).toHaveCount(0)
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
 test('keeps Callflow validation inline and its destination listbox inside the viewport', async ({
   page,
 }) => {
@@ -88,6 +255,13 @@ test('shows safe Menu key routes without offering the legacy hash branch', async
           direct_temporal_routes: [],
           temporal_rule_sets: {},
           temporal_rules: [],
+          caller_id_lists: [
+            {
+              id: 'dded4533-55cb-4b40-acb6-b02248532c09',
+              label: 'VIP callers',
+              detail: '2 entries',
+            },
+          ],
           destination_types: [
             { value: 'extension', label: 'Extension' },
             { value: 'menu', label: 'Menu / IVR' },
@@ -442,6 +616,13 @@ test('renders a recursive visual route map without exposing preserved Switch bra
           direct_temporal_routes: [],
           temporal_rule_sets: {},
           temporal_rules: [],
+          caller_id_lists: [
+            {
+              id: 'dded4533-55cb-4b40-acb6-b02248532c09',
+              label: 'VIP callers',
+              detail: '2 entries',
+            },
+          ],
           destination_types: [
             { value: 'extension', label: 'Extension' },
             { value: 'voicemail', label: 'Voicemail' },
@@ -644,7 +825,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
 
   await workspace
     .getByRole('treeitem', { name: 'User: Reception' })
-    .dragTo(workspace.getByRole('treeitem', { name: 'Temporal Route: Office hours' }))
+    .dragTo(workspace.getByRole('treeitem', { name: 'Time of Day: Office hours' }))
   await expect
     .poll(() => movePayload)
     .toEqual({
@@ -718,9 +899,9 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await inlineActionSearch.type('tts')
   await expect(inlineActionSearch).toHaveValue('tts')
   await workspace
-    .getByRole('button', { name: 'Add Text to speech' })
+    .getByRole('button', { name: 'Add TTS' })
     .dragTo(workspace.getByRole('treeitem', { name: 'Voicemail: Reception mailbox' }))
-  const ttsPanel = page.getByRole('dialog', { name: 'Add Text to speech' })
+  const ttsPanel = page.getByRole('dialog', { name: 'Add TTS' })
   await ttsPanel.getByRole('button', { name: 'Add action' }).click()
   await expect(ttsPanel.getByRole('textbox', { name: 'Text to speak' })).toHaveAttribute(
     'aria-invalid',
@@ -747,7 +928,118 @@ test('renders a recursive visual route map without exposing preserved Switch bra
       },
     })
   await expect(ttsPanel).toHaveCount(0)
-  await expect(workspace.getByRole('treeitem', { name: 'Text to speech' })).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'TTS' })).toBeVisible()
+
+  await inlineActionSearch.click()
+  await inlineActionSearch.press('Control+A')
+  await inlineActionSearch.fill('check caller id')
+  await workspace
+    .getByRole('button', { name: 'Add Check CID' })
+    .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
+  const checkCidPanel = page.getByRole('dialog', { name: 'Add Check CID' })
+  const callerIdPattern = checkCidPanel.getByRole('textbox', { name: 'Caller ID pattern' })
+  await callerIdPattern.fill('(?R)')
+  await checkCidPanel.getByRole('button', { name: 'Add action' }).click()
+  await expect(callerIdPattern).toHaveAttribute('aria-invalid', 'true')
+  await expect(checkCidPanel.getByText('Enter a supported regular expression.')).toBeVisible()
+  await checkCidPanel.getByRole('button', { name: 'Cancel' }).click()
+  await expect(checkCidPanel).toHaveCount(0)
+
+  inlineCreatePayload = null
+  await inlineActionSearch.fill('caller id list match')
+  await workspace
+    .getByRole('button', { name: 'Add Caller ID List Match' })
+    .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
+  const listMatchPanel = page.getByRole('dialog', { name: 'Add Caller ID List Match' })
+  const listChoice = listMatchPanel.getByRole('button', { name: 'Caller-ID List' })
+  await listChoice.click()
+  await page.getByRole('option', { name: /VIP callers/ }).click()
+  await listMatchPanel.getByRole('button', { name: 'Add action' }).click()
+  await expect
+    .poll(() => inlineCreatePayload)
+    .toEqual({
+      parent_path: ['_', '_', '_'],
+      branch: '_',
+      module: 'cidlistmatch',
+      data: {
+        caller_id_list_id: 'dded4533-55cb-4b40-acb6-b02248532c09',
+        skip_module: false,
+      },
+    })
+  await expect(listMatchPanel).toHaveCount(0)
+
+  inlineCreatePayload = null
+  await inlineActionSearch.fill('response')
+  await workspace
+    .getByRole('button', { name: 'Add Response', exact: true })
+    .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
+  const responsePanel = page.getByRole('dialog', { name: 'Add Response' })
+  const responseCode = responsePanel.getByRole('spinbutton', { name: 'SIP response code' })
+  await responseCode.fill('399')
+  await responsePanel.getByRole('button', { name: 'Add action' }).click()
+  await expect(responseCode).toHaveAttribute('aria-invalid', 'true')
+  await expect(responseCode).toHaveClass(/border-red-400/)
+  await responseCode.fill('603')
+  await responsePanel.getByRole('textbox', { name: 'Cause text' }).fill('Decline')
+  await responsePanel.getByRole('button', { name: 'Add action' }).click()
+  await expect
+    .poll(() => inlineCreatePayload)
+    .toEqual({
+      parent_path: ['_', '_', '_'],
+      branch: '_',
+      module: 'response',
+      data: { code: 603, message: 'Decline', skip_module: false },
+    })
+  await expect(responsePanel).toHaveCount(0)
+
+  inlineCreatePayload = null
+  await inlineActionSearch.fill('hangup')
+  await workspace
+    .getByRole('button', { name: 'Add Hangup', exact: true })
+    .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
+  const hangupPanel = page.getByRole('dialog', { name: 'Add Hangup' })
+  await expect(hangupPanel).toContainText('disconnects the call')
+  await expect(hangupPanel.getByRole('textbox')).toHaveCount(0)
+  await hangupPanel.getByRole('button', { name: 'Add action' }).click()
+  await expect
+    .poll(() => inlineCreatePayload)
+    .toEqual({
+      parent_path: ['_', '_', '_'],
+      branch: '_',
+      module: 'hangup',
+      data: { skip_module: false },
+    })
+  await expect(hangupPanel).toHaveCount(0)
+
+  inlineCreatePayload = null
+  await inlineActionSearch.fill('set variable')
+  await workspace
+    .getByRole('button', { name: 'Add Set Variable', exact: true })
+    .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
+  const variablePanel = page.getByRole('dialog', { name: 'Add Set Variable' })
+  const priority = variablePanel.getByRole('spinbutton', { name: 'Call priority' })
+  await expect(variablePanel.getByRole('textbox', { name: 'Variable' })).toBeDisabled()
+  await priority.fill('256')
+  await variablePanel.getByRole('button', { name: 'Add action' }).click()
+  await expect(priority).toHaveAttribute('aria-invalid', 'true')
+  await priority.fill('9')
+  await variablePanel.getByRole('button', { name: 'Call priority channel' }).click()
+  await page.getByRole('option', { name: 'Both call legs' }).click()
+  await variablePanel.getByRole('button', { name: 'Add action' }).click()
+  await expect
+    .poll(() => inlineCreatePayload)
+    .toEqual({
+      parent_path: ['_', '_', '_'],
+      branch: '_',
+      module: 'set_variable',
+      data: {
+        variable: 'call_priority',
+        value: '9',
+        channel: 'both',
+        skip_module: false,
+      },
+    })
+  await expect(variablePanel).toHaveCount(0)
 
   const map = workspace.getByRole('tree', { name: 'Callflow diagram' })
   const mapBox = await map.boundingBox()

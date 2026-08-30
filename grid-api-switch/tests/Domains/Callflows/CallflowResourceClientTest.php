@@ -771,6 +771,49 @@ final class CallflowResourceClientTest extends TestCase
         );
     }
 
+    public function test_it_preserves_exact_operational_action_variants_in_inline_nodes(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-1'],
+                'children' => [],
+            ],
+        ];
+
+        $recording = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'record_call',
+            [
+                'action' => 'stop',
+                'format' => null,
+                'label' => null,
+                'record_min_sec' => null,
+                'record_on_answer' => false,
+                'record_on_bridge' => false,
+                'record_sample_rate' => null,
+                'should_follow_transfer' => true,
+                'time_limit' => 3600,
+                'skip_module' => false,
+            ],
+        )->toSwitchData();
+        $forwarding = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'call_forward',
+            ['action' => 'update', 'skip_module' => false],
+        )->toSwitchData();
+
+        $recordingChildren = (array) $recording['flow']['children'];
+        $forwardingChildren = (array) $forwarding['flow']['children'];
+
+        self::assertSame('stop', $recordingChildren['_']['data']['action']);
+        self::assertSame('update', $forwardingChildren['_']['data']['action']);
+    }
+
     /** @throws JsonException */
     public function test_it_updates_inline_recording_settings_without_exposing_server_owned_storage_data(): void
     {
@@ -841,11 +884,45 @@ final class CallflowResourceClientTest extends TestCase
             'flush_dtmf' => ['collection_name' => 'default', 'skip_module' => false],
             'dead_air' => ['skip_module' => false],
             'language' => ['language' => 'en-US', 'skip_module' => false],
+            'response' => ['code' => 486, 'message' => 'Busy here', 'skip_module' => false],
+            'hangup' => ['skip_module' => false],
+            'set_variable' => [
+                'variable' => 'call_priority',
+                'value' => '6',
+                'channel' => 'a',
+                'skip_module' => false,
+            ],
             'missed_call_alert' => [
                 'recipients' => [
                     ['type' => 'user', 'id' => 'switch-user-reception'],
                     ['type' => 'email', 'id' => 'alerts@example.com'],
                 ],
+                'skip_module' => false,
+            ],
+            'set_cid' => [
+                'caller_id_name' => 'Support',
+                'caller_id_number' => '+15551234567',
+                'skip_module' => false,
+            ],
+            'prepend_cid' => [
+                'action' => 'prepend',
+                'apply_to' => 'original',
+                'caller_id_name_prefix' => 'Sales ',
+                'caller_id_number_prefix' => '9',
+                'skip_module' => false,
+            ],
+            'set_alert_info' => ['alert_info' => 'Bellcore-dr2', 'skip_module' => false],
+            'check_cid' => [
+                'regex' => '^\\+1555',
+                'use_absolute_mode' => false,
+                'caller_id' => [
+                    'external' => ['name' => 'Support', 'number' => '+15551234567'],
+                ],
+                'user_id' => 'switch-user-reception',
+                'skip_module' => false,
+            ],
+            'cidlistmatch' => [
+                'id' => 'switch-list-vip',
                 'skip_module' => false,
             ],
         ];
@@ -882,6 +959,217 @@ final class CallflowResourceClientTest extends TestCase
             '_',
             'language',
             ['language' => 'english', 'skip_module' => false],
+        );
+    }
+
+    public function test_it_updates_response_fields_while_preserving_server_owned_media_and_children(): void
+    {
+        $document = CallflowInlineNodeWriteData::update(
+            [
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'user-1'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'response',
+                            'data' => [
+                                'code' => 486,
+                                'message' => 'Busy here',
+                                'media' => 'switch-media-private',
+                                'skip_module' => false,
+                            ],
+                            'children' => [
+                                '_' => [
+                                    'module' => 'user',
+                                    'data' => ['id' => 'user-2'],
+                                    'children' => [],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            ['_'],
+            'response',
+            ['code' => 603, 'message' => null, 'skip_module' => false],
+        )->toSwitchData();
+
+        $rootChildren = (array) $document['flow']['children'];
+        $node = $rootChildren['_'];
+        self::assertSame(603, $node['data']['code']);
+        self::assertArrayNotHasKey('message', $node['data']);
+        self::assertSame('switch-media-private', $node['data']['media']);
+        $children = (array) $node['children'];
+        self::assertSame('user-2', $children['_']['data']['id']);
+    }
+
+    public function test_it_rejects_an_invalid_response_code(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('code setting is invalid');
+
+        CallflowInlineNodeWriteData::create(
+            ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+            [],
+            '_',
+            'response',
+            ['code' => 399, 'message' => null, 'skip_module' => false],
+        );
+    }
+
+    public function test_it_rejects_arbitrary_or_out_of_range_channel_variables(): void
+    {
+        $base = ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]];
+
+        foreach ([
+            ['variable' => 'sip_h_X-Unsafe', 'value' => '6', 'channel' => 'a', 'skip_module' => false],
+            ['variable' => 'call_priority', 'value' => '256', 'channel' => 'a', 'skip_module' => false],
+        ] as $settings) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'set_variable', $settings);
+                self::fail('Unsafe channel variable settings must be rejected.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_refuses_to_rewrite_an_existing_unsupported_channel_variable(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('existing inline channel variable is not supported');
+
+        CallflowInlineNodeWriteData::update(
+            [
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'user-1'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'set_variable',
+                            'data' => ['variable' => 'legacy_custom', 'value' => 'secret'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ],
+            ['_'],
+            'set_variable',
+            ['variable' => 'call_priority', 'value' => '6', 'channel' => 'a', 'skip_module' => false],
+        );
+    }
+
+    public function test_it_rejects_alert_info_header_injection(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('alert_info setting is invalid');
+
+        CallflowInlineNodeWriteData::create(
+            ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+            [],
+            '_',
+            'set_alert_info',
+            ['alert_info' => "Bellcore-dr2\r\nX-Injected: yes", 'skip_module' => false],
+        );
+    }
+
+    public function test_it_rejects_unsafe_or_absolute_caller_id_checks(): void
+    {
+        $settings = [
+            'regex' => '(?R)',
+            'use_absolute_mode' => false,
+            'caller_id' => null,
+            'user_id' => null,
+            'skip_module' => false,
+        ];
+
+        try {
+            CallflowInlineNodeWriteData::create(
+                ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+                [],
+                '_',
+                'check_cid',
+                $settings,
+            );
+            self::fail('Unsafe regular expressions must be rejected.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('check mode is invalid', $exception->getMessage());
+        }
+
+        $settings['regex'] = '.*';
+        $settings['use_absolute_mode'] = true;
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('check mode is invalid');
+
+        CallflowInlineNodeWriteData::create(
+            ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+            [],
+            '_',
+            'check_cid',
+            $settings,
+        );
+    }
+
+    public function test_it_preserves_absolute_caller_id_nodes_as_read_only(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Absolute-mode caller ID checks are preserved');
+
+        CallflowInlineNodeWriteData::update(
+            [
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'user-1'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'check_cid',
+                            'data' => ['regex' => '.*', 'use_absolute_mode' => true],
+                            'children' => [
+                                '+15551234567' => ['module' => 'device', 'data' => ['id' => 'device-1']],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            ['_'],
+            'check_cid',
+            [
+                'regex' => '.*',
+                'use_absolute_mode' => false,
+                'caller_id' => null,
+                'user_id' => null,
+                'skip_module' => false,
+            ],
+        );
+    }
+
+    public function test_it_rejects_fixed_children_under_absolute_caller_id_checks(): void
+    {
+        $current = [
+            'flow' => [
+                'module' => 'check_cid',
+                'data' => ['regex' => '.*', 'use_absolute_mode' => true],
+                'children' => [],
+            ],
+        ];
+
+        try {
+            CallflowTreeNodeWriteData::create($current, [], 'match', 'user', 'user-1');
+            self::fail('Absolute-mode checks must reject fixed reference branches.');
+        } catch (InvalidArgumentException $exception) {
+            self::assertStringContainsString('Absolute-mode caller ID branches', $exception->getMessage());
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('Absolute-mode caller ID branches');
+
+        CallflowInlineNodeWriteData::create(
+            $current,
+            [],
+            'nomatch',
+            'dead_air',
+            ['skip_module' => false],
         );
     }
 

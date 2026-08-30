@@ -12,7 +12,11 @@ class CallflowTreeReorderValidator
         'user', 'device', 'voicemail', 'callflow', 'play', 'directory', 'group',
         'acdc_member', 'menu', 'conference', 'faxbox', 'temporal_route',
         'sleep', 'tts', 'collect_dtmf', 'record_call', 'record_caller',
-        'send_dtmf', 'flush_dtmf', 'dead_air', 'language', 'missed_call_alert',
+        'send_dtmf', 'flush_dtmf', 'dead_air', 'language', 'response', 'hangup', 'set_variable',
+        'branch_variable',
+        'missed_call_alert',
+        'set_cid', 'prepend_cid', 'set_alert_info', 'check_cid', 'cidlistmatch',
+        'ring_group_toggle', 'hotdesk', 'do_not_disturb', 'call_forward',
     ];
 
     /** @param list<string> $sourcePath @param list<string> $targetPath */
@@ -69,6 +73,10 @@ class CallflowTreeReorderValidator
     private function nodeAt(array $node, array $path, string $field): array
     {
         foreach ($path as $segment) {
+            if (! CallflowBranchPolicy::supports($node, $segment)) {
+                $this->fail($field, 'The selected callflow path contains a preserved branch.');
+            }
+
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
             $child = $children[$segment] ?? null;
 

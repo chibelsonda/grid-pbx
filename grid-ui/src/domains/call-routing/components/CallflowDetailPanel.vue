@@ -359,6 +359,7 @@ function createNodeAt(action: CallflowAction, selection: CallflowNodeSelection):
     path: [...selection.path],
     node: selection.node,
     module: action.module,
+    ...(action.preset ? { preset: action.preset } : {}),
   })
 }
 
@@ -426,7 +427,7 @@ function humanize(value: string | null): string {
       {{ error }}
     </div>
     <div v-else-if="record" class="grid gap-5">
-      <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_19rem] xl:items-start">
+      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_11.5rem] xl:items-start">
         <article class="card-surface min-w-0 p-4 sm:p-5">
           <header class="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
             <h2 class="mr-auto text-sm font-semibold text-slate-700">Route structure</h2>

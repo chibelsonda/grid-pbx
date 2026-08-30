@@ -2,9 +2,11 @@
 
 namespace App\Domains\CallRouting\Services;
 
+use App\Shared\Validation\Rules\SafeSwitchRegex;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CallflowInlineNodeDataValidator
 {
@@ -78,12 +80,104 @@ class CallflowInlineNodeDataValidator
                 'data.language' => ['required', 'string', 'regex:/^[A-Za-z]{2}(?:-[A-Za-z]{2})?$/'],
                 'data.skip_module' => ['required', 'boolean'],
             ],
+            'response' => [
+                'data' => ['required', 'array:code,message,skip_module'],
+                'data.code' => ['required', 'integer', 'min:400', 'max:699'],
+                'data.message' => ['present', 'nullable', 'string', 'max:128'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'hangup' => [
+                'data' => ['required', 'array:skip_module'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'set_variable' => [
+                'data' => ['required', 'array:variable,value,channel,skip_module'],
+                'data.variable' => ['required', 'string', Rule::in(['call_priority'])],
+                'data.value' => ['required', 'string', 'regex:/^\d{1,3}$/', 'integer', 'min:0', 'max:255'],
+                'data.channel' => ['required', 'string', Rule::in(['a', 'both'])],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'branch_variable' => [
+                'data' => ['required', 'array:variable,scope,skip_module'],
+                'data.variable' => ['required', 'string', Rule::in(['call_priority'])],
+                'data.scope' => ['required', 'string', Rule::in(['custom_channel_vars'])],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
             'missed_call_alert' => [
                 'data' => ['required', 'array:recipients,skip_module'],
                 'data.recipients' => ['required', 'array', 'min:1', 'max:50'],
                 'data.recipients.*' => ['required', 'array:type,id'],
                 'data.recipients.*.type' => ['required', 'string', Rule::in(['user', 'email'])],
                 'data.recipients.*.id' => ['required', 'string', 'max:254'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'set_cid' => [
+                'data' => ['required', 'array:caller_id_name,caller_id_number,skip_module'],
+                'data.caller_id_name' => ['present', 'string', 'max:128'],
+                'data.caller_id_number' => ['present', 'string', 'max:64'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'prepend_cid' => [
+                'data' => ['required', 'array:action,apply_to,caller_id_name_prefix,caller_id_number_prefix,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['reset', 'prepend'])],
+                'data.apply_to' => ['required', 'string', Rule::in(['original', 'current'])],
+                'data.caller_id_name_prefix' => ['present', 'string', 'max:128'],
+                'data.caller_id_number_prefix' => ['present', 'string', 'max:64'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'set_alert_info' => [
+                'data' => ['required', 'array:alert_info,skip_module'],
+                'data.alert_info' => ['required', 'string', 'max:256', 'not_regex:/[\r\n]/'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'check_cid' => [
+                'data' => ['required', 'array:regex,use_absolute_mode,external_caller_id_name,external_caller_id_number,user_id,skip_module'],
+                'data.regex' => ['required', 'string', 'max:512', new SafeSwitchRegex],
+                'data.use_absolute_mode' => [
+                    'required',
+                    'boolean',
+                    function (string $attribute, mixed $value, \Closure $fail): void {
+                        if ($value !== false) {
+                            $fail('Absolute caller-number mode is preserved but not editable.');
+                        }
+                    },
+                ],
+                'data.external_caller_id_name' => ['present', 'nullable', 'string', 'min:1', 'max:128'],
+                'data.external_caller_id_number' => ['present', 'nullable', 'string', 'min:1', 'max:64'],
+                'data.user_id' => ['present', 'nullable', 'uuid'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'cidlistmatch' => [
+                'data' => ['required', 'array:caller_id_list_id,skip_module'],
+                'data.caller_id_list_id' => ['required', 'uuid'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'temporal_route' => [
+                'data' => ['required', 'array:action,rules,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['disable', 'enable', 'reset'])],
+                'data.rules' => ['present', 'array', 'max:250'],
+                'data.rules.*' => ['required', 'uuid', 'distinct'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'ring_group_toggle' => [
+                'data' => ['required', 'array:action,callflow_id,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['login', 'logout'])],
+                'data.callflow_id' => ['required', 'uuid'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'hotdesk' => [
+                'data' => ['required', 'array:action,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['login', 'logout', 'toggle'])],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'do_not_disturb' => [
+                'data' => ['required', 'array:action,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['activate', 'deactivate', 'toggle'])],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'call_forward' => [
+                'data' => ['required', 'array:action,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['activate', 'deactivate', 'update'])],
                 'data.skip_module' => ['required', 'boolean'],
             ],
         };
@@ -97,7 +191,32 @@ class CallflowInlineNodeDataValidator
             $this->validateMissedCallAlertRecipients($settings['recipients']);
         }
 
+        if ($module === 'check_cid') {
+            $this->validateCheckCidIdentity($settings);
+        }
+
         return $settings;
+    }
+
+    /** @param array<string, mixed> $settings */
+    private function validateCheckCidIdentity(array $settings): void
+    {
+        $fields = ['external_caller_id_name', 'external_caller_id_number', 'user_id'];
+        $configured = array_filter($fields, fn (string $field): bool => ($settings[$field] ?? null) !== null);
+
+        if ($configured === [] || count($configured) === count($fields)) {
+            return;
+        }
+
+        $errors = [];
+
+        foreach ($fields as $field) {
+            if (($settings[$field] ?? null) === null) {
+                $errors["data.$field"] = ['Complete all caller identity override fields or clear all three.'];
+            }
+        }
+
+        throw ValidationException::withMessages($errors);
     }
 
     /** @return list<string> */

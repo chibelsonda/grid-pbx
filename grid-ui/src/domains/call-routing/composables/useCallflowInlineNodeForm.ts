@@ -19,12 +19,18 @@ type InlineFormState = {
   data: CallflowInlineNodeData
 }
 
-function defaults(module: CallflowInlineModule): CallflowInlineNodeData {
+function defaults(
+  module: CallflowInlineModule,
+  preset: Readonly<Partial<CallflowInlineNodeData>> = {},
+): CallflowInlineNodeData {
+  let data: CallflowInlineNodeData
+
   switch (module) {
     case 'sleep':
-      return { duration: 0, unit: 's', skip_module: false }
+      data = { duration: 0, unit: 's', skip_module: false }
+      break
     case 'tts':
-      return {
+      data = {
         text: '',
         voice: 'female',
         language: null,
@@ -33,8 +39,9 @@ function defaults(module: CallflowInlineModule): CallflowInlineNodeData {
         terminators: [...callflowDtmfDigits],
         skip_module: false,
       }
+      break
     case 'collect_dtmf':
-      return {
+      data = {
         collection_name: null,
         interdigit_timeout: 2000,
         max_digits: 1,
@@ -42,8 +49,9 @@ function defaults(module: CallflowInlineModule): CallflowInlineNodeData {
         timeout: 5000,
         skip_module: false,
       }
+      break
     case 'record_call':
-      return {
+      data = {
         action: 'start',
         format: null,
         label: null,
@@ -55,19 +63,87 @@ function defaults(module: CallflowInlineModule): CallflowInlineNodeData {
         time_limit: 3600,
         skip_module: false,
       }
+      break
     case 'record_caller':
-      return { format: null, time_limit: 3600, skip_module: false }
+      data = { format: null, time_limit: 3600, skip_module: false }
+      break
     case 'send_dtmf':
-      return { digits: '', duration_ms: 2000, skip_module: false }
+      data = { digits: '', duration_ms: 2000, skip_module: false }
+      break
     case 'flush_dtmf':
-      return { collection_name: 'default', skip_module: false }
+      data = { collection_name: 'default', skip_module: false }
+      break
     case 'dead_air':
-      return { skip_module: false }
+      data = { skip_module: false }
+      break
     case 'language':
-      return { language: 'en', skip_module: false }
+      data = { language: 'en', skip_module: false }
+      break
+    case 'response':
+      data = { code: 486, message: null, skip_module: false }
+      break
+    case 'hangup':
+      data = { skip_module: false }
+      break
+    case 'set_variable':
+      data = { variable: 'call_priority', value: '0', channel: 'a', skip_module: false }
+      break
+    case 'branch_variable':
+      data = {
+        variable: 'call_priority',
+        scope: 'custom_channel_vars',
+        skip_module: false,
+      }
+      break
     case 'missed_call_alert':
-      return { recipients: [], skip_module: false }
+      data = { recipients: [], skip_module: false }
+      break
+    case 'set_cid':
+      data = { caller_id_name: '', caller_id_number: '', skip_module: false }
+      break
+    case 'prepend_cid':
+      data = {
+        action: 'prepend',
+        apply_to: 'original',
+        caller_id_name_prefix: '',
+        caller_id_number_prefix: '',
+        skip_module: false,
+      }
+      break
+    case 'set_alert_info':
+      data = { alert_info: '', skip_module: false }
+      break
+    case 'check_cid':
+      data = {
+        regex: '.*',
+        use_absolute_mode: false,
+        external_caller_id_name: null,
+        external_caller_id_number: null,
+        user_id: null,
+        skip_module: false,
+      }
+      break
+    case 'cidlistmatch':
+      data = { caller_id_list_id: '', skip_module: false }
+      break
+    case 'temporal_route':
+      data = { action: 'disable', rules: [], skip_module: false }
+      break
+    case 'ring_group_toggle':
+      data = { action: 'login', callflow_id: '', skip_module: false }
+      break
+    case 'hotdesk':
+      data = { action: 'login', skip_module: false }
+      break
+    case 'do_not_disturb':
+      data = { action: 'activate', skip_module: false }
+      break
+    case 'call_forward':
+      data = { action: 'activate', skip_module: false }
+      break
   }
+
+  return { ...data, ...preset }
 }
 
 function settingsForEdit(
@@ -101,15 +177,18 @@ export function useCallflowInlineNodeForm(
   const branches = computed(() =>
     context.value.operation === 'create' ? availableCallflowBranches(context.value.node) : [],
   )
-  const form = reactive<InlineFormState>({ branch: null, data: defaults(module.value) })
+  const form = reactive<InlineFormState>({
+    branch: null,
+    data: defaults(module.value, context.value.preset),
+  })
   const validationErrors = ref<FormErrors>({})
 
   function initialize(): void {
     form.branch = branches.value[0]?.value ?? null
-    form.data = settingsForEdit(
-      module.value,
-      context.value.operation === 'update' ? context.value.node.settings : null,
-    )
+    form.data =
+      context.value.operation === 'update'
+        ? settingsForEdit(module.value, context.value.node.settings)
+        : defaults(module.value, context.value.preset)
     validationErrors.value = {}
   }
 

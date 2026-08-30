@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { callflowTreeBranchKeys, type CallflowTreeBranchKey } from '../types/callRouting'
+import { isCallflowTreeBranchKey, type CallflowTreeBranchKey } from '../types/callRouting'
 
 export function createCallflowNodeFormSchema(
   destinationIds: string[],
@@ -11,7 +11,9 @@ export function createCallflowNodeFormSchema(
 
   return z
     .object({
-      branch: z.enum(callflowTreeBranchKeys).nullable(),
+      branch: z
+        .custom<CallflowTreeBranchKey>(isCallflowTreeBranchKey, 'Choose a supported callflow branch.')
+        .nullable(),
       destination_id: z.string(),
     })
     .strict()

@@ -30,7 +30,20 @@ class CallflowTreeMoveValidator
         'flush_dtmf',
         'dead_air',
         'language',
+        'response',
+        'hangup',
+        'set_variable',
+        'branch_variable',
         'missed_call_alert',
+        'set_cid',
+        'prepend_cid',
+        'set_alert_info',
+        'check_cid',
+        'cidlistmatch',
+        'ring_group_toggle',
+        'hotdesk',
+        'do_not_disturb',
+        'call_forward',
     ];
 
     /**
@@ -81,11 +94,14 @@ class CallflowTreeMoveValidator
             );
         }
 
-        $destinationModule = is_string($destination['module'] ?? null)
-            ? $destination['module']
-            : '';
+        if (CallflowBranchPolicy::childrenAreLocked($destination)) {
+            $this->fail(
+                'destination_parent_path',
+                'This conditional action has preserved branches that cannot be edited.',
+            );
+        }
 
-        if (! $this->supportsBranch($destinationModule, $destinationBranch)) {
+        if (! CallflowBranchPolicy::supports($destination, $destinationBranch)) {
             $this->fail(
                 'destination_branch',
                 'The selected branch is not valid for the destination callflow action.',
@@ -107,6 +123,10 @@ class CallflowTreeMoveValidator
     private function nodeAt(array $node, array $path, string $field): array
     {
         foreach ($path as $segment) {
+            if (! CallflowBranchPolicy::supports($node, $segment)) {
+                $this->fail($field, 'The selected callflow path contains a preserved branch.');
+            }
+
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
             $child = $children[$segment] ?? null;
 
@@ -125,19 +145,6 @@ class CallflowTreeMoveValidator
     {
         return count($path) >= count($prefix)
             && array_slice($path, 0, count($prefix)) === $prefix;
-    }
-
-    private function supportsBranch(string $module, string $branch): bool
-    {
-        if ($branch === '_') {
-            return true;
-        }
-
-        if ($module === 'menu') {
-            return in_array($branch, ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*'], true);
-        }
-
-        return $module === 'temporal_route' && $branch === 'rule_set';
     }
 
     private function fail(string $field, string $message): never
