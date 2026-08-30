@@ -39,6 +39,41 @@ final class SwitchClientTest extends TestCase
         self::assertSame('account-id', $payload['data']['id']);
     }
 
+    public function test_it_exposes_allowlisted_capability_values_from_the_cached_authentication_response(): void
+    {
+        $responses = new MockHandler([
+            new Response(201, [], json_encode([
+                'status' => 'success',
+                'auth_token' => 'test-token',
+                'data' => [
+                    'capabilities' => [
+                        'voicemail' => [
+                            'transcription' => ['available' => false, 'default' => true],
+                        ],
+                    ],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+        $history = [];
+        $stack = HandlerStack::create($responses);
+        $stack->push(Middleware::history($history));
+        $provider = new ApiKeyTokenProvider(
+            new Client(['handler' => $stack]),
+            new SwitchConfig('http://switch:8000/v2', 'test-api-key'),
+        );
+
+        self::assertSame('test-token', $provider->token());
+        self::assertSame(
+            ['available' => false, 'default' => true],
+            $provider->capability('voicemail.transcription'),
+        );
+        self::assertSame(
+            ['available' => null, 'default' => null],
+            $provider->capability('missing.feature'),
+        );
+        self::assertCount(1, $history);
+    }
+
     public function test_it_replaces_an_expired_token_before_retrying_once(): void
     {
         $responses = new MockHandler([

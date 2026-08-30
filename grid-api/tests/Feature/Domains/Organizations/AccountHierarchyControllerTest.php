@@ -6,7 +6,10 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Contracts\SwitchAccountGateway;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Services\Models\SwitchServiceQuantity;
 use App\Domains\Services\Models\SwitchServiceSummary;
+use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -115,10 +118,201 @@ class AccountHierarchyControllerTest extends TestCase
             ->assertJsonPath('data.account.id', $account->id)
             ->assertJsonPath('data.billing_reseller.id', $billingReseller->id)
             ->assertJsonPath('data.billing_reseller_projected', true)
+            ->assertJsonPath('data.account.service_projection.status', 'healthy')
+            ->assertJsonPath(
+                'data.account.service_projection.billing_reseller.id',
+                $billingReseller->id,
+            )
             ->assertJsonPath('data.mutations.promote.available', false)
             ->assertJsonPath('data.mutations.demote.available', false)
             ->assertJsonMissingPath('data.billing_reseller.switch_account_id')
             ->assertJsonMissingPath('data.billing_reseller.account_id');
+    }
+
+    public function test_hierarchy_includes_safe_descendant_service_ownership_and_projection_health(): void
+    {
+        $this->travelTo('2026-08-31 06:00:00');
+        $user = User::factory()->create();
+        $organization = Organization::factory()->create();
+        $organization->users()->attach($user, ['role' => 'reseller_administrator']);
+        $reseller = SwitchAccount::factory()->for($organization)->create([
+            'name' => 'Grid Reseller',
+            'is_reseller' => true,
+            'descendants_count' => 1,
+        ]);
+        $child = SwitchAccount::factory()->for($organization)->create([
+            'parent_account_id' => $reseller->getKey(),
+            'parent_switch_account_id' => $reseller->switch_account_id,
+            'name' => 'Acme Child',
+        ]);
+        SwitchServiceSummary::factory()->for($child)->create([
+            'billing_reseller_account_id' => $reseller->getKey(),
+            'billing_reseller_switch_account_id' => $reseller->switch_account_id,
+            'last_synced_at' => now()->subMinutes(10),
+            'sync_status' => ProjectionStatus::Healthy,
+        ]);
+        SyncCheckpoint::query()->create([
+            'switch_account_id' => $child->getKey(),
+            'resource_type' => 'services',
+            'status' => ProjectionStatus::Syncing,
+            'last_successful_at' => now()->subMinutes(10),
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$reseller->id}/hierarchy");
+
+        $response->assertOk()
+            ->assertJsonPath('data.descendants.0.id', $child->id)
+            ->assertJsonPath('data.descendants.0.service_projection.status', 'syncing')
+            ->assertJsonPath(
+                'data.descendants.0.service_projection.last_successful_at',
+                '2026-08-31T05:50:00+00:00',
+            )
+            ->assertJsonPath(
+                'data.descendants.0.service_projection.billing_reseller.id',
+                $reseller->id,
+            )
+            ->assertJsonPath(
+                'data.descendants.0.service_projection.billing_reseller.name',
+                'Grid Reseller',
+            )
+            ->assertJsonPath(
+                'data.descendants.0.service_projection.billing_reseller_projected',
+                true,
+            )
+            ->assertJsonMissingPath('data.descendants.0.service_projection.billing_reseller.account_id')
+            ->assertJsonMissingPath('data.descendants.0.service_projection.billing_reseller.switch_account_id');
+    }
+
+    public function test_hierarchy_summarizes_scoped_services_and_reports_safe_demotion_preflight(): void
+    {
+        $user = User::factory()->create();
+        $organization = Organization::factory()->create();
+        $organization->users()->attach($user, ['role' => 'reseller_administrator']);
+        $reseller = SwitchAccount::factory()->for($organization)->create([
+            'name' => 'Grid Reseller',
+            'is_reseller' => true,
+            'descendants_count' => 1,
+        ]);
+        $child = SwitchAccount::factory()->for($organization)->create([
+            'parent_account_id' => $reseller->getKey(),
+            'parent_switch_account_id' => $reseller->switch_account_id,
+            'name' => 'Acme Child',
+        ]);
+        SwitchServiceSummary::factory()->for($reseller)->create([
+            'due_today' => 12.50,
+            'recurring_amount' => 40,
+            'sync_status' => ProjectionStatus::Healthy,
+        ]);
+        SwitchServiceSummary::factory()->for($child)->create([
+            'billing_reseller_account_id' => $reseller->getKey(),
+            'billing_reseller_switch_account_id' => $reseller->switch_account_id,
+            'due_today' => 7.25,
+            'recurring_amount' => 15.50,
+            'sync_status' => ProjectionStatus::Stale,
+        ]);
+        SwitchServiceQuantity::query()->create([
+            'switch_account_id' => $reseller->getKey(),
+            'scope' => 'account',
+            'category' => 'devices',
+            'item' => 'sip_device',
+            'quantity' => 2,
+        ]);
+        SwitchServiceQuantity::query()->create([
+            'switch_account_id' => $child->getKey(),
+            'scope' => 'account',
+            'category' => 'devices',
+            'item' => 'sip_device',
+            'quantity' => 3,
+        ]);
+        SwitchServiceQuantity::query()->create([
+            'switch_account_id' => $child->getKey(),
+            'scope' => 'cascade',
+            'category' => 'users',
+            'item' => 'user',
+            'quantity' => 4,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$reseller->id}/hierarchy");
+
+        $response->assertOk()
+            ->assertJsonPath('data.portfolio.accounts.total', 2)
+            ->assertJsonPath('data.portfolio.accounts.projected', 2)
+            ->assertJsonPath('data.portfolio.accounts.healthy', 1)
+            ->assertJsonPath('data.portfolio.accounts.attention', 1)
+            ->assertJsonPath('data.portfolio.billing_ownership.projected', 2)
+            ->assertJsonPath('data.portfolio.billing_ownership.unresolved', 0)
+            ->assertJsonPath('data.portfolio.billing.due_today', 19.75)
+            ->assertJsonPath('data.portfolio.billing.recurring_amount', 55.5)
+            ->assertJsonPath('data.portfolio.quantities.0.scope', 'account')
+            ->assertJsonPath('data.portfolio.quantities.0.category', 'devices')
+            ->assertJsonPath('data.portfolio.quantities.0.item', 'sip_device')
+            ->assertJsonPath('data.portfolio.quantities.0.quantity', 5)
+            ->assertJsonPath('data.portfolio.quantities.1.scope', 'cascade')
+            ->assertJsonPath('data.portfolio.quantities.1.quantity', 4)
+            ->assertJsonPath('data.portfolio.warnings.0.code', 'service_projection_attention')
+            ->assertJsonPath('data.portfolio.warnings.0.count', 1)
+            ->assertJsonPath('data.portfolio.warnings.0.affected_accounts.0.id', $child->id)
+            ->assertJsonPath('data.portfolio.warnings.0.affected_accounts.0.name', 'Acme Child')
+            ->assertJsonPath(
+                'data.portfolio.warnings.0.affected_accounts.0.service_projection_status',
+                'stale',
+            )
+            ->assertJsonPath(
+                'data.portfolio.warnings.0.guidance',
+                'Synchronize services for each listed account. If an error remains, review the safe synchronization status and server logs.',
+            )
+            ->assertJsonPath('data.mutation_preflight.operation', 'demote')
+            ->assertJsonPath('data.mutation_preflight.operationally_ready', false)
+            ->assertJsonPath('data.mutation_preflight.mutation_available', false)
+            ->assertJsonPath('data.mutation_preflight.checks.2.code', 'no_descendants')
+            ->assertJsonPath('data.mutation_preflight.checks.2.passed', false)
+            ->assertJsonPath('data.mutation_preflight.checks.2.affected_accounts.0.id', $child->id)
+            ->assertJsonPath('data.mutation_preflight.checks.3.code', 'no_billing_dependents')
+            ->assertJsonPath('data.mutation_preflight.checks.3.count', 1)
+            ->assertJsonPath('data.mutation_preflight.checks.3.affected_accounts.0.id', $child->id)
+            ->assertJsonPath('data.mutation_preflight.checks.4.code', 'platform_policy_available')
+            ->assertJsonPath('data.mutation_preflight.checks.4.passed', false)
+            ->assertJsonPath('data.mutation_preflight.checks.4.affected_accounts', [])
+            ->assertJsonMissingPath('data.portfolio.account_id')
+            ->assertJsonMissingPath(
+                'data.portfolio.warnings.0.affected_accounts.0.switch_account_id',
+            )
+            ->assertJsonMissingPath(
+                'data.mutation_preflight.checks.3.affected_accounts.0.account_id',
+            )
+            ->assertJsonMissingPath('data.mutation_preflight.switch_account_id');
+    }
+
+    public function test_promotion_preflight_can_be_operationally_ready_without_enabling_mutation(): void
+    {
+        $user = User::factory()->create();
+        $organization = Organization::factory()->create();
+        $organization->users()->attach($user, ['role' => 'account_administrator']);
+        $account = SwitchAccount::factory()->for($organization)->create([
+            'is_reseller' => false,
+            'descendants_count' => 0,
+        ]);
+        SwitchServiceSummary::factory()->for($account)->create([
+            'billing_reseller_account_id' => null,
+            'billing_reseller_switch_account_id' => null,
+            'sync_status' => ProjectionStatus::Healthy,
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/hierarchy");
+
+        $response->assertOk()
+            ->assertJsonPath('data.mutation_preflight.operation', 'promote')
+            ->assertJsonPath('data.mutation_preflight.operationally_ready', true)
+            ->assertJsonPath('data.mutation_preflight.mutation_available', false)
+            ->assertJsonPath('data.mutation_preflight.checks.2.code', 'parent_projected')
+            ->assertJsonPath('data.mutation_preflight.checks.2.passed', true)
+            ->assertJsonPath('data.mutation_preflight.checks.3.code', 'billing_ownership_projected')
+            ->assertJsonPath('data.mutation_preflight.checks.3.passed', true)
+            ->assertJsonPath('data.mutation_preflight.checks.4.code', 'platform_policy_available')
+            ->assertJsonPath('data.mutation_preflight.checks.4.passed', false);
     }
 
     public function test_account_operator_cannot_view_reseller_administration(): void

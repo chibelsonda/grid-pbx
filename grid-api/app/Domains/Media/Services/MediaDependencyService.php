@@ -15,7 +15,10 @@ class MediaDependencyService
             ->where('switch_resource_id', $media->switch_resource_id)
             ->count();
         $callflows = $account->callflows()
-            ->whereJsonContains('modules', 'play')
+            ->where(function ($query): void {
+                $query->whereJsonContains('modules', 'play')
+                    ->orWhereJsonContains('modules', 'ring_group');
+            })
             ->get(['callflow_id', 'switch_json'])
             ->filter(fn ($callflow): bool => $this->flowReferences(
                 $callflow->switch_json['flow'] ?? null,
@@ -41,7 +44,9 @@ class MediaDependencyService
 
         $data = is_array($node['data'] ?? null) ? $node['data'] : [];
 
-        if (($node['module'] ?? null) === 'play' && ($data['id'] ?? null) === $resourceId) {
+        if ((($node['module'] ?? null) === 'play' && ($data['id'] ?? null) === $resourceId)
+            || (($node['module'] ?? null) === 'ring_group'
+                && ($data['ringback'] ?? null) === $resourceId)) {
             return true;
         }
 

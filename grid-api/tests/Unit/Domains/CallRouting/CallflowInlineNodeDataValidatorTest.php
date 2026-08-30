@@ -158,6 +158,9 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
             'repeats' => 2,
             'ignore_forward' => true,
             'fail_on_single_reject' => false,
+            'ringback_media_id' => null,
+            'ringtone_internal' => null,
+            'ringtone_external' => null,
             'skip_module' => false,
         ];
 
@@ -199,6 +202,16 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
                 'delay' => 5,
                 'timeout' => 20,
             ]]],
+            [...$settings, 'endpoints' => [[
+                'extension_id' => '22222222-2222-4222-8222-222222222222',
+                'delay' => 5,
+                'timeout' => 20,
+            ]]],
+            [...$settings, 'endpoints' => [[
+                'group_id' => '33333333-3333-4333-8333-333333333333',
+                'delay' => 5,
+                'timeout' => 20,
+            ]]],
             [...$settings, 'strategy' => 'single', 'endpoints' => [[
                 'device_id' => $deviceId,
                 'delay' => 1,
@@ -229,6 +242,9 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
             [...$settings, 'repeats' => 4],
             [...$settings, 'ignore_forward' => 'true'],
             [...$settings, 'fail_on_single_reject' => 1],
+            [...$settings, 'ringback_media_id' => 'raw-switch-media'],
+            [...$settings, 'ringtone_internal' => "safe\r\nX-Injected: true"],
+            [...$settings, 'ringtone_external' => str_repeat('x', 257)],
         ] as $data) {
             try {
                 $validator->validate('ring_group', $data);

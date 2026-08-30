@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
+import { serviceApi } from '@/domains/services/api/serviceApi'
 import { resellerApi } from '../api/resellerApi'
 import type {
   AccountHierarchy,
@@ -8,10 +9,10 @@ import type {
   ResellerStatus,
 } from '../types/reseller'
 
-const errorMessage = (error: unknown): string =>
-  axios.isAxiosError(error)
-    ? (error.response?.data?.message ?? 'Unable to load reseller administration information.')
-    : 'Unable to load reseller administration information.'
+const errorMessage = (
+  error: unknown,
+  fallback = 'Unable to load reseller administration information.',
+): string => (axios.isAxiosError(error) ? (error.response?.data?.message ?? fallback) : fallback)
 
 export const useResellerStore = defineStore('reseller', {
   state: () => ({
@@ -23,6 +24,10 @@ export const useResellerStore = defineStore('reseller', {
     onboarding: false,
     error: null as string | null,
     onboardingError: null as string | null,
+    onboardingNotice: null as string | null,
+    onboardingNoticeTone: 'success' as 'success' | 'warning',
+    syncingDescendantId: null as string | null,
+    descendantSyncError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
   }),
   actions: {
@@ -35,6 +40,10 @@ export const useResellerStore = defineStore('reseller', {
       this.onboarding = false
       this.error = null
       this.onboardingError = null
+      this.onboardingNotice = null
+      this.onboardingNoticeTone = 'success'
+      this.syncingDescendantId = null
+      this.descendantSyncError = null
       this.fieldErrors = {}
     },
 
@@ -83,6 +92,11 @@ export const useResellerStore = defineStore('reseller', {
         const result = await resellerApi.onboardDescendant(accountId, input)
         this.hierarchy = result.hierarchy
         this.onboardingCandidates = null
+        const serviceProjectionStarted = result.service_projection.status !== 'not_started'
+        this.onboardingNoticeTone = serviceProjectionStarted ? 'success' : 'warning'
+        this.onboardingNotice = serviceProjectionStarted
+          ? 'Descendant onboarded. Service ownership synchronization has started.'
+          : 'Descendant onboarded, but service ownership synchronization could not start. Retry it from Services.'
         return true
       } catch (error) {
         this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
@@ -91,6 +105,33 @@ export const useResellerStore = defineStore('reseller', {
         return false
       } finally {
         this.onboarding = false
+      }
+    },
+
+    async synchronizeDescendant(
+      scopeAccountId: string,
+      descendantAccountId: string,
+    ): Promise<boolean> {
+      this.syncingDescendantId = descendantAccountId
+      this.descendantSyncError = null
+
+      try {
+        const run = await serviceApi.synchronize(descendantAccountId)
+
+        if (run.status !== 'succeeded') {
+          throw new Error('Service synchronization did not finish successfully.')
+        }
+
+        await this.load(scopeAccountId)
+        return true
+      } catch (error) {
+        this.descendantSyncError = errorMessage(
+          error,
+          'Unable to synchronize service ownership for this descendant.',
+        )
+        return false
+      } finally {
+        this.syncingDescendantId = null
       }
     },
   },

@@ -21,6 +21,10 @@ const tab = ref<'queues' | 'agents'>('queues')
 const queuePanel = ref(false)
 const agentPanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const configurationAvailable = computed(() => queues.options.capabilities.configuration_available)
+const liveAgentControlsAvailable = computed(
+  () => queues.options.capabilities.live_agent_controls_available,
+)
 
 watch(
   () => accounts.selectedId,
@@ -39,7 +43,7 @@ async function openQueue(id?: string): Promise<void> {
   queuePanel.value = true
 }
 async function openAgent(agent: Agent): Promise<void> {
-  if (!accounts.selectedId) return
+  if (!accounts.selectedId || !liveAgentControlsAvailable.value) return
   agentPanel.value = true
   await queues.prepareAgent(accounts.selectedId, agent)
 }
@@ -69,7 +73,8 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
       <div class="ml-auto flex gap-2">
         <button
           v-if="canManage"
-          :disabled="queues.synchronizing"
+          :disabled="queues.synchronizing || !configurationAvailable"
+          :title="configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'"
           class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
           @click="accounts.selectedId && queues.synchronize(accounts.selectedId)"
         >
@@ -79,7 +84,9 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
           />Sync</button
         ><button
           v-if="canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+          :disabled="!configurationAvailable"
+          :title="configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'"
+          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-40"
           @click="openQueue()"
         >
           <PlusIcon class="size-4" />New queue
@@ -88,6 +95,23 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     </div>
   </section>
   <div class="page-container py-4 sm:py-6 lg:py-8">
+    <div
+      v-if="!queues.loading && !configurationAvailable"
+      class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"
+    >
+      Switch Queue configuration is unavailable. Projected data remains read-only until the
+      configuration API recovers.
+    </div>
+    <div
+      v-else-if="!queues.loading && !liveAgentControlsAvailable"
+      class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"
+    >
+      Queue configuration is available, but the connected Switch did not report live agent controls
+      as available.
+      <span v-if="!queues.options.capabilities.statistics_available">
+        Queue statistics are also unavailable in this deployment.
+      </span>
+    </div>
     <div class="mb-5 grid gap-4 sm:grid-cols-2">
       <article class="card-surface flex items-center gap-4 p-4">
         <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"
@@ -154,7 +178,13 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
             class="mb-4 flex gap-3"
             @submit.prevent="accounts.selectedId && queues.load(accounts.selectedId)"
           >
-            <SearchInput v-model="queues.search" label="Search queues" class="min-w-0 flex-1" placeholder="Search queues…" input-class="h-10 bg-white text-xs shadow-sm" /><button
+            <SearchInput
+              v-model="queues.search"
+              label="Search queues"
+              class="min-w-0 flex-1"
+              placeholder="Search queues…"
+              input-class="h-10 bg-white text-xs shadow-sm"
+            /><button
               class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
             >
               Search
@@ -228,7 +258,12 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
                 v-for="agent in queues.agents"
                 v-else
                 :key="agent.id"
-                class="cursor-pointer hover:bg-slate-50"
+                :aria-disabled="!liveAgentControlsAvailable"
+                :class="
+                  liveAgentControlsAvailable
+                    ? 'cursor-pointer hover:bg-slate-50'
+                    : 'cursor-not-allowed opacity-60'
+                "
                 @click="openAgent(agent)"
               >
                 <td class="px-5 py-4 font-semibold text-slate-700">{{ agent.name }}</td>
@@ -251,7 +286,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     :saving="queues.saving"
     :error="queues.mutationError"
     :field-errors="queues.fieldErrors"
-    :can-manage="canManage"
+    :can-manage="canManage && configurationAvailable"
     @close="queuePanel = false"
     @save="save"
     @remove="remove"
@@ -263,7 +298,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     :loading="queues.statusLoading"
     :error="queues.mutationError"
     :field-errors="queues.fieldErrors"
-    :can-manage="canManage"
+    :can-manage="canManage && liveAgentControlsAvailable"
     @close="agentPanel = false"
     @save="saveAgentStatus"
   />

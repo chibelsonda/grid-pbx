@@ -1,4 +1,4 @@
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
@@ -13,14 +13,23 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push }),
 }))
 
+function mountPage() {
+  return mount(VoicemailBoxFormPage, {
+    global: {
+      components: { ToggleSwitch },
+      stubs: {
+        CrudSlideOver: { template: '<div><slot /></div>' },
+        DisclosureCard: { template: '<section><slot /></section>' },
+      },
+    },
+  })
+}
+
 describe('VoicemailBoxFormPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     localStorage.clear()
     push.mockReset()
-  })
-
-  it('shows inline invalid controls without promoting Zod errors to a mutation alert', async () => {
     const accounts = useAccountStore()
     accounts.accounts = [
       {
@@ -45,18 +54,13 @@ describe('VoicemailBoxFormPage', () => {
       },
     ]
     accounts.selectedId = 'account-1'
+  })
+
+  it('shows inline invalid controls without promoting Zod errors to a mutation alert', async () => {
     const voicemail = useVoicemailStore()
     vi.spyOn(voicemail, 'loadFormOptions').mockResolvedValue()
 
-    const wrapper = mount(VoicemailBoxFormPage, {
-      global: {
-        components: { ToggleSwitch },
-        stubs: {
-          CrudSlideOver: { template: '<div><slot /></div>' },
-          DisclosureCard: { template: '<section><slot /></section>' },
-        },
-      },
-    })
+    const wrapper = mountPage()
 
     await wrapper.get('form').trigger('submit')
 
@@ -66,5 +70,28 @@ describe('VoicemailBoxFormPage', () => {
     expect(wrapper.text()).toContain('Enter a mailbox name.')
     expect(wrapper.text()).not.toContain('Check the highlighted fields and try again.')
     expect(voicemail.mutationError).toBeNull()
+  })
+
+  it('disables unavailable voicemail transcription before a mutation is attempted', async () => {
+    const voicemail = useVoicemailStore()
+    voicemail.formOptions.capabilities.voicemail_transcription = {
+      schema_supported: true,
+      runtime_available: false,
+      default_enabled: false,
+    }
+    vi.spyOn(voicemail, 'loadFormOptions').mockResolvedValue()
+    const create = vi.spyOn(voicemail, 'create')
+
+    const wrapper = mountPage()
+    await flushPromises()
+    const transcription = wrapper
+      .findAllComponents(ToggleSwitch)
+      .find((toggle) => toggle.props('label') === 'Transcribe messages')
+
+    expect(transcription?.props('disabled')).toBe(true)
+    expect(wrapper.text()).toContain(
+      'Voicemail transcription is unavailable on this Switch cluster.',
+    )
+    expect(create).not.toHaveBeenCalled()
   })
 })

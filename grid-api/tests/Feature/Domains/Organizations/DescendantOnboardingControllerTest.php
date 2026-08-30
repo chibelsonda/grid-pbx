@@ -6,7 +6,12 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Contracts\SwitchAccountGateway;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Services\Jobs\SyncSwitchServicesJob;
+use App\Domains\Services\Services\StartServiceSyncService;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
+use Illuminate\Support\Facades\Exceptions;
+use Illuminate\Support\Facades\Queue;
+use RuntimeException;
 use Tests\TestCase;
 
 class DescendantOnboardingControllerTest extends TestCase
@@ -15,6 +20,7 @@ class DescendantOnboardingControllerTest extends TestCase
 
     public function test_reseller_administrator_onboards_confirmed_descendant_and_returns_201(): void
     {
+        Queue::fake([SyncSwitchServicesJob::class]);
         $actor = User::factory()->create();
         $existingMember = User::factory()->create();
         $organization = Organization::factory()->create(['name' => 'Grid Reseller']);
@@ -83,6 +89,7 @@ class DescendantOnboardingControllerTest extends TestCase
             ->assertJsonPath('data.access_inheritance.acknowledged', true)
             ->assertJsonPath('data.hierarchy.children.0.name', 'Acme Child')
             ->assertJsonPath('data.hierarchy.coverage.unresolved_descendants_count', 0)
+            ->assertJsonPath('data.service_projection.status', 'queued')
             ->assertJsonMissingPath('data.onboarded_account.switch_account_id')
             ->assertJsonMissingPath('data.onboarded_account.account_id');
 
@@ -104,6 +111,76 @@ class DescendantOnboardingControllerTest extends TestCase
             'resource_id' => $onboardedAccountId,
             'outcome' => 'succeeded',
         ]);
+        $this->assertDatabaseHas('switch_sync_runs', [
+            'id' => $response->json('data.service_projection.sync_run_id'),
+            'switch_account_id' => SwitchAccount::query()->where('id', $onboardedAccountId)->value('account_id'),
+            'requested_by_user_id' => $actor->getKey(),
+            'resource_type' => 'services',
+            'status' => 'queued',
+        ]);
+        Queue::assertPushed(SyncSwitchServicesJob::class, function (SyncSwitchServicesJob $job) use ($onboardedAccountId): bool {
+            $accountKey = SwitchAccount::query()->where('id', $onboardedAccountId)->value('account_id');
+
+            return $job->switchAccountId === (string) $accountKey;
+        });
+    }
+
+    public function test_onboarding_remains_successful_when_service_projection_cannot_start(): void
+    {
+        Exceptions::fake([RuntimeException::class]);
+        [$actor, $organization, $scope] = $this->resellerScope();
+        $gateway = $this->mock(SwitchAccountGateway::class);
+        $gateway->shouldReceive('descendants')->twice()->andReturn([$this->candidate()]);
+        $gateway->shouldReceive('findBySwitchAccountId')->once()->andReturn([
+            ...$this->candidate(),
+            'enabled' => true,
+            'is_reseller' => false,
+            'superduper_admin' => false,
+        ]);
+        $gateway->shouldReceive('find')->once()->andReturn([
+            'id' => 'switch-reseller',
+            'name' => 'Grid Reseller',
+            'tree' => [],
+            'is_reseller' => true,
+            'descendants_count' => 1,
+        ]);
+        $this->mock(StartServiceSyncService::class)
+            ->shouldReceive('handle')
+            ->once()
+            ->andThrow(new RuntimeException('redis://private-host:6379 secret-token'));
+        $reference = $this->actingAs($actor)
+            ->getJson("/api/v1/accounts/{$scope->id}/descendant-onboarding")
+            ->assertOk()
+            ->json('data.candidates.0.reference');
+
+        $response = $this->actingAs($actor)->postJson(
+            "/api/v1/accounts/{$scope->id}/descendant-onboarding",
+            [
+                'reference' => $reference,
+                'confirmation' => 'Acme Child',
+                'acknowledge_existing_access' => true,
+            ],
+        );
+
+        $response->assertCreated()
+            ->assertJsonPath('data.onboarded_account.name', 'Acme Child')
+            ->assertJsonPath('data.service_projection.status', 'not_started')
+            ->assertJsonPath('data.service_projection.sync_run_id', null)
+            ->assertDontSee('private-host')
+            ->assertDontSee('secret-token');
+        $this->assertDatabaseHas('switch_accounts', [
+            'organization_id' => $organization->getKey(),
+            'switch_account_id' => 'switch-child',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'switch_account_id' => $scope->getKey(),
+            'action' => 'reseller_descendant.onboard',
+            'outcome' => 'succeeded',
+        ]);
+        Exceptions::assertReported(fn (RuntimeException $exception): bool => str_contains(
+            $exception->getMessage(),
+            'private-host',
+        ));
     }
 
     public function test_returns_422_without_existing_access_acknowledgement(): void

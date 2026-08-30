@@ -33,7 +33,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $node
-     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function resolveNode(array $node, array $targets): array
@@ -144,7 +144,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>|null
      */
     private function publicInlineSettings(string $module, array $data, array $targets): ?array
@@ -355,7 +355,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function publicPageGroupSettings(array $data, array $targets): array
@@ -404,7 +404,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function publicRingGroupSettings(array $data, array $targets): array
@@ -415,12 +415,30 @@ class CallflowReferenceResolver
         $failOnSingleReject = is_bool($data['fail_on_single_reject'] ?? null)
             ? $data['fail_on_single_reject']
             : false;
+        $hasRingback = array_key_exists('ringback', $data);
+        $ringbackValue = $data['ringback'] ?? null;
+        $ringbackIsDefault = ! $hasRingback || $ringbackValue === null || $ringbackValue === '';
+        $ringbackResourceId = is_string($ringbackValue) && $ringbackValue !== ''
+            ? $data['ringback']
+            : null;
+        $ringback = $ringbackResourceId === null
+            ? null
+            : ($targets['media'][$ringbackResourceId] ?? null);
+        $ringbackSupported = $ringbackIsDefault
+            || ($ringback['supports_ringback'] ?? false) === true;
+        $ringtones = is_array($data['ringtones'] ?? null) ? $data['ringtones'] : [];
+        $ringtonesSupported = ! array_key_exists('ringtones', $data)
+            || (is_array($data['ringtones'])
+                && $this->ringtoneIsSafe($ringtones, 'internal')
+                && $this->ringtoneIsSafe($ringtones, 'external'));
         $endpoints = $data['endpoints'] ?? null;
         $supported = in_array($strategy, ['simultaneous', 'single', 'weighted_random'], true)
             && $repeats >= 1
             && $repeats <= RingGroupPolicy::MAX_REPEATS
             && (! array_key_exists('ignore_forward', $data) || is_bool($data['ignore_forward']))
             && (! array_key_exists('fail_on_single_reject', $data) || is_bool($data['fail_on_single_reject']))
+            && $ringbackSupported
+            && $ringtonesSupported
             && is_array($endpoints)
             && array_is_list($endpoints)
             && $endpoints !== []
@@ -483,9 +501,33 @@ class CallflowReferenceResolver
             'repeats' => $supported ? $repeats : null,
             'ignore_forward' => $supported ? $ignoreForward : null,
             'fail_on_single_reject' => $supported ? $failOnSingleReject : null,
+            'ringback_media_id' => $supported ? ($ringback['id'] ?? null) : null,
+            'ringtone_internal' => $supported ? $this->ringtoneValue($ringtones, 'internal') : null,
+            'ringtone_external' => $supported ? $this->ringtoneValue($ringtones, 'external') : null,
             'reference_status' => $supported ? 'resolved' : 'unresolved',
             'skip_module' => (bool) ($data['skip_module'] ?? false),
         ];
+    }
+
+    /** @param array<string, mixed> $ringtones */
+    private function ringtoneIsSafe(array $ringtones, string $key): bool
+    {
+        if (! array_key_exists($key, $ringtones)) {
+            return true;
+        }
+
+        $value = $ringtones[$key];
+
+        return is_string($value)
+            && ($value === '' || (strlen($value) <= 256 && preg_match('/[\x00\r\n]/', $value) !== 1));
+    }
+
+    /** @param array<string, mixed> $ringtones */
+    private function ringtoneValue(array $ringtones, string $key): ?string
+    {
+        $value = $ringtones[$key] ?? null;
+
+        return is_string($value) && $value !== '' ? $value : null;
     }
 
     /** @param array<string, mixed> $data */
@@ -605,7 +647,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function publicCheckCidSettings(array $data, array $targets): array
@@ -638,7 +680,7 @@ class CallflowReferenceResolver
     }
 
     /**
-     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return list<array{type: string, id: string}>
      */
     private function publicMissedCallAlertRecipients(mixed $value, array $targets): array
@@ -674,7 +716,7 @@ class CallflowReferenceResolver
         return $recipients;
     }
 
-    /** @return array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>> */
+    /** @return array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>> */
     private function targetMaps(SwitchAccount $account): array
     {
         return [
@@ -707,6 +749,9 @@ class CallflowReferenceResolver
                 $media->switch_resource_id => [
                     'id' => $media->id,
                     'label' => $media->name ?? 'Unnamed media',
+                    'supports_ringback' => $media->streamable === true
+                        && is_string($media->content_type)
+                        && str_starts_with($media->content_type, 'audio/'),
                 ],
             ])->all(),
             'directory' => $account->directories()->get()->mapWithKeys(fn ($directory): array => [

@@ -13,7 +13,56 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
-test('shows schema-backed Queue announcements with inline validation and bounded listboxes', async ({ page }) => {
+test('separates available Queue configuration from unavailable live ACDc controls', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/v1\/accounts\/[^/]+\/(?:queues|agents)(?:\/|$)/.test(request.url())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+  const optionsResponse = page.waitForResponse((response) =>
+    /\/api\/v1\/accounts\/[^/]+\/queues\/options$/.test(new URL(response.url()).pathname),
+  )
+
+  await page.goto('/queues')
+  await expect(page.getByRole('heading', { name: 'Queues & Agents' })).toBeVisible()
+  const response = await optionsResponse
+  const payload = (await response.json()) as {
+    data: {
+      capabilities: {
+        configuration_available: boolean
+        live_agent_controls_available: boolean
+        statistics_available: boolean
+      }
+    }
+  }
+
+  expect(response.status()).toBe(200)
+  expect(payload.data.capabilities).toEqual({
+    configuration_available: true,
+    live_agent_controls_available: false,
+    statistics_available: false,
+  })
+  await expect(page.getByRole('button', { name: 'New queue' })).toBeEnabled()
+  await expect(
+    page.getByText(
+      'Queue configuration is available, but the connected Switch did not report live agent controls as available.',
+    ),
+  ).toBeVisible()
+  expect(JSON.stringify(payload.data.capabilities)).not.toContain('private')
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
+test('shows schema-backed Queue announcements with inline validation and bounded listboxes', async ({
+  page,
+}) => {
   const issues = collectPageIssues(page)
   await page.goto('/queues')
   await expect(page.getByRole('heading', { name: 'Queues & Agents' })).toBeVisible()
@@ -68,7 +117,11 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     const createResponse = await creation
     expect(createResponse.status()).toBe(201)
     const created = (await createResponse.json()) as {
-      data: { id: string; max_priority: number; announcements: { enabled: boolean; interval: number } }
+      data: {
+        id: string
+        max_priority: number
+        announcements: { enabled: boolean; interval: number }
+      }
     }
     createdId = created.data.id
     expect(created.data.max_priority).toBe(12)
@@ -87,7 +140,10 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     await page.getByRole('button', { name: 'Save queue' }).click()
     const updateResponse = await update
     expect(updateResponse.status()).toBe(200)
-    expect(((await updateResponse.json()) as { data: { announcements: { interval: number } } }).data.announcements.interval).toBe(45)
+    expect(
+      ((await updateResponse.json()) as { data: { announcements: { interval: number } } }).data
+        .announcements.interval,
+    ).toBe(45)
 
     await page.getByRole('cell', { name, exact: true }).click()
     await page.getByRole('switch', { name: 'Periodic announcements' }).click()
@@ -99,7 +155,10 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     await page.getByRole('button', { name: 'Save queue' }).click()
     const clearResponse = await clearing
     expect(clearResponse.status()).toBe(200)
-    expect(((await clearResponse.json()) as { data: { announcements: { enabled: boolean } } }).data.announcements.enabled).toBe(false)
+    expect(
+      ((await clearResponse.json()) as { data: { announcements: { enabled: boolean } } }).data
+        .announcements.enabled,
+    ).toBe(false)
   } finally {
     if (createdId !== null) {
       await page.goto('/queues')

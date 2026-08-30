@@ -110,6 +110,29 @@ class QueueControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_resource_id');
     }
 
+    public function test_options_expose_separate_acdc_capabilities_without_switch_identifiers(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $this->mock(SwitchQueueGateway::class)
+            ->shouldReceive('capabilities')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received): bool => $received->is($account))
+            ->andReturn([
+                'configuration_available' => true,
+                'live_agent_controls_available' => false,
+                'statistics_available' => false,
+            ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/queues/options")
+            ->assertOk()
+            ->assertJsonPath('data.capabilities.configuration_available', true)
+            ->assertJsonPath('data.capabilities.live_agent_controls_available', false)
+            ->assertJsonPath('data.capabilities.statistics_available', false)
+            ->assertJsonMissingPath('data.switch_account_id')
+            ->assertDontSee($account->switch_account_id);
+    }
+
     public function test_update_rejects_create_only_priority_and_partial_custom_announcement_media(): void
     {
         [$user, $account] = $this->accessibleAccount();

@@ -28,10 +28,100 @@ test('shows the selected account reseller boundary without mutation controls', a
   await expect(page.getByRole('heading', { name: 'Reseller administration' })).toBeVisible()
   await expect(page.getByText('Switch account role')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Billing ownership' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Hierarchy service totals' })).toBeVisible()
+  const quantityGroups = page.getByTestId('service-quantity-group')
+  if ((await quantityGroups.count()) > 0) {
+    await quantityGroups.first().click()
+    await expect(page.getByTestId('service-quantity-item').first()).toBeVisible()
+
+    const quantityFilter = page.getByRole('searchbox', { name: 'Filter projected quantities' })
+    await quantityFilter.fill('no-such-projected-quantity')
+    await expect(page.getByText('No projected quantities match')).toBeVisible()
+    await quantityFilter.clear()
+    await expect(quantityGroups.first()).toBeVisible()
+  }
   await expect(
     page.getByRole('heading', { name: 'Protected administration boundary' }),
   ).toBeVisible()
-  await expect(page.getByRole('button', { name: /promote|demote/i })).toHaveCount(0)
+  await expect(page.getByTestId('reseller-mutation-preflight')).toContainText(
+    /Dependencies (ready|blocked)/,
+  )
+  await expect(page.getByTestId('reseller-mutation-preflight')).toContainText(
+    'Platform Policy Available',
+  )
+  await page.getByRole('button', { name: /Platform Policy Available/ }).click()
+  await expect(
+    page.getByTestId('reseller-mutation-preflight').getByText('Recovery guidance'),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Promote account', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Demote account', exact: true })).toHaveCount(0)
+
+  const currentAccount = page.getByRole('button', { name: 'Current account' })
+  const originalAccountName = (await currentAccount.textContent())?.trim() ?? ''
+  await currentAccount.click()
+  const accountOptions = page.getByRole('option')
+  const accountOptionCount = await accountOptions.count()
+  let descendantAccountName: string | null = null
+
+  for (let index = 0; index < accountOptionCount; index += 1) {
+    const optionName = (await accountOptions.nth(index).textContent())?.trim() ?? ''
+
+    if (optionName && optionName !== originalAccountName) {
+      descendantAccountName = optionName
+      break
+    }
+  }
+
+  if (descendantAccountName) {
+    const [childHierarchyResponse, childResellerResponse] = await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith('/hierarchy')),
+      page.waitForResponse((response) => response.url().endsWith('/reseller')),
+      page.getByRole('option', { name: descendantAccountName, exact: true }).click(),
+    ])
+    const childReseller = (await childResellerResponse.json()) as {
+      data: {
+        billing_reseller: { name: string } | null
+        billing_reseller_projected: boolean | null
+        service_projection_last_synced_at: string | null
+      }
+    }
+
+    expect(childHierarchyResponse.ok()).toBe(true)
+    expect(childResellerResponse.ok()).toBe(true)
+    expect(childReseller.data.billing_reseller?.name).toBe(originalAccountName)
+    expect(childReseller.data.billing_reseller_projected).toBe(true)
+    expect(childReseller.data.service_projection_last_synced_at).not.toBeNull()
+    await expect(page.getByText('Projected in GridPBX')).toBeVisible()
+
+    const [restoredHierarchyResponse, restoredResellerResponse] = await Promise.all([
+      page.waitForResponse((response) => response.url().endsWith('/hierarchy')),
+      page.waitForResponse((response) => response.url().endsWith('/reseller')),
+      currentAccount
+        .click()
+        .then(() => page.getByRole('option', { name: originalAccountName, exact: true }).click()),
+    ])
+
+    expect(restoredHierarchyResponse.ok()).toBe(true)
+    expect(restoredResellerResponse.ok()).toBe(true)
+
+    await expect(page.getByRole('heading', { name: 'Descendant service ownership' })).toBeVisible()
+    const syncButton = page.getByRole('button', {
+      name: `Synchronize services for ${descendantAccountName}`,
+    })
+    const descendantRow = syncButton.locator('xpath=ancestor::article')
+    const syncStartedResponsePromise = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' && response.url().endsWith('/sync/services'),
+    )
+    await syncButton.click()
+    const syncStartedResponse = await syncStartedResponsePromise
+
+    expect(syncStartedResponse.status()).toBe(202)
+    await expect(syncButton).toHaveText('Sync', { timeout: 30_000 })
+    await expect(descendantRow.getByText('Healthy', { exact: true })).toBeVisible()
+  } else {
+    await page.keyboard.press('Escape')
+  }
 
   const reviewDescendants = page.getByRole('button', { name: 'Review descendants' })
   if (await reviewDescendants.isVisible()) {

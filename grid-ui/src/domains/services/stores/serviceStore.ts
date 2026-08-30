@@ -36,15 +36,7 @@ export const useServiceStore = defineStore('services', {
       this.synchronizing = true
       this.error = null
       try {
-        let run = await serviceApi.startSync(accountId)
-        for (
-          let attempt = 0;
-          attempt < 40 && ['queued', 'running'].includes(run.status);
-          attempt += 1
-        ) {
-          await new Promise((resolve) => window.setTimeout(resolve, 500))
-          run = await serviceApi.syncStatus(accountId, run.id)
-        }
+        const run = await serviceApi.synchronize(accountId)
         if (run.status !== 'succeeded')
           throw new Error(run.error_message ?? 'Service sync did not finish.')
         await this.load(accountId)

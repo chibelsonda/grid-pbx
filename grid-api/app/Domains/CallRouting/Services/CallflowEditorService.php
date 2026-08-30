@@ -127,6 +127,11 @@ class CallflowEditorService
                     'id' => $item->id,
                     'label' => $item->name ?? 'Voicemail greeting',
                     'detail' => $item->content_type,
+                    'supports_ringback' => is_string($item->switch_resource_id)
+                        && $item->switch_resource_id !== ''
+                        && $item->streamable === true
+                        && is_string($item->content_type)
+                        && str_starts_with($item->content_type, 'audio/'),
                 ])->values()->all(),
                 'directory' => $account->directories()->orderBy('name')->get()->map(fn ($item): array => [
                     'id' => $item->id,

@@ -9,7 +9,9 @@ use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Services\RedactSensitiveSwitchData;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
+use GridPbx\Switch\Shared\Capabilities\CapabilityProvider;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Throwable;
 use UnexpectedValueException;
 
@@ -20,6 +22,7 @@ class VoicemailBoxMutationService
         private readonly VoicemailMutationDataFactory $mutationData,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
         private readonly AuditService $audit,
+        private readonly CapabilityProvider $capabilities,
     ) {}
 
     /** @param array<string, mixed> $data */
@@ -29,6 +32,8 @@ class VoicemailBoxMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchVoicemailBox {
+        $this->assertTranscriptionAvailable($data);
+
         try {
             $snapshot = $this->gateway->create($account, $this->mutationData->make($account, $data));
 
@@ -61,6 +66,8 @@ class VoicemailBoxMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchVoicemailBox {
+        $this->assertTranscriptionAvailable($data, $voicemailBox);
+
         try {
             $snapshot = $this->gateway->update(
                 $account,
@@ -178,6 +185,22 @@ class VoicemailBoxMutationService
     private function stringValue(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function assertTranscriptionAvailable(
+        array $data,
+        ?SwitchVoicemailBox $voicemailBox = null,
+    ): void {
+        if (($data['transcribe'] ?? false) !== true || $voicemailBox?->transcribe === true) {
+            return;
+        }
+
+        if ($this->capabilities->capability('voicemail.transcription')['available'] === false) {
+            throw ValidationException::withMessages([
+                'transcribe' => ['Voicemail transcription is unavailable on this Switch cluster.'],
+            ]);
+        }
     }
 
     /** @return list<string> */

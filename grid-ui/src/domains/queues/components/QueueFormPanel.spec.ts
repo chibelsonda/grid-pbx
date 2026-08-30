@@ -8,7 +8,15 @@ describe('QueueFormPanel', () => {
     const wrapper = mount(QueueFormPanel, {
       props: {
         record: null,
-        options: { agents: [], media: [] },
+        options: {
+          agents: [],
+          media: [],
+          capabilities: {
+            configuration_available: true,
+            live_agent_controls_available: false,
+            statistics_available: false,
+          },
+        },
         saving: false,
         error: null,
         fieldErrors: {},

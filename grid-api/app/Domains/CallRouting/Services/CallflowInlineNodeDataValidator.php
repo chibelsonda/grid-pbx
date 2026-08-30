@@ -130,7 +130,7 @@ class CallflowInlineNodeDataValidator
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'ring_group' => [
-                'data' => ['required', 'array:strategy,endpoints,repeats,ignore_forward,fail_on_single_reject,skip_module'],
+                'data' => ['required', 'array:strategy,endpoints,repeats,ignore_forward,fail_on_single_reject,ringback_media_id,ringtone_internal,ringtone_external,skip_module'],
                 'data.strategy' => ['required', 'string', Rule::in(['simultaneous', 'single', 'weighted_random'])],
                 'data.endpoints' => ['required', 'array', 'min:1', 'max:'.RingGroupPolicy::MAX_ENDPOINTS],
                 'data.endpoints.*' => ['required', 'array:device_id,delay,timeout,weight'],
@@ -141,6 +141,9 @@ class CallflowInlineNodeDataValidator
                 'data.repeats' => ['required', 'integer', 'min:1', 'max:'.RingGroupPolicy::MAX_REPEATS],
                 'data.ignore_forward' => ['required', $strictBoolean],
                 'data.fail_on_single_reject' => ['required', $strictBoolean],
+                'data.ringback_media_id' => ['present', 'nullable', 'uuid'],
+                'data.ringtone_internal' => ['present', 'nullable', 'string', 'min:1', 'max:256', 'not_regex:/[\x00\r\n]/'],
+                'data.ringtone_external' => ['present', 'nullable', 'string', 'min:1', 'max:256', 'not_regex:/[\x00\r\n]/'],
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'receive_fax' => [

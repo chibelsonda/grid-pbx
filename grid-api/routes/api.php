@@ -48,6 +48,7 @@ use App\Domains\Recordings\Controllers\RecordingSyncController;
 use App\Domains\Services\Controllers\ServiceOverviewController;
 use App\Domains\Services\Controllers\ServiceSyncController;
 use App\Domains\SwitchSynchronization\Controllers\ExtensionSyncController;
+use App\Domains\SystemStatus\Controllers\OperationalStatusController;
 use App\Domains\TemporalRouting\Controllers\TemporalOperationalControlController;
 use App\Domains\TemporalRouting\Controllers\TemporalRoutingSyncController;
 use App\Domains\TemporalRouting\Controllers\TemporalRuleController;
@@ -72,6 +73,7 @@ Route::prefix('v1')->group(function (): void {
         Route::prefix('accounts/{account}')->group(function (): void {
             Route::get('/', [AccountController::class, 'show']);
             Route::get('/settings-options', AccountSettingsOptionsController::class);
+            Route::get('/operational-status', OperationalStatusController::class);
             Route::get('/hierarchy', [AccountHierarchyController::class, 'hierarchy']);
             Route::get('/reseller', [AccountHierarchyController::class, 'reseller']);
             Route::get('/descendant-onboarding', [DescendantOnboardingController::class, 'index']);

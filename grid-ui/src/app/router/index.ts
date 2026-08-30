@@ -163,6 +163,11 @@ const router = createRouter({
           name: 'reseller-administration',
           component: () => import('@/domains/reseller/pages/ResellerAdministrationPage.vue'),
         },
+        {
+          path: 'system-status',
+          name: 'system-status',
+          component: () => import('@/domains/system-status/pages/SystemStatusPage.vue'),
+        },
         ...(
           [['settings', 'Settings', 'Configure account and application preferences.']] as const
         ).map(([path, title, description]) => ({

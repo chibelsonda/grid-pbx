@@ -5,13 +5,22 @@ namespace App\Domains\Queues\Gateways;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Contracts\SwitchQueueGateway;
 use Generator;
+use GridPbx\Switch\Domains\Queues\AcdcCapabilityClient;
 use GridPbx\Switch\Domains\Queues\Dto\QueueAnnouncementsWriteData;
 use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
 
 class CrossbarSwitchQueueGateway implements SwitchQueueGateway
 {
-    public function __construct(private readonly QueueResourceClient $queues) {}
+    public function __construct(
+        private readonly QueueResourceClient $queues,
+        private readonly AcdcCapabilityClient $capabilities,
+    ) {}
+
+    public function capabilities(SwitchAccount $account): array
+    {
+        return $this->capabilities->discover($account->switch_account_id)->toArray();
+    }
 
     public function all(SwitchAccount $account): Generator
     {

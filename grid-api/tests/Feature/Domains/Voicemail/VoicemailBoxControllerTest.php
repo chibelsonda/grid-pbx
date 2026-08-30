@@ -11,6 +11,7 @@ use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Contracts\SwitchVoicemailBoxGateway;
 use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Models\SwitchVoicemailMessage;
+use GridPbx\Switch\Shared\Capabilities\CapabilityProvider;
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
@@ -18,6 +19,15 @@ use Tests\TestCase;
 class VoicemailBoxControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->mock(CapabilityProvider::class)
+            ->shouldReceive('capability')
+            ->andReturn(['available' => true, 'default' => false]);
+    }
 
     public function test_it_lists_searches_and_returns_mailbox_details_without_switch_json(): void
     {
@@ -166,6 +176,11 @@ class VoicemailBoxControllerTest extends TestCase
     public function test_it_returns_safe_mailbox_form_options(): void
     {
         [$user, $account] = $this->accessibleAccount();
+        $this->mock(CapabilityProvider::class)
+            ->shouldReceive('capability')
+            ->with('voicemail.transcription')
+            ->once()
+            ->andReturn(['available' => false, 'default' => false]);
         $account->update(['timezone' => 'Asia/Manila']);
         $extension = SwitchExtension::factory()->for($account)->create([
             'display_name' => 'Alice Operator',
@@ -179,8 +194,57 @@ class VoicemailBoxControllerTest extends TestCase
             ->assertJsonPath('data.extensions.0.id', $extension->id)
             ->assertJsonPath('data.extensions.0.extension', '1001')
             ->assertJsonPath('data.capabilities.voicemail_transcription.schema_supported', true)
-            ->assertJsonPath('data.capabilities.voicemail_transcription.runtime_available', null)
+            ->assertJsonPath('data.capabilities.voicemail_transcription.runtime_available', false)
+            ->assertJsonPath('data.capabilities.voicemail_transcription.default_enabled', false)
             ->assertJsonFragment(['Europe/London']);
+    }
+
+    public function test_it_rejects_enabling_transcription_when_the_switch_cluster_reports_it_unavailable(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(CapabilityProvider::class)
+            ->shouldReceive('capability')
+            ->with('voicemail.transcription')
+            ->once()
+            ->andReturn(['available' => false, 'default' => false]);
+        $this->mock(SwitchVoicemailBoxGateway::class)->shouldNotReceive('create');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/voicemail-boxes", $this->payload())
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('transcribe')
+            ->assertJsonPath(
+                'errors.transcribe.0',
+                'Voicemail transcription is unavailable on this Switch cluster.',
+            );
+    }
+
+    public function test_it_preserves_an_existing_enabled_transcription_value_when_the_capability_becomes_unavailable(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $mailbox = SwitchVoicemailBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-vmbox-1',
+            'transcribe' => true,
+        ]);
+        $this->mock(CapabilityProvider::class)->shouldNotReceive('capability');
+        $this->mock(SwitchVoicemailBoxGateway::class)
+            ->shouldReceive('update')
+            ->once()
+            ->andReturn([
+                'id' => 'switch-vmbox-1',
+                'name' => 'Alice voicemail',
+                'mailbox' => '1001',
+                'transcribe' => true,
+                'require_pin' => true,
+            ]);
+
+        $this->actingAs($user)
+            ->putJson(
+                "/api/v1/accounts/{$account->id}/voicemail-boxes/{$mailbox->id}",
+                $this->payload(),
+            )
+            ->assertOk()
+            ->assertJsonPath('data.transcribe', true);
     }
 
     public function test_create_requires_a_pin_when_pin_protection_is_enabled(): void

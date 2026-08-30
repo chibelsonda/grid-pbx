@@ -14,6 +14,13 @@ class ServiceOverviewService
             'plans',
             'quantities',
             'switchAccount.serviceLimit',
+            'switchAccount.billingSummary',
+            'switchAccount.ledgerSummaries' => fn ($query) => $query
+                ->orderBy('source_service'),
+            'switchAccount.billingTransactions' => fn ($query) => $query
+                ->orderByDesc('switch_created_at')
+                ->orderByDesc('billing_transaction_id')
+                ->limit(50),
         ])->first();
     }
 }

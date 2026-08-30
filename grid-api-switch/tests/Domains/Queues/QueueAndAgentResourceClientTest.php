@@ -7,6 +7,7 @@ namespace GridPbx\Switch\Tests;
 use GridPbx\Switch\Domains\Agents\AgentResourceClient;
 use GridPbx\Switch\Domains\Agents\Dto\AgentQueueMembershipWriteData;
 use GridPbx\Switch\Domains\Agents\Dto\AgentStatusWriteData;
+use GridPbx\Switch\Domains\Queues\AcdcCapabilityClient;
 use GridPbx\Switch\Domains\Queues\Dto\QueueAnnouncementsWriteData;
 use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
@@ -127,6 +128,27 @@ final class QueueAndAgentResourceClientTest extends TestCase
         self::assertSame(['status' => 'pause', 'timeout' => 60], $statusBody['data']);
         self::assertSame(['action' => 'login', 'queue_id' => 'queue-2'], $queueBody['data']);
         self::assertSame(['queue-1', 'queue-2'], $queues);
+    }
+
+    public function test_acdc_capabilities_are_probed_independently_without_returning_switch_data(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [['id' => 'private-queue-id']]]),
+            new Response(500, [], json_encode(['status' => 'error'], JSON_THROW_ON_ERROR)),
+            new Response(503, [], json_encode(['status' => 'error'], JSON_THROW_ON_ERROR)),
+        ]);
+
+        $capabilities = (new AcdcCapabilityClient($switch))->discover('account-1');
+
+        self::assertSame([
+            'configuration_available' => true,
+            'live_agent_controls_available' => false,
+            'statistics_available' => false,
+        ], $capabilities->toArray());
+        self::assertSame('/v2/accounts/account-1/queues', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame('paginate=true&page_size=1', $this->history[0]['request']->getUri()->getQuery());
+        self::assertSame('/v2/accounts/account-1/agents/status', $this->history[1]['request']->getUri()->getPath());
+        self::assertSame('/v2/accounts/account-1/queues/stats', $this->history[2]['request']->getUri()->getPath());
     }
 
     /** @param list<Response> $responses */

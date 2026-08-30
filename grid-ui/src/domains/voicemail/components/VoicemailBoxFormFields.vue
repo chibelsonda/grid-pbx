@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { computed, watch } from 'vue'
 import {
   EnvelopeIcon,
   KeyIcon,
@@ -49,6 +49,10 @@ const { timezoneOptions, extensionOptions } = useVoicemailFormOptions(
   () => props.options,
   () => form.value.timezone,
   () => form.value.assigned_extension_id,
+)
+
+const transcriptionUnavailable = computed(
+  () => props.options.capabilities.voicemail_transcription.runtime_available === false,
 )
 
 watch(
@@ -279,12 +283,20 @@ function fieldError(field: string): string | null {
             v-model="form.transcribe"
             label="Transcribe messages"
             description="Uses the configured Switch ASR provider"
+            :disabled="transcriptionUnavailable && !form.transcribe"
             class="rounded-md border border-slate-200 p-3"
             :class="validationControlClass(fieldError('transcribe'))"
             :invalid="Boolean(fieldError('transcribe'))"
           />
           <p
-            v-if="options.capabilities.voicemail_transcription.runtime_available === null"
+            v-if="transcriptionUnavailable"
+            class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[10px] leading-4 text-red-800"
+          >
+            Voicemail transcription is unavailable on this Switch cluster. Configure an ASR
+            provider before enabling it.
+          </p>
+          <p
+            v-else-if="options.capabilities.voicemail_transcription.runtime_available === null"
             class="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-4 text-amber-800"
           >
             The schema accepts transcription, but runtime ASR availability is not exposed by this

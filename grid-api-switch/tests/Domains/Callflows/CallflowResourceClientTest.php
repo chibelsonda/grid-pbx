@@ -1521,6 +1521,11 @@ final class CallflowResourceClientTest extends TestCase
             'timeout' => 25,
             'ignore_forward' => true,
             'fail_on_single_reject' => false,
+            'ringback' => 'media-1',
+            'ringtones' => [
+                'internal' => 'internal-alert',
+                'external' => 'external-alert',
+            ],
             'skip_module' => false,
         ];
         $created = CallflowInlineNodeWriteData::create(
@@ -1534,7 +1539,7 @@ final class CallflowResourceClientTest extends TestCase
 
         self::assertSame($settings, $createdNode['data']);
 
-        $createdNode['data']['ringback'] = 'private-media-id';
+        $createdNode['data']['ringtones']['server_owned'] = 'preserve-ringtone';
         $createdNode['data']['endpoints'][0]['weight'] = 25;
         $createdNode['data']['endpoints'][0]['server_owned'] = 'preserve-endpoint';
         $current = ['flow' => $base['flow']];
@@ -1555,6 +1560,11 @@ final class CallflowResourceClientTest extends TestCase
                 'timeout' => 30,
                 'ignore_forward' => false,
                 'fail_on_single_reject' => true,
+                'ringback' => 'media-2',
+                'ringtones' => [
+                    'internal' => 'priority-internal',
+                    'external' => null,
+                ],
                 'skip_module' => true,
             ],
         )->toSwitchData();
@@ -1562,7 +1572,10 @@ final class CallflowResourceClientTest extends TestCase
 
         self::assertSame('single', $updatedNode['data']['strategy']);
         self::assertSame(30, $updatedNode['data']['timeout']);
-        self::assertSame('private-media-id', $updatedNode['data']['ringback']);
+        self::assertSame('media-2', $updatedNode['data']['ringback']);
+        self::assertSame('priority-internal', $updatedNode['data']['ringtones']['internal']);
+        self::assertArrayNotHasKey('external', $updatedNode['data']['ringtones']);
+        self::assertSame('preserve-ringtone', $updatedNode['data']['ringtones']['server_owned']);
         self::assertFalse($updatedNode['data']['ignore_forward']);
         self::assertTrue($updatedNode['data']['fail_on_single_reject']);
         self::assertSame(25, $updatedNode['data']['endpoints'][0]['weight']);
@@ -1590,6 +1603,11 @@ final class CallflowResourceClientTest extends TestCase
                 'timeout' => 30,
                 'ignore_forward' => false,
                 'fail_on_single_reject' => true,
+                'ringback' => null,
+                'ringtones' => [
+                    'internal' => null,
+                    'external' => 'priority-external',
+                ],
                 'skip_module' => true,
             ],
         )->toSwitchData();
@@ -1598,6 +1616,10 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('weighted_random', $weightedNode['data']['strategy']);
         self::assertSame(75, $weightedNode['data']['endpoints'][0]['weight']);
         self::assertSame('preserve-endpoint', $weightedNode['data']['endpoints'][0]['server_owned']);
+        self::assertArrayNotHasKey('ringback', $weightedNode['data']);
+        self::assertArrayNotHasKey('internal', $weightedNode['data']['ringtones']);
+        self::assertSame('priority-external', $weightedNode['data']['ringtones']['external']);
+        self::assertSame('preserve-ringtone', $weightedNode['data']['ringtones']['server_owned']);
 
         $malformedCurrent = $weightedCurrent;
         $malformedCurrent['flow']['children']['_']['data']['ignore_forward'] = 'true';
@@ -1607,6 +1629,56 @@ final class CallflowResourceClientTest extends TestCase
             self::fail('Ring Group must reject malformed existing bridge flags.');
         } catch (InvalidArgumentException) {
             self::assertTrue(true);
+        }
+
+        $unsafeMediaCurrent = $weightedCurrent;
+        $unsafeMediaCurrent['flow']['children']['_']['data']['ringback'] = 'https://metadata.invalid/ringback';
+
+        try {
+            CallflowInlineNodeWriteData::update($unsafeMediaCurrent, ['_'], 'ring_group', $settings);
+            self::fail('Ring Group must reject unsafe existing ringback URLs.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+
+        try {
+            CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group', [
+                ...$settings,
+                'ringback' => 'https://metadata.invalid/ringback',
+            ]);
+            self::fail('Ring Group must reject direct URL ringback writes.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+
+        try {
+            CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group', [
+                ...$settings,
+                'ringtones' => [
+                    'internal' => "safe\r\nX-Injected: true",
+                    'external' => null,
+                ],
+            ]);
+            self::fail('Ring Group must reject ringtone header injection.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+
+        foreach (['user', 'group'] as $expandedEndpointType) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group', [
+                    ...$settings,
+                    'endpoints' => [[
+                        'endpoint_type' => $expandedEndpointType,
+                        'id' => $expandedEndpointType.'-1',
+                        'delay' => 5,
+                        'timeout' => 20,
+                    ]],
+                ]);
+                self::fail('Ring Group must reject dynamically expanded endpoints.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
         }
 
         $this->expectException(InvalidArgumentException::class);

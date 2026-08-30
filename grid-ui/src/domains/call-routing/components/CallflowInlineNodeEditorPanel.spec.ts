@@ -877,6 +877,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
 
   it('orders bounded public Device UUIDs for a Ring Group', async () => {
     const deviceId = '44444444-4444-4444-8444-444444444444'
+    const ringbackId = '77777777-7777-4777-8777-777777777777'
     const context: CallflowNodeEditorContext = {
       operation: 'create',
       path: [],
@@ -891,6 +892,34 @@ describe('CallflowInlineNodeEditorPanel', () => {
     const editor = {
       destinations: {
         device: [{ id: deviceId, label: 'Reception phone', detail: 'Front desk' }],
+        extension: [
+          {
+            id: '55555555-5555-4555-8555-555555555555',
+            label: 'Reception user',
+            detail: '1001',
+          },
+        ],
+        group: [
+          {
+            id: '66666666-6666-4666-8666-666666666666',
+            label: 'Support group',
+            detail: '12 members',
+          },
+        ],
+        media: [
+          {
+            id: ringbackId,
+            label: 'Support ringback',
+            detail: 'audio/mpeg',
+            supports_ringback: true,
+          },
+          {
+            id: '88888888-8888-4888-8888-888888888888',
+            label: 'Private document',
+            detail: 'application/json',
+            supports_ringback: false,
+          },
+        ],
       },
     } as CallflowEditor
     const wrapper = mount(CallflowInlineNodeEditorPanel, {
@@ -907,11 +936,20 @@ describe('CallflowInlineNodeEditorPanel', () => {
     const addDevice = wrapper
       .findAllComponents(FormListbox)
       .find((listbox) => listbox.props('ariaLabel') === 'Add Ring Group device')
+    const ringback = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Ringback audio')
     expect(strategy?.props('options')).toHaveLength(3)
     expect(addDevice?.props('options')).toHaveLength(1)
+    expect(ringback?.props('options')).toHaveLength(2)
+    expect(JSON.stringify(ringback?.props('options'))).toContain('Support ringback')
+    expect(JSON.stringify(ringback?.props('options'))).not.toContain('Private document')
+    expect(JSON.stringify(addDevice?.props('options'))).not.toContain('Reception user')
+    expect(JSON.stringify(addDevice?.props('options'))).not.toContain('Support group')
 
     strategy!.vm.$emit('update:modelValue', 'weighted_random')
     addDevice!.vm.$emit('update:modelValue', deviceId)
+    ringback!.vm.$emit('update:modelValue', ringbackId)
     await wrapper.vm.$nextTick()
     expect(wrapper.get('input[aria-label="Device 1 delay"]').attributes('disabled')).toBeDefined()
     await wrapper.get('input[aria-label="Device 1 weight"]').setValue('75')
@@ -922,6 +960,8 @@ describe('CallflowInlineNodeEditorPanel', () => {
     ).toBe(true)
     await wrapper.get('input[aria-label="Ignore device forwarding"]').setValue(false)
     await wrapper.get('input[aria-label="Stop when one device rejects"]').setValue(true)
+    await wrapper.get('input[aria-label="Internal phone alert"]').setValue('internal-ring')
+    await wrapper.get('input[aria-label="External phone alert"]').setValue('external-ring')
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
@@ -932,6 +972,9 @@ describe('CallflowInlineNodeEditorPanel', () => {
         repeats: 2,
         ignore_forward: false,
         fail_on_single_reject: true,
+        ringback_media_id: ringbackId,
+        ringtone_internal: 'internal-ring',
+        ringtone_external: 'external-ring',
         skip_module: false,
       },
     })

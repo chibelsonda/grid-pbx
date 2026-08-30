@@ -2,6 +2,9 @@
 
 namespace App\Domains\Organizations\Models;
 
+use App\Domains\Billing\Models\SwitchBillingSummary;
+use App\Domains\Billing\Models\SwitchBillingTransaction;
+use App\Domains\Billing\Models\SwitchLedgerSummary;
 use App\Domains\Blacklists\Models\SwitchBlacklist;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\CallerIdLists\Models\SwitchCallerIdList;
@@ -132,6 +135,24 @@ class SwitchAccount extends Model
         return $this->hasMany(SwitchServiceQuantity::class, 'switch_account_id', 'account_id');
     }
 
+    /** @return HasOne<SwitchBillingSummary, $this> */
+    public function billingSummary(): HasOne
+    {
+        return $this->hasOne(SwitchBillingSummary::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchLedgerSummary, $this> */
+    public function ledgerSummaries(): HasMany
+    {
+        return $this->hasMany(SwitchLedgerSummary::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchBillingTransaction, $this> */
+    public function billingTransactions(): HasMany
+    {
+        return $this->hasMany(SwitchBillingTransaction::class, 'switch_account_id', 'account_id');
+    }
+
     /** @return HasMany<SwitchDevice, $this> */
     public function devices(): HasMany
     {
@@ -256,6 +277,13 @@ class SwitchAccount extends Model
     public function syncCheckpoints(): HasMany
     {
         return $this->hasMany(SyncCheckpoint::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasOne<SyncCheckpoint, $this> */
+    public function serviceSyncCheckpoint(): HasOne
+    {
+        return $this->hasOne(SyncCheckpoint::class, 'switch_account_id', 'account_id')
+            ->where('resource_type', 'services');
     }
 
     /** @return array<string, string> */

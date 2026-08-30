@@ -214,6 +214,9 @@ export type CallflowInlineNodeData = {
   repeats?: number
   ignore_forward?: boolean
   fail_on_single_reject?: boolean
+  ringback_media_id?: string | null
+  ringtone_internal?: string | null
+  ringtone_external?: string | null
   owner_id?: string
   fax_option?: 'auto' | boolean
   service_mode?: true
@@ -311,6 +314,7 @@ export type CallflowDestination = {
   label: string
   detail: string | null
   supports_ring_group_toggle?: boolean
+  supports_ringback?: boolean
 }
 
 export const callflowMenuBranchKeys = [

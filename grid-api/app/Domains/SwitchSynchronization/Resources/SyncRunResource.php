@@ -2,6 +2,7 @@
 
 namespace App\Domains\SwitchSynchronization\Resources;
 
+use App\Domains\SwitchSynchronization\Enums\SyncRunStatus;
 use App\Domains\SwitchSynchronization\Models\SyncRun;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -19,7 +20,9 @@ class SyncRunResource extends JsonResource
             'processed_count' => $this->processed_count,
             'upserted_count' => $this->upserted_count,
             'deleted_count' => $this->deleted_count,
-            'error_message' => $this->error_message,
+            'error_message' => $this->status === SyncRunStatus::Failed
+                ? 'Synchronization failed. Try again or contact an administrator.'
+                : null,
             'started_at' => $this->started_at?->toIso8601String(),
             'finished_at' => $this->finished_at?->toIso8601String(),
             'created_at' => $this->created_at?->toIso8601String(),

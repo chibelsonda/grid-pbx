@@ -2,6 +2,7 @@
 
 namespace App\Domains\Services\Services;
 
+use App\Domains\Billing\Services\BillingProjectionService;
 use App\Domains\Services\Contracts\SwitchServiceGateway;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
 use App\Domains\SwitchSynchronization\Enums\SyncRunStatus;
@@ -11,7 +12,11 @@ use Illuminate\Support\Facades\DB;
 
 class ServiceSynchronizationService
 {
-    public function __construct(private readonly SwitchServiceGateway $gateway, private readonly ServiceProjectionService $projection) {}
+    public function __construct(
+        private readonly SwitchServiceGateway $gateway,
+        private readonly ServiceProjectionService $projection,
+        private readonly BillingProjectionService $billingProjection,
+    ) {}
 
     public function handle(SyncRun $run): void
     {
@@ -29,7 +34,16 @@ class ServiceSynchronizationService
             + count(array_diff($existingQuantities, $incomingQuantities));
         DB::transaction(function () use ($run, $account, $snapshot, $deletedCount): void {
             $summary = $this->projection->project($account, $snapshot);
-            $processed = 2 + $summary->plans->count() + $summary->quantities->count();
+            $billing = $snapshot['billing'] ?? null;
+            if (! is_array($billing)) {
+                throw new \UnexpectedValueException('Switch service snapshot has no billing projection.');
+            }
+            $billingSummary = $this->billingProjection->project($account, $billing);
+            $processed = 3
+                + $summary->plans->count()
+                + $summary->quantities->count()
+                + $billingSummary->ledger_source_count
+                + $billingSummary->transaction_count;
             $run->update(['status' => SyncRunStatus::Succeeded, 'processed_count' => $processed, 'upserted_count' => $processed, 'deleted_count' => $deletedCount, 'finished_at' => now()]);
             SyncCheckpoint::query()->updateOrCreate(['switch_account_id' => $account->getKey(), 'resource_type' => 'services'], ['last_sync_run_id' => $run->getKey(), 'cursor' => null, 'status' => ProjectionStatus::Healthy, 'last_successful_at' => now(), 'error_message' => null]);
         });

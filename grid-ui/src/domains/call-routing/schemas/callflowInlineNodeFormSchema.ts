@@ -94,6 +94,14 @@ const ringGroupEndpoints = z
     'Choose each device once.',
   )
 
+const ringtoneHeader = z
+  .string()
+  .trim()
+  .min(1, 'Enter an Alert-Info value or leave this field empty.')
+  .max(256, 'Keep the Alert-Info value within 256 characters.')
+  .regex(/^[^\u0000\r\n]+$/, 'Alert-Info values cannot contain line breaks or null bytes.')
+  .nullable()
+
 const schemas = {
   sleep: z
     .object({
@@ -234,6 +242,9 @@ const schemas = {
       repeats: z.number().int().min(1).max(3),
       ignore_forward: z.boolean(),
       fail_on_single_reject: z.boolean(),
+      ringback_media_id: z.string().uuid('Select synchronized audio media.').nullable(),
+      ringtone_internal: ringtoneHeader,
+      ringtone_external: ringtoneHeader,
       skip_module: z.boolean(),
     })
     .strict()

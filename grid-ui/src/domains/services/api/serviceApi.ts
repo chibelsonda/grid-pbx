@@ -19,4 +19,18 @@ export const serviceApi = {
       ),
     )
   },
+  async synchronize(accountId: string): Promise<ServiceSyncRun> {
+    let run = await serviceApi.startSync(accountId)
+
+    for (
+      let attempt = 0;
+      attempt < 40 && ['queued', 'running'].includes(run.status);
+      attempt += 1
+    ) {
+      await new Promise((resolve) => window.setTimeout(resolve, 500))
+      run = await serviceApi.syncStatus(accountId, run.id)
+    }
+
+    return run
+  },
 }

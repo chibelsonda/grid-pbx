@@ -6,10 +6,12 @@ use App\Domains\Auditing\Services\AuditService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Contracts\SwitchAccountGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Services\Services\StartServiceSyncService;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
+use Throwable;
 
 class DescendantOnboardingService
 {
@@ -20,6 +22,7 @@ class DescendantOnboardingService
         private readonly AccountHierarchyProjectionService $hierarchyProjection,
         private readonly AccountHierarchyService $hierarchy,
         private readonly AuditService $audit,
+        private readonly StartServiceSyncService $serviceSync,
     ) {}
 
     /** @return array<string, mixed> */
@@ -124,7 +127,8 @@ class DescendantOnboardingService
         $memberCount = $scope->organization->users()->count();
         $lock = Cache::lock('reseller-descendant-onboarding:'.hash('sha256', $switchAccountId), 15);
 
-        return $lock->block(3, fn (): array => DB::transaction(function () use (
+        /** @var array{account: SwitchAccount, response: array<string, mixed>} $onboarding */
+        $onboarding = $lock->block(3, fn (): array => DB::transaction(function () use (
             $scope,
             $actor,
             $candidate,
@@ -179,23 +183,51 @@ class DescendantOnboardingService
             );
 
             return [
-                'onboarded_account' => [
-                    'id' => $account->id,
-                    'name' => $account->name,
-                    'realm' => $account->realm,
-                    'enabled' => $account->is_enabled,
+                'account' => $account,
+                'response' => [
+                    'onboarded_account' => [
+                        'id' => $account->id,
+                        'name' => $account->name,
+                        'realm' => $account->realm,
+                        'enabled' => $account->is_enabled,
+                    ],
+                    'target_organization' => [
+                        'id' => $scope->organization->id,
+                        'name' => $scope->organization->name,
+                    ],
+                    'access_inheritance' => [
+                        'member_count' => $memberCount,
+                        'acknowledged' => true,
+                    ],
+                    'hierarchy' => $this->hierarchy->hierarchy($scope->refresh()),
                 ],
-                'target_organization' => [
-                    'id' => $scope->organization->id,
-                    'name' => $scope->organization->name,
-                ],
-                'access_inheritance' => [
-                    'member_count' => $memberCount,
-                    'acknowledged' => true,
-                ],
-                'hierarchy' => $this->hierarchy->hierarchy($scope->refresh()),
             ];
         }));
+
+        return [
+            ...$onboarding['response'],
+            'service_projection' => $this->startServiceProjection($onboarding['account'], $actor),
+        ];
+    }
+
+    /** @return array{status: string, sync_run_id: ?string} */
+    private function startServiceProjection(SwitchAccount $account, User $actor): array
+    {
+        try {
+            $run = $this->serviceSync->handle($account, $actor);
+
+            return [
+                'status' => $run->status->value,
+                'sync_run_id' => $run->id,
+            ];
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return [
+                'status' => 'not_started',
+                'sync_run_id' => null,
+            ];
+        }
     }
 
     /**

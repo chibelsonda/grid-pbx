@@ -22,6 +22,7 @@ import {
   PrinterIcon,
   QueueListIcon,
   RectangleGroupIcon,
+  SignalIcon,
   ShieldExclamationIcon,
   Squares2X2Icon,
   UserGroupIcon,
@@ -65,6 +66,7 @@ const sections: { label: string; items: Item[] }[] = [
     items: [
       { label: 'Accounts', to: '/accounts', icon: BuildingOffice2Icon },
       { label: 'Reseller administration', to: '/reseller', icon: RectangleGroupIcon },
+      { label: 'System status', to: '/system-status', icon: SignalIcon },
       { label: 'Settings', to: '/settings', icon: Cog6ToothIcon },
     ],
   },

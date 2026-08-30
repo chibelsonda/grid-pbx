@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { serviceApi } from '@/domains/services/api/serviceApi'
 import { resellerApi } from '../api/resellerApi'
 import type { AccountHierarchy, ResellerStatus } from '../types/reseller'
 import { useResellerStore } from './resellerStore'
@@ -13,6 +14,17 @@ vi.mock('../api/resellerApi', () => ({
   },
 }))
 
+vi.mock('@/domains/services/api/serviceApi', () => ({
+  serviceApi: { synchronize: vi.fn() },
+}))
+
+const serviceProjection = {
+  status: 'healthy' as const,
+  last_successful_at: '2026-08-30T10:01:00Z',
+  billing_reseller: null,
+  billing_reseller_projected: true,
+}
+
 const account = {
   id: 'account-public-id',
   name: 'GridPBX',
@@ -22,6 +34,7 @@ const account = {
   is_superduper_admin: true,
   billing_mode: 'limits_only',
   descendants_count: 2,
+  service_projection: serviceProjection,
 }
 
 const hierarchy: AccountHierarchy = {
@@ -37,6 +50,35 @@ const hierarchy: AccountHierarchy = {
     parent_projected: true,
   },
   projection: { last_synced_at: '2026-08-30T10:00:00Z' },
+  portfolio: {
+    accounts: { total: 1, projected: 1, healthy: 1, attention: 0 },
+    billing_ownership: { projected: 1, unresolved: 0 },
+    billing: { due_today: 0, recurring_amount: 25 },
+    quantities: [
+      {
+        scope: 'account',
+        category: 'devices',
+        item: 'sip_device',
+        quantity: 2,
+      },
+    ],
+    warnings: [],
+  },
+  mutation_preflight: {
+    operation: 'demote',
+    operationally_ready: false,
+    mutation_available: false,
+    checks: [
+      {
+        code: 'platform_policy_available',
+        passed: false,
+        count: 1,
+        message: 'Platform policy is required.',
+        guidance: 'Obtain an approved policy.',
+        affected_accounts: [],
+      },
+    ],
+  },
 }
 
 const status: ResellerStatus = {
@@ -64,6 +106,8 @@ describe('reseller store', () => {
     await store.load('account-public-id')
 
     expect(store.hierarchy).toEqual(hierarchy)
+    expect(store.hierarchy?.portfolio.billing.recurring_amount).toBe(25)
+    expect(store.hierarchy?.mutation_preflight.mutation_available).toBe(false)
     expect(store.status).toEqual(status)
     expect(store.error).toBeNull()
   })
@@ -105,6 +149,7 @@ describe('reseller store', () => {
       },
       target_organization: { id: 'organization-public-id', name: 'GridPBX' },
       access_inheritance: { member_count: 2, acknowledged: true },
+      service_projection: { status: 'queued', sync_run_id: 'sync-run-public-id' },
       hierarchy: {
         ...hierarchy,
         children: [{ ...account, id: 'child-public-id', name: 'Acme Child' }],
@@ -129,5 +174,54 @@ describe('reseller store', () => {
     expect(succeeded).toBe(true)
     expect(store.hierarchy?.children[0]?.id).toBe('child-public-id')
     expect(store.onboardingCandidates).toBeNull()
+    expect(store.onboardingNotice).toBe(
+      'Descendant onboarded. Service ownership synchronization has started.',
+    )
+    expect(store.onboardingNoticeTone).toBe('success')
+  })
+
+  it('warns when onboarding succeeds but service projection cannot start', async () => {
+    vi.mocked(resellerApi.onboardDescendant).mockResolvedValue({
+      onboarded_account: {
+        id: 'child-public-id',
+        name: 'Acme Child',
+        realm: 'acme.example.test',
+        enabled: true,
+      },
+      target_organization: { id: 'organization-public-id', name: 'GridPBX' },
+      access_inheritance: { member_count: 2, acknowledged: true },
+      service_projection: { status: 'not_started', sync_run_id: null },
+      hierarchy,
+    })
+
+    const store = useResellerStore()
+    const succeeded = await store.onboardDescendant('account-public-id', {
+      reference: 'opaque-reference',
+      confirmation: 'Acme Child',
+      acknowledge_existing_access: true,
+    })
+
+    expect(succeeded).toBe(true)
+    expect(store.onboardingNotice).toContain('could not start')
+    expect(store.onboardingNoticeTone).toBe('warning')
+  })
+
+  it('synchronizes a descendant service projection and reloads reseller data', async () => {
+    vi.mocked(serviceApi.synchronize).mockResolvedValue({
+      id: 'sync-run-public-id',
+      status: 'succeeded',
+      error_message: null,
+    })
+    vi.mocked(resellerApi.hierarchy).mockResolvedValue(hierarchy)
+    vi.mocked(resellerApi.status).mockResolvedValue(status)
+
+    const store = useResellerStore()
+    const succeeded = await store.synchronizeDescendant('account-public-id', 'child-public-id')
+
+    expect(succeeded).toBe(true)
+    expect(serviceApi.synchronize).toHaveBeenCalledWith('child-public-id')
+    expect(resellerApi.hierarchy).toHaveBeenCalledWith('account-public-id')
+    expect(store.syncingDescendantId).toBeNull()
+    expect(store.descendantSyncError).toBeNull()
   })
 })

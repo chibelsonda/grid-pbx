@@ -1,22 +1,37 @@
 <script setup lang="ts">
+import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { computed, ref, watch } from 'vue'
 import {
   ArrowPathIcon,
   BuildingOffice2Icon,
   CheckBadgeIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
   CircleStackIcon,
   ExclamationTriangleIcon,
   ShieldCheckIcon,
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import SearchInput from '@/shared/components/SearchInput.vue'
 import DescendantOnboardingPanel from '../components/DescendantOnboardingPanel.vue'
+import ResellerDiagnosticDetails from '../components/ResellerDiagnosticDetails.vue'
 import { useResellerStore } from '../stores/resellerStore'
-import type { DescendantOnboardingInput } from '../types/reseller'
+import type { AccountHierarchy, DescendantOnboardingInput } from '../types/reseller'
+
+type PortfolioQuantity = AccountHierarchy['portfolio']['quantities'][number]
+type QuantityGroup = {
+  key: string
+  scope: PortfolioQuantity['scope']
+  category: string
+  total: number
+  items: PortfolioQuantity[]
+}
 
 const accounts = useAccountStore()
 const reseller = useResellerStore()
 const onboardingOpen = ref(false)
+const quantityFilter = ref('')
 
 const canView = computed(() => accounts.selected?.permissions.can_view_services ?? false)
 const canOnboard = computed(() => accounts.selected?.permissions.can_onboard_descendants ?? false)
@@ -32,6 +47,29 @@ const coveragePercent = computed(() => {
     100,
     Math.round((coverage.projected_descendants_count / coverage.switch_descendants_count) * 100),
   )
+})
+const quantityGroups = computed<QuantityGroup[]>(() => {
+  const groups = new Map<string, QuantityGroup>()
+  const search = quantityFilter.value.trim().toLocaleLowerCase()
+
+  for (const quantity of hierarchy.value?.portfolio.quantities ?? []) {
+    const searchable = `${quantity.scope} ${quantity.category} ${quantity.item}`.toLocaleLowerCase()
+    if (search && !searchable.includes(search)) continue
+
+    const key = `${quantity.scope}:${quantity.category}`
+    const group = groups.get(key) ?? {
+      key,
+      scope: quantity.scope,
+      category: quantity.category,
+      total: 0,
+      items: [],
+    }
+    group.total += quantity.quantity
+    group.items.push(quantity)
+    groups.set(key, group)
+  }
+
+  return [...groups.values()]
 })
 
 const humanize = (value: string | null): string => {
@@ -52,6 +90,12 @@ const dateTime = (value: string | null): string => {
   }).format(new Date(value))
 }
 
+const decimal = (value: number): string =>
+  new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
+
 async function openOnboarding(): Promise<void> {
   if (!accounts.selectedId) return
   onboardingOpen.value = true
@@ -67,10 +111,25 @@ async function onboardDescendant(input: DescendantOnboardingInput): Promise<void
   await Promise.all([accounts.load(), reseller.load(accountId)])
 }
 
+async function synchronizeDescendant(descendantAccountId: string): Promise<void> {
+  if (!accounts.selectedId) return
+
+  await reseller.synchronizeDescendant(accounts.selectedId, descendantAccountId)
+}
+
+const projectionStatusClass = (status: 'healthy' | 'syncing' | 'stale' | 'error'): string =>
+  ({
+    healthy: 'bg-emerald-50 text-emerald-700',
+    syncing: 'bg-sky-50 text-sky-700',
+    stale: 'bg-amber-50 text-amber-800',
+    error: 'bg-red-50 text-red-700',
+  })[status]
+
 watch(
   [() => accounts.selectedId, canView],
   ([accountId, allowed]) => {
     reseller.reset()
+    quantityFilter.value = ''
     if (accountId && allowed) void reseller.load(accountId)
   },
   { immediate: true },
@@ -115,6 +174,31 @@ watch(
         class="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700"
       >
         {{ reseller.error }}
+      </div>
+
+      <div
+        v-if="reseller.onboardingNotice"
+        class="mb-4 flex items-start gap-3 rounded-md border p-4 text-xs font-medium"
+        :class="
+          reseller.onboardingNoticeTone === 'success'
+            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+            : 'border-amber-200 bg-amber-50 text-amber-900'
+        "
+        data-testid="reseller-onboarding-notice"
+      >
+        <CheckCircleIcon
+          v-if="reseller.onboardingNoticeTone === 'success'"
+          class="size-5 shrink-0 text-emerald-600"
+        />
+        <ExclamationTriangleIcon v-else class="size-5 shrink-0 text-amber-700" />
+        <span class="leading-5">{{ reseller.onboardingNotice }}</span>
+        <button
+          type="button"
+          class="ml-auto shrink-0 text-current underline decoration-current/40 underline-offset-2"
+          @click="reseller.onboardingNotice = null"
+        >
+          Dismiss
+        </button>
       </div>
 
       <div v-if="reseller.loading" class="card-surface p-14 text-center text-xs text-slate-500">
@@ -234,6 +318,182 @@ watch(
             Review descendants
           </button>
         </div>
+
+        <section class="card-surface mb-5 overflow-hidden" data-testid="hierarchy-service-totals">
+          <div class="border-b border-slate-200 px-5 py-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-semibold text-slate-800">Hierarchy service totals</h2>
+                <p class="mt-1 text-xs text-slate-600">
+                  Aggregated only from the selected account and its managed descendants. Quantity
+                  scopes remain separate to preserve their Switch billing meaning.
+                </p>
+              </div>
+              <span
+                class="rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                :class="
+                  hierarchy.portfolio.accounts.attention === 0
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-amber-50 text-amber-800'
+                "
+              >
+                {{ hierarchy.portfolio.accounts.attention }} requiring attention
+              </span>
+            </div>
+          </div>
+
+          <div class="p-5">
+            <div class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <article class="rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                <p class="text-lg font-semibold text-slate-800">
+                  {{ hierarchy.portfolio.accounts.total }}
+                </p>
+                <p class="mt-1 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Managed accounts
+                </p>
+                <p class="mt-2 text-xs text-slate-600">
+                  {{ hierarchy.portfolio.accounts.projected }} projected ·
+                  {{ hierarchy.portfolio.accounts.healthy }} healthy
+                </p>
+              </article>
+              <article class="rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                <p class="text-lg font-semibold text-slate-800">
+                  {{ hierarchy.portfolio.billing_ownership.projected }}
+                </p>
+                <p class="mt-1 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Billing owners resolved
+                </p>
+                <p class="mt-2 text-xs text-slate-600">
+                  {{ hierarchy.portfolio.billing_ownership.unresolved }} unresolved
+                </p>
+              </article>
+              <article class="rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                <p class="text-lg font-semibold text-slate-800">
+                  {{ decimal(hierarchy.portfolio.billing.recurring_amount) }}
+                </p>
+                <p class="mt-1 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Recurring amount
+                </p>
+                <p class="mt-2 text-xs text-slate-600">Currency follows Switch billing.</p>
+              </article>
+              <article class="rounded-md border border-slate-200 bg-slate-50/70 p-4">
+                <p class="text-lg font-semibold text-slate-800">
+                  {{ decimal(hierarchy.portfolio.billing.due_today) }}
+                </p>
+                <p class="mt-1 text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Due today
+                </p>
+                <p class="mt-2 text-xs text-slate-600">Projected hierarchy total</p>
+              </article>
+            </div>
+
+            <div v-if="hierarchy.portfolio.warnings.length" class="mt-4 grid gap-2">
+              <Disclosure
+                v-for="warning in hierarchy.portfolio.warnings"
+                :key="warning.code"
+                v-slot="{ open }"
+                as="div"
+                class="overflow-hidden rounded-md border border-amber-200 bg-amber-50 text-amber-900"
+              >
+                <DisclosureButton
+                  class="flex w-full items-start gap-3 p-3 text-left hover:bg-amber-100/70"
+                >
+                  <ExclamationTriangleIcon class="mt-0.5 size-4 shrink-0" />
+                  <p class="min-w-0 flex-1 text-xs leading-5">
+                    <strong>{{ warning.count }}</strong> {{ warning.message }}
+                  </p>
+                  <ChevronDownIcon
+                    class="mt-0.5 size-4 shrink-0 transition-transform"
+                    :class="open && 'rotate-180'"
+                  />
+                </DisclosureButton>
+                <DisclosurePanel class="border-t border-amber-200">
+                  <ResellerDiagnosticDetails
+                    :guidance="warning.guidance"
+                    :accounts="warning.affected_accounts"
+                  />
+                </DisclosurePanel>
+              </Disclosure>
+            </div>
+
+            <div class="mt-5 border-t border-slate-200 pt-4">
+              <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 class="text-xs font-semibold text-slate-800">Projected quantities</h3>
+                  <p class="mt-1 text-[11px] text-slate-600">
+                    Grouped by Switch scope and service category.
+                  </p>
+                </div>
+                <SearchInput
+                  v-if="hierarchy.portfolio.quantities.length"
+                  v-model="quantityFilter"
+                  label="Filter projected quantities"
+                  placeholder="Filter quantities…"
+                  class="w-full sm:max-w-72"
+                  input-class="h-9 bg-white text-xs"
+                />
+              </div>
+              <div
+                v-if="quantityGroups.length"
+                class="mt-3 overflow-hidden rounded-md border border-slate-200"
+              >
+                <Disclosure
+                  v-for="group in quantityGroups"
+                  :key="group.key"
+                  v-slot="{ open }"
+                  as="div"
+                  class="border-b border-slate-200 last:border-b-0"
+                >
+                  <DisclosureButton
+                    data-testid="service-quantity-group"
+                    class="grid w-full grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 bg-white px-4 py-3 text-left hover:bg-slate-50"
+                  >
+                    <div class="min-w-0">
+                      <p class="truncate text-xs font-semibold text-slate-800">
+                        {{ humanize(group.category) }}
+                      </p>
+                      <p class="mt-0.5 text-[10px] text-slate-600">
+                        {{ humanize(group.scope) }} · {{ group.items.length }}
+                        {{ group.items.length === 1 ? 'item' : 'items' }}
+                      </p>
+                    </div>
+                    <span class="text-sm font-semibold text-slate-800">
+                      {{ decimal(group.total) }}
+                    </span>
+                    <ChevronDownIcon
+                      class="size-4 text-slate-500 transition-transform"
+                      :class="open && 'rotate-180'"
+                    />
+                  </DisclosureButton>
+                  <DisclosurePanel class="divide-y divide-slate-200 border-t border-slate-200">
+                    <div
+                      v-for="quantity in group.items"
+                      :key="quantity.item"
+                      data-testid="service-quantity-item"
+                      class="grid grid-cols-[minmax(0,1fr)_auto] gap-3 bg-slate-50/60 px-4 py-2.5"
+                    >
+                      <p class="truncate pl-3 text-xs text-slate-700">
+                        {{ humanize(quantity.item) }}
+                      </p>
+                      <span class="text-xs font-semibold text-slate-700">
+                        {{ decimal(quantity.quantity) }}
+                      </span>
+                    </div>
+                  </DisclosurePanel>
+                </Disclosure>
+              </div>
+              <p
+                v-else-if="hierarchy.portfolio.quantities.length"
+                class="mt-3 rounded-md bg-slate-50 p-4 text-xs text-slate-600"
+              >
+                No projected quantities match “{{ quantityFilter }}”.
+              </p>
+              <p v-else class="mt-3 rounded-md bg-slate-50 p-4 text-xs text-slate-600">
+                Switch has not projected service quantities for this managed hierarchy.
+              </p>
+            </div>
+          </div>
+        </section>
 
         <div class="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.65fr)]">
           <section class="card-surface overflow-hidden">
@@ -369,23 +629,193 @@ watch(
               </div>
             </section>
 
-            <section class="rounded-md border border-sky-200 bg-sky-50 p-5">
-              <div class="flex gap-3">
-                <ShieldCheckIcon class="mt-0.5 size-5 shrink-0 text-sky-700" />
-                <div>
-                  <h2 class="text-sm font-semibold text-sky-900">
-                    Protected administration boundary
-                  </h2>
-                  <p class="mt-1 text-xs leading-5 text-sky-800">
-                    Reseller promotion and demotion are intentionally unavailable. These operations
-                    require platform policy, dependency preflight, explicit confirmation, and an
-                    auditable recovery plan before GridPBX can expose them.
-                  </p>
+            <section
+              class="overflow-hidden rounded-md border border-sky-200 bg-sky-50"
+              data-testid="reseller-mutation-preflight"
+            >
+              <div class="border-b border-sky-200 p-5">
+                <div class="flex gap-3">
+                  <ShieldCheckIcon class="mt-0.5 size-5 shrink-0 text-sky-700" />
+                  <div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      <h2 class="text-sm font-semibold text-sky-900">
+                        Protected administration boundary
+                      </h2>
+                      <span
+                        class="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                        :class="
+                          hierarchy.mutation_preflight.operationally_ready
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-900'
+                        "
+                      >
+                        {{
+                          hierarchy.mutation_preflight.operationally_ready
+                            ? 'Dependencies ready'
+                            : 'Dependencies blocked'
+                        }}
+                      </span>
+                    </div>
+                    <p class="mt-1 text-xs leading-5 text-sky-800">
+                      Read-only {{ hierarchy.mutation_preflight.operation }} preflight. The mutation
+                      remains disabled until platform policy, confirmation, auditing, and recovery
+                      are defined.
+                    </p>
+                  </div>
                 </div>
+              </div>
+              <div class="divide-y divide-sky-200/80">
+                <template v-for="check in hierarchy.mutation_preflight.checks" :key="check.code">
+                  <div v-if="check.passed" class="flex items-start gap-3 px-5 py-3">
+                    <CheckCircleIcon class="mt-0.5 size-4 shrink-0 text-emerald-600" />
+                    <div class="min-w-0">
+                      <p class="text-xs font-semibold text-sky-950">{{ humanize(check.code) }}</p>
+                      <p class="mt-0.5 text-[11px] leading-4 text-sky-800">
+                        {{ check.message }}
+                      </p>
+                    </div>
+                  </div>
+                  <Disclosure v-else v-slot="{ open }" as="div">
+                    <DisclosureButton
+                      class="flex w-full items-start gap-3 px-5 py-3 text-left hover:bg-sky-100/70"
+                    >
+                      <ExclamationTriangleIcon class="mt-0.5 size-4 shrink-0 text-amber-700" />
+                      <div class="min-w-0 flex-1">
+                        <p class="text-xs font-semibold text-sky-950">{{ humanize(check.code) }}</p>
+                        <p class="mt-0.5 text-[11px] leading-4 text-sky-800">
+                          {{ check.message }}
+                          <span v-if="check.count > 0"> ({{ check.count }} blocking) </span>
+                        </p>
+                      </div>
+                      <ChevronDownIcon
+                        class="mt-0.5 size-4 shrink-0 text-sky-700 transition-transform"
+                        :class="open && 'rotate-180'"
+                      />
+                    </DisclosureButton>
+                    <DisclosurePanel class="border-t border-sky-200/80">
+                      <ResellerDiagnosticDetails
+                        :guidance="check.guidance"
+                        :accounts="check.affected_accounts"
+                      />
+                    </DisclosurePanel>
+                  </Disclosure>
+                </template>
               </div>
             </section>
           </div>
         </div>
+
+        <section v-if="hierarchy.descendants.length" class="card-surface mt-5 overflow-hidden">
+          <div class="border-b border-slate-200 px-5 py-4">
+            <div class="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 class="text-sm font-semibold text-slate-800">Descendant service ownership</h2>
+                <p class="mt-1 text-xs text-slate-600">
+                  Billing reseller resolution and service-projection health for every managed
+                  descendant.
+                </p>
+              </div>
+              <span
+                class="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600"
+              >
+                {{ hierarchy.descendants.length }} managed
+              </span>
+            </div>
+          </div>
+
+          <div
+            v-if="reseller.descendantSyncError"
+            class="border-b border-red-200 bg-red-50 px-5 py-3 text-xs font-medium text-red-700"
+          >
+            {{ reseller.descendantSyncError }}
+          </div>
+
+          <div class="divide-y divide-slate-200">
+            <article
+              v-for="descendant in hierarchy.descendants"
+              :key="descendant.id"
+              class="grid gap-4 px-5 py-4 md:grid-cols-[minmax(180px,1.25fr)_minmax(160px,1fr)_minmax(120px,0.65fr)_minmax(170px,0.9fr)_auto] md:items-center"
+            >
+              <div class="min-w-0">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="size-2 shrink-0 rounded-full"
+                    :class="descendant.enabled ? 'bg-emerald-500' : 'bg-slate-400'"
+                  ></span>
+                  <p class="truncate text-xs font-semibold text-slate-800">
+                    {{ descendant.name }}
+                  </p>
+                </div>
+                <p class="mt-1 truncate pl-4 text-[11px] text-slate-600">
+                  {{ descendant.realm || 'No realm reported' }}
+                </p>
+              </div>
+
+              <div class="min-w-0">
+                <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Billing owner
+                </p>
+                <p class="mt-1 truncate text-xs font-medium text-slate-700">
+                  {{ descendant.service_projection.billing_reseller?.name || 'Not reported' }}
+                </p>
+                <p
+                  v-if="descendant.service_projection.billing_reseller"
+                  class="mt-0.5 text-[10px]"
+                  :class="
+                    descendant.service_projection.billing_reseller_projected
+                      ? 'text-emerald-700'
+                      : 'text-amber-800'
+                  "
+                >
+                  {{
+                    descendant.service_projection.billing_reseller_projected
+                      ? 'Projected in GridPBX'
+                      : 'Not projected'
+                  }}
+                </p>
+              </div>
+
+              <div>
+                <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Health
+                </p>
+                <span
+                  class="mt-1 inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                  :class="projectionStatusClass(descendant.service_projection.status)"
+                >
+                  {{ humanize(descendant.service_projection.status) }}
+                </span>
+              </div>
+
+              <div>
+                <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                  Last successful sync
+                </p>
+                <p class="mt-1 text-xs text-slate-700">
+                  {{ dateTime(descendant.service_projection.last_successful_at) }}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                :aria-label="`Synchronize services for ${descendant.name}`"
+                :disabled="
+                  !descendant.enabled ||
+                  reseller.syncingDescendantId !== null ||
+                  descendant.service_projection.status === 'syncing'
+                "
+                class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="synchronizeDescendant(descendant.id)"
+              >
+                <ArrowPathIcon
+                  class="size-4"
+                  :class="reseller.syncingDescendantId === descendant.id && 'animate-spin'"
+                />
+                {{ reseller.syncingDescendantId === descendant.id ? 'Synchronizing…' : 'Sync' }}
+              </button>
+            </article>
+          </div>
+        </section>
       </template>
     </template>
   </div>

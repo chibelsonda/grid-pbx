@@ -7,6 +7,9 @@ use Generator;
 
 interface SwitchQueueGateway
 {
+    /** @return array{configuration_available: bool, live_agent_controls_available: bool, statistics_available: bool} */
+    public function capabilities(SwitchAccount $account): array;
+
     /** @return Generator<int, array<string, mixed>> */
     public function all(SwitchAccount $account): Generator;
 

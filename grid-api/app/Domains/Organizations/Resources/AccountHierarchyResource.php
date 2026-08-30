@@ -18,6 +18,8 @@ class AccountHierarchyResource extends JsonResource
             'descendants' => $this->resource['descendants'],
             'coverage' => $this->resource['coverage'],
             'projection' => $this->resource['projection'],
+            'portfolio' => $this->resource['portfolio'],
+            'mutation_preflight' => $this->resource['mutation_preflight'],
         ];
     }
 }

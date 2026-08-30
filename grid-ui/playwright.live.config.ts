@@ -27,7 +27,7 @@ export default defineConfig({
     {
       name: 'gridpbx-live',
       testMatch:
-        /gridpbx-(account-projection|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|group-form|layout-alignment|media-form|menu-form|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|temporal-routing)\.spec\.ts/,
+        /gridpbx-(account-projection|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|group-form|layout-alignment|media-form|menu-form|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|system-status|temporal-routing)\.spec\.ts/,
       use: {
         baseURL: gridUiUrl,
         storageState: '.playwright/.auth/gridpbx.json',

@@ -603,6 +603,27 @@ class CallflowMutationService
             ]);
         }
 
+        $ringback = null;
+
+        if ($settings['ringback_media_id'] !== null) {
+            $media = $account->media()
+                ->where('id', $settings['ringback_media_id'])
+                ->where('streamable', true)
+                ->first();
+
+            if ($media === null
+                || ! is_string($media->switch_resource_id)
+                || $media->switch_resource_id === ''
+                || ! is_string($media->content_type)
+                || ! str_starts_with($media->content_type, 'audio/')) {
+                throw ValidationException::withMessages([
+                    'data.ringback_media_id' => ['Select streamable audio media from this account.'],
+                ]);
+            }
+
+            $ringback = $media->switch_resource_id;
+        }
+
         return [
             'strategy' => $settings['strategy'],
             'endpoints' => $endpoints->map(function (array $endpoint) use ($resources): array {
@@ -623,6 +644,11 @@ class CallflowMutationService
             'timeout' => RingGroupPolicy::attemptTimeout($settings['strategy'], $settings['endpoints']),
             'ignore_forward' => $settings['ignore_forward'],
             'fail_on_single_reject' => $settings['fail_on_single_reject'],
+            'ringback' => $ringback,
+            'ringtones' => [
+                'internal' => $settings['ringtone_internal'],
+                'external' => $settings['ringtone_external'],
+            ],
             'skip_module' => $settings['skip_module'],
         ];
     }

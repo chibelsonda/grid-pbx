@@ -5,7 +5,12 @@ import { useServiceStore } from './serviceStore'
 import type { ServiceOverview } from '../types/service'
 
 vi.mock('../api/serviceApi', () => ({
-  serviceApi: { overview: vi.fn(), startSync: vi.fn(), syncStatus: vi.fn() },
+  serviceApi: {
+    overview: vi.fn(),
+    startSync: vi.fn(),
+    syncStatus: vi.fn(),
+    synchronize: vi.fn(),
+  },
 }))
 const overview: ServiceOverview = {
   id: 'summary-1',
@@ -13,6 +18,7 @@ const overview: ServiceOverview = {
   reseller: { is_reseller: false, billing_account: null, billing_account_projected: true },
   billing_cycle: { next_at: null, period: 1, unit: 'month' },
   billing_impact: { invoice_count: 0, due_today: 0, recurring_amount: 0 },
+  billing: null,
   plans: [],
   quantities: [],
   limits: null,
@@ -31,7 +37,7 @@ describe('service store', () => {
     expect(store.overview).toEqual(overview)
   })
   it('refreshes after a completed sync', async () => {
-    vi.mocked(serviceApi.startSync).mockResolvedValue({
+    vi.mocked(serviceApi.synchronize).mockResolvedValue({
       id: 'run-1',
       status: 'succeeded',
       error_message: null,

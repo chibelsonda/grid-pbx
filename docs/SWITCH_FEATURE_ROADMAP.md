@@ -96,7 +96,7 @@ to `Complete` only through the delivery checklist in section 11.
 | Queue | Queue CRUD, agents, membership, state, and statistics | Capability-driven projection; configuration requires the target ACD/queue application | Foundation |
 | Recording | Recording search, metadata, and authorized playback/download | Bounded metadata-only projection, validated advanced filters, redacted source snapshot, reciprocal CDR relationship resolution, audited range streaming, and right-side detail UI delivered; deletion remains disabled pending retention policy | Foundation |
 | Services | Account service-plan, limits, quantities, standing, billing-cycle, and billing-impact summaries exposed by Switch | Administrator-only normalized read projection with redacted `switch_json`; all billing mutations remain disabled | Foundation |
-| SystemStatus | Connectivity, capability, and relevant telephony health summaries | Live checks or short-lived cache; do not persist full infrastructure payloads as durable projections | Foundation |
+| SystemStatus | Connectivity, capability, and relevant telephony health summaries | Account-scoped live probes with a ten-second cache now expose only presence-diagnostic availability, parked-call summary availability, and an aggregate parked-call count; raw infrastructure and call payloads are discarded and are not durably projected | Foundation |
 | TemporalRule | Business-hours, holiday, time-of-day CRUD, effective status, and operational override | Validated normalized schedules, redacted source snapshots, CRUD, sync, dependency-safe deletion, timezone-aware status, and audited force-active/force-inactive/reset commands delivered | Foundation |
 | TemporalRuleSet | Rule-set CRUD, ordering, effective status, enable/disable, and reset workflows | Ordered membership, CRUD, sync, guided `temporal_route` routing, aggregate status, and compensating member-rule command fan-out delivered | Foundation |
 | User | User CRUD, identity, caller ID, forwarding, recording, restrictions, feature state, resource assignments, and supported recursive metaflows | Managed edits now include public-UUID caller ID/MOH/pronounced-name Media, current endpoint media/ringtones, safe dial plans/formatters, bounded profiles, E911 enforcement, and read-only preserved policy state | Foundation |
@@ -149,7 +149,7 @@ because Headless UI for Vue does not provide a checkbox primitive.
 | Switch connectivity health | Crossbar root/auth request | Health state, failure reason, last successful check | P0 | Foundation |
 | Account mapping | Accounts | Organization-to-Switch-account mapping and authorization | P0 | Foundation |
 | Account hierarchy | Accounts and descendants | Searchable account projection and allowed account tree | P1 | Planned |
-| Capability discovery | Enabled Crossbar modules and account capabilities | Per-account feature flags | P1 | Planned |
+| Capability discovery | Authentication response plus audited account/resource capabilities | The Switch token provider retains only typed, allowlisted feature booleans for application consumers. Voicemail transcription availability/default is delivered; broader module and account capability discovery remains | P1 | Foundation |
 | Initial import | Account-scoped resource APIs | Sync runs, checkpoints, counts, errors, and timestamps | P1 | Foundation (extensions) |
 | Incremental synchronization | Events/webhooks where supported; polling otherwise | Queue jobs, idempotency, locks, tombstones | P1 | Planned |
 | Full reconciliation | Account-scoped list/detail APIs | Repair projections and detect deletions | P1 | Foundation (extensions) |
@@ -304,7 +304,13 @@ Permanent upstream deletion is intentionally not exposed. The supported
 unavailable greeting can be discovered, uploaded/replaced through a right-side
 panel, streamed through Laravel, and safely detached. Greeting metadata and
 redacted `switch_json` are projected while audio remains in Switch. Additional
-prompt types and bulk mailbox settings remain planned.
+prompt types and bulk mailbox settings remain planned. The installed Kazoo
+authentication response now supplies typed voicemail transcription availability
+and default booleans without exposing its auth token or raw capability payload.
+Unavailable transcription cannot be newly enabled through the API or UI, while
+an existing enabled value can be preserved or turned off. A 2026-08-31 live
+read and isolated non-mutating browser check confirmed this cluster reports
+`available = false` and `default = false`.
 
 ### 5.5 Phone numbers
 
@@ -488,11 +494,17 @@ after one rejection when enabled. Laravel computes Kazoo's top-level attempt
 The installed Monster form has no weighted-random or bridge-flag controls, so
 the installed schema and compiled runtime are authoritative: each weighted
 attempt orders all endpoints without replacement and each retry reshuffles.
-Existing user/group expansion, unresolved endpoints, unsafe timings,
-ringback/ringtones, and malformed legacy flag values remain private and
-read-only unless the configuration fits the guided subset. The Switch DTO
-merges managed values into the current node and preserves private endpoint/node
-fields. A
+Existing user/group expansion, unresolved endpoints, unsafe timings, and
+malformed legacy flag values remain private and read-only unless the
+configuration fits the guided subset. Ringback is guided only through an
+account-scoped public UUID for synchronized streamable `audio/*` Media; raw
+Media IDs are mapped only at the Switch boundary. Arbitrary URLs, special
+streams, system paths, unresolved Media, and non-audio Media are rejected or
+lock existing nodes. Optional internal/external phone alerts are bounded SIP
+`Alert-Info` strings with CR/LF/NUL rejection. The Switch DTO merges managed
+values into the current node and preserves private endpoint/node fields,
+including unknown nested ringtone keys. Ring Group ringback references also
+block Media deletion. A
 2026-08-30 disposable live run
 named `E2E Ring Group 1788090166193` verified creation below Page Group,
 public-to-raw Device mapping, simultaneous delay `5`/timeout `20` with two
@@ -528,6 +540,21 @@ values survived the typed edit. The single isolated headless test passed in
 4.4 seconds. Browser deletion and an independent synchronization confirmed a
 soft-deleted MySQL projection and zero active Switch matches. No media-leg call
 was originated.
+
+The 2026-08-31 ringback/phone-alert lifecycle used disposable route
+`E2E Ring Group Media 1788127297` with unique number `88127297` and a
+disposable synchronized silent WAV. The isolated headless test created a
+Device-only Ring Group, selected the Media by public UUID, set internal and
+external phone-alert values, then edited to weighted-random, changed both
+alerts, enabled `skip_module`, and reopened every authoritative value. Public
+requests and responses contained only account-scoped Device and Media UUIDs.
+An independent raw observer captured the expected raw Device and Media IDs,
+computed timeout `30`, weight `75`, both edited ringtone values, and retention
+of an injected unknown nested ringtone key plus unknown node key. The focused
+browser test passed one test in 5.1 seconds. Browser deletion and an independent
+reconciliation confirmed the Callflow projection was soft-deleted, zero active
+Switch callflows matched, and the disposable Media projection was soft-deleted
+after its Switch resource was removed. No media leg was originated.
 
 Ring Group Toggle now has a guided Login/Logout implementation aligned with the
 installed `callflows.ring_group_toggle` schema and compiled runtime. The UI/API
@@ -696,13 +723,44 @@ call was created because the missing supervisor entitlement, immutable audit,
 privacy/consent policy, and bounded monitoring controls are the reasons the
 capability is gated.
 
+The default Basic Ring Group User/Group expansion audit is complete and remains
+capability-gated. The installed runtime resolves Users through the caller
+account's ownership view and opens Groups only in the caller account database,
+so identifier scope is account-local. It then expands memberships dynamically
+at call time: Users become every currently owned Device, Groups recursively
+become Devices, Users, and nested Groups, and one endpoint builder is started
+for every resolved Device. There is no resolved-device cap. Deduplication
+removes only the same Device with the same delay and timeout, so overlapping
+memberships with different timing can ring one Device more than once. Only
+top-level `disable_until` is filtered before expansion; endpoint creation later
+drops deleted, disabled, self, or do-not-disturb Devices, while a disabled User
+does not suppress its owned Devices. The installed Group schema accepts an
+unconstrained endpoint object and Crossbar does not reject recursive membership;
+`cf_ring_group` recurses before recording the parent Group, so externally
+created cycles have no visited-set guard. Monster offers User/Device/Group tabs
+and a direct User-versus-owned-Device warning, but it does not preview nested
+fan-out, Group overlap, cycles, or later membership changes. GridPBX therefore
+keeps creation Device-only, rejects public and direct SDK User/Group writes,
+and redacts existing expanded endpoint IDs while preserving those nodes
+read-only. Focused SDK, Laravel validator/resolver, Zod, and component
+regressions enforce that boundary. No disposable Switch node or media call was
+created because unbounded dynamic expansion is the reason the capability is
+gated.
+
 The exact next callflow priority remains within the default Basic Ring Group
-palette node: audit User and Group endpoint expansion against the installed
-runtime's membership expansion, deduplication, inactive-member filtering,
-fan-out, and account-scope behavior before enabling it. Private
-ringback/ringtone controls remain gated until their media mapping and playback
-semantics are verified. `intercept` and `intercept_feature` are not installed
-default-palette actions and are therefore not the next parity target.
+palette node: perform a controlled media-leg verification of audible ringback
+selection and emitted internal/external SIP `Alert-Info` without placing an
+external call. A 2026-08-31 topology audit confirmed that the current local
+reference environment cannot supply that evidence: its Kazoo container runs
+Crossbar on TCP 8000, but the workspace has no FreeSWITCH/media-server process,
+SIP or ESL listener, or RTP path. No disposable callflow, endpoint, or call was
+created during that audit. Configuration remains live-verified and installed
+runtime inspection remains the only evidence for media-leg semantics. The test
+must remain pending until a representative, disposable FreeSWITCH/ecallmgr
+environment and two account-local SIP legs are supplied; GridPBX must not embed
+that infrastructure because the implementation plan defines it as an external
+deployment responsibility. `intercept` and `intercept_feature` are not
+installed default-palette actions and are therefore not the next parity target.
 Receive Fax follows the installed Kazoo schema and runtime shape. GridPBX accepts
 an account-scoped public Extension UUID, resolves it only on the server to raw
 `owner_id`, nests `fax_option` under `media`, and supports the schema values
@@ -811,7 +869,7 @@ unavailable.
 
 | Domain | User-facing capabilities | Switch boundary | Projection notes | Status |
 | --- | --- | --- | --- | --- |
-| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Interactive recursive canvas, safe node inspector, Kazoo-grouped version-aware palette, guided root/fallback/Menu/Rule Set/Branch Bnumber writes, palette drag/drop, guarded subtree moves/reorders, public condition branches, resource forms, and bounded inline action forms delivered; remaining module-specific forms and dynamic branches stay gated | Foundation |
+| Advanced callflows | Node canvas, categorized action palette, recursive branches, module forms, validation, version-safe updates, and dependency view | Callflows and referenced resources | Interactive recursive canvas, safe node inspector, Kazoo-grouped version-aware palette, guided root/fallback/Menu/Rule Set/Branch Bnumber writes, palette drag/drop, guarded subtree moves/reorders, public condition branches, resource forms, and bounded inline action forms delivered. All installed default-palette actions are guided or explicitly capability-gated, and the installed registry plus a redacted active-account inventory found no additional default-palette keyed branch contract. Future schema/search-only modules and unknown branch shapes remain read-only until separately audited | Foundation |
 | IVR menus | CRUD, prompts, retries, timeout, key destinations | Menus, media, callflows | CRUD, prompt/media options, projection/sync, dependency-safe delete, guided routing, and safe root-level DTMF/timeout branches delivered; deeper recursive editing remains planned | Foundation |
 | Time-of-day | Rules, holidays, rule sets, enable/disable/reset | Temporal rules and rule sets | Rule and ordered Rule Set CRUD, projection/sync, safe deletion, effective status and controls, plus schema-correct `rule_set`/`_` guided routing delivered | Foundation |
 | Media and music on hold | Upload, stream, rename, delete, assignment | Media and account settings | Validated upload/audio panels, protected range streaming, dependency-safe deletion, non-clipping account-default choice, hidden schema-field preservation, and metadata-only MySQL projection delivered | Foundation |
@@ -827,7 +885,7 @@ unavailable.
 | Call history | Search, direction/date/duration/outcome/cause filters, interaction detail | CDRs | Bounded, indexed CDR projection | Foundation |
 | Recordings | Search, metadata, authorized playback/download | Recordings and storage | Bounded metadata-only projection, audited protected playback/download, and no GridPBX deletion until retention/provider cleanup is approved | Foundation |
 | Active channels | Current calls and account activity | Channels | Short-lived cache, not durable projection | Conditional |
-| Services and limits | Assigned plans, account/cascade/manual quantities, standing, billing cycle, current limits, and aggregate billing impact | Services summary and limits | Administrator-only read projection, payment/bookkeeper redaction, queued sync, and right-side detail panel delivered; plan/limit/top-up/charge mutations remain disabled | Foundation |
+| Services and billing visibility | Assigned plans, account/cascade/manual quantities, standing, billing cycle, current limits, aggregate billing impact, ledger-source usage, ledger total, and recent Switch transactions | Services summary, limits, ledgers, ledger total, and transactions | Administrator-only normalized read projection, explicit version-aware endpoint availability, immutable transaction retention, payment/bookkeeper redaction, queued sync, and right-side detail panel delivered; plan/limit/top-up/credit/debit/sale/refund/charge mutations remain disabled | Foundation |
 | Line keys and provisioning preview | Device combo/feature key inventory, safe full-replacement preview, and capability-gated apply | Device `provision.combo_keys` / `feature_keys` PATCH | Device-owned normalized rows plus the redacted device snapshot; no SIP credentials, provisioning URLs, templates, or generated documents exposed | Foundation |
 
 Implementation status: Foundation. The entity-organized Switch client now
@@ -922,8 +980,8 @@ but their sequence still requires deployment discovery and dependency design.
 
 | Domain | Candidate capabilities | Status/constraint |
 | --- | --- | --- |
-| Queues and agents | Queue CRUD, membership, agent state, call statistics | Foundation for CRUD, roster, live status, sync, and guided routing; the external Switch must run ACDc and autoload `cb_queues` and `cb_agents`; statistics still require the live ACDc runtime |
-| Presence and parked calls | Presence status, parked-call visibility and actions | Conditional; near-real-time behavior required |
+| Queues and agents | Queue CRUD, membership, agent state, call statistics | Foundation for CRUD, roster, live status, sync, and guided routing. Read-only account probes now distinguish configuration, live controls, and statistics; the installed deployment reports `true`, `false`, and `false`. Live controls require ACDc, and statistics remain capability-gated |
+| Presence and parked calls | Presence status, parked-call visibility and actions | Read-only foundation delivered: subscription-diagnostic capability plus aggregate parked-call count. Live presence state, presence commands, slot detail, and park/retrieve actions remain capability-gated |
 | Webhooks | CRUD, event selection, delivery health, secret-safe configuration | Conditional; security review required |
 | SMS/MMS | Message threads, send/receive, number capability | Conditional; carrier and retention requirements |
 | Number porting | Port requests, documents, status workflow | Conditional; compliance and carrier integration |
@@ -938,7 +996,9 @@ but their sequence still requires deployment discovery and dependency design.
 
 The legacy application includes clients, branding, billing groups, payment
 methods, payments, invoices, and customer provisioning. These are not assumed
-to be Switch-owned PBX features.
+to be Switch-owned PBX features. Switch-calculated services, ledgers, and
+transactions are projected read-only for operational visibility, but they do
+not make GridPBX a second accounting ledger or payment processor.
 
 They remain separate GridPBX business bounded contexts:
 
@@ -951,7 +1011,10 @@ They remain separate GridPBX business bounded contexts:
 
 Before implementation, the client must identify the authoritative system for
 each dataset. Payment features require a dedicated security and compliance
-design and must not be inferred from the legacy code.
+design and must not be inferred from the legacy code. Any future provider
+adapter must use hosted/tokenized card capture, idempotent payment attempts,
+signed-webhook reconciliation, immutable audit, and sandbox-only credentials
+before live processing is considered.
 
 ## 10. Explicitly excluded from the management application
 

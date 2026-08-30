@@ -6,6 +6,8 @@ use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\CallRouting\Services\CallflowReferenceResolver;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
+use App\Domains\Groups\Models\SwitchGroup;
+use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Queues\Models\SwitchQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -357,13 +359,24 @@ class CallflowReferenceResolverTest extends TestCase
             'switch_resource_id' => 'switch-ring-group-device',
             'name' => 'Reception phone',
         ]);
+        $ringback = SwitchMedia::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-ringback-media',
+            'name' => 'Support ringback',
+            'content_type' => 'audio/mpeg',
+            'streamable' => true,
+        ]);
         $flow = app(CallflowReferenceResolver::class)->resolve($account, [
             'module' => 'ring_group',
             'data' => [
                 'strategy' => 'simultaneous',
                 'timeout' => 25,
                 'repeats' => 2,
-                'ringback' => 'private-media-id',
+                'ringback' => 'switch-ringback-media',
+                'ringtones' => [
+                    'internal' => 'internal-alert',
+                    'external' => 'external-alert',
+                    'server_owned' => 'secret-ringtone',
+                ],
                 'ignore_forward' => false,
                 'fail_on_single_reject' => true,
                 'endpoints' => [[
@@ -391,11 +404,15 @@ class CallflowReferenceResolverTest extends TestCase
             'repeats' => 2,
             'ignore_forward' => false,
             'fail_on_single_reject' => true,
+            'ringback_media_id' => (string) $ringback->id,
+            'ringtone_internal' => 'internal-alert',
+            'ringtone_external' => 'external-alert',
             'reference_status' => 'resolved',
             'skip_module' => true,
         ], $flow['settings']);
         $this->assertStringNotContainsString('switch-ring-group-device', json_encode($flow));
-        $this->assertStringNotContainsString('private-media-id', json_encode($flow));
+        $this->assertStringNotContainsString('switch-ringback-media', json_encode($flow));
+        $this->assertStringNotContainsString('secret-ringtone', json_encode($flow));
         $this->assertStringNotContainsString('secret', json_encode($flow));
 
         $weighted = app(CallflowReferenceResolver::class)->resolve($account, [
@@ -427,6 +444,9 @@ class CallflowReferenceResolverTest extends TestCase
             'repeats' => 1,
             'ignore_forward' => true,
             'fail_on_single_reject' => false,
+            'ringback_media_id' => null,
+            'ringtone_internal' => null,
+            'ringtone_external' => null,
             'reference_status' => 'resolved',
             'skip_module' => false,
         ], $weighted['settings']);
@@ -467,5 +487,63 @@ class CallflowReferenceResolverTest extends TestCase
 
         $this->assertFalse($malformedFlag['settings']['supported_configuration']);
         $this->assertNull($malformedFlag['settings']['ignore_forward']);
+
+        foreach ([
+            ['ringback' => 'https://metadata.invalid/ringback'],
+            ['ringback' => 123],
+            ['ringtones' => ['internal' => "safe\r\nX-Injected: true"]],
+        ] as $unsafeMedia) {
+            $unsupportedMedia = app(CallflowReferenceResolver::class)->resolve($account, [
+                'module' => 'ring_group',
+                'data' => [
+                    'strategy' => 'simultaneous',
+                    'timeout' => 20,
+                    'endpoints' => [[
+                        'endpoint_type' => 'device',
+                        'id' => 'switch-ring-group-device',
+                        'delay' => 0,
+                        'timeout' => 20,
+                    ]],
+                    ...$unsafeMedia,
+                ],
+                'children' => [],
+            ]);
+
+            $this->assertFalse($unsupportedMedia['settings']['supported_configuration']);
+            $this->assertNull($unsupportedMedia['settings']['ringback_media_id']);
+            $this->assertStringNotContainsString('metadata.invalid', json_encode($unsupportedMedia));
+            $this->assertStringNotContainsString('X-Injected', json_encode($unsupportedMedia));
+        }
+
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-expanded-user',
+        ]);
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-expanded-group',
+        ]);
+
+        foreach ([
+            ['endpoint_type' => 'user', 'raw_id' => $extension->switch_resource_id],
+            ['endpoint_type' => 'group', 'raw_id' => $group->switch_resource_id],
+        ] as $expandedEndpoint) {
+            $unsupported = app(CallflowReferenceResolver::class)->resolve($account, [
+                'module' => 'ring_group',
+                'data' => [
+                    'strategy' => 'simultaneous',
+                    'timeout' => 20,
+                    'endpoints' => [[
+                        'endpoint_type' => $expandedEndpoint['endpoint_type'],
+                        'id' => $expandedEndpoint['raw_id'],
+                        'delay' => 0,
+                        'timeout' => 20,
+                    ]],
+                ],
+                'children' => [],
+            ]);
+
+            $this->assertFalse($unsupported['settings']['supported_configuration']);
+            $this->assertSame([], $unsupported['settings']['endpoints']);
+            $this->assertStringNotContainsString($expandedEndpoint['raw_id'], json_encode($unsupported));
+        }
     }
 }

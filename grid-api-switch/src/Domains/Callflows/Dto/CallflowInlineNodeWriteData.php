@@ -37,7 +37,7 @@ final readonly class CallflowInlineNodeWriteData
         'page_group' => ['audio', 'endpoints', 'skip_module'],
         'ring_group' => [
             'strategy', 'endpoints', 'repeats', 'timeout', 'ignore_forward',
-            'fail_on_single_reject', 'skip_module',
+            'fail_on_single_reject', 'ringback', 'ringtones', 'skip_module',
         ],
         'receive_fax' => ['owner_id', 'media', 'skip_module'],
         'conference' => ['skip_module'],
@@ -516,6 +516,7 @@ final readonly class CallflowInlineNodeWriteData
         $this->integer('timeout', 1, 120);
         $this->boolean('ignore_forward');
         $this->boolean('fail_on_single_reject');
+        $this->assertRingGroupMedia();
         $endpoints = $this->settings['endpoints'] ?? null;
 
         if (! is_array($endpoints) || ! array_is_list($endpoints)
@@ -571,6 +572,7 @@ final readonly class CallflowInlineNodeWriteData
             || $repeats > 3
             || (array_key_exists('ignore_forward', $data) && ! is_bool($data['ignore_forward']))
             || (array_key_exists('fail_on_single_reject', $data) && ! is_bool($data['fail_on_single_reject']))
+            || ! $this->isSafeExistingRingGroupMedia($data)
             || ! is_array($endpoints)
             || ! array_is_list($endpoints)
             || $endpoints === []
@@ -612,6 +614,70 @@ final readonly class CallflowInlineNodeWriteData
         if ($attemptTimeout > 120 || $storedTimeout !== $attemptTimeout) {
             throw new InvalidArgumentException('The existing Ring Group configuration is not supported.');
         }
+    }
+
+    private function assertRingGroupMedia(): void
+    {
+        $ringback = $this->settings['ringback'] ?? null;
+
+        if ($ringback !== null
+            && (! is_string($ringback)
+                || preg_match('/^[A-Za-z0-9_-]{1,128}$/', $ringback) !== 1)) {
+            throw new InvalidArgumentException('The inline Ring Group ringback media is invalid.');
+        }
+
+        $ringtones = $this->settings['ringtones'] ?? null;
+
+        if (! is_array($ringtones) || array_keys($ringtones) !== ['internal', 'external']) {
+            throw new InvalidArgumentException('The inline Ring Group ringtone settings are invalid.');
+        }
+
+        foreach ($ringtones as $ringtone) {
+            if ($ringtone !== null && ! $this->isSafeRingtone($ringtone)) {
+                throw new InvalidArgumentException('The inline Ring Group ringtone settings are invalid.');
+            }
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    private function isSafeExistingRingGroupMedia(array $data): bool
+    {
+        $ringback = $data['ringback'] ?? null;
+
+        if ($ringback !== null
+            && $ringback !== ''
+            && (! is_string($ringback)
+                || preg_match('/^[A-Za-z0-9_-]{1,128}$/', $ringback) !== 1)) {
+            return false;
+        }
+
+        if (! array_key_exists('ringtones', $data)) {
+            return true;
+        }
+
+        $ringtones = $data['ringtones'];
+
+        if (! is_array($ringtones)) {
+            return false;
+        }
+
+        foreach (['internal', 'external'] as $key) {
+            if (array_key_exists($key, $ringtones)
+                && $ringtones[$key] !== ''
+                && ! $this->isSafeRingtone($ringtones[$key])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private function isSafeRingtone(mixed $value): bool
+    {
+        return is_string($value)
+            && $value !== ''
+            && strlen($value) <= 256
+            && preg_match('/[\x00\r\n]/', $value) !== 1;
     }
 
     /** @param list<array{delay: int, timeout: int}> $endpoints */
@@ -986,6 +1052,24 @@ final readonly class CallflowInlineNodeWriteData
                 $currentMedia = is_array($current['media'] ?? null) ? $current['media'] : [];
                 $currentMedia['fax_option'] = $this->settings['media']['fax_option'];
                 $current['media'] = $currentMedia;
+            } elseif ($this->module === 'ring_group' && $key === 'ringtones') {
+                $currentRingtones = is_array($current['ringtones'] ?? null)
+                    ? $current['ringtones']
+                    : [];
+
+                foreach (['internal', 'external'] as $ringtone) {
+                    if ($this->settings['ringtones'][$ringtone] === null) {
+                        unset($currentRingtones[$ringtone]);
+                    } else {
+                        $currentRingtones[$ringtone] = $this->settings['ringtones'][$ringtone];
+                    }
+                }
+
+                if ($currentRingtones === []) {
+                    unset($current['ringtones']);
+                } else {
+                    $current['ringtones'] = $currentRingtones;
+                }
             } elseif (in_array($this->module, ['page_group', 'ring_group'], true) && $key === 'endpoints') {
                 $current['endpoints'] = $this->deviceEndpointsForWrite($current['endpoints'] ?? null);
             } else {

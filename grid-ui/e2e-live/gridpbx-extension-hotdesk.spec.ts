@@ -537,6 +537,32 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   expect(issues).toEqual([])
 })
 
+test('reports unavailable voicemail transcription without allowing a mutation', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/v1\/accounts\/[^/]+\/voicemail-boxes(?:\/|$)/.test(request.url())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/voicemail')
+  await expect(page.getByRole('heading', { name: 'Voicemail boxes' })).toBeVisible()
+  await page.getByRole('link', { name: 'Add mailbox' }).click()
+  await expect(page.getByRole('heading', { name: 'Add voicemail box' })).toBeVisible()
+
+  const features = page.locator('article').filter({ hasText: 'Features' })
+  await expect(features.getByRole('switch', { name: 'Transcribe messages' })).toBeDisabled()
+  await expect(
+    features.getByText('Voicemail transcription is unavailable on this Switch cluster.'),
+  ).toBeVisible()
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
 test('creates, edits, clears, and removes a paused Voicemail callback configuration', async ({
   page,
 }) => {

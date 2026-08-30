@@ -62,9 +62,20 @@ export type QueueInput = {
   agent_ids: string[]
 }
 
-export type QueueOption = { id: string; label: string; detail: string | null }
-export type QueueOptions = { agents: QueueOption[]; media: QueueOption[] }
-export type QueueSyncRun = { id: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; error_message: string | null }
-export type Agent = { id: string; name: string; extension: string | null; queues: Array<{ id: string; name: string }> }
+export type { QueueOption, QueueOptions } from '../schemas/queueOptionsSchema'
+export type QueueSyncRun = {
+  id: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  error_message: string | null
+}
+export type Agent = {
+  id: string
+  name: string
+  extension: string | null
+  queues: Array<{ id: string; name: string }>
+}
 export type AgentStatus = { id: string; status: string | null; timestamp: number | null }
-export type AgentStatusInput = { status: 'login' | 'logout' | 'pause' | 'resume' | 'end_wrapup'; pause_timeout?: number | null }
+export type AgentStatusInput = {
+  status: 'login' | 'logout' | 'pause' | 'resume' | 'end_wrapup'
+  pause_timeout?: number | null
+}

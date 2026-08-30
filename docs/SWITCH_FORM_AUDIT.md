@@ -346,7 +346,7 @@ observed clear behavior determine the actual payload.
 | Error presentation | Zod failures are copied into the store's global mutation error and displayed above the submit button | Keep client errors inline only; retain the global error region solely for API/Switch failures |
 | Assignment and timezone | Assignment uses the older select wrapper and timezone uses a native input/datalist | Use non-clipping Headless UI choices backed by account extensions and supported timezone options; preserve existing values safely |
 | PIN behavior | The PIN is write-only and an omitted edit PIN is not sent to Switch, but create validation does not require a PIN when `require_pin` is enabled | Add matching Zod/Laravel conditional validation. Edit must distinguish an already-configured PIN from a mailbox that needs a new PIN without exposing the secret |
-| ASR-dependent fields | The schema supports transcription, while actual provider availability is returned only by the Switch authentication response and is not yet retained by the GridPBX session contract | Publish the known/unknown capability state, preserve the schema field, and do not claim runtime availability until session capability projection is implemented |
+| ASR-dependent fields | The schema supports transcription, while actual provider availability is returned by the Switch authentication response | The shared token provider retains only typed availability/default booleans. The mailbox options response exposes those safe values, Laravel rejects newly enabling an explicitly unavailable capability before gateway mutation, and the shared toggle is disabled while off. Unknown auth state remains honest, and an existing enabled mailbox can preserve or disable its value |
 | Notification precedence | Save-after-notify overrides delete-after-notify in Switch | Disable and clear Delete in Vue when Save is enabled, and reject the contradictory pair at both Zod and Laravel boundaries |
 | `flags[]` ownership | The schema defines flags as values set by external applications | Preserve projected flags on every update; do not expose them as an operator-editable form field |
 | `notify.callback` | The schema provides a typed callback object but Monster does not expose it in the basic mailbox workflow | Provide a bounded advanced workflow for number, disabled state, attempts, interval, timeout, and ordered schedule; do not expose raw callback JSON |
@@ -448,10 +448,15 @@ DTO and bounded API/UI fields. Turning callback configuration off removes the
 public `notify` object on the full Crossbar update. Notification disposition is
 deterministic: Save clears Delete in the form, while contradictory direct API
 payloads are rejected. External `flags[]` are deliberately not editable and
-are preserved from `switch_json` during updates. The options response reports
-transcription as schema-supported with runtime availability `null`; the form
-shows that honest unknown state until authentication capability projection is
-available. An isolated authenticated headless walkthrough created an
+are preserved from `switch_json` during updates. The options response now reads
+the installed authentication capability without exposing the auth token or raw
+capability document. The current cluster reports transcription availability
+and default as `false`; Laravel rejects newly enabling it before Switch mutation,
+and the form disables the off-state control while allowing an existing enabled
+value to be preserved or turned off. Missing authentication capability data
+still produces an honest `null` state. A focused 2026-08-31 isolated headless
+test verified the live unavailable warning and disabled shared toggle without
+issuing a mailbox mutation. An earlier isolated authenticated walkthrough created an
 unassigned mailbox with a paused callback, edited it, cleared the callback,
 and removed the disposable mailbox. The walkthrough also established that an
 unassigned mailbox must omit `owner_id`; the connected Switch rejects an
@@ -517,6 +522,61 @@ Agent status actions use a separate Zod/composable and Headless UI command
 form with conditional pause-timeout validation. Automated live status changes
 are intentionally not sent to real agents; the audited API boundary remains
 covered with an isolated gateway test.
+
+Queue capability discovery is now explicit rather than inferred from whether
+configuration documents exist. The installed runtime has `cb_queues` and
+`cb_agents` loaded, but does not run the ACDc OTP application and does not load
+`cb_acdc_call_stats`. Safe account reads returned `200` for Queue and Agent
+configuration, `500` for aggregate Agent status and Agent statistics, `503`
+for Queue statistics, and `404` for `acdc_call_stats`. GridPBX probes Queue
+configuration, aggregate Agent status, and Queue statistics independently,
+caches the three booleans for one minute, and returns only
+`configuration_available`, `live_agent_controls_available`, and
+`statistics_available`. Probe bodies and raw Switch identifiers are discarded.
+
+An isolated headless run on 2026-08-31 confirmed the connected public response
+was `true`, `false`, and `false`, respectively. Queue creation remained enabled,
+the unavailable live-control explanation was visible, Queue statistics stayed
+capability-gated, and the browser sent zero Queue or Agent mutations. The one
+browser test passed in 2.7 seconds. Focused SDK, Laravel, Zod, store/component,
+Vue type, and E2E TypeScript checks also passed. No disposable Queue, live Agent
+state change, or statistics request beyond the read-only probes was required.
+
+### Presence and parked-call status follow-through (2026-08-31)
+
+The installed deployment loads `cb_presence` and `cb_parked_calls`, and its
+`omnipresence` OTP application is running. Account-scoped reads returned `200`
+for both `GET /presence` and `GET /parked_calls`. Compiled-runtime inspection
+showed that the Presence endpoint searches and aggregates SIP subscriptions;
+its detailed form may contain contacts, call and subscription identifiers,
+proxy routes, user agents, realms, and notification bodies. It is diagnostic
+evidence, not an authoritative live User-presence state. Set/reset Presence
+operations remain disabled because they need an explicit authorization, audit,
+identity-mapping, and near-real-time command design.
+
+The parked-call endpoint is read-only and returns a `slots` map. Slot documents
+may include raw call IDs, Switch URIs, SIP tags, Presence IDs, caller identity,
+node information, and media configuration. GridPBX therefore exposes only
+whether the summary endpoint is available and the count of active slots. It
+does not expose slot numbers or raw slot documents. Kazoo park/retrieve behavior
+runs inside a live callflow media leg and has no corresponding REST action, so
+the browser offers no park or retrieve command.
+
+The public endpoint is scoped by the account's GridPBX UUID. Laravel resolves
+the private Switch account reference behind its gateway, probes both endpoints
+independently, and caches the allowlisted result for ten seconds. No Presence
+or parking document is copied into MySQL. Unknown runtime fields are discarded
+from the response but remain untouched at the source because this slice sends
+no Switch mutation.
+
+An isolated authenticated headless check on 2026-08-31 loaded the new System
+status page from the live local API. It confirmed the strict public shape,
+visible capability explanations, aggregate parked-call count, zero operational
+mutations, and absence of raw call, Presence, Switch, subscription, or account
+identifiers. The one browser test passed in 2.6 seconds. Focused Switch SDK
+tests passed with 2 tests and 5 assertions; Laravel passed with 3 tests and 18
+assertions; the two focused Zod/store files passed 3 tests. Vue typecheck and
+the isolated E2E TypeScript check also passed.
 
 ### Conference follow-through (2026-08-29)
 
@@ -783,12 +843,12 @@ mutations; it is not presented as a complete visual implementation of every
 | Selected-node information | Public safe tree contract | An accessible modal shows public branch breadcrumbs, module, resolved label, reference state, child count, honest editability status, and safe move/reorder controls; it never displays raw node data or upstream IDs | Implemented and headless-tested |
 | Guided reference action forms | Resource-backed `callflows.*.json` modules | Palette actions add User/Extension, Device, Voicemail, Callflow, Media, Directory, Group, Queue Member, Menu, Conference, Fax Box, and Temporal Rule Set nodes only to empty schema-valid branches. The selected-node modal retargets the same modules while preserving module data and complete children | Implemented across SDK, API, Zod, Vue, and isolated headless tests |
 | Schema-backed inline action forms | `callflows.sleep`, `tts`, `collect_dtmf`, `send_dtmf`, `flush_dtmf`, `dead_air`, `language`, `manual_presence`, `group_pickup`, `page_group`, `receive_fax`, `ring_group_toggle`, `hotdesk`, `do_not_disturb`, `conference` service mode, `voicemail` check mode, `record_call`, `record_caller`, `missed_call_alert`, `set_cid`, `prepend_cid`, `set_alert_info`, `response`, `hangup`, `set_variable`, `set_variables`, `branch_variable`, and `branch_bnumber` | Zod and Laravel validate current schema fields plus defensive operational bounds in a right-side panel. Manual Presence accepts a bounded local presence ID or one explicit realm, the schema statuses `idle`, `ringing`, and `busy`, and `skip_module`; the visible create default is Monster's explicit `busy`, while omitted legacy status is read as the Kazoo schema default `idle`. Group Pickup follows Monster's single-target workflow and accepts exactly one account-scoped public Device, Extension, or Group UUID; the server resolves it to Kazoo's mutually exclusive `device_id`, `user_id`, or `group_id`, while private `approved_*` restrictions and unknown properties remain hidden and losslessly preserved. Ambiguous or unresolved existing targets stay read-only. Page Group accepts one to twenty distinct account-scoped public Device UUIDs, maps raw Kazoo endpoint IDs only on the server, and exposes only one-way/two-way audio plus `skip_module`; materialized timing values and unknown endpoint fields stay private and preserved, while user/group expansion, barge, unsafe timings, and unresolved endpoints remain read-only. Receive Fax accepts one account-scoped public Extension UUID, resolves it server-side to Kazoo's raw `owner_id`, writes `media.fax_option` as `auto`, `true`, or `false`, and supports `skip_module`; unknown nested `media` fields remain private and losslessly preserved, while unresolved owners remain read-only. Ring Group Toggle accepts only an account-scoped public Callflow UUID whose synchronized module summary contains `ring_group`; Laravel resolves the raw `callflow_id` only for Switch writes, while feature-code or non-ring-group targets are rejected and unavailable targets are read-only. Login, logout, and `skip_module` are the only public fields, and unknown node data remains private and losslessly preserved by the Switch DTO. Hotdesking is resource-free at design time and exposes only `action` (`login`, `logout`, or `toggle`) plus `skip_module`; raw or server-owned `id`, `interdigit_timeout`, and unknown node properties remain private and are preserved by typed edits. Do Not Disturb is also resource-free publicly and accepts only `action` (`activate`, `deactivate`, or `toggle`) plus `skip_module`; raw `id` and unknown node data remain private and lossless, with no public target mapping. Conference Service uses a public-only `service_mode: true` discriminator which Laravel removes before writing `conference` without a raw `id`; the configured Conference action remains a separate account-scoped public-UUID workflow. Only `skip_module` is managed, while unknown discovery settings stay private and lossless. Check Voicemail writes only resource-free `action: check` and `skip_module`, never accepts or exposes a mailbox `id`, and keeps Kazoo's caller-ID and single-mailbox auto-login flags private and server-owned. Missed Call Alert accepts public extension UUIDs or validated email addresses and maps extension recipients to Switch IDs only on the server. Alert-Info rejects CR/LF header injection. Response accepts final SIP error codes and optional cause text while preserving existing Switch-managed media. Hangup exposes only the schema-defined skip behavior. Set Variable is restricted to Kazoo's mapped `call_priority` variable, values `0`–`255`, and schema-supported channel choices; unsupported existing variable names are redacted, preserved, and read-only. Set CAV uses repeatable virtual key/value rows in the form but writes the exact schema-defined `custom_application_vars` object, with bounded safe keys, duplicate rejection, `export`, and `skip_module`; unsupported existing maps remain redacted and lossless. Branch Variable is restricted to `custom_channel_vars.call_priority`, exposes only the default and priority `0`–`255` result branches, and renders those branches as conditions rather than generic keys. Branch Bnumber exposes Kazoo's `hunt`, optional safe `hunt_allow`/`hunt_deny`, and `skip_module` fields; branch mode accepts exact dial-string children, while hunt mode is blocked until those exact branches are removed. The Switch DTO merges only managed public properties into existing node data and preserves the complete subtree. Recording URLs, HTTP methods, origins, media names, and other server-owned values are never exposed or accepted | Implemented across SDK, API, Zod, Vue, focused tests, and isolated headless walkthroughs; disposable live Call Priority, Branch Bnumber, Set CAV, Manual Presence, Group Pickup, Page Group, Receive Fax, Ring Group Toggle, Hotdesking, Do Not Disturb, Conference Service, and Check Voicemail create/edit/reopen/delete verification runs against Switch |
-| Ring Group guided form | `callflows.ring_group` strategy, ordered endpoints, repeats, computed timeout, `ignore_forward`, `fail_on_single_reject`, and `skip_module` | Accepts 1–20 ordered account-scoped public Device UUIDs, simultaneous, in-order, or weighted-random strategy, bounded endpoint delay/timeout, and 1–3 attempts. Weighted-random requires an explicit `1`–`100` weight for every Device and zero delay. The two bridge flags are strict booleans: ignore forwarding defaults to `true`, while stop-on-one-rejection defaults to `false`. Laravel maps only raw Device IDs and computes the hidden top-level attempt timeout with a 120-second cap. User/group expansion, ringback/ringtones, unsafe timing, malformed legacy flags, and unresolved endpoints remain private and read-only. The Switch DTO preserves private and unknown node/endpoint fields | Implemented across SDK, API, Zod, Vue, focused tests, and disposable live simultaneous-to-weighted-random and bridge-flag create/edit/reopen/delete verification; no media-leg call originated, so this remains a guided foundation |
+| Ring Group guided form | `callflows.ring_group` strategy, ordered endpoints, repeats, computed timeout, `ignore_forward`, `fail_on_single_reject`, `ringback`, `ringtones.internal`, `ringtones.external`, and `skip_module` | Accepts 1–20 ordered account-scoped public Device UUIDs, simultaneous, in-order, or weighted-random strategy, bounded endpoint delay/timeout, and 1–3 attempts. Weighted-random requires an explicit `1`–`100` weight for every Device and zero delay. The two bridge flags are strict booleans: ignore forwarding defaults to `true`, while stop-on-one-rejection defaults to `false`. `ringback_media_id` accepts only an account-scoped public UUID for synchronized streamable `audio/*` Media; Laravel maps its raw resource ID only at the Switch boundary. Arbitrary URL, special-stream, system-path, unresolved, and non-audio values are rejected or make existing nodes read-only. Internal/external phone alerts are bounded `Alert-Info` strings and reject CR, LF, and NUL. Unknown nested `ringtones` keys remain private and losslessly preserved, and media deletion detects Ring Group ringback dependencies. Laravel maps raw Device IDs and computes the hidden top-level attempt timeout with a 120-second cap. User/Group selection remains gated because Kazoo dynamically expands mutable memberships without a cycle-safe or resolved-device cap | Device-only form and safe account-audio/phone-alert subset implemented across SDK, API, Zod, Vue, focused tests, and disposable live create/edit/reopen/delete verification. The live raw observer confirmed public/raw Media and Device mapping plus unknown nested preservation; no unsafe expanded node or media-leg call was created |
 | Caller-ID condition branches | `check_cid` and `cidlistmatch` `children.match` / `children.nomatch` | Regex-mode Check CID has safe-regex validation, stable public result branches, and optional all-or-none identity override fields. The public Extension UUID is resolved server-side into Kazoo's nested `caller_id.external` and `user_id` values. Existing absolute caller-number branches are numbered preserved branches; their nodes and destinations cannot be rewritten. Caller-ID List Match selects an account-scoped projected List by public UUID; Laravel resolves the private List ID and exposes only stable `match`/`nomatch` branches. Lists and entries retain separate redacted `switch_json` snapshots and are never confused with account Blacklists. Standalone list metadata and number/pattern entries use account-scoped API CRUD and a shared-control slide-over editor with safe-regex validation. The Switch adapter hydrates summary-only entry collections and supplies the schema-required parent `list_id` internally | Regex-mode Check CID, Caller-ID List Match, and standalone Caller-ID List CRUD implemented; absolute Check CID mode intentionally read-only; authenticated local Switch create/edit/reopen/clear/delete verified |
 | Captured-number branches | `branch_bnumber` exact child keys, `hunt`, `hunt_allow`, `hunt_deny`, and `_` continuation | Branch mode accepts bounded dial strings (`0`–`9`, `*`, `#`, and `+`) as typed condition branches. Hunt mode exposes safe optional allow/deny regexes and only the default continuation; enabling it with exact children is rejected. Existing data and subtrees remain lossless | Implemented across SDK, API, Zod, Vue, focused tests, and disposable live Switch verification |
 | Module reference palette | Installed Kazoo palette registry plus connected-version-safe current-schema actions | Expanded categories use the exact installed Kazoo section names, membership, and order, without an invented “Schema extensions” category. Supported current-schema actions that are absent from the installed palette are search-only, so existing guided workflows remain reachable without changing the visible native registry. All entries and diagram/editor nodes use one centralized corresponding icon map. Guided resource and supported inline actions open their schema-appropriate right-side form; planned and restricted entries remain non-mutating | Implemented and headless-tested |
 | Installed palette classification | All 49 visible Monster actions across Basic, Advanced, Time of Day, Ring Group Toggle, Hotdesking, Do Not Disturb, Caller-ID, Call Recording, and Call Forwarding | Exactly 40 actions are guided through a public destination or typed inline contract. Nine variants are capability-gated: Pivot, DISA, Global Carrier, Account Carrier, Webhook, Dynamic CID, and Call Forwarding activate/deactivate/update. No visible action remains planned. The catalog test fixes the exact counts and restricted IDs; the API test rejects every restricted module before gateway access; the isolated browser opens every category, verifies the 40/9/0 status split and disabled restricted controls, and sends no Callflow mutation | Complete and isolated-headless verified |
-| Other keyed recursive branches | Module-specific branch schemas beyond Menu, temporal routing, Caller-ID, Call Priority, and Branch Bnumber | Read-only structural view until each module editor has reference and round-trip coverage | Pending |
+| Other keyed recursive branches | Module-specific branch schemas beyond Menu, temporal routing, Caller-ID, Call Priority, and Branch Bnumber | The installed 49-action Monster registry has no additional default-palette keyed branch contract. Its only multi-child actions are Menu and Time of Day, both already guided. A redacted 2026-08-31 inventory of 30 active test-account callflows likewise found no unhandled keyed shape. Unknown or future-version branch keys remain read-only and losslessly preserved until their own schema/runtime audit exists | No current default-palette target; future capability-gated |
 
 ### Callflow action security audit
 
@@ -798,7 +858,9 @@ then used Monster only to confirm the intended operator workflows.
 | Action | Installed schema and runtime behavior | Security and product decision |
 | --- | --- | --- |
 | ACDC Queue | `callflows.acdc_queue` permits `action` (`login` or `logout`), requires raw Queue `id`, and permits `skip_module`. Installed `cf_acdc_queue` answers the call, derives the raw Agent ID from the authorizing endpoint's single Hotdesk user or owner, adds or removes the raw Queue ID in that account-local User's `queues` list, publishes the matching Queue membership event, plays the result prompt, and continues. It does not accept a design-time Agent and has no PIN challenge | Guided and search-only as `{ action, queue_id, skip_module }`. The public Queue UUID is resolved account-locally to raw `id` only at the Switch boundary; unsynchronized and cross-account Queues are rejected. Public readback returns the Queue UUID/label and never the raw ID. Existing unresolved targets are read-only, and unknown node fields remain private and losslessly preserved. The editor warns that the no-PIN behavior belongs behind a trusted feature-code route. Focused SDK/API/resolver/Zod/component tests and a disposable isolated lifecycle verified both actions, mapping, redaction, reopen, cleanup, soft deletion, and zero active Switch matches. No media leg was originated, so Agent inference and live membership mutation remain compiled-runtime evidence |
+| Ring Group User/Group expansion | User members resolve through `kz_attributes:owned_by(UserId, device, Call)` in the caller account database. Group members open the raw Group in that same account database and recursively expand its Device, User, and nested Group endpoints. Exact raw Device/delay/timeout triples are deduplicated; differing timing remains duplicated. Only top-level `disable_until` is filtered before expansion, while endpoint building later rejects deleted, disabled, self, or do-not-disturb Devices. The Group schema accepts an unconstrained endpoints object, Crossbar has no cycle validation, expansion records a Group only after recursion, and no final Device cap exists | Capability-gated. GridPBX exposes only direct account-scoped Device UUIDs. Public and SDK User/Group writes are rejected; existing expanded nodes are redacted, preserved, and read-only. Monster's User/Device overlap prompt does not cover nested Groups, cycles, final fan-out, or later membership changes. Focused SDK, validator, resolver, Zod, and component regressions enforce the gate. No disposable Switch mutation or media call was attempted because unbounded recursion and fan-out are the reasons for the gate |
 | Ring Group bridge flags | `callflows.ring_group.ignore_forward` is a boolean with schema default `true`; installed `cf_ring_group` passes its binary boolean to the bridge as `Ignore-Forward`, which maps to FreeSWITCH's fatal outbound-redirect behavior. `fail_on_single_reject` is an optional boolean passed as `Fail-On-Single-Reject`; absence leaves the FreeSWITCH behavior disabled | Guided as two strict shared-checkbox controls with public defaults `true` and `false`. Neither field accepts a URL, identifier, or untrusted nested payload. Malformed legacy values make the node read-only. A disposable isolated lifecycle verified both defaults, the `false`/`true` edit, authoritative reopen, raw values, public raw-ID/private-field redaction, private ringtone and unknown-field preservation through the production DTO path, browser cleanup, MySQL soft deletion, and zero active Switch matches. No media leg was originated, so the installed runtime establishes live bridge semantics |
+| Ring Group ringback and phone alerts | `callflows.ring_group.ringback` is a string passed through `kz_media_util:media_path` and then to the bridge. Plain raw Media IDs become account-scoped media paths, but arbitrary HTTP/HTTPS and special stream values are also runtime-capable. `ringtones.internal` is chosen for calls without inception and `ringtones.external` otherwise; the selected string becomes SIP `Alert-Info`, not audio | Guided only as account-scoped `ringback_media_id` for synchronized streamable `audio/*` Media plus optional bounded internal/external `Alert-Info` text. Raw Media IDs are resolved only at the Switch boundary and never returned publicly. URL/special-stream/system-path ringback is rejected to avoid SSRF and availability risk; unsafe legacy values are redacted and read-only. CR/LF/NUL phone-alert values are rejected. Unknown nested ringtone keys are preserved privately. A disposable isolated lifecycle verified public/raw Media mapping, create/edit/reopen, skip, nested unknown preservation, cleanup, MySQL soft deletion, and zero active Switch matches. No media leg was originated, so audible playback and emitted SIP headers remain installed-runtime evidence |
 | Ring Group Toggle | `callflows.ring_group_toggle` requires `action` (`login` or `logout`) and `callflow_id`, with optional `skip_module`. Installed `cf_ring_group_toggle` answers the call, opens that target only in the caller's account database, recursively visits every `ring_group`, and changes `disable_until` only on `user` endpoints whose raw ID equals `kapps_call:owner_id(Call)`. Login writes `0`; logout writes `66269664000`. Device/group endpoints and other users are unchanged. The module plays logged-in, logged-out, or invalid-choice prompts, saves the complete callflow with bounded conflict retries, and continues | Guided for synchronized non-feature callflows containing a Ring Group. The public API/UI use only the account-scoped target Callflow UUID; Laravel maps the raw target at the Switch boundary and rejects cross-account or non-ring-group targets. Focused SDK coverage proves unknown node fields survive typed edits and remain absent publicly. Disposable live configuration verified both actions, edits, reopen, raw/public mapping, cleanup, and public redaction. Crossbar sanitized the attempted unknown marker, so live preservation is not claimed. No media leg was originated, so compiled-runtime inspection rather than a live call proves the owner-only membership rule and prompts |
 | Hotdesking | `callflows.hotdesk` permits `login`, `logout`, `toggle`, and `bridge`, with optional `id`, `interdigit_timeout`, and `skip_module`. Monster exposes only login/logout/toggle and writes only `action`. Installed `cf_hotdesk` does not consume a feature-code capture value: when no server-owned `id` is present it prompts for the account Hotdesk ID, except logout can infer the sole owner of the authorizing endpoint. Login loads the user's Hotdesk profile, enforces its PIN when `require_pin = true`, optionally removes that user from other devices, and writes the raw user ID under the current authorizing device's `hotdesk.users`. Logout never requests the profile PIN and removes either the current device or all devices according to `keep_logged_in_elsewhere`. Toggle chooses login when the user has no active Hotdesk endpoints and logout otherwise. Each mutation saves the complete Device document and sends an unsolicited MWI update | Guided only as the resource-free public contract `{ action: login|logout|toggle, skip_module }`; `bridge`, design-time user selection, raw `id`, and timing controls are rejected or remain server-owned. The form warns that logout and toggle's logout path do not prompt for a PIN and should remain behind a trusted feature-code route. Focused SDK coverage proves raw/private and unknown fields survive typed edits, while API/resolver/UI tests prove they remain absent publicly. A disposable isolated run created, edited, and reopened all three actions; an independent raw watcher confirmed the exact actions, `skip_module = true`, and no `id` or `interdigit_timeout`. No media leg was originated, so prompts, PIN entry, and Device session mutation remain compiled-runtime evidence rather than a live-call claim |
 | Do Not Disturb | `callflows.do_not_disturb` permits `action` (`activate`, `deactivate`, or `toggle`), optional raw `id`, and `skip_module`. Monster's normal palette writes only the action. Installed `cf_do_not_disturb` uses `id` only when server-owned data already provides it; otherwise it resolves `kapps_call:owner_id(Call)` and falls back to `authorizing_id(Call)`, opens only the caller account database, accepts only User or Device documents, and changes only `do_not_disturb.enabled` with conflict retry | Guided only as resource-free `{ action, skip_module }`. GridPBX rejects legacy `enable`/`disable` spellings and any public raw `id`, returns `target: null` with `reference_status: not_applicable`, and preserves private/unknown node fields losslessly. There is no public-to-raw mapping: runtime identity resolution stays in Kazoo. The module has no PIN challenge, so the editor warns that this must remain behind a trusted feature-code route. Focused tests protect the contract and preservation; a disposable isolated run verified all three create/edit/reopen paths, raw/public redaction, and cleanup. No media leg was originated, so the account-local User/Device mutation remains compiled-runtime evidence |
@@ -1053,11 +1115,48 @@ isolated headless test passed in 4.4 seconds. Browser deletion and independent
 synchronization confirmed a soft-deleted MySQL projection and zero active
 Switch matches. No direct CouchDB write or media-leg call was used.
 
-The remaining work adds
-additional non-reference module forms and explicitly designed module-specific
-branch editors.
-Direct temporal and Rule Set branches already use typed, server-mapped
-operations. Unsupported nodes remain locked and lossless.
+The 2026-08-31 Ring Group User/Group audit did not create a disposable node.
+Installed runtime inspection confirmed account-local lookup but also dynamic
+User ownership expansion, recursive Group expansion without a visited set,
+deduplication only for equal Device/delay/timeout triples, and no final fan-out
+cap. The installed Group schema and Crossbar validation do not reject recursive
+membership, while Monster's direct User/Device warning does not cover nested
+Group overlap or future membership changes. Focused SDK, Laravel
+validator/resolver, Zod, and component regressions now prove that the public
+Device-only boundary rejects User/Group selection and never exposes their raw
+identifiers. No live write or media call was appropriate because the missing
+cycle and fan-out controls are the capability gate.
+
+The 2026-08-31 ringback/phone-alert lifecycle used disposable route
+`E2E Ring Group Media 1788127297`, unique number `88127297`, and a disposable
+synchronized silent WAV. One isolated headless test selected that Media by its
+account-scoped public UUID, set internal and external phone-alert values,
+edited the Ring Group to weighted-random with endpoint timeout `30`, weight
+`75`, updated both alerts, enabled `skip_module`, and reopened every
+authoritative value. Public requests and responses never contained the raw
+Media or Device IDs. An independent raw observer captured both expected raw
+mappings, computed timeout `30`, both edited ringtone values, and retention of
+an injected unknown nested ringtone key plus unknown node key. The focused
+browser test passed in 5.1 seconds. Browser deletion and independent
+reconciliation confirmed the Callflow projection was soft-deleted, no active
+Switch callflow matched, and the disposable Media projection was soft-deleted
+after its Switch resource was removed. No media leg was originated, so audible
+ringback and emitted SIP `Alert-Info` remain installed-runtime evidence.
+
+A 2026-08-31 follow-up audited the running local topology before attempting that
+media-leg acceptance case. The Kazoo reference container exposed only Crossbar
+on TCP 8000; no FreeSWITCH/media-server process, SIP or ESL listener, or RTP
+path exists in the workspace stack. The audit therefore made no disposable
+Switch write and originated no call. The exact next priority remains the
+account-local, no-carrier Ring Group media-leg test in a representative
+FreeSWITCH/ecallmgr environment; audible ringback and emitted internal/external
+`Alert-Info` must not be marked live-verified before that evidence exists.
+
+The installed default palette has no remaining planned action or unhandled
+keyed branch contract. Future-version or search-only non-reference modules and
+branch shapes require their own schema/runtime evidence before they can become
+an implementation target. Direct temporal and Rule Set branches already use
+typed, server-mapped operations. Unsupported nodes remain locked and lossless.
 GridPBX uses its Tailwind visual language rather than copying Monster's styling.
 
 Focused Switch package, Laravel feature, Vue schema/store, and isolated

@@ -112,7 +112,7 @@ completion.
 | Queue | `queues.json`, agent endpoints, and ACDc runtime | users, devices, callflows, agent state/statistics | Foundation | Pending | 3 |
 | Recording | MODB recording documents and content endpoints; no single Crossbar CRUD schema | CDRs, storage policy, retention | Foundation | Safe metadata/playback matrix complete below; deletion and retention remain policy-gated | 5 |
 | Services | services, limits, service-plan, ledger, and quote endpoints | accounts, reseller hierarchy, billing provider | Foundation/read-only | Pending | 6 |
-| SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Pending | 6 |
+| SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Initial safe presence/parking capability matrix delivered below | 6 |
 | TemporalRule | `temporal_rules.json` plus enable/disable/reset actions | callflows, rule sets, account timezone | Foundation | Complete below | 3 |
 | TemporalRuleSet | `temporal_rules_sets.json` plus member rule actions | temporal rules and callflows | Foundation | Complete below | 3 |
 | User | `users.json` and user action endpoints | devices, voicemail, directories, groups, queues, callflows | Foundation | Complete below | 2 |
@@ -524,7 +524,7 @@ mailbox configuration below; it does not overwrite message or media state.
 | `owner_id` | Editable through a public Extension UUID; Switch IDs remain server-side | Implemented |
 | `timezone` | Editable; IANA timezone, 5–32 characters | Implemented |
 | `notify_email_addresses[]` | Editable; distinct validated addresses, maximum 10 | Implemented |
-| `transcribe` | Editable schema field; UI reports runtime availability as unknown until Switch authentication capabilities are projected | Implemented with explicit capability caveat |
+| `transcribe` | Schema-backed boolean with default `false`. GridPBX reads the installed authentication capability backed by `kazoo_asr:available()` and `kvm_util:transcribe_default()`, exposes only nullable availability/default booleans, and prevents newly enabling transcription when availability is explicitly false. Existing enabled values remain preservable and can be turned off | Implemented and live capability-verified |
 | `require_pin` | Editable | Implemented |
 | `pin` | Write-only, 4–6 digits; omitted on edit preserves the current PIN | Implemented and redacted |
 | `is_setup` | Read-only mailbox setup status | Implemented |
@@ -678,11 +678,53 @@ invalid styling, and isolated authenticated visual acceptance.
 | `cdr_url`, `recording_url` | Hidden pending outbound URL/SSRF allowlist policy; existing Switch values are preserved and never returned | Intentionally policy-gated |
 | queue roster | Public Extension UUIDs resolved to Switch User identifiers and replaced separately | Implemented |
 | live agent status | Login, logout, pause, resume, and end-wrapup commands with conditional pause timeout and audit logging | Implemented; no automated live mutation of real agents |
+| runtime capability discovery | Safe account-level reads probe Queue configuration, aggregate Agent status, and Queue statistics independently; only three booleans enter the public contract, with a one-minute account cache | Implemented and live verified as configuration available, live controls unavailable, and statistics unavailable |
 
 The Queue additions remain virtual projections from the redacted response
 `data` object in `switch_json`; normalized MySQL columns are reserved for the
 existing searchable operational fields. An isolated authenticated lifecycle
 passed create, edit, clear, and cleanup against the connected Switch.
+
+The 2026-08-31 runtime capability audit found `cb_queues` and `cb_agents`
+loaded, but the ACDc OTP application was not running and
+`cb_acdc_call_stats` was not loaded. Read-only account probes returned `200`
+for Queue and Agent configuration, `500` for aggregate Agent status and Agent
+statistics, `503` for Queue statistics, and `404` for `acdc_call_stats`. The
+public Queue options response reduced that evidence to
+`configuration_available = true`, `live_agent_controls_available = false`,
+and `statistics_available = false`; no raw response body, account ID, Queue
+ID, or Agent ID crossed the API. Focused SDK, Laravel API, Zod/store/component,
+Vue type, E2E TypeScript, and one isolated headless check passed. The browser
+confirmed Queue creation stayed available, live controls were visibly gated,
+and no Queue or Agent mutation request was sent. No live Agent state or call
+statistics were changed or claimed as verified.
+
+### 12.1 Presence and parked-call operational matrix
+
+| Endpoint or operation | Treatment | Current status |
+| --- | --- | --- |
+| account Presence summary | Probe availability only; the response is SIP subscription diagnostics, not authoritative live User status | Implemented and live verified |
+| live User presence state | Hidden until a reliable state source and freshness contract are identified | Capability-gated |
+| Presence set/reset | Hidden pending public Device/User UUID mapping, authorization, immutable audit, and command semantics | Capability-gated |
+| parked-call summary | Read-only active-slot count; raw slots and slot numbers are discarded | Implemented and live verified |
+| park/retrieve actions | Not exposed because installed Kazoo performs them through a live callflow media leg and provides no REST action | Capability-gated |
+| caching and persistence | Ten-second account-scoped cache; no durable MySQL projection of transient runtime payloads | Implemented |
+
+The public route accepts only the GridPBX account UUID. The server resolves the
+raw Switch account reference internally and returns `observed_at`, three fixed
+Presence capability booleans, two fixed parking capability fields, and the
+nullable aggregate count. The strict API/Zod contract contains no Switch
+account ID, call ID, Presence ID, SIP contact, subscription data, Switch URI,
+node, caller identity, media field, or raw slot payload.
+
+Installed-runtime inspection confirmed `cb_presence` and `cb_parked_calls`
+were loaded and `omnipresence` was running. Live account reads returned `200`
+for both endpoints; the parking summary contained zero active slots at the
+observation time. Because the feature is read-only, unknown source fields are
+neither rewritten nor deleted. Focused SDK and Laravel checks, strict Zod/store
+checks, Vue and E2E TypeScript typechecks, and one isolated authenticated
+headless browser test passed. This is an initial operational-status foundation,
+not completion of live presence or parked-call actions.
 
 ## 13. Conference field-level matrix
 
@@ -950,7 +992,9 @@ duration remain enforceable.
 | `strategy = simultaneous` or `single` | Guided as At the same time or In order | Implemented |
 | `strategy = weighted_random` | Guided as Weighted random order. Every Device requires an explicit integer weight `1`–`100`; the runtime still tries every Device once per attempt and reshuffles for each retry | Implemented |
 | `endpoints[]` with `endpoint_type = device` and raw `id` | One to twenty ordered account-scoped public Device UUIDs; Laravel resolves raw Switch IDs only for the SDK write | Implemented |
-| `endpoints[]` with `endpoint_type = user` or `group` | Runtime expands memberships into devices; kept read-only until expansion, deduplication, inactive-member filtering, authorization, and final fan-out can be enforced | Capability-gated |
+| `endpoints[]` with `endpoint_type = user` | Runtime queries the caller account's `attributes/owned` view and expands the User into every currently owned Device. It does not use User enabled state; Device building later rejects deleted, disabled, self, or do-not-disturb Devices. Dynamic ownership can change after the Callflow is saved, and there is no resolved-device cap | Capability-gated; public/API/SDK writes rejected and existing nodes read-only |
+| `endpoints[]` with `endpoint_type = group` | Runtime opens the Group only in the caller account database and recursively expands Device, User, and nested Group members. The Group schema leaves `endpoints` structurally unconstrained, Crossbar does not validate cycles, and expansion has no visited-set or resolved-device cap | Capability-gated; public/API/SDK writes rejected and existing nodes read-only |
+| expanded endpoint deduplication and activity | Deduplication keys only raw Device ID plus delay and timeout; one Device reached with different timing remains more than once. Only top-level `disable_until` is filtered before expansion. Nested Group membership changes can alter fan-out without changing the Callflow | Not safely enforceable with the current dynamic contract |
 | endpoint `delay` | Guided integer `0`–`60`; in-order and weighted-random strategies require `0` | Implemented |
 | endpoint `timeout` | Guided integer `1`–`60` | Implemented |
 | endpoint `weight` | Public only for weighted-random and required as an explicit integer `1`–`100`; rejected for simultaneous/in-order public writes. Existing private weights on other strategies remain preserved | Implemented |
@@ -958,8 +1002,23 @@ duration remain enforceable.
 | `repeats` | Guided integer `1`–`3` | Implemented |
 | `ignore_forward` | Strict public boolean. Omitted existing values read as the installed schema/runtime default `true`; enabled maps to FreeSWITCH's fatal outbound-redirect behavior | Implemented and live verified |
 | `fail_on_single_reject` | Strict public boolean. Omitted existing values read as disabled (`false`); enabled tells the bridge to stop the remaining legs after one rejection | Implemented and live verified |
+| `ringback` | Publicly modeled only as nullable `ringback_media_id`, an account-scoped UUID for synchronized streamable `audio/*` Media. Laravel resolves the private raw Media ID only for the Switch write. URL, special-stream, system-path, unresolved, and non-audio values are rejected or make existing nodes read-only | Implemented and configuration-live verified |
+| `ringtones.internal`, `ringtones.external` | Optional bounded phone `Alert-Info` strings. Values are trimmed, limited to 256 characters, and reject CR, LF, and NUL. These are SIP header values, not audio Media | Implemented and configuration-live verified |
 | `skip_module` | Guided boolean | Implemented |
-| `ringback`, `ringtones`, endpoint `disable_until`, and unknown properties | Hidden from public API/UI and merged losslessly by the Switch DTO; malformed legacy bridge flags or other unsupported current shapes are read-only | Preservation boundary implemented |
+| unknown nested `ringtones` keys, endpoint `disable_until`, and other unknown properties | Hidden from public API/UI and merged losslessly by the Switch DTO; unsafe legacy ringback/ringtone values, malformed bridge flags, and other unsupported current shapes are read-only | Preservation boundary implemented |
+
+The 2026-08-31 User/Group audit inspected the installed schema and compiled
+runtime exports, the matching Kazoo source and focused runtime tests, the Group
+schema/Crossbar validator, and Monster's Ring Group workflow. Account-local
+lookups prevent cross-account raw identifiers from resolving, but they do not
+bound dynamic membership. Monster removes direct owned Devices when a User is
+selected only after operator confirmation; it does not detect nested Group
+overlap, recursive Groups, final Device count, or membership changes after the
+Callflow is saved. GridPBX retains the simpler Device-only public contract.
+Focused package, Laravel validator/resolver, Zod, and component regressions
+prove User/Group selections are rejected and their raw identifiers never enter
+the public projection. No disposable Switch write or media call was performed
+because the missing cycle and resolved-fan-out controls are the gate itself.
 
 A 2026-08-30 disposable isolated-headless lifecycle verified creation below
 Page Group, simultaneous-to-in-order editing, delay reset, bounded timeout and
@@ -970,6 +1029,13 @@ live private markers, so private/unknown-field preservation is claimed from the
 focused SDK regression test; direct CouchDB writes were not used. No media-leg
 call was originated, so this matrix records a verified guided foundation rather
 than full Ring Group completion.
+
+The 2026-08-31 media-leg topology audit found Crossbar on TCP 8000 but no local
+FreeSWITCH/media-server process, SIP or ESL listener, or RTP path. It created no
+disposable resource and originated no call. Audible ringback and emitted
+internal/external `Alert-Info` therefore remain pending live acceptance in a
+representative external FreeSWITCH/ecallmgr environment, consistent with the
+implementation plan's production-telephony boundary.
 
 A second 2026-08-30 disposable lifecycle used
 `E2E Ring Group Weighted 20260830150119890`. One focused isolated headless test
@@ -995,6 +1061,20 @@ edit retained both, while the raw Device endpoint matched the seeded public
 Device. One isolated headless test passed in 4.4 seconds. Browser deletion and
 independent synchronization confirmed MySQL soft deletion and zero active
 Switch matches. No direct CouchDB write or media-leg call was used.
+
+The 2026-08-31 lifecycle used disposable route
+`E2E Ring Group Media 1788127297`, number `88127297`, and a disposable
+synchronized silent WAV. One isolated headless test selected the audio through
+its account-scoped public Media UUID, set both phone alerts, edited the Ring
+Group to weighted-random with timeout `30`, weight `75`, updated alerts, and
+`skip_module = true`, then reopened the authoritative values. Public payloads
+never contained the raw Media or Device IDs. An independent raw observer
+confirmed both mappings and proved an unknown nested ringtone key plus unknown
+node key survived the typed edit. The test passed in 5.1 seconds. Browser
+cleanup and independent reconciliation confirmed a soft-deleted Callflow
+projection, zero active Switch matches, and deletion/soft-deletion of the
+disposable Media. No media leg was originated, so audible ringback and emitted
+SIP `Alert-Info` remain compiled-runtime evidence.
 
 ## 23. ACDC Queue guided field-level matrix
 

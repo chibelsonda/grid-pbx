@@ -8,6 +8,7 @@ use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\Queues\Requests\ListQueuesRequest;
 use App\Domains\Queues\Requests\SaveQueueRequest;
 use App\Domains\Queues\Resources\QueueResource;
+use App\Domains\Queues\Services\QueueCapabilityService;
 use App\Domains\Queues\Services\QueueMutationService;
 use App\Domains\Queues\Services\QueueService;
 use App\Http\Controllers\Controller;
@@ -30,13 +31,21 @@ class QueueController extends Controller
         return QueueResource::collection($queues->paginate($switchAccount, $validated, (int) ($validated['per_page'] ?? 25)));
     }
 
-    public function options(Request $request, string $account, SwitchAccountService $accounts, QueueService $queues): JsonResponse
-    {
+    public function options(
+        Request $request,
+        string $account,
+        SwitchAccountService $accounts,
+        QueueService $queues,
+        QueueCapabilityService $capabilities,
+    ): JsonResponse {
         /** @var User $user */ $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [SwitchQueue::class, $switchAccount]);
 
-        return ApiResponse::data($queues->options($switchAccount));
+        return ApiResponse::data([
+            ...$queues->options($switchAccount),
+            'capabilities' => $capabilities->get($switchAccount),
+        ]);
     }
 
     public function show(Request $request, string $account, string $queue, SwitchAccountService $accounts, QueueService $queues): QueueResource

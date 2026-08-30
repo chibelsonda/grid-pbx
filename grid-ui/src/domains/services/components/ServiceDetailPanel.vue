@@ -4,8 +4,16 @@ import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import type { ServiceOverview } from '../types/service'
 defineProps<{ overview: ServiceOverview }>()
 defineEmits<{ close: [] }>()
-const amount = (value: number): string =>
-  new Intl.NumberFormat(undefined, { maximumFractionDigits: 4 }).format(value)
+const amount = (value: number | string | null): string => {
+  if (value === null) return 'Not reported'
+
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 8 }).format(Number(value))
+}
+const label = (value: string): string =>
+  value
+    .replaceAll('-', ' ')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase())
 </script>
 
 <template>
@@ -59,6 +67,123 @@ const amount = (value: number): string =>
             </dd>
           </div>
         </dl>
+      </article>
+      <article class="card-surface p-5">
+        <div class="flex items-start gap-3">
+          <span
+            class="grid size-10 shrink-0 place-items-center rounded-md bg-violet-50 text-violet-600"
+            ><CircleStackIcon class="size-5"
+          /></span>
+          <div class="min-w-0">
+            <h2 class="text-sm font-semibold text-slate-700">Switch billing activity</h2>
+            <p class="text-[10px] leading-4 text-slate-500">
+              Read-only ledger and transaction projections. Amounts use the account currency
+              configured in Switch; no currency is assumed when it is not reported.
+            </p>
+          </div>
+        </div>
+
+        <p v-if="!overview.billing" class="mt-5 text-xs text-slate-500">
+          No billing activity projection is available. Run a service synchronization to discover
+          supported endpoints.
+        </p>
+        <template v-else>
+          <div class="mt-5 grid gap-3 sm:grid-cols-3">
+            <div class="rounded-md border border-slate-200 bg-slate-50/60 p-3">
+              <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                Ledger total
+              </p>
+              <p class="mt-1 text-sm font-semibold text-slate-700">
+                {{ amount(overview.billing.ledger_total) }}
+              </p>
+            </div>
+            <div class="rounded-md border border-slate-200 bg-slate-50/60 p-3">
+              <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                Ledger sources
+              </p>
+              <p class="mt-1 text-sm font-semibold text-slate-700">
+                {{ overview.billing.ledger_source_count }}
+              </p>
+            </div>
+            <div class="rounded-md border border-slate-200 bg-slate-50/60 p-3">
+              <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                Transactions projected
+              </p>
+              <p class="mt-1 text-sm font-semibold text-slate-700">
+                {{ overview.billing.transaction_count }}
+              </p>
+            </div>
+          </div>
+
+          <div
+            v-if="
+              !overview.billing.availability.ledgers ||
+              !overview.billing.availability.ledger_total ||
+              !overview.billing.availability.transactions
+            "
+            class="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-[11px] leading-4 text-amber-800"
+          >
+            This Switch version did not expose every read-only billing endpoint. Existing projected
+            history is retained and no write fallback is attempted.
+          </div>
+
+          <div class="mt-5">
+            <h3 class="text-xs font-semibold text-slate-700">Ledger sources</h3>
+            <div v-if="overview.billing.ledger_summaries.length" class="mt-2 grid gap-2">
+              <div
+                v-for="ledger in overview.billing.ledger_summaries"
+                :key="ledger.id"
+                class="flex items-center justify-between gap-4 rounded-md border border-slate-200 px-3 py-2.5"
+              >
+                <div class="min-w-0">
+                  <p class="truncate text-xs font-semibold text-slate-700">
+                    {{ label(ledger.source_service) }}
+                  </p>
+                  <p class="mt-0.5 text-[10px] text-slate-500">
+                    <template v-if="ledger.usage_quantity !== null">
+                      {{ amount(ledger.usage_quantity) }} {{ ledger.usage_unit || 'units' }}
+                    </template>
+                    <template v-else>No usage quantity reported</template>
+                  </p>
+                </div>
+                <p class="shrink-0 text-xs font-semibold text-slate-700">
+                  {{ amount(ledger.amount) }}
+                </p>
+              </div>
+            </div>
+            <p v-else class="mt-2 text-xs text-slate-500">No ledger sources were reported.</p>
+          </div>
+
+          <div class="mt-5">
+            <h3 class="text-xs font-semibold text-slate-700">Recent transactions</h3>
+            <div
+              v-if="overview.billing.transactions.length"
+              class="mt-2 divide-y divide-slate-100 rounded-md border border-slate-200"
+            >
+              <div
+                v-for="transaction in overview.billing.transactions"
+                :key="transaction.id"
+                class="flex items-start justify-between gap-4 px-3 py-3"
+              >
+                <div class="min-w-0">
+                  <p class="truncate text-xs font-semibold text-slate-700">
+                    {{ transaction.description || label(transaction.reason || 'Transaction') }}
+                  </p>
+                  <p class="mt-0.5 text-[10px] text-slate-500">
+                    {{ transaction.type ? label(transaction.type) : 'Type not reported' }}
+                    <template v-if="transaction.created_at">
+                      · {{ new Date(transaction.created_at).toLocaleString() }}
+                    </template>
+                  </p>
+                </div>
+                <p class="shrink-0 text-xs font-semibold text-slate-700">
+                  {{ amount(transaction.amount) }}
+                </p>
+              </div>
+            </div>
+            <p v-else class="mt-2 text-xs text-slate-500">No transactions were reported.</p>
+          </div>
+        </template>
       </article>
       <article class="card-surface p-5">
         <div class="mb-4 flex items-center gap-2">

@@ -9,6 +9,7 @@ use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\Groups\Models\SwitchGroup;
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
@@ -2377,6 +2378,12 @@ class CallflowControllerTest extends TestCase
             'switch_resource_id' => 'switch-ring-group-device',
             'name' => 'Reception phone',
         ]);
+        $ringback = SwitchMedia::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-ring-group-media',
+            'name' => 'Support ringback',
+            'streamable' => true,
+            'content_type' => 'audio/mpeg',
+        ]);
         $callflow = SwitchCallflow::factory()->for($account)->create([
             'switch_resource_id' => 'switch-callflow-ring-group',
             'flow_structure' => [
@@ -2397,6 +2404,9 @@ class CallflowControllerTest extends TestCase
             'repeats' => 2,
             'ignore_forward' => false,
             'fail_on_single_reject' => true,
+            'ringback_media_id' => $ringback->id,
+            'ringtone_internal' => 'internal-ring',
+            'ringtone_external' => 'external-ring',
             'skip_module' => false,
         ];
         $switchSettings = [
@@ -2412,6 +2422,11 @@ class CallflowControllerTest extends TestCase
             'timeout' => 20,
             'ignore_forward' => false,
             'fail_on_single_reject' => true,
+            'ringback' => 'switch-ring-group-media',
+            'ringtones' => [
+                'internal' => 'internal-ring',
+                'external' => 'external-ring',
+            ],
             'skip_module' => false,
         ];
         $gateway = $this->mock(SwitchCallflowGateway::class);
@@ -2442,7 +2457,10 @@ class CallflowControllerTest extends TestCase
                             'module' => 'ring_group',
                             'data' => [
                                 ...$switchSettings,
-                                'ringback' => 'private-media-id',
+                                'ringtones' => [
+                                    ...$switchSettings['ringtones'],
+                                    'server_owned' => 'secret-ringtone',
+                                ],
                                 'endpoints' => [[
                                     ...$switchSettings['endpoints'][0],
                                     'server_owned' => 'secret',
@@ -2471,8 +2489,12 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.flow.children._.settings.repeats', 2)
             ->assertJsonPath('data.flow.children._.settings.ignore_forward', false)
             ->assertJsonPath('data.flow.children._.settings.fail_on_single_reject', true)
+            ->assertJsonPath('data.flow.children._.settings.ringback_media_id', $ringback->id)
+            ->assertJsonPath('data.flow.children._.settings.ringtone_internal', 'internal-ring')
+            ->assertJsonPath('data.flow.children._.settings.ringtone_external', 'external-ring')
             ->assertJsonMissing(['id' => 'switch-ring-group-device'])
-            ->assertJsonMissing(['ringback' => 'private-media-id'])
+            ->assertJsonMissing(['ringback' => 'switch-ring-group-media'])
+            ->assertJsonMissing(['server_owned' => 'secret-ringtone'])
             ->assertJsonMissing(['server_owned' => 'secret']);
 
         $this->actingAs($user)->postJson($url, [
@@ -2490,6 +2512,22 @@ class CallflowControllerTest extends TestCase
             ],
         ])->assertUnprocessable()
             ->assertJsonValidationErrors('data.endpoints');
+
+        $crossAccountMedia = SwitchMedia::factory()->create([
+            'streamable' => true,
+            'content_type' => 'audio/mpeg',
+        ]);
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '_',
+            'module' => 'ring_group',
+            'data' => [
+                ...$publicSettings,
+                'ringback_media_id' => $crossAccountMedia->id,
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('data.ringback_media_id');
     }
 
     public function test_it_writes_resource_free_conference_service_without_exposing_switch_settings(): void

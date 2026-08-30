@@ -151,6 +151,12 @@ const ringGroupDeviceOptions = computed<ListboxOptionValue[]>(() => {
     .filter(({ id }) => !selected.has(id))
     .map(({ id, label, detail }) => ({ value: id, label, description: detail }))
 })
+const ringGroupRingbackOptions = computed<ListboxOptionValue[]>(() => [
+  { value: null, label: 'Switch default' },
+  ...(props.editor?.destinations.media ?? [])
+    .filter(({ supports_ringback }) => supports_ringback === true)
+    .map(({ id, label, detail }) => ({ value: id, label, description: detail })),
+])
 const callerIdentityOwnerOptions = computed<ListboxOptionValue[]>(() => [
   { value: null, label: 'Do not override caller identity' },
   ...extensionOptions.value,
@@ -234,7 +240,7 @@ const lockedReason = computed<string | null>(() => {
     module.value === 'ring_group' &&
     props.context.node.settings?.supported_configuration !== true
   ) {
-    return 'This Ring Group uses unresolved or expanded endpoints, unsafe timing or weight values, or more than 20 devices. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
+    return 'This Ring Group uses unresolved or expanded endpoints, unsafe timing or weight values, more than 20 devices, unsupported ringback, or unsafe phone-alert values. GridPBX preserves its complete configuration without exposing or rewriting raw resource IDs.'
   }
   if (
     module.value === 'receive_fax' &&
@@ -387,6 +393,14 @@ function removeRingGroupEndpoint(index: number): void {
 
 function ringGroupDeviceLabel(deviceId: string): string {
   return deviceOptions.value.find(({ id }) => id === deviceId)?.label ?? 'Unavailable device'
+}
+
+function setRingGroupRingtone(
+  field: 'ringtone_internal' | 'ringtone_external',
+  value: unknown,
+): void {
+  const ringtone = String(value ?? '').trim()
+  form.data[field] = ringtone === '' ? null : ringtone
 }
 
 function setRingGroupCallflow(value: ListboxValue): void {
@@ -1169,13 +1183,56 @@ watch(
               />
             </section>
 
+            <section class="grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 class="text-xs font-semibold text-slate-700">Ringback and phone alerts</h3>
+                <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                  Ringback is account audio heard while devices ring. Phone alerts are optional SIP
+                  Alert-Info values, not audio files.
+                </p>
+              </div>
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Ringback audio</span>
+                <FormListbox
+                  :model-value="form.data.ringback_media_id ?? null"
+                  :options="ringGroupRingbackOptions"
+                  aria-label="Ringback audio"
+                  :invalid="Boolean(fieldError('data.ringback_media_id'))"
+                  @update:model-value="
+                    form.data.ringback_media_id = typeof $event === 'string' ? $event : null
+                  "
+                />
+                <span v-if="fieldError('data.ringback_media_id')" class="text-[10px] text-danger">
+                  {{ fieldError('data.ringback_media_id') }}
+                </span>
+              </label>
+              <div class="grid gap-4 sm:grid-cols-2">
+                <FormInput
+                  :model-value="form.data.ringtone_internal ?? ''"
+                  label="Internal phone alert"
+                  description="Optional Alert-Info value for calls originating inside the account."
+                  maxlength="256"
+                  :error="fieldError('data.ringtone_internal')"
+                  @update:model-value="setRingGroupRingtone('ringtone_internal', $event)"
+                />
+                <FormInput
+                  :model-value="form.data.ringtone_external ?? ''"
+                  label="External phone alert"
+                  description="Optional Alert-Info value for calls originating outside the account."
+                  maxlength="256"
+                  :error="fieldError('data.ringtone_external')"
+                  @update:model-value="setRingGroupRingtone('ringtone_external', $event)"
+                />
+              </div>
+            </section>
+
             <div
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
               GridPBX computes Kazoo's overall attempt timeout from the Device rows. Weighted random
-              tries every device sequentially in a newly shuffled weighted order per attempt.
-              Ringback, ringtones, and unknown fields stay private and are preserved. Expanded
-              user/group endpoints remain read-only.
+              tries every device sequentially in a newly shuffled weighted order per attempt. Raw
+              media IDs, URL/special-stream ringback values, unknown fields, and expanded user/group
+              endpoints remain private and read-only.
             </div>
           </template>
 

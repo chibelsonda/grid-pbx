@@ -1,7 +1,7 @@
 # GridPBX Application Implementation Plan
 
 Status: Active
-Last updated: 2026-08-30
+Last updated: 2026-08-31
 
 Implemented checkpoint:
 
@@ -771,14 +771,19 @@ Acceptance criteria:
   A Device-only inline `ring_group` timing/strategy foundation is delivered
   with bounded public UUID endpoints, computed attempt duration,
   weighted-random routing, and the two schema-backed bridge flags. User/group
-  expansion and ringback/ringtone media behavior remain part of advanced
+  expansion is capability-gated because the installed runtime dynamically
+  recurses through mutable membership without a resolved-device cap or safe
+  cycle boundary. Ringback/ringtone media behavior remains part of advanced
   visual callflow work.
 - Queue and agent foundation: ACDc-aware typed queue CRUD, normalized roster
   projection, redacted `switch_json`, queued synchronization, compensating
   roster updates, live agent status commands, right-side panels, and guided
   `acdc_member` callflow targets. Agent identity reuses projected users rather
   than creating a duplicate durable identity; live status remains operational
-  Switch state. Statistics remain a later capability-gated slice.
+  Switch state. Read-only account probes expose Queue configuration, live Agent
+  controls, and statistics as separate cached capabilities; failures close the
+  affected UI boundary without exposing probe payloads or Switch identifiers.
+  Statistics remain a later capability-gated slice.
 - Menu/IVR foundation: typed Menu CRUD, normalized prompt and behavior
   projection with full redacted `switch_json`, media relationship resolution,
   dependency-safe deletion, queued synchronization, guided call-routing
@@ -849,13 +854,19 @@ Acceptance criteria:
   remain in Switch or its storage provider. Outbound sending, forwarding,
   resubmission, and message deletion remain gated on retention, notification,
   and abuse-control policies.
-- Services foundation: typed read-only summary and limits clients, normalized
-  account summary, assigned-plan, quantity, and limit projections, complete
-  redacted `switch_json` for source objects, administrator-only authorization,
-  queued synchronization, and a Vue inventory plus right-side detail panel.
-  Billing identifiers, payment tokens, and bookkeeper configuration are
-  redacted. Plan assignment, limit changes, top-ups, manual quantities,
-  invoices, and charge acceptance remain outside this foundation.
+- Services and billing-observability foundation: typed read-only summary,
+  limits, ledger-summary, ledger-total, and transaction clients; normalized
+  account summary, assigned-plan, quantity, limit, ledger-source, and recent
+  transaction projections; complete redacted `switch_json` for source
+  objects; administrator-only authorization; queued synchronization; and a
+  Vue inventory plus right-side detail panel. Endpoint availability is stored
+  explicitly so older Switch deployments do not display missing data as zero.
+  Immutable projected transaction history is retained when an endpoint is
+  unavailable. Billing identifiers, payment tokens, provider metadata, and
+  bookkeeper configuration are redacted, and upstream transaction identifiers
+  are never exposed to the UI. Plan assignment, limit changes, top-ups,
+  credit/debit, sale/refund, invoices, payment methods, and charge acceptance
+  remain outside this read-only foundation.
 - LineKey/provisioning-preview foundation: entity-organized typed DTOs and a
   device PATCH client, normalized `switch_line_keys` owned by projected
   devices, endpoint brand/family/model metadata, credential-free preview API,
@@ -889,6 +900,17 @@ Acceptance criteria:
 
 These modules require separate threat models and acceptance criteria before
 implementation, especially payment handling.
+
+The first billing slice is deliberately observability-only. Switch remains
+authoritative for calculated service quantities, ledger totals, ledger-source
+usage, and its transaction records. GridPBX projects those values into MySQL
+for authorized search and support workflows; it does not recalculate them or
+act as a second accounting ledger. A future payment-provider integration must
+use hosted fields or provider tokenization so PAN/CVV never reaches Laravel,
+must use server-side idempotency and webhook reconciliation, and must begin
+with provider sandbox credentials stored only in local environment or secret
+management. Authorize.Net charge, tokenize, refund, credit/debit, and payment
+method mutations remain disabled until that separate design is approved.
 
 ### Phase 5: Migration and hardening
 

@@ -33,6 +33,6 @@ class StartServiceSyncService
             SyncSwitchServicesJob::dispatch((string) $run->getKey(), (string) $account->getKey());
         }
 
-return $run;
+        return $run;
     }
 }

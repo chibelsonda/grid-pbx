@@ -113,6 +113,9 @@ describe('callflow inline node form schema', () => {
         repeats: 1,
         ignore_forward: true,
         fail_on_single_reject: false,
+        ringback_media_id: null,
+        ringtone_internal: null,
+        ringtone_external: null,
         skip_module: false,
       },
       conference: { service_mode: true, skip_module: false },
@@ -391,6 +394,17 @@ describe('callflow inline node form schema', () => {
 
     expect(schema.safeParse(base).success).toBe(true)
     expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          ringback_media_id: '22222222-2222-4222-8222-222222222222',
+          ringtone_internal: 'internal-ring',
+          ringtone_external: 'external-ring',
+        },
+      }).success,
+    ).toBe(true)
+    expect(
       schema.safeParse({ ...base, data: { action: 'enable', skip_module: false } }).success,
     ).toBe(false)
     expect(schema.safeParse({ ...base, data: { ...base.data, id: 'raw-user-id' } }).success).toBe(
@@ -510,6 +524,9 @@ describe('callflow inline node form schema', () => {
         repeats: 2,
         ignore_forward: true,
         fail_on_single_reject: false,
+        ringback_media_id: null,
+        ringtone_internal: null,
+        ringtone_external: null,
         skip_module: false,
       },
     } as const
@@ -520,6 +537,51 @@ describe('callflow inline node form schema', () => {
     ).toBe(false)
     expect(
       schema.safeParse({ ...base, data: { ...base.data, fail_on_single_reject: 1 } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, ringback_media_id: 'raw-media' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, ringtone_internal: 'safe\r\nX-Injected: true' },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, ringtone_external: 'x'.repeat(257) },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [
+            {
+              extension_id: '22222222-2222-4222-8222-222222222222',
+              delay: 5,
+              timeout: 20,
+            },
+          ],
+        },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [
+            {
+              group_id: '33333333-3333-4333-8333-333333333333',
+              delay: 5,
+              timeout: 20,
+            },
+          ],
+        },
+      }).success,
     ).toBe(false)
     expect(
       schema.safeParse({

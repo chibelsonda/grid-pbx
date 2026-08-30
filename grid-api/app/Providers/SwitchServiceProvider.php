@@ -50,6 +50,8 @@ use App\Domains\Services\Contracts\SwitchServiceGateway;
 use App\Domains\Services\Gateways\CrossbarSwitchServiceGateway;
 use App\Domains\SwitchSynchronization\Contracts\SwitchExtensionGateway;
 use App\Domains\SwitchSynchronization\Gateways\CrossbarSwitchExtensionGateway;
+use App\Domains\SystemStatus\Contracts\SwitchOperationalStatusGateway;
+use App\Domains\SystemStatus\Gateways\CrossbarSwitchOperationalStatusGateway;
 use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleGateway;
 use App\Domains\TemporalRouting\Contracts\SwitchTemporalRuleSetGateway;
 use App\Domains\TemporalRouting\Gateways\CrossbarSwitchTemporalRuleGateway;
@@ -62,6 +64,7 @@ use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailGreetingGateway;
 use App\Domains\Voicemail\Gateways\CrossbarSwitchVoicemailMessageGateway;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Agents\AgentResourceClient;
+use GridPbx\Switch\Domains\Billing\BillingResourceClient;
 use GridPbx\Switch\Domains\Blacklists\BlacklistResourceClient;
 use GridPbx\Switch\Domains\CallDetailRecords\CallDetailRecordResourceClient;
 use GridPbx\Switch\Domains\CallerIdLists\CallerIdListResourceClient;
@@ -82,12 +85,14 @@ use GridPbx\Switch\Domains\Provisioning\ProvisioningCatalogResourceClient;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
 use GridPbx\Switch\Domains\Recordings\RecordingResourceClient;
 use GridPbx\Switch\Domains\Services\ServiceResourceClient;
+use GridPbx\Switch\Domains\SystemStatus\OperationalStatusClient;
 use GridPbx\Switch\Domains\TemporalRules\TemporalRuleResourceClient;
 use GridPbx\Switch\Domains\TemporalRuleSets\TemporalRuleSetResourceClient;
 use GridPbx\Switch\Domains\Users\UserResourceClient;
 use GridPbx\Switch\Domains\Voicemail\VoicemailBoxResourceClient;
 use GridPbx\Switch\Shared\Authentication\ApiKeyTokenProvider;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Shared\Capabilities\CapabilityProvider;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -148,6 +153,7 @@ class SwitchServiceProvider extends ServiceProvider
         $this->app->bind(SwitchQueueGateway::class, CrossbarSwitchQueueGateway::class);
         $this->app->bind(SwitchRecordingGateway::class, CrossbarSwitchRecordingGateway::class);
         $this->app->bind(SwitchServiceGateway::class, CrossbarSwitchServiceGateway::class);
+        $this->app->bind(SwitchOperationalStatusGateway::class, CrossbarSwitchOperationalStatusGateway::class);
         $this->app->bind(SwitchAgentGateway::class, CrossbarSwitchAgentGateway::class);
         $this->app->bind(SwitchTemporalRuleGateway::class, CrossbarSwitchTemporalRuleGateway::class);
         $this->app->bind(SwitchTemporalRuleSetGateway::class, CrossbarSwitchTemporalRuleSetGateway::class);
@@ -168,10 +174,19 @@ class SwitchServiceProvider extends ServiceProvider
             $app->make(SwitchConfig::class),
         ));
 
+        $this->app->singleton(
+            CapabilityProvider::class,
+            fn ($app) => $app->make(TokenProvider::class),
+        );
+
         $this->app->singleton(SwitchClient::class, fn ($app) => new SwitchClient(
             $app->make(ClientInterface::class),
             $app->make(SwitchConfig::class),
             $app->make(TokenProvider::class),
+        ));
+
+        $this->app->singleton(OperationalStatusClient::class, fn ($app) => new OperationalStatusClient(
+            $app->make(SwitchClient::class),
         ));
 
         $this->app->singleton(AccountResourceClient::class, fn ($app) => new AccountResourceClient(
@@ -179,6 +194,10 @@ class SwitchServiceProvider extends ServiceProvider
         ));
 
         $this->app->singleton(BlacklistResourceClient::class, fn ($app) => new BlacklistResourceClient(
+            $app->make(SwitchClient::class),
+        ));
+
+        $this->app->singleton(BillingResourceClient::class, fn ($app) => new BillingResourceClient(
             $app->make(SwitchClient::class),
         ));
 

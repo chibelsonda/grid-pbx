@@ -46,6 +46,16 @@ class MediaControllerTest extends TestCase
                 ],
             ],
         ]);
+        SwitchCallflow::factory()->for($account)->create([
+            'modules' => ['ring_group'],
+            'switch_json' => [
+                'flow' => [
+                    'module' => 'ring_group',
+                    'data' => ['ringback' => 'switch-media-hold'],
+                    'children' => [],
+                ],
+            ],
+        ]);
         $otherMedia = SwitchMedia::factory()->create();
 
         $this->actingAs($user)
@@ -64,7 +74,7 @@ class MediaControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.dependencies.music_on_hold', 1)
             ->assertJsonPath('data.dependencies.voicemail_greetings', 1)
-            ->assertJsonPath('data.dependencies.callflows', 1)
+            ->assertJsonPath('data.dependencies.callflows', 2)
             ->assertJsonPath('data.dependencies.can_delete', false)
             ->assertJsonMissing(['server-only']);
 

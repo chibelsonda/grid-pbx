@@ -2,6 +2,8 @@
 
 namespace Tests\Feature\Domains\Services;
 
+use App\Domains\Billing\Models\SwitchBillingTransaction;
+use App\Domains\Billing\Models\SwitchLedgerSummary;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Services\Contracts\SwitchServiceGateway;
@@ -34,6 +36,32 @@ class ServiceSynchronizationServiceTest extends TestCase
             'limits' => ['enabled' => true, 'allow_prepay' => true, 'allow_postpay' => false, 'inbound_trunks' => 2, 'outbound_trunks' => 3, 'twoway_trunks' => 1, 'burst_trunks' => 0, 'calls' => 20, 'resource_consuming_calls' => 10, 'soft_limit_inbound' => false, 'soft_limit_outbound' => true, 'data' => ['id' => 'limits', 'allow_prepay' => true]],
             'plans' => [['switch_resource_id' => 'plan-1', 'name' => 'Business', 'description' => 'Business plan', 'category' => 'voice', 'data' => ['name' => 'Business']]],
             'quantities' => [['scope' => 'account', 'category' => 'devices', 'item' => 'sip_device', 'quantity' => 3]],
+            'billing' => [
+                'ledgers_available' => true,
+                'ledger_total_available' => true,
+                'transactions_available' => true,
+                'ledger_total' => '-44.5604',
+                'ledgers' => [[
+                    'source_service' => 'per-minute-voip',
+                    'amount' => '-54.7404',
+                    'usage_quantity' => '14520',
+                    'usage_type' => 'voice',
+                    'usage_unit' => 'sec',
+                    'data' => ['amount' => '-54.7404', 'metadata' => ['payment_token' => 'secret']],
+                ]],
+                'transactions' => [[
+                    'switch_resource_id' => 'transaction-1',
+                    'amount' => '10.18',
+                    'type' => 'credit',
+                    'reason' => 'database_rollup',
+                    'description' => 'monthly rollup',
+                    'created_gregorian' => 63598331974,
+                    'code' => 9999,
+                    'version' => 2,
+                    'data' => ['id' => 'transaction-1', 'metadata' => ['auth_token' => 'secret']],
+                ]],
+                'data' => ['bookkeeper' => ['type' => 'private-provider']],
+            ],
         ]);
 
         $this->app->make(ServiceSynchronizationService::class)->handle($run);
@@ -49,6 +77,18 @@ class ServiceSynchronizationServiceTest extends TestCase
         $this->assertDatabaseHas('switch_service_limits', ['switch_account_id' => $account->getKey(), 'inbound_trunks' => 2]);
         $this->assertDatabaseHas('switch_service_plans', ['switch_account_id' => $account->getKey(), 'switch_resource_id' => 'plan-1']);
         $this->assertDatabaseHas('switch_service_quantities', ['switch_account_id' => $account->getKey(), 'category' => 'devices', 'item' => 'sip_device']);
+        $this->assertDatabaseHas('switch_billing_summaries', [
+            'switch_account_id' => $account->getKey(),
+            'ledger_total' => '-44.56040000',
+            'ledger_source_count' => 1,
+            'transaction_count' => 1,
+        ]);
+        $ledger = SwitchLedgerSummary::query()->whereBelongsTo($account, 'switchAccount')->firstOrFail();
+        $this->assertSame('-54.74040000', $ledger->amount);
+        $this->assertSame('[REDACTED]', $ledger->switch_json['metadata']['payment_token']);
+        $transaction = SwitchBillingTransaction::query()->whereBelongsTo($account, 'switchAccount')->firstOrFail();
+        $this->assertSame('10.18000000', $transaction->amount);
+        $this->assertSame('[REDACTED]', $transaction->switch_json['metadata']['auth_token']);
         $this->assertSoftDeleted($missingPlan);
         $this->assertSoftDeleted($missingQuantity);
         $this->assertDatabaseHas('switch_sync_checkpoints', ['switch_account_id' => $account->getKey(), 'resource_type' => 'services', 'status' => 'healthy']);

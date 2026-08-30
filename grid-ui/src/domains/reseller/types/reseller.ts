@@ -7,6 +7,23 @@ export type ResellerAccountSummary = {
   is_superduper_admin: boolean
   billing_mode: string | null
   descendants_count: number
+  service_projection: {
+    status: 'healthy' | 'syncing' | 'stale' | 'error'
+    last_successful_at: string | null
+    billing_reseller: {
+      id: string
+      name: string
+      realm: string | null
+    } | null
+    billing_reseller_projected: boolean | null
+  }
+}
+
+export type ResellerAffectedAccount = {
+  id: string
+  name: string
+  realm: string | null
+  service_projection_status: 'healthy' | 'syncing' | 'stale' | 'error'
 }
 
 export type AccountHierarchy = {
@@ -23,6 +40,48 @@ export type AccountHierarchy = {
   }
   projection: {
     last_synced_at: string | null
+  }
+  portfolio: {
+    accounts: {
+      total: number
+      projected: number
+      healthy: number
+      attention: number
+    }
+    billing_ownership: {
+      projected: number
+      unresolved: number
+    }
+    billing: {
+      due_today: number
+      recurring_amount: number
+    }
+    quantities: Array<{
+      scope: 'account' | 'cascade' | 'manual'
+      category: string
+      item: string
+      quantity: number
+    }>
+    warnings: Array<{
+      code: string
+      count: number
+      message: string
+      guidance: string
+      affected_accounts: ResellerAffectedAccount[]
+    }>
+  }
+  mutation_preflight: {
+    operation: 'promote' | 'demote'
+    operationally_ready: boolean
+    mutation_available: false
+    checks: Array<{
+      code: string
+      passed: boolean
+      count: number
+      message: string
+      guidance: string
+      affected_accounts: ResellerAffectedAccount[]
+    }>
   }
 }
 
@@ -80,4 +139,8 @@ export type DescendantOnboardingResult = {
     acknowledged: true
   }
   hierarchy: AccountHierarchy
+  service_projection: {
+    status: 'queued' | 'running' | 'succeeded' | 'failed' | 'not_started'
+    sync_run_id: string | null
+  }
 }

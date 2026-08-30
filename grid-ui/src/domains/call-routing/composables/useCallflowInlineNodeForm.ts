@@ -111,6 +111,9 @@ function defaults(
         repeats: 1,
         ignore_forward: true,
         fail_on_single_reject: false,
+        ringback_media_id: null,
+        ringtone_internal: null,
+        ringtone_external: null,
         skip_module: false,
       }
       break
