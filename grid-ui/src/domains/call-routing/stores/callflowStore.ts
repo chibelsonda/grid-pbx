@@ -89,15 +89,25 @@ export const useCallflowStore = defineStore('call-routing', {
     },
     async loadDetail(accountId: string, callflowId: string): Promise<void> {
       this.detail = null
+      await this.refreshDetail(accountId, callflowId)
+    },
+    async refreshDetail(accountId: string, callflowId: string): Promise<boolean> {
       this.detailError = null
       this.detailLoading = true
 
       try {
-        this.detail = await callflowApi.detail(accountId, callflowId)
+        const refreshed = await callflowApi.detail(accountId, callflowId)
+        this.detail = refreshed
+        const index = this.records.findIndex((record) => record.id === refreshed.id)
+        if (index >= 0) this.records[index] = refreshed
+
+        return true
       } catch (error) {
         this.detailError = axios.isAxiosError(error)
           ? (error.response?.data?.message ?? 'Unable to load the call route.')
           : 'Unable to load the call route.'
+
+        return false
       } finally {
         this.detailLoading = false
       }
@@ -389,6 +399,8 @@ export const useCallflowStore = defineStore('call-routing', {
           throw new Error('Routing sync is still running. Reload shortly.')
 
         await this.load(accountId, 1)
+        const activeCallflowId = this.detail?.id
+        if (activeCallflowId) await this.refreshDetail(accountId, activeCallflowId)
       } catch (error) {
         this.error = axios.isAxiosError(error)
           ? (error.response?.data?.message ?? 'Unable to synchronize call routes.')

@@ -7,6 +7,27 @@ namespace GridPbx\Switch\Domains\Callflows\Support;
 final class CallflowBranchPolicy
 {
     /** @var list<string> */
+    private const LOCKED_MODULES = [
+        'acdc_agent',
+        'call_forward',
+        'eavesdrop',
+        'eavesdrop_feature',
+    ];
+
+    /** @var list<string> */
+    private const TERMINAL_MODULES = [
+        'dead_air',
+        'disa',
+        'group_pickup',
+        'hangup',
+        'offnet',
+        'pivot',
+        'receive_fax',
+        'resources',
+        'response',
+    ];
+
+    /** @var list<string> */
     private const FIXED_PUBLIC_KEYS = [
         '_', 'timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*',
         'rule_set', 'match', 'nomatch',
@@ -23,6 +44,14 @@ final class CallflowBranchPolicy
     public static function supports(array $node, string $branch): bool
     {
         $module = is_string($node['module'] ?? null) ? $node['module'] : '';
+
+        if (in_array($module, self::LOCKED_MODULES, true)) {
+            return false;
+        }
+
+        if (in_array($module, self::TERMINAL_MODULES, true)) {
+            return false;
+        }
 
         if ($module === 'branch_variable') {
             return self::supportsCallPriority($node)
@@ -56,7 +85,8 @@ final class CallflowBranchPolicy
     {
         $data = is_array($node['data'] ?? null) ? $node['data'] : [];
 
-        return (($node['module'] ?? null) === 'check_cid'
+        return in_array($node['module'] ?? null, self::LOCKED_MODULES, true)
+            || (($node['module'] ?? null) === 'check_cid'
                 && ($data['use_absolute_mode'] ?? false) === true)
             || (($node['module'] ?? null) === 'branch_variable'
                 && ! self::supportsCallPriority($node));
@@ -69,6 +99,11 @@ final class CallflowBranchPolicy
 
         return ($data['variable'] ?? null) === 'call_priority'
             && in_array($data['scope'] ?? 'custom_channel_vars', ['custom_channel_vars'], true);
+    }
+
+    public static function isTerminalModule(string $module): bool
+    {
+        return in_array($module, self::TERMINAL_MODULES, true);
     }
 
     public static function isPriorityKey(string $key): bool

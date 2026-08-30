@@ -83,6 +83,7 @@ const ringGroupEndpoints = z
         device_id: z.string().uuid('Select a synchronized device.'),
         delay: z.number().int().min(0).max(60),
         timeout: z.number().int().min(1).max(60),
+        weight: z.number().int().min(1).max(100).optional(),
       })
       .strict(),
   )
@@ -228,27 +229,45 @@ const schemas = {
     .strict(),
   ring_group: z
     .object({
-      strategy: z.enum(['simultaneous', 'single']),
+      strategy: z.enum(['simultaneous', 'single', 'weighted_random']),
       endpoints: ringGroupEndpoints,
       repeats: z.number().int().min(1).max(3),
+      ignore_forward: z.boolean(),
+      fail_on_single_reject: z.boolean(),
       skip_module: z.boolean(),
     })
     .strict()
     .superRefine(({ strategy, endpoints }, context) => {
-      if (strategy === 'single') {
+      if (strategy === 'single' || strategy === 'weighted_random') {
         endpoints.forEach(({ delay }, index) => {
           if (delay !== 0) {
             context.addIssue({
               code: 'custom',
               path: ['endpoints', index, 'delay'],
-              message: 'In-order Ring Group endpoints cannot use a delay.',
+              message: 'Sequential Ring Group strategies cannot use a delay.',
             })
           }
         })
       }
 
+      endpoints.forEach(({ weight }, index) => {
+        if (strategy === 'weighted_random' && weight === undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: ['endpoints', index, 'weight'],
+            message: 'Enter a weight from 1 through 100 for weighted-random routing.',
+          })
+        } else if (strategy !== 'weighted_random' && weight !== undefined) {
+          context.addIssue({
+            code: 'custom',
+            path: ['endpoints', index, 'weight'],
+            message: 'Weights are available only for weighted-random routing.',
+          })
+        }
+      })
+
       const attemptTimeout =
-        strategy === 'single'
+        strategy === 'single' || strategy === 'weighted_random'
           ? endpoints.reduce((total, endpoint) => total + endpoint.timeout, 0)
           : Math.max(...endpoints.map((endpoint) => endpoint.delay + endpoint.timeout), 0)
 
@@ -410,6 +429,13 @@ const schemas = {
       skip_module: z.boolean(),
     })
     .strict(),
+  acdc_queue: z
+    .object({
+      action: z.enum(['login', 'logout']),
+      queue_id: z.string().uuid('Select a synchronized queue.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
   hotdesk: z
     .object({
       action: z.enum(['login', 'logout', 'toggle']),
@@ -419,12 +445,6 @@ const schemas = {
   do_not_disturb: z
     .object({
       action: z.enum(['activate', 'deactivate', 'toggle']),
-      skip_module: z.boolean(),
-    })
-    .strict(),
-  call_forward: z
-    .object({
-      action: z.enum(['activate', 'deactivate', 'update']),
       skip_module: z.boolean(),
     })
     .strict(),

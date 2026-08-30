@@ -61,4 +61,9 @@ class OrganizationAccessService
     {
         return $this->roleFor($user, $account)?->canManageAccountSettings() ?? false;
     }
+
+    public function canOnboardDescendants(User $user, SwitchAccount $account): bool
+    {
+        return $this->roleFor($user, $account)?->canOnboardDescendants() ?? false;
+    }
 }

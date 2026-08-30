@@ -7,6 +7,7 @@ namespace GridPbx\Switch\Domains\Accounts;
 use Generator;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountBlacklistsWriteData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountEnabledWriteData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountHierarchySnapshot;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountSettingsWriteData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountSnapshot;
 use GridPbx\Switch\Domains\Accounts\Dto\MusicOnHoldWriteData;
@@ -118,6 +119,30 @@ final readonly class AccountResourceClient
         return $this->accountSnapshot($payload, $accountId);
     }
 
+    /** @return list<AccountHierarchySnapshot> */
+    public function parents(string $accountId): array
+    {
+        return $this->hierarchy($accountId, 'parents');
+    }
+
+    /** @return list<AccountHierarchySnapshot> */
+    public function tree(string $accountId): array
+    {
+        return $this->hierarchy($accountId, 'tree');
+    }
+
+    /** @return list<AccountHierarchySnapshot> */
+    public function children(string $accountId): array
+    {
+        return $this->hierarchy($accountId, 'children');
+    }
+
+    /** @return list<AccountHierarchySnapshot> */
+    public function descendants(string $accountId): array
+    {
+        return $this->hierarchy($accountId, 'descendants');
+    }
+
     public function updateMusicOnHold(string $accountId, MusicOnHoldWriteData $musicOnHold): AccountSnapshot
     {
         $accountId = $this->requiredIdentifier($accountId, 'account');
@@ -176,6 +201,33 @@ final readonly class AccountResourceClient
         }
 
         return $snapshot;
+    }
+
+    /** @return list<AccountHierarchySnapshot> */
+    private function hierarchy(string $accountId, string $resource): array
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request(
+            'GET',
+            sprintf('accounts/%s/%s', rawurlencode($accountId), $resource),
+            ['query' => ['paginate' => 'false']],
+        );
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new InvalidSwitchPayloadException('Switch account hierarchy response data must be an array.');
+        }
+
+        return array_map(
+            static function (mixed $entry): AccountHierarchySnapshot {
+                if (! is_array($entry)) {
+                    throw new InvalidSwitchPayloadException('Switch account hierarchy entries must be objects.');
+                }
+
+                return new AccountHierarchySnapshot($entry);
+            },
+            array_values($data),
+        );
     }
 
     private function requiredIdentifier(string $identifier, string $name): string

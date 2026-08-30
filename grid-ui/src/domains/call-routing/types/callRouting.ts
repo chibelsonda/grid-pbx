@@ -20,7 +20,23 @@ export type CallflowNode = {
   } | null
   temporal_rules?: CallflowTemporalRuleOption[]
   settings?: Record<string, unknown> | null
+  drop_capability?: CallflowDropCapability
   children: Record<string, CallflowNode>
+}
+
+export type CallflowDropCapability = {
+  accepts_children: boolean
+  default_branch_available: boolean
+  branch_mode:
+    | 'continuation'
+    | 'menu'
+    | 'condition'
+    | 'temporal'
+    | 'priority'
+    | 'captured_number'
+    | 'terminal'
+    | 'locked'
+  reason: string | null
 }
 
 export type CallflowNodeSelection = {
@@ -136,9 +152,9 @@ export const callflowInlineModules = [
   'cidlistmatch',
   'temporal_route',
   'ring_group_toggle',
+  'acdc_queue',
   'hotdesk',
   'do_not_disturb',
-  'call_forward',
 ] as const
 
 export type CallflowInlineModule = (typeof callflowInlineModules)[number]
@@ -193,9 +209,11 @@ export type CallflowInlineNodeData = {
   target_id?: string
   audio?: 'one-way' | 'two-way'
   device_ids?: string[]
-  strategy?: 'simultaneous' | 'single'
+  strategy?: 'simultaneous' | 'single' | 'weighted_random'
   endpoints?: CallflowRingGroupEndpoint[]
   repeats?: number
+  ignore_forward?: boolean
+  fail_on_single_reject?: boolean
   owner_id?: string
   fax_option?: 'auto' | boolean
   service_mode?: true
@@ -218,6 +236,7 @@ export type CallflowInlineNodeData = {
   caller_id_list_id?: string
   rules?: string[]
   callflow_id?: string
+  queue_id?: string
   id?: string | null
   skip_module: boolean
 }
@@ -231,6 +250,7 @@ export type CallflowRingGroupEndpoint = {
   device_id: string
   delay: number
   timeout: number
+  weight?: number
 }
 
 export type CallflowCustomApplicationVariable = {
@@ -245,6 +265,8 @@ export type CallflowInlineNodeFormData = CallflowInlineNodeData & {
 export type CallflowInlineNodeCreateInput = {
   parent_path: string[]
   branch: CallflowTreeBranchKey
+  placement?: CallflowNodePlacement
+  confirm_replace?: boolean
   module: CallflowInlineModule
   data: CallflowInlineNodeData
 }
@@ -260,8 +282,11 @@ export type CallflowNodeEditorContext = {
   path: string[]
   node: CallflowNode
   module: string
+  placement?: CallflowNodePlacement
   preset?: Readonly<Partial<CallflowInlineNodeData>>
 }
+
+export type CallflowNodePlacement = 'append' | 'insert_before' | 'replace'
 
 export const callflowDestinationTypes = [
   'extension',
@@ -285,6 +310,7 @@ export type CallflowDestination = {
   id: string
   label: string
   detail: string | null
+  supports_ring_group_toggle?: boolean
 }
 
 export const callflowMenuBranchKeys = [

@@ -37,6 +37,7 @@ class AccountResource extends JsonResource
                 'can_sync_call_detail_records' => $role?->canSyncCallDetailRecords() ?? false,
                 'can_view_services' => $role?->canViewServices() ?? false,
                 'can_manage_account_settings' => $role?->canManageAccountSettings() ?? false,
+                'can_onboard_descendants' => $role?->canOnboardDescendants() ?? false,
             ],
         ];
     }

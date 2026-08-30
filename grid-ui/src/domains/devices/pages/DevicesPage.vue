@@ -304,4 +304,6 @@ function humanize(value: string): string {
       </div>
     </template>
   </div>
+
+  <RouterView />
 </template>

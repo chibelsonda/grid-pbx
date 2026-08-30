@@ -105,7 +105,14 @@ function defaults(
       data = { audio: 'one-way', device_ids: [], skip_module: false }
       break
     case 'ring_group':
-      data = { strategy: 'simultaneous', endpoints: [], repeats: 1, skip_module: false }
+      data = {
+        strategy: 'simultaneous',
+        endpoints: [],
+        repeats: 1,
+        ignore_forward: true,
+        fail_on_single_reject: false,
+        skip_module: false,
+      }
       break
     case 'receive_fax':
       data = { owner_id: '', fax_option: false, skip_module: false }
@@ -168,13 +175,13 @@ function defaults(
     case 'ring_group_toggle':
       data = { action: 'login', callflow_id: '', skip_module: false }
       break
+    case 'acdc_queue':
+      data = { action: 'login', queue_id: '', skip_module: false }
+      break
     case 'hotdesk':
       data = { action: 'login', skip_module: false }
       break
     case 'do_not_disturb':
-      data = { action: 'activate', skip_module: false }
-      break
-    case 'call_forward':
       data = { action: 'activate', skip_module: false }
       break
   }
@@ -227,7 +234,11 @@ export function useCallflowInlineNodeForm(
   const context = computed(() => toValue(contextSource))
   const module = computed(() => context.value.module as CallflowInlineModule)
   const branches = computed(() =>
-    context.value.operation === 'create' ? availableCallflowBranches(context.value.node) : [],
+    context.value.operation === 'create'
+      ? context.value.placement && context.value.placement !== 'append'
+        ? [{ value: '_' as const, label: 'Next step', description: 'Occupied continuation branch' }]
+        : availableCallflowBranches(context.value.node)
+      : [],
   )
   const usesCapturedNumberBranch = computed(
     () =>
@@ -284,6 +295,7 @@ export function useCallflowInlineNodeForm(
       return {
         parent_path: [...context.value.path],
         branch: result.data.branch as CallflowTreeBranchKey,
+        placement: context.value.placement ?? 'append',
         module: module.value,
         data,
       }

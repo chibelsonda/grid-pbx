@@ -17,11 +17,16 @@ class SwitchServiceSummary extends Model
 
     protected $primaryKey = 'service_summary_id';
 
-    protected $fillable = ['switch_account_id', 'status_acceptable', 'status_reason', 'is_reseller', 'billing_cycle_period', 'billing_cycle_unit', 'billing_cycle_next_at', 'assigned_plan_count', 'invoice_count', 'due_today', 'recurring_amount', 'last_synced_at', 'sync_status', 'projection_version', 'switch_json'];
+    protected $fillable = ['switch_account_id', 'billing_reseller_account_id', 'billing_reseller_switch_account_id', 'status_acceptable', 'status_reason', 'is_reseller', 'billing_cycle_period', 'billing_cycle_unit', 'billing_cycle_next_at', 'assigned_plan_count', 'invoice_count', 'due_today', 'recurring_amount', 'last_synced_at', 'sync_status', 'projection_version', 'switch_json'];
 
     public function switchAccount(): BelongsTo
     {
         return $this->belongsTo(SwitchAccount::class, 'switch_account_id', 'account_id');
+    }
+
+    public function billingResellerAccount(): BelongsTo
+    {
+        return $this->belongsTo(SwitchAccount::class, 'billing_reseller_account_id', 'account_id');
     }
 
     public function plans(): HasMany

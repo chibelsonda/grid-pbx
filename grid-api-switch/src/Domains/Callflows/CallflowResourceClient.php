@@ -28,8 +28,31 @@ final readonly class CallflowResourceClient
             sprintf('accounts/%s/callflows', rawurlencode($accountId)),
             ['json' => ['data' => $callflow->toSwitchData()]],
         );
+        $snapshot = $this->snapshot($payload);
 
-        return $this->snapshot($payload);
+        return $this->find($accountId, $snapshot->id);
+    }
+
+    public function find(string $accountId, string $callflowId): CallflowSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $callflowId = $this->requiredIdentifier($callflowId, 'callflow');
+        $payload = $this->client->request(
+            'GET',
+            sprintf(
+                'accounts/%s/callflows/%s',
+                rawurlencode($accountId),
+                rawurlencode($callflowId),
+            ),
+            ['query' => ['paginate' => 'false']],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $callflowId) {
+            throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
+        }
+
+        return $snapshot;
     }
 
     public function update(
@@ -54,7 +77,7 @@ final readonly class CallflowResourceClient
             throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
         }
 
-        return $snapshot;
+        return $this->find($accountId, $callflowId);
     }
 
     public function moveTreeNode(
@@ -79,7 +102,7 @@ final readonly class CallflowResourceClient
             throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
         }
 
-        return $snapshot;
+        return $this->find($accountId, $callflowId);
     }
 
     public function writeTreeNode(
@@ -104,7 +127,7 @@ final readonly class CallflowResourceClient
             throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
         }
 
-        return $snapshot;
+        return $this->find($accountId, $callflowId);
     }
 
     public function reorderTreeNodes(
@@ -125,7 +148,7 @@ final readonly class CallflowResourceClient
             throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
         }
 
-        return $snapshot;
+        return $this->find($accountId, $callflowId);
     }
 
     public function writeInlineTreeNode(
@@ -146,7 +169,7 @@ final readonly class CallflowResourceClient
             throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
         }
 
-        return $snapshot;
+        return $this->find($accountId, $callflowId);
     }
 
     public function delete(string $accountId, string $callflowId): void
@@ -185,7 +208,7 @@ final readonly class CallflowResourceClient
             throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
         }
 
-        return $snapshot;
+        return $this->find($accountId, $callflowId);
     }
 
     /** @param array<string, mixed> $payload */

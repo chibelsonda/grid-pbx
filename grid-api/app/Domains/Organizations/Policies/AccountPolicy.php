@@ -24,4 +24,14 @@ class AccountPolicy
     {
         return $this->access->canManageAccountSettings($user, $account);
     }
+
+    public function viewResellerAdministration(User $user, SwitchAccount $account): bool
+    {
+        return $this->access->canViewServices($user, $account);
+    }
+
+    public function onboardDescendant(User $user, SwitchAccount $account): bool
+    {
+        return $this->access->canOnboardDescendants($user, $account);
+    }
 }

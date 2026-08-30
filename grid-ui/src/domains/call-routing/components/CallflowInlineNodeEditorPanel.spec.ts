@@ -36,6 +36,67 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
   })
 
+  it('submits a resource-free Hotdesk preset and explains its runtime PIN boundary', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'hotdesk',
+      preset: { action: 'toggle' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('caller enters the Hotdesk ID at call time')
+    expect(wrapper.text()).toContain('logout path do not prompt for it')
+    await wrapper.get('form').trigger('submit')
+
+    const input = wrapper.emitted('save')?.[0]?.[0] as { data: Record<string, unknown> }
+    expect(input).toMatchObject({
+      module: 'hotdesk',
+      data: { action: 'toggle', skip_module: false },
+    })
+    expect(input.data).not.toHaveProperty('id')
+    expect(input.data).not.toHaveProperty('interdigit_timeout')
+  })
+
+  it('submits a resource-free Do Not Disturb preset and explains its authentication boundary', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'do_not_disturb',
+      preset: { action: 'toggle' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('authenticated caller’s owner')
+    expect(wrapper.text()).toContain('does not prompt for a PIN')
+    await wrapper.get('form').trigger('submit')
+
+    const input = wrapper.emitted('save')?.[0]?.[0] as { data: Record<string, unknown> }
+    expect(input).toMatchObject({
+      module: 'do_not_disturb',
+      data: { action: 'toggle', skip_module: false },
+    })
+    expect(input.data).not.toHaveProperty('id')
+  })
+
   it('shows Zod validation beside the invalid TTS control', async () => {
     const context: CallflowNodeEditorContext = {
       operation: 'create',
@@ -225,6 +286,43 @@ describe('CallflowInlineNodeEditorPanel', () => {
       data: { code: 603, message: 'Busy here', skip_module: false },
     })
     expect(wrapper.emitted('save')?.[0]?.[0]).not.toHaveProperty('data.media')
+  })
+
+  it('requires explicit confirmation before replacing an occupied continuation with Response', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      placement: 'replace',
+      path: [],
+      module: 'response',
+      node: {
+        module: 'set_variables',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {
+          _: { module: 'device', target: null, reference_status: 'resolved', children: {} },
+        },
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('replace that step and its complete downstream subtree')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')).toBeUndefined()
+    expect(wrapper.text()).toContain('Confirm that the existing next step will be replaced.')
+
+    await wrapper.get('input[aria-label="Replace the current next step"]').setValue(true)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      parent_path: [],
+      branch: '_',
+      placement: 'replace',
+      confirm_replace: true,
+      module: 'response',
+    })
   })
 
   it('renders and submits only the schema-backed Hangup behavior', async () => {
@@ -630,6 +728,111 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
   })
 
+  it('selects only public callflows containing Ring Groups for logout', async () => {
+    const targetId = '55555555-5555-4555-8555-555555555555'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'ring_group_toggle',
+      preset: { action: 'logout' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        callflow: [
+          {
+            id: targetId,
+            label: 'Support ring group',
+            detail: 'ring_group',
+            supports_ring_group_toggle: true,
+          },
+          {
+            id: '66666666-6666-4666-8666-666666666666',
+            label: 'Reception route',
+            detail: 'user',
+            supports_ring_group_toggle: false,
+          },
+        ],
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    const target = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Ring-group callflow')
+    expect(target).toBeDefined()
+    expect(target!.props('invalid')).toBe(true)
+    expect(target!.props('options')).toEqual([
+      expect.objectContaining({ value: targetId, label: 'Support ring group' }),
+    ])
+
+    target!.vm.$emit('update:modelValue', targetId)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'ring_group_toggle',
+      data: { action: 'logout', callflow_id: targetId, skip_module: false },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-ring-group-target')
+  })
+
+  it('maps a public Queue UUID for an ACDC Queue logout action', async () => {
+    const queueId = '77777777-7777-4777-8777-777777777777'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'acdc_queue',
+      preset: { action: 'logout' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        queue: [{ id: queueId, label: 'Support', detail: '4 agents' }],
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    await wrapper.get('form').trigger('submit')
+    const target = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Queue')
+    expect(target).toBeDefined()
+    expect(target!.props('invalid')).toBe(true)
+    expect(target!.props('options')).toEqual([
+      expect.objectContaining({ value: queueId, label: 'Support' }),
+    ])
+    expect(wrapper.text()).toContain('does not prompt for a PIN')
+    expect(wrapper.text()).toContain('never stores an agent ID')
+
+    target!.vm.$emit('update:modelValue', queueId)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'acdc_queue',
+      data: { action: 'logout', queue_id: queueId, skip_module: false },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-support-queue')
+  })
+
   it('selects bounded public Device UUIDs for a Page Group', async () => {
     const deviceId = '33333333-3333-4333-8333-333333333333'
     const context: CallflowNodeEditorContext = {
@@ -704,21 +907,31 @@ describe('CallflowInlineNodeEditorPanel', () => {
     const addDevice = wrapper
       .findAllComponents(FormListbox)
       .find((listbox) => listbox.props('ariaLabel') === 'Add Ring Group device')
-    expect(strategy?.props('options')).toHaveLength(2)
+    expect(strategy?.props('options')).toHaveLength(3)
     expect(addDevice?.props('options')).toHaveLength(1)
 
+    strategy!.vm.$emit('update:modelValue', 'weighted_random')
     addDevice!.vm.$emit('update:modelValue', deviceId)
     await wrapper.vm.$nextTick()
-    await wrapper.get('input[aria-label="Device 1 delay"]').setValue('5')
+    expect(wrapper.get('input[aria-label="Device 1 delay"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('input[aria-label="Device 1 weight"]').setValue('75')
     await wrapper.get('input[aria-label="Attempts"]').setValue('2')
+    expect(
+      (wrapper.get('input[aria-label="Ignore device forwarding"]').element as HTMLInputElement)
+        .checked,
+    ).toBe(true)
+    await wrapper.get('input[aria-label="Ignore device forwarding"]').setValue(false)
+    await wrapper.get('input[aria-label="Stop when one device rejects"]').setValue(true)
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       module: 'ring_group',
       data: {
-        strategy: 'simultaneous',
-        endpoints: [{ device_id: deviceId, delay: 5, timeout: 20 }],
+        strategy: 'weighted_random',
+        endpoints: [{ device_id: deviceId, delay: 0, timeout: 20, weight: 75 }],
         repeats: 2,
+        ignore_forward: false,
+        fail_on_single_reject: true,
         skip_module: false,
       },
     })

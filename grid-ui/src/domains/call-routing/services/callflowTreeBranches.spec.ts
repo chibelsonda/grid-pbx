@@ -2,10 +2,164 @@ import { describe, expect, it } from 'vitest'
 import type { CallflowNode } from '../types/callRouting'
 import {
   availableCallflowBranches,
+  callflowDropCapability,
+  callflowNodeDropDecision,
+  callflowPalettePlacement,
   canAddCallflowChild,
   orderedCallflowChildren,
   supportsCapturedNumberBranches,
 } from './callflowTreeBranches'
+
+describe('callflowNodeDropDecision', () => {
+  const responseAction = {
+    id: 'response',
+    module: 'response',
+    label: 'Response',
+    description: 'Return a SIP response.',
+    status: 'guided' as const,
+  }
+
+  it('allows Response to be dropped on an empty Set CAV continuation', () => {
+    expect(
+      callflowNodeDropDecision({
+        node: {
+          module: 'set_variables',
+          target: null,
+          reference_status: 'not_applicable',
+          children: {},
+        },
+        path: ['3', '_'],
+        editable: true,
+        moving: false,
+        dragSourcePath: null,
+        paletteAction: responseAction,
+      }),
+    ).toEqual({ state: 'allowed', effect: 'copy', reason: null })
+  })
+
+  it('allows Response on occupied Set CAV through an explicit replacement placement', () => {
+    const node: CallflowNode = {
+      module: 'set_variables',
+      target: null,
+      reference_status: 'not_applicable',
+      children: {
+        _: {
+          module: 'device',
+          target: null,
+          reference_status: 'resolved',
+          children: {},
+        },
+      },
+    }
+
+    expect(
+      callflowNodeDropDecision({
+        node,
+        path: ['3', '_'],
+        editable: true,
+        moving: false,
+        dragSourcePath: null,
+        paletteAction: responseAction,
+      }),
+    ).toEqual({ state: 'allowed', effect: 'copy', reason: null })
+    expect(callflowPalettePlacement(node, responseAction)).toBe('replace')
+  })
+
+  it('inserts a non-terminal inline action before an occupied continuation', () => {
+    const node: CallflowNode = {
+      module: 'set_variables',
+      target: null,
+      reference_status: 'not_applicable',
+      children: {
+        _: { module: 'device', target: null, reference_status: 'resolved', children: {} },
+      },
+    }
+
+    expect(
+      callflowPalettePlacement(node, {
+        id: 'tts',
+        module: 'tts',
+        label: 'TTS',
+        description: 'Speak text.',
+        status: 'guided',
+      }),
+    ).toBe('insert_before')
+  })
+
+  it('uses the API capability reason for terminal palette destinations', () => {
+    const node: CallflowNode = {
+      module: 'response',
+      target: null,
+      reference_status: 'not_applicable',
+      drop_capability: {
+        accepts_children: false,
+        default_branch_available: false,
+        branch_mode: 'terminal',
+        reason: 'This Switch action is terminal and cannot accept another action.',
+      },
+      children: {},
+    }
+
+    expect(
+      callflowNodeDropDecision({
+        node,
+        path: ['_'],
+        editable: true,
+        moving: false,
+        dragSourcePath: null,
+        paletteAction: {
+          id: 'tts',
+          module: 'tts',
+          label: 'TTS',
+          description: 'Speak text.',
+          status: 'guided',
+        },
+      }),
+    ).toEqual({
+      state: 'disallowed',
+      effect: null,
+      reason: 'This Switch action is terminal and cannot accept another action.',
+    })
+  })
+
+  it('prevents a subtree from being moved into itself before any API request', () => {
+    const node: CallflowNode = {
+      module: 'user',
+      target: null,
+      reference_status: 'resolved',
+      children: {},
+    }
+
+    expect(
+      callflowNodeDropDecision({
+        node,
+        path: ['1', '_'],
+        editable: true,
+        moving: false,
+        dragSourcePath: ['1'],
+        paletteAction: null,
+      }),
+    ).toEqual({
+      state: 'disallowed',
+      effect: null,
+      reason: 'A callflow action cannot be moved into its own subtree.',
+    })
+  })
+
+  it('falls back to current-schema terminal semantics before an API refresh', () => {
+    expect(
+      callflowDropCapability({
+        module: 'hangup',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      }),
+    ).toMatchObject({
+      accepts_children: false,
+      branch_mode: 'terminal',
+    })
+  })
+})
 
 describe('availableCallflowBranches', () => {
   it.each(['check_cid', 'cidlistmatch'])(

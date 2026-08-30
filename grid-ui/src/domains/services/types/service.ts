@@ -28,7 +28,11 @@ export type ServiceLimits = {
 export type ServiceOverview = {
   id: string
   standing: { acceptable: boolean; reason: string | null }
-  reseller: { is_reseller: boolean }
+  reseller: {
+    is_reseller: boolean
+    billing_account: { id: string; name: string; realm: string | null } | null
+    billing_account_projected: boolean
+  }
   billing_cycle: { next_at: string | null; period: number; unit: string | null }
   billing_impact: { invoice_count: number; due_today: number; recurring_amount: number }
   plans: ServicePlan[]

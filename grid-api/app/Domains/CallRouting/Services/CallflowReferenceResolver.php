@@ -33,7 +33,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $node
-     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function resolveNode(array $node, array $targets): array
@@ -120,6 +120,9 @@ class CallflowReferenceResolver
                 $module === 'ring_group' => ($ringGroupSettings['supported_configuration'] ?? false)
                     ? 'resolved'
                     : 'unresolved',
+                $module === 'ring_group_toggle' => ($target['supports_ring_group_toggle'] ?? false)
+                    ? 'resolved'
+                    : 'unresolved',
                 $module === 'cidlistmatch'
                     && is_string($data['id'] ?? null)
                     && isset($targets['caller_id_list'][$data['id']]) => 'resolved',
@@ -141,7 +144,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
      * @return array<string, mixed>|null
      */
     private function publicInlineSettings(string $module, array $data, array $targets): ?array
@@ -172,6 +175,21 @@ class CallflowReferenceResolver
             return [
                 'action' => is_string($data['action'] ?? null) ? $data['action'] : null,
                 'callflow_id' => $resourceId === null ? null : ($targets['callflow'][$resourceId]['id'] ?? null),
+                'supported_configuration' => ($targets['callflow'][$resourceId]['supports_ring_group_toggle'] ?? false),
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'acdc_queue') {
+            $resourceId = is_string($data['id'] ?? null) ? $data['id'] : null;
+            $queue = $resourceId === null ? null : ($targets['queue'][$resourceId] ?? null);
+
+            return [
+                'action' => is_string($data['action'] ?? null) ? $data['action'] : null,
+                'queue_id' => $queue['id'] ?? null,
+                'queue_label' => $queue['label'] ?? null,
+                'supported_configuration' => $queue !== null
+                    && in_array($data['action'] ?? null, ['login', 'logout'], true),
                 'skip_module' => (bool) ($data['skip_module'] ?? false),
             ];
         }
@@ -185,6 +203,7 @@ class CallflowReferenceResolver
         }
 
         if (in_array($module, [
+            'acdc_agent',
             'hotdesk',
             'do_not_disturb',
             'call_forward',
@@ -194,6 +213,10 @@ class CallflowReferenceResolver
             return is_string($action) && $action !== ''
                 ? ['action' => $action, 'skip_module' => (bool) ($data['skip_module'] ?? false)]
                 : null;
+        }
+
+        if (in_array($module, ['eavesdrop', 'eavesdrop_feature'], true)) {
+            return ['skip_module' => (bool) ($data['skip_module'] ?? false)];
         }
 
         if ($module === 'missed_call_alert') {
@@ -332,7 +355,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function publicPageGroupSettings(array $data, array $targets): array
@@ -381,17 +404,23 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function publicRingGroupSettings(array $data, array $targets): array
     {
         $strategy = is_string($data['strategy'] ?? null) ? $data['strategy'] : 'simultaneous';
         $repeats = is_int($data['repeats'] ?? null) ? $data['repeats'] : 1;
+        $ignoreForward = is_bool($data['ignore_forward'] ?? null) ? $data['ignore_forward'] : true;
+        $failOnSingleReject = is_bool($data['fail_on_single_reject'] ?? null)
+            ? $data['fail_on_single_reject']
+            : false;
         $endpoints = $data['endpoints'] ?? null;
-        $supported = in_array($strategy, ['simultaneous', 'single'], true)
+        $supported = in_array($strategy, ['simultaneous', 'single', 'weighted_random'], true)
             && $repeats >= 1
             && $repeats <= RingGroupPolicy::MAX_REPEATS
+            && (! array_key_exists('ignore_forward', $data) || is_bool($data['ignore_forward']))
+            && (! array_key_exists('fail_on_single_reject', $data) || is_bool($data['fail_on_single_reject']))
             && is_array($endpoints)
             && array_is_list($endpoints)
             && $endpoints !== []
@@ -411,6 +440,9 @@ class CallflowReferenceResolver
             $timeout = is_array($endpoint) && is_int($endpoint['timeout'] ?? null)
                 ? $endpoint['timeout']
                 : 20;
+            $weight = is_array($endpoint) && is_int($endpoint['weight'] ?? null)
+                ? $endpoint['weight']
+                : null;
 
             if (! is_array($endpoint)
                 || ($endpoint['endpoint_type'] ?? null) !== 'device'
@@ -418,8 +450,9 @@ class CallflowReferenceResolver
                 || $delay > RingGroupPolicy::MAX_ENDPOINT_DELAY
                 || $timeout < 1
                 || $timeout > RingGroupPolicy::MAX_ENDPOINT_TIMEOUT
-                || ($strategy === 'single' && $delay !== 0)
+                || (in_array($strategy, ['single', 'weighted_random'], true) && $delay !== 0)
                 || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
+                || ($strategy === 'weighted_random' && $weight === null)
                 || $device === null
                 || isset($seen[$resourceId])) {
                 $supported = false;
@@ -431,6 +464,7 @@ class CallflowReferenceResolver
                 'device_id' => $device['id'],
                 'delay' => $delay,
                 'timeout' => $timeout,
+                ...($strategy === 'weighted_random' ? ['weight' => $weight] : []),
             ];
             $timings[] = ['delay' => $delay, 'timeout' => $timeout];
         }
@@ -447,6 +481,8 @@ class CallflowReferenceResolver
             'strategy' => $supported ? $strategy : null,
             'endpoints' => $supported ? $publicEndpoints : [],
             'repeats' => $supported ? $repeats : null,
+            'ignore_forward' => $supported ? $ignoreForward : null,
+            'fail_on_single_reject' => $supported ? $failOnSingleReject : null,
             'reference_status' => $supported ? 'resolved' : 'unresolved',
             'skip_module' => (bool) ($data['skip_module'] ?? false),
         ];
@@ -569,7 +605,7 @@ class CallflowReferenceResolver
 
     /**
      * @param  array<string, mixed>  $data
-     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
      * @return array<string, mixed>
      */
     private function publicCheckCidSettings(array $data, array $targets): array
@@ -602,7 +638,7 @@ class CallflowReferenceResolver
     }
 
     /**
-     * @param  array<string, array<string, array{id: string, label: string}>>  $targets
+     * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>>  $targets
      * @return list<array{type: string, id: string}>
      */
     private function publicMissedCallAlertRecipients(mixed $value, array $targets): array
@@ -638,7 +674,7 @@ class CallflowReferenceResolver
         return $recipients;
     }
 
-    /** @return array<string, array<string, array{id: string, label: string}>> */
+    /** @return array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool}>> */
     private function targetMaps(SwitchAccount $account): array
     {
         return [
@@ -664,6 +700,7 @@ class CallflowReferenceResolver
                 $callflow->switch_resource_id => [
                     'id' => $callflow->id,
                     'label' => $callflow->name ?? ($callflow->numbers[0] ?? 'Unnamed route'),
+                    'supports_ring_group_toggle' => $callflow->canBeRingGroupToggleTarget(),
                 ],
             ])->all(),
             'media' => $account->media()->get()->mapWithKeys(fn ($media): array => [

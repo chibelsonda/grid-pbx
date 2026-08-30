@@ -31,7 +31,7 @@ const horizontalRange = computed(() => {
       x2="10"
       y2="12"
       stroke="currentColor"
-      stroke-width="8"
+      stroke-width="6"
       vector-effect="non-scaling-stroke"
     />
   </svg>
@@ -40,17 +40,17 @@ const horizontalRange = computed(() => {
     data-callflow-branch-bus
     :data-callflow-branch-position="kind"
     aria-hidden="true"
-    class="absolute left-0 top-0 h-2 w-full overflow-visible text-callflow-node"
-    viewBox="0 0 100 8"
+    class="absolute left-0 top-0 h-1.5 w-full overflow-visible text-callflow-node"
+    viewBox="0 0 100 6"
     preserveAspectRatio="none"
   >
     <line
       :x1="horizontalRange.start"
-      y1="4"
+      y1="3"
       :x2="horizontalRange.end"
-      y2="4"
+      y2="3"
       stroke="currentColor"
-      stroke-width="8"
+      stroke-width="6"
       vector-effect="non-scaling-stroke"
     />
   </svg>

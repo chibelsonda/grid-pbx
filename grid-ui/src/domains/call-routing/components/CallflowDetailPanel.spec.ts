@@ -77,6 +77,83 @@ describe('CallflowDetailPanel', () => {
 
     await wrapper.get('[aria-label="Back to call routes"]').trigger('click')
     expect(wrapper.emitted('close')).toHaveLength(1)
+
+    await wrapper.get('[aria-label="Refresh callflow nodes"]').trigger('click')
+    expect(wrapper.emitted('refresh')).toHaveLength(1)
+  })
+
+  it('shows synchronization progress on the refresh control without emitting duplicate refreshes', async () => {
+    const wrapper = mount(CallflowDetailPanel, {
+      props: {
+        record,
+        loading: false,
+        error: null,
+        canManage: true,
+        deleting: false,
+        mutationError: null,
+        synchronizing: true,
+      },
+      global: {
+        stubs: {
+          CallflowActionPalette: { template: '<div>Action catalog</div>' },
+          CallflowNodeInfoDialog: { template: '<div><slot /></div>' },
+          ConfirmDialog: true,
+        },
+      },
+    })
+    const refresh = wrapper.get('[aria-label="Refresh callflow nodes"]')
+
+    expect(refresh.attributes('disabled')).toBeDefined()
+    expect(refresh.get('svg').classes()).toContain('animate-spin')
+    await refresh.trigger('click')
+    expect(wrapper.emitted('refresh')).toBeUndefined()
+  })
+
+  it('explains why Call Forwarding nodes are capability-gated', async () => {
+    const forwardingRecord: Callflow = {
+      ...record,
+      modules: ['menu', 'call_forward'],
+      root_module: 'menu',
+      flow: {
+        module: 'menu',
+        target: null,
+        reference_status: 'not_applicable',
+        branch: null,
+        children: {
+          _: {
+            module: 'call_forward',
+            target: null,
+            reference_status: 'not_applicable',
+            branch: { key: '_', label: 'Default branch', kind: 'default' },
+            settings: { action: 'activate', skip_module: false },
+            children: {},
+          },
+        },
+      },
+    }
+    const wrapper = mount(CallflowDetailPanel, {
+      props: {
+        record: forwardingRecord,
+        loading: false,
+        error: null,
+        canManage: true,
+        deleting: false,
+        mutationError: null,
+      },
+      global: {
+        stubs: {
+          CallflowActionPalette: { template: '<div>Action catalog</div>' },
+          CallflowNodeInfoDialog: { template: '<div><slot /></div>' },
+          ConfirmDialog: true,
+        },
+      },
+    })
+
+    await wrapper.get('[aria-label="Enable call forwarding"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Capability required')
+    expect(wrapper.text()).toContain('unauthenticated arbitrary destination')
+    expect(wrapper.text()).not.toContain('Edit action target')
   })
 
   it('offers a keyboard-accessible typed subtree move in the node modal', async () => {

@@ -16,6 +16,7 @@ class AccountSettingsService
     public function __construct(
         private readonly SwitchAccountGateway $gateway,
         private readonly AccountProjectionService $projection,
+        private readonly AccountHierarchyProjectionService $hierarchyProjection,
         private readonly AuditService $audit,
         private readonly MetaflowPolicy $metaflowPolicy,
     ) {}
@@ -23,16 +24,24 @@ class AccountSettingsService
     public function refresh(SwitchAccount $account, User $actor, ?string $ipAddress = null): SwitchAccount
     {
         $snapshot = $this->gateway->find($account);
+        $descendants = ($snapshot['is_reseller'] ?? false) === true
+            || (is_numeric($snapshot['descendants_count'] ?? null) && (int) $snapshot['descendants_count'] > 0)
+                ? $this->gateway->descendants($account)
+                : [];
 
-        return DB::transaction(function () use ($account, $actor, $ipAddress, $snapshot): SwitchAccount {
+        return DB::transaction(function () use ($account, $actor, $descendants, $ipAddress, $snapshot): SwitchAccount {
             $projected = $this->projection->project($account, $snapshot);
+            $this->hierarchyProjection->project($projected, $snapshot, $descendants);
             $this->audit->record(
                 $actor,
                 $projected,
                 'account.settings_refreshed',
                 'succeeded',
                 $projected->switch_account_id,
-                ['projection_version' => $projected->projection_version],
+                [
+                    'descendants_count' => $projected->descendants_count,
+                    'projection_version' => $projected->projection_version,
+                ],
                 $ipAddress,
                 'account',
             );

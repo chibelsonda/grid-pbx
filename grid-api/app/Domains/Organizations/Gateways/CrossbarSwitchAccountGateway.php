@@ -13,6 +13,7 @@ use GridPbx\Switch\Domains\Accounts\Dto\AccountDialPlanRuleData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountEnabledWriteData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountFormatterRuleData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountFormattersData;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountHierarchySnapshot;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountMetaflowsData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountPreflowData;
 use GridPbx\Switch\Domains\Accounts\Dto\AccountRecordingParametersData;
@@ -44,6 +45,26 @@ class CrossbarSwitchAccountGateway implements SwitchAccountGateway
     public function find(SwitchAccount $account): array
     {
         return $this->accounts->account($account->switch_account_id)->toArray();
+    }
+
+    public function descendants(SwitchAccount $account): array
+    {
+        return array_map(
+            static fn (AccountHierarchySnapshot $descendant): array => [
+                'id' => $descendant->id,
+                'name' => $descendant->name,
+                'realm' => $descendant->realm,
+                'tree' => $descendant->tree,
+                'parent_id' => $descendant->parentId,
+                'descendants_count' => $descendant->descendantsCount,
+            ],
+            $this->accounts->descendants($account->switch_account_id),
+        );
+    }
+
+    public function findBySwitchAccountId(string $switchAccountId): array
+    {
+        return $this->accounts->account($switchAccountId)->toArray();
     }
 
     public function updateSettings(SwitchAccount $account, array $data): array

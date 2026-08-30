@@ -46,6 +46,12 @@ class SwitchCallflow extends Model
         'switch_json',
     ];
 
+    public function canBeRingGroupToggleTarget(): bool
+    {
+        return ! $this->is_feature_code
+            && in_array('ring_group', $this->modules ?? [], true);
+    }
+
     /** @return BelongsTo<SwitchAccount, $this> */
     public function switchAccount(): BelongsTo
     {

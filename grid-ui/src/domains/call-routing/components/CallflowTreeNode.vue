@@ -9,12 +9,13 @@ import {
 import type { CallflowAction } from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import {
-  availableCallflowBranches,
-  canAddCallflowChild,
+  callflowNodeDropDecision,
+  callflowPalettePlacement,
   orderedCallflowChildren,
 } from '../services/callflowTreeBranches'
 import type {
   CallflowNode,
+  CallflowNodePlacement,
   CallflowNodeSelection,
   CallflowTreeMoveInput,
 } from '../types/callRouting'
@@ -48,7 +49,11 @@ const emit = defineEmits<{
   'drag-start': [selection: CallflowNodeSelection]
   'drag-end': []
   move: [input: CallflowTreeMoveInput]
-  'add-action': [selection: CallflowNodeSelection, action: CallflowAction]
+  'add-action': [
+    selection: CallflowNodeSelection,
+    action: CallflowAction,
+    placement: CallflowNodePlacement,
+  ]
 }>()
 const depth = computed(() => props.depth)
 const selected = computed(
@@ -67,20 +72,19 @@ const movable = computed(
     findCallflowAction(props.node.module)?.status === 'guided',
 )
 const isDragSource = computed(() => samePath(props.path, props.dragSourcePath))
-const subtreeDropAllowed = computed(
-  () =>
-    props.editable &&
-    !props.moving &&
-    props.dragSourcePath !== null &&
-    props.dragSourcePath.length > 0 &&
-    !Object.hasOwn(props.node.children, '_') &&
-    !pathStartsWith(props.path, props.dragSourcePath) &&
-    !samePath([...props.path, '_'], props.dragSourcePath),
-)
-const paletteDropAllowed = computed(
-  () => props.paletteAction !== null && canAcceptPaletteAction(props.paletteAction),
-)
-const dropAllowed = computed(() => subtreeDropAllowed.value || paletteDropAllowed.value)
+const dropDecision = computed(() => decisionFor(props.paletteAction))
+const dropAllowed = computed(() => dropDecision.value.state === 'allowed')
+const dropDisallowed = computed(() => dropDecision.value.state === 'disallowed')
+const dropTitle = computed(() => {
+  if (dropDisallowed.value) return dropDecision.value.reason ?? 'Drop not allowed'
+  if (dropAllowed.value) {
+    return dropDecision.value.effect === 'copy'
+      ? 'Drop to configure this action here'
+      : 'Drop to move this subtree here'
+  }
+
+  return movable.value ? 'Drag this subtree to an empty branch' : undefined
+})
 const inlineReferenceLabel = computed(() =>
   props.node.module === 'cidlistmatch' &&
   typeof props.node.settings?.caller_id_list_label === 'string'
@@ -103,8 +107,18 @@ const nodeDetail = computed(() => {
 const showBranchLabel = computed(() => {
   const branch = props.node.branch
   if (!branch) return false
+  if (branch.kind === 'preserved') return false
 
   return branch.kind !== 'default' || branch.label.trim().toLowerCase() !== 'default branch'
+})
+const branchDisplayLabel = computed(() => {
+  const branch = props.node.branch
+  if (!branch) return ''
+
+  // Monster presents menu keys and timeout as the raw branch value in a
+  // compact header spanning the child node. Retain descriptive labels for
+  // conditional and schedule branches where the raw value is less useful.
+  return branch.kind === 'key' ? branch.key : branch.label
 })
 
 function selectNode(): void {
@@ -119,8 +133,12 @@ function forwardSelection(selection: CallflowNodeSelection): void {
   emit('select', selection)
 }
 
-function forwardAddAction(selection: CallflowNodeSelection, action: CallflowAction): void {
-  emit('add-action', selection, action)
+function forwardAddAction(
+  selection: CallflowNodeSelection,
+  action: CallflowAction,
+  placement: CallflowNodePlacement,
+): void {
+  emit('add-action', selection, action, placement)
 }
 
 function samePath(left: string[], right?: string[] | null): boolean {
@@ -130,10 +148,6 @@ function samePath(left: string[], right?: string[] | null): boolean {
     left.length === right.length &&
     left.every((segment, index) => segment === right[index])
   )
-}
-
-function pathStartsWith(path: string[], prefix: string[]): boolean {
-  return path.length >= prefix.length && prefix.every((segment, index) => segment === path[index])
 }
 
 function startDragging(event: DragEvent): void {
@@ -149,27 +163,39 @@ function startDragging(event: DragEvent): void {
 
 function allowDrop(event: DragEvent): void {
   const paletteAction = paletteActionFromEvent(event)
-  const acceptsPaletteTransfer =
-    canAcceptPaletteTarget() &&
-    (props.paletteAction !== null || paletteAction !== null || hasPaletteTransfer(event))
-  if (!subtreeDropAllowed.value && !acceptsPaletteTransfer) return
+  const acceptsPaletteTransfer = canAcceptPaletteAction(paletteAction ?? props.paletteAction)
+  const acceptsUnresolvedPaletteTransfer =
+    hasPaletteTransfer(event) && decisionForGenericPaletteAction().state === 'allowed'
+  const decision =
+    acceptsPaletteTransfer || acceptsUnresolvedPaletteTransfer
+      ? { state: 'allowed' as const, effect: 'copy' as const }
+      : dropDecision.value
+
+  if (decision.state !== 'allowed') {
+    if (event.dataTransfer) event.dataTransfer.dropEffect = 'none'
+    return
+  }
+
   event.preventDefault()
   if (event.dataTransfer) {
-    event.dataTransfer.dropEffect = acceptsPaletteTransfer ? 'copy' : 'move'
+    event.dataTransfer.dropEffect = decision.effect ?? 'none'
   }
 }
 
 function dropNode(event: DragEvent): void {
   const droppedPaletteAction = props.paletteAction ?? paletteActionFromEvent(event)
-  if (!dropAllowed.value && !canAcceptPaletteAction(droppedPaletteAction)) return
+  const decision = droppedPaletteAction ? decisionFor(droppedPaletteAction) : dropDecision.value
+  if (decision.state !== 'allowed') return
   event.preventDefault()
 
   if (canAcceptPaletteAction(droppedPaletteAction) && droppedPaletteAction) {
-    emit('add-action', { node: props.node, path: [...props.path] }, droppedPaletteAction)
+    const placement = callflowPalettePlacement(props.node, droppedPaletteAction)
+    if (!placement) return
+    emit('add-action', { node: props.node, path: [...props.path] }, droppedPaletteAction, placement)
     return
   }
 
-  if (!subtreeDropAllowed.value || props.dragSourcePath === null) return
+  if (props.dragSourcePath === null) return
   emit('move', {
     source_path: [...props.dragSourcePath],
     destination_parent_path: [...props.path],
@@ -191,23 +217,37 @@ function hasPaletteTransfer(event: DragEvent): boolean {
   )
 }
 
-function canAcceptPaletteTarget(): boolean {
-  return (
-    props.editable &&
-    !props.moving &&
-    props.node.reference_status !== 'unresolved' &&
-    props.node.branch?.kind !== 'preserved' &&
-    findCallflowAction(props.node.module)?.status === 'guided' &&
-    canAddCallflowChild(props.node)
-  )
+function decisionFor(action: CallflowAction | null) {
+  return callflowNodeDropDecision({
+    node: props.node,
+    path: props.path,
+    editable: props.editable,
+    moving: props.moving,
+    dragSourcePath: props.dragSourcePath,
+    paletteAction: action,
+  })
+}
+
+function decisionForGenericPaletteAction() {
+  return decisionFor({
+    id: 'dragged-guided-action',
+    module: 'unknown',
+    label: 'Dragged action',
+    description: '',
+    status: 'guided',
+  })
 }
 
 function canAcceptPaletteAction(action: CallflowAction | null): boolean {
-  return action?.status === 'guided' && canAcceptPaletteTarget()
+  return action !== null && decisionFor(action).state === 'allowed'
 }
 
 const moduleIcon = computed(() =>
-  callflowActionIcon(props.node.module, props.node.reference_status === 'unresolved'),
+  callflowActionIcon(props.node.module, {
+    action:
+      typeof props.node.settings?.action === 'string' ? props.node.settings.action : undefined,
+    unresolved: props.node.reference_status === 'unresolved',
+  }),
 )
 const moduleLabel = computed(() => callflowNodeLabel(props.node))
 const appearance = computed(() =>
@@ -216,29 +256,30 @@ const appearance = computed(() =>
 const branchClass = computed(() => {
   switch (props.node.branch?.kind) {
     case 'schedule_match':
-      return 'border-emerald-200 bg-emerald-50 text-emerald-700'
+      return 'border-emerald-400/40 bg-callflow-node text-emerald-200'
     case 'condition':
-      return 'border-violet-200 bg-violet-50 text-violet-700'
+      return 'border-violet-400/40 bg-callflow-node text-violet-200'
     case 'key':
-      return 'border-blue-200 bg-blue-50 text-blue-700'
+      return 'border-slate-400/40 bg-callflow-node text-slate-100'
     case 'preserved':
-      return 'border-amber-200 bg-amber-50 text-amber-700'
+      return 'border-amber-400/40 bg-callflow-node text-amber-200'
     default:
-      return 'border-slate-300 bg-white text-slate-600'
+      return 'border-slate-400/40 bg-callflow-node text-slate-100'
   }
 })
 </script>
 
 <template>
-  <div class="flex min-w-36 flex-col items-center">
-    <div v-if="node.branch" class="mb-2 flex flex-col items-center gap-1">
+  <div class="relative flex min-w-36 flex-col items-center">
+    <div v-if="node.branch" class="mb-1 flex flex-col items-center">
       <CallflowConnectorArrow />
       <span
         v-if="showBranchLabel"
-        class="rounded-full border px-2 py-0.5 text-[9px] font-semibold"
+        data-callflow-branch-label
+        class="flex h-4 w-36 items-center justify-center rounded-[2px] border px-1 text-center text-[9px] leading-none font-medium"
         :class="branchClass"
       >
-        {{ node.branch.label }}
+        {{ branchDisplayLabel }}
       </span>
     </div>
     <button
@@ -248,17 +289,29 @@ const branchClass = computed(() => {
       :aria-selected="selected"
       :aria-disabled="moving || undefined"
       :aria-label="`${moduleLabel}${node.target ? `: ${node.target.label}` : ''}`"
+      :aria-description="
+        dropAllowed
+          ? 'Drop allowed'
+          : dropDisallowed
+            ? `Drop not allowed. ${dropDecision.reason ?? ''}`
+            : undefined
+      "
       :draggable="movable"
-      :title="movable ? 'Drag this subtree to an empty branch' : undefined"
-      class="h-[84px] w-36 rounded-md text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+      :title="dropTitle"
+      :data-drop-state="dropDecision.state"
+      class="relative h-[84px] w-36 rounded-md text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
       :class="[
         dropAllowed
-          ? 'ring-2 ring-emerald-400 ring-offset-2'
-          : selected
-            ? 'ring-2 ring-brand-500 ring-offset-2'
-            : '',
-        isDragSource && 'opacity-55',
-        movable && 'cursor-grab active:cursor-grabbing',
+          ? dropDecision.effect === 'copy'
+            ? 'cursor-copy ring-2 ring-emerald-400 ring-offset-2'
+            : 'cursor-grabbing ring-2 ring-emerald-400 ring-offset-2'
+          : dropDisallowed
+            ? 'cursor-not-allowed opacity-45 ring-1 ring-rose-300 ring-offset-1 grayscale-[20%]'
+            : selected
+              ? 'ring-2 ring-brand-500 ring-offset-2'
+              : '',
+        isDragSource && !dropDisallowed && 'opacity-55',
+        movable && dropDecision.state === 'idle' && 'cursor-grab active:cursor-grabbing',
       ]"
       @click="selectNode"
       @dragstart="startDragging"
@@ -277,7 +330,7 @@ const branchClass = computed(() => {
       />
     </button>
 
-    <div v-if="children.length" role="group" class="flex flex-col items-center">
+    <div v-if="children.length" role="group" class="mt-1 flex flex-col items-center">
       <CallflowBranchConnector v-if="children.length > 1" kind="parent-stem" />
       <div class="flex items-start">
         <div

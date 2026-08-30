@@ -331,6 +331,8 @@ class CallflowMutationService
             $data['parent_path'],
             $data['branch'],
             $data['module'],
+            $data['placement'] ?? 'append',
+            (bool) ($data['confirm_replace'] ?? false),
         );
 
         return $this->writeInlineTreeNode(
@@ -342,6 +344,7 @@ class CallflowMutationService
             $data['branch'],
             $data['module'],
             $settings,
+            $data['placement'] ?? 'append',
             $ipAddress,
         );
     }
@@ -376,6 +379,7 @@ class CallflowMutationService
             null,
             $data['module'],
             $settings,
+            'append',
             $ipAddress,
         );
     }
@@ -393,6 +397,7 @@ class CallflowMutationService
         ?string $branch,
         string $module,
         array $settings,
+        string $placement,
         ?string $ipAddress,
     ): SwitchCallflow {
         try {
@@ -404,6 +409,7 @@ class CallflowMutationService
                 $branch,
                 $module,
                 $settings,
+                $placement,
             ));
 
             return DB::transaction(function () use (
@@ -414,6 +420,7 @@ class CallflowMutationService
                 $path,
                 $branch,
                 $module,
+                $placement,
                 $ipAddress,
                 $snapshot,
             ): SwitchCallflow {
@@ -429,6 +436,7 @@ class CallflowMutationService
                         'path' => $path,
                         'branch' => $branch,
                         'module' => $module,
+                        'placement' => $placement,
                     ],
                     $ipAddress,
                     'callflow',
@@ -442,7 +450,7 @@ class CallflowMutationService
                 $account,
                 $callflow,
                 $operation === 'create' ? 'callflow.inline_node_create_failed' : 'callflow.inline_node_update_failed',
-                ['path' => $path, 'branch' => $branch, 'module' => $module],
+                ['path' => $path, 'branch' => $branch, 'module' => $module, 'placement' => $placement],
                 $exception,
                 $ipAddress,
             );
@@ -475,6 +483,10 @@ class CallflowMutationService
 
         if ($module === 'ring_group_toggle') {
             return $this->ringGroupToggleSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'acdc_queue') {
+            return $this->acdcQueueSettingsForSwitch($account, $settings);
         }
 
         if ($module === 'group_pickup') {
@@ -593,14 +605,24 @@ class CallflowMutationService
 
         return [
             'strategy' => $settings['strategy'],
-            'endpoints' => $endpoints->map(fn (array $endpoint): array => [
-                'endpoint_type' => 'device',
-                'id' => $resources->get($endpoint['device_id']),
-                'delay' => $endpoint['delay'],
-                'timeout' => $endpoint['timeout'],
-            ])->all(),
+            'endpoints' => $endpoints->map(function (array $endpoint) use ($resources): array {
+                $mapped = [
+                    'endpoint_type' => 'device',
+                    'id' => $resources->get($endpoint['device_id']),
+                    'delay' => $endpoint['delay'],
+                    'timeout' => $endpoint['timeout'],
+                ];
+
+                if (isset($endpoint['weight'])) {
+                    $mapped['weight'] = $endpoint['weight'];
+                }
+
+                return $mapped;
+            })->all(),
             'repeats' => $settings['repeats'],
             'timeout' => RingGroupPolicy::attemptTimeout($settings['strategy'], $settings['endpoints']),
+            'ignore_forward' => $settings['ignore_forward'],
+            'fail_on_single_reject' => $settings['fail_on_single_reject'],
             'skip_module' => $settings['skip_module'],
         ];
     }
@@ -629,21 +651,46 @@ class CallflowMutationService
     }
 
     /** @param array<string, mixed> $settings @return array<string, mixed> */
-    private function ringGroupToggleSettingsForSwitch(SwitchAccount $account, array $settings): array
-    {
-        $resourceId = $account->callflows()
+    private function ringGroupToggleSettingsForSwitch(
+        SwitchAccount $account,
+        array $settings,
+    ): array {
+        $target = $account->callflows()
             ->where('id', $settings['callflow_id'])
-            ->value('switch_resource_id');
+            ->first();
 
-        if (! is_string($resourceId) || $resourceId === '') {
+        if ($target === null
+            || ! $target->canBeRingGroupToggleTarget()
+            || ! is_string($target->switch_resource_id)
+            || $target->switch_resource_id === '') {
             throw ValidationException::withMessages([
-                'data.callflow_id' => ['Select a synchronized callflow in this account.'],
+                'data.callflow_id' => ['Select another synchronized callflow containing a Ring Group in this account.'],
             ]);
         }
 
         return [
             'action' => $settings['action'],
-            'callflow_id' => $resourceId,
+            'callflow_id' => $target->switch_resource_id,
+            'skip_module' => $settings['skip_module'],
+        ];
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function acdcQueueSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $resourceId = $account->queues()
+            ->where('id', $settings['queue_id'])
+            ->value('switch_resource_id');
+
+        if (! is_string($resourceId) || $resourceId === '') {
+            throw ValidationException::withMessages([
+                'data.queue_id' => ['Select a synchronized queue in this account.'],
+            ]);
+        }
+
+        return [
+            'action' => $settings['action'],
+            'id' => $resourceId,
             'skip_module' => $settings['skip_module'],
         ];
     }

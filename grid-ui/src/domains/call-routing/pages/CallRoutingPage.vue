@@ -95,6 +95,11 @@ function synchronize(): void {
   if (accounts.selectedId) void callflows.synchronize(accounts.selectedId)
 }
 
+function refreshCallflowNodes(): void {
+  if (!accounts.selectedId || !callflows.detail || callflows.synchronizing) return
+  void callflows.refreshDetail(accounts.selectedId, callflows.detail.id)
+}
+
 function openDetail(id: string): void {
   demoOpen.value = false
   if (accounts.selectedId) void callflows.loadDetail(accounts.selectedId, id)
@@ -273,7 +278,11 @@ function routeTitle(route: {
         :mutation-error="demoOpen ? null : callflows.mutationError"
         :tree-moving="demoOpen ? false : callflows.treeMoving"
         :tree-mutation-error="demoOpen ? null : callflows.treeMutationError"
+        :can-refresh="!demoOpen"
+        :refreshing="demoOpen ? false : callflows.detailLoading"
+        :synchronizing="demoOpen ? false : callflows.synchronizing"
         @close="closeWorkspace"
+        @refresh="refreshCallflowNodes"
         @edit="openEditor"
         @delete="deleteRoute"
         @move-node="moveTreeNode"

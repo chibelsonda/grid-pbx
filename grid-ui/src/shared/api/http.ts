@@ -1,5 +1,30 @@
 import axios from 'axios'
 
+export const unexpectedServerErrorMessage =
+  'An unexpected server error occurred. Try again. If the problem continues, contact support.'
+
+type ApiErrorPayload = {
+  message: string
+  error_id?: string
+}
+
+export function sanitizeApiErrorPayload(status: number, payload: unknown): unknown {
+  if (status < 500) return payload
+
+  const errorId =
+    typeof payload === 'object' &&
+    payload !== null &&
+    'error_id' in payload &&
+    typeof payload.error_id === 'string'
+      ? payload.error_id
+      : undefined
+
+  return {
+    message: unexpectedServerErrorMessage,
+    ...(errorId ? { error_id: errorId } : {}),
+  } satisfies ApiErrorPayload
+}
+
 export const http = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8081',
   headers: {
@@ -7,6 +32,14 @@ export const http = axios.create({
   },
   withCredentials: true,
   withXSRFToken: true,
+})
+
+http.interceptors.response.use(undefined, (error: unknown) => {
+  if (axios.isAxiosError(error) && error.response) {
+    error.response.data = sanitizeApiErrorPayload(error.response.status, error.response.data)
+  }
+
+  return Promise.reject(error)
 })
 
 export type ApiResponse<T> = {

@@ -200,6 +200,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         ?string $branch,
         string $module,
         array $settings,
+        string $placement = 'append',
     ): array {
         $current = $this->resources->find(
             $account->switch_account_id,
@@ -218,6 +219,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 (string) $branch,
                 $module,
                 $settings,
+                $placement,
             )
             : CallflowInlineNodeWriteData::update(
                 $current->toArray(),

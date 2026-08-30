@@ -89,9 +89,13 @@ describe('callflow inline node form schema', () => {
         callflow_id: '73574264-0951-41c4-a2ec-a0ab7e027c1c',
         skip_module: false,
       },
+      acdc_queue: {
+        action: 'logout',
+        queue_id: '11111111-1111-4111-8111-111111111111',
+        skip_module: false,
+      },
       hotdesk: { action: 'logout', skip_module: false },
       do_not_disturb: { action: 'toggle', skip_module: false },
-      call_forward: { action: 'update', skip_module: false },
       page_group: {
         audio: 'one-way',
         device_ids: ['11111111-1111-4111-8111-111111111111'],
@@ -107,6 +111,8 @@ describe('callflow inline node form schema', () => {
           },
         ],
         repeats: 1,
+        ignore_forward: true,
+        fail_on_single_reject: false,
         skip_module: false,
       },
       conference: { service_mode: true, skip_module: false },
@@ -379,6 +385,42 @@ describe('callflow inline node form schema', () => {
     ).toBe(false)
   })
 
+  it('accepts only installed resource-free Do Not Disturb actions', () => {
+    const schema = createCallflowInlineNodeFormSchema('do_not_disturb', ['_'], true)
+    const base = { branch: '_', data: { action: 'toggle', skip_module: false } }
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(
+      schema.safeParse({ ...base, data: { action: 'enable', skip_module: false } }).success,
+    ).toBe(false)
+    expect(schema.safeParse({ ...base, data: { ...base.data, id: 'raw-user-id' } }).success).toBe(
+      false,
+    )
+  })
+
+  it('accepts only public Queue UUIDs for installed ACDC Queue actions', () => {
+    const schema = createCallflowInlineNodeFormSchema('acdc_queue', ['_'], true)
+    const base = {
+      branch: '_',
+      data: {
+        action: 'login',
+        queue_id: '11111111-1111-4111-8111-111111111111',
+        skip_module: false,
+      },
+    }
+
+    expect(schema.safeParse(base).success).toBe(true)
+    expect(schema.safeParse({ ...base, data: { ...base.data, action: 'toggle' } }).success).toBe(
+      false,
+    )
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, queue_id: 'raw-switch-queue' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, id: 'raw-switch-queue' } }).success,
+    ).toBe(false)
+  })
+
   it('requires one public Group Pickup target', () => {
     const schema = createCallflowInlineNodeFormSchema('group_pickup', ['_'], true)
 
@@ -466,13 +508,40 @@ describe('callflow inline node form schema', () => {
         strategy: 'simultaneous',
         endpoints: [{ device_id: deviceId, delay: 5, timeout: 20 }],
         repeats: 2,
+        ignore_forward: true,
+        fail_on_single_reject: false,
         skip_module: false,
       },
     } as const
 
     expect(schema.safeParse(base).success).toBe(true)
     expect(
+      schema.safeParse({ ...base, data: { ...base.data, ignore_forward: 'true' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...base, data: { ...base.data, fail_on_single_reject: 1 } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          strategy: 'weighted_random',
+          endpoints: [{ device_id: deviceId, delay: 0, timeout: 20, weight: 75 }],
+        },
+      }).success,
+    ).toBe(true)
+    expect(
       schema.safeParse({ ...base, data: { ...base.data, strategy: 'weighted_random' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [{ device_id: deviceId, delay: 5, timeout: 20, weight: 75 }],
+        },
+      }).success,
     ).toBe(false)
     expect(
       schema.safeParse({

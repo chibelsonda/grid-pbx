@@ -175,6 +175,41 @@ describe('callflow store', () => {
     expect(store.synchronizing).toBe(false)
   })
 
+  it('automatically refreshes the open callflow tree after synchronization', async () => {
+    const refreshed = {
+      ...callflow,
+      node_count: 3,
+      modules: [...callflow.modules, 'response'],
+    }
+    vi.mocked(callflowApi.startProjectionSync).mockResolvedValue({
+      id: 'run-2',
+      resource_type: 'extensions',
+      status: 'succeeded',
+      error_message: null,
+    })
+    vi.mocked(callflowApi.list).mockResolvedValue({
+      data: [refreshed],
+      links: { prev: null, next: null },
+      meta: {
+        current_page: 1,
+        last_page: 1,
+        per_page: 25,
+        total: 1,
+        sync: { status: 'healthy', last_successful_at: null, error_message: null },
+      },
+    })
+    vi.mocked(callflowApi.detail).mockResolvedValue(refreshed)
+    const store = useCallflowStore()
+    store.detail = callflow
+    store.records = [callflow]
+
+    await store.synchronize('account-1')
+
+    expect(callflowApi.detail).toHaveBeenCalledWith('account-1', callflow.id)
+    expect(store.detail).toEqual(refreshed)
+    expect(store.records[0]).toEqual(refreshed)
+  })
+
   it('loads public editor options and replaces the projected record after saving', async () => {
     vi.mocked(callflowApi.editor).mockResolvedValue({
       mode: 'update',

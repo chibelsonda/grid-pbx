@@ -49,6 +49,7 @@ class CallflowPublicTreeService
                 ? array_values($node['temporal_rules'])
                 : [],
             'settings' => is_array($node['settings'] ?? null) ? $node['settings'] : null,
+            'drop_capability' => CallflowBranchPolicy::dropCapability($node),
             'children' => (object) $children,
         ];
     }

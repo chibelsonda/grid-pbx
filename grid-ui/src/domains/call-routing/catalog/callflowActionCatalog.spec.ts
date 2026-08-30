@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
   callflowActionCatalog,
+  callflowActionDestinationType,
   callflowInlineModuleNeedsEditorCatalog,
   callflowNodeLabel,
   findCallflowAction,
   findCallflowActionById,
+  isGuidedInlineCallflowModule,
+  searchableCallflowActions,
 } from './callflowActionCatalog'
 
 describe('callflowActionCatalog', () => {
@@ -129,6 +132,128 @@ describe('callflowActionCatalog', () => {
       status: 'guided',
       preset: { action: 'check' },
     })
+  })
+
+  it('exposes audited Hotdesk operations as resource-free guided actions', () => {
+    expect(findCallflowAction('hotdesk', 'toggle')).toMatchObject({
+      label: 'Hot Desk toggle',
+      status: 'guided',
+      preset: { action: 'toggle' },
+      description: expect.stringContaining('current device'),
+    })
+    expect(callflowInlineModuleNeedsEditorCatalog('hotdesk')).toBe(false)
+  })
+
+  it('exposes audited Do Not Disturb operations as resource-free guided actions', () => {
+    expect(findCallflowAction('do_not_disturb', 'toggle')).toMatchObject({
+      label: 'Toggle Do Not Disturb',
+      status: 'guided',
+      preset: { action: 'toggle' },
+      description: expect.stringContaining('authenticated caller'),
+    })
+    expect(callflowInlineModuleNeedsEditorCatalog('do_not_disturb')).toBe(false)
+  })
+
+  it('keeps audited Call Forwarding actions capability-gated', () => {
+    for (const action of ['activate', 'deactivate', 'update']) {
+      expect(findCallflowAction('call_forward', action)).toMatchObject({
+        status: 'restricted',
+        description: expect.stringContaining('arbitrary destination'),
+      })
+    }
+    expect(isGuidedInlineCallflowModule('call_forward', 'activate')).toBe(false)
+  })
+
+  it('keeps audited ACDC Agent actions search-only and capability-gated', () => {
+    const variants = searchableCallflowActions.filter((action) => action.module === 'acdc_agent')
+
+    expect(variants.map((action) => action.action)).toEqual(['login', 'logout', 'paused', 'resume'])
+    expect(variants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: 'restricted',
+          description: expect.stringContaining('authenticated and audited Queue Agent'),
+        }),
+      ]),
+    )
+    expect(callflowActionCatalog.flatMap((category) => category.actions)).not.toContainEqual(
+      expect.objectContaining({ module: 'acdc_agent' }),
+    )
+    expect(isGuidedInlineCallflowModule('acdc_agent', 'login')).toBe(false)
+  })
+
+  it('exposes audited ACDC Queue operations as search-only guided actions', () => {
+    const variants = searchableCallflowActions.filter((action) => action.module === 'acdc_queue')
+
+    expect(variants.map((action) => action.action)).toEqual(['login', 'logout'])
+    expect(variants).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          status: 'guided',
+          description: expect.stringContaining('authenticated caller owner'),
+        }),
+      ]),
+    )
+    expect(callflowActionCatalog.flatMap((category) => category.actions)).not.toContainEqual(
+      expect.objectContaining({ module: 'acdc_queue' }),
+    )
+    expect(isGuidedInlineCallflowModule('acdc_queue', 'login')).toBe(true)
+    expect(callflowInlineModuleNeedsEditorCatalog('acdc_queue')).toBe(true)
+  })
+
+  it('keeps audited Eavesdrop actions search-only and capability-gated', () => {
+    const actions = searchableCallflowActions.filter((action) =>
+      ['eavesdrop', 'eavesdrop_feature'].includes(action.module),
+    )
+
+    expect(actions).toEqual([
+      expect.objectContaining({
+        module: 'eavesdrop',
+        label: 'Eavesdrop configured target',
+        status: 'restricted',
+        description: expect.stringContaining('privacy controls'),
+      }),
+      expect.objectContaining({
+        module: 'eavesdrop_feature',
+        label: 'Eavesdrop by extension',
+        status: 'restricted',
+        description: expect.stringContaining('supervisor authorization'),
+      }),
+    ])
+    expect(callflowActionCatalog.flatMap((category) => category.actions)).not.toContainEqual(
+      expect.objectContaining({ module: 'eavesdrop' }),
+    )
+    expect(isGuidedInlineCallflowModule('eavesdrop')).toBe(false)
+    expect(isGuidedInlineCallflowModule('eavesdrop_feature')).toBe(false)
+  })
+
+  it('classifies every installed palette action with an implemented boundary', () => {
+    const actions = callflowActionCatalog.flatMap((category) => category.actions)
+    const guided = actions.filter((action) => action.status === 'guided')
+    const restricted = actions.filter((action) => action.status === 'restricted')
+
+    expect(actions).toHaveLength(49)
+    expect(guided).toHaveLength(40)
+    expect(restricted.map((action) => action.id).sort()).toEqual([
+      'call_forward[action=activate]',
+      'call_forward[action=deactivate]',
+      'call_forward[action=update]',
+      'disa',
+      'dynamic_cid',
+      'offnet',
+      'pivot',
+      'resources',
+      'webhook',
+    ])
+    expect(actions.filter((action) => action.status === 'planned')).toEqual([])
+
+    for (const action of guided) {
+      expect(
+        callflowActionDestinationType(action.module) !== null ||
+          isGuidedInlineCallflowModule(action.module, action.action),
+        `${action.id} needs a public destination or inline mutation contract`,
+      ).toBe(true)
+    }
   })
 
   it('exposes Page Group as a guided device action', () => {

@@ -9,6 +9,88 @@ use Tests\TestCase;
 class CallflowPublicTreeServiceTest extends TestCase
 {
     #[Test]
+    public function it_exposes_switch_aligned_drop_capabilities_without_raw_branch_rules(): void
+    {
+        $tree = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'menu',
+            'reference_status' => 'resolved',
+            'children' => [
+                '_' => ['module' => 'response', 'children' => []],
+                '0' => ['module' => 'receive_fax', 'children' => []],
+            ],
+        ]);
+
+        $children = (array) $tree['children'];
+
+        $this->assertSame([
+            'accepts_children' => true,
+            'default_branch_available' => false,
+            'branch_mode' => 'menu',
+            'reason' => null,
+        ], $tree['drop_capability']);
+        $this->assertSame([
+            'accepts_children' => false,
+            'default_branch_available' => false,
+            'branch_mode' => 'terminal',
+            'reason' => 'This Switch action is terminal and cannot accept another action.',
+        ], $children['_']['drop_capability']);
+        $this->assertSame('terminal', $children['0']['drop_capability']['branch_mode']);
+    }
+
+    #[Test]
+    public function it_explains_unresolved_and_occupied_drop_destinations(): void
+    {
+        $unresolved = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'device',
+            'reference_status' => 'unresolved',
+            'children' => [],
+        ]);
+        $occupied = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'user',
+            'reference_status' => 'resolved',
+            'children' => [
+                '_' => ['module' => 'voicemail', 'children' => []],
+            ],
+        ]);
+
+        $this->assertFalse($unresolved['drop_capability']['accepts_children']);
+        $this->assertSame(
+            'Resolve this action reference before attaching another action.',
+            $unresolved['drop_capability']['reason'],
+        );
+        $this->assertFalse($occupied['drop_capability']['accepts_children']);
+        $this->assertSame(
+            'All editable branches on this Switch action are occupied.',
+            $occupied['drop_capability']['reason'],
+        );
+    }
+
+    #[Test]
+    public function it_allows_response_below_empty_set_cav_without_risking_an_existing_subtree(): void
+    {
+        $empty = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'set_variables',
+            'reference_status' => 'not_applicable',
+            'children' => [],
+        ]);
+        $occupied = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'set_variables',
+            'reference_status' => 'not_applicable',
+            'children' => [
+                '_' => ['module' => 'device', 'children' => []],
+            ],
+        ]);
+
+        $this->assertTrue($empty['drop_capability']['accepts_children']);
+        $this->assertTrue($empty['drop_capability']['default_branch_available']);
+        $this->assertFalse($occupied['drop_capability']['accepts_children']);
+        $this->assertSame(
+            'Set CAV already has a next step. Remove or move it before attaching another action.',
+            $occupied['drop_capability']['reason'],
+        );
+    }
+
+    #[Test]
     public function it_exposes_known_caller_id_branches_and_preserves_unknown_keys(): void
     {
         $tree = app(CallflowPublicTreeService::class)->transform([
@@ -57,5 +139,67 @@ class CallflowPublicTreeServiceTest extends TestCase
         ]);
 
         $this->assertArrayHasKey('preserved_1', (array) $unsupported['children']);
+    }
+
+    #[Test]
+    public function it_locks_call_forward_nodes_and_preserves_their_subtrees(): void
+    {
+        $tree = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'call_forward',
+            'settings' => ['action' => 'activate', 'skip_module' => false],
+            'children' => [
+                '_' => ['module' => 'user', 'children' => []],
+            ],
+        ]);
+
+        $this->assertSame('locked', $tree['drop_capability']['branch_mode']);
+        $this->assertSame(
+            'This action is not supported by the guided callflow editor.',
+            $tree['drop_capability']['reason'],
+        );
+        $this->assertArrayHasKey('preserved_1', (array) $tree['children']);
+        $this->assertSame('user', ((array) $tree['children'])['preserved_1']['module']);
+    }
+
+    #[Test]
+    public function it_locks_acdc_agent_nodes_and_preserves_their_subtrees(): void
+    {
+        $tree = app(CallflowPublicTreeService::class)->transform([
+            'module' => 'acdc_agent',
+            'settings' => ['action' => 'login', 'skip_module' => false],
+            'children' => [
+                '_' => ['module' => 'user', 'children' => []],
+            ],
+        ]);
+
+        $this->assertSame('locked', $tree['drop_capability']['branch_mode']);
+        $this->assertSame(
+            'This action is not supported by the guided callflow editor.',
+            $tree['drop_capability']['reason'],
+        );
+        $this->assertArrayHasKey('preserved_1', (array) $tree['children']);
+        $this->assertSame('user', ((array) $tree['children'])['preserved_1']['module']);
+    }
+
+    #[Test]
+    public function it_locks_eavesdrop_nodes_and_preserves_their_subtrees(): void
+    {
+        foreach (['eavesdrop', 'eavesdrop_feature'] as $module) {
+            $tree = app(CallflowPublicTreeService::class)->transform([
+                'module' => $module,
+                'settings' => ['skip_module' => false],
+                'children' => [
+                    '_' => ['module' => 'user', 'children' => []],
+                ],
+            ]);
+
+            $this->assertSame('locked', $tree['drop_capability']['branch_mode']);
+            $this->assertSame(
+                'This action is not supported by the guided callflow editor.',
+                $tree['drop_capability']['reason'],
+            );
+            $this->assertArrayHasKey('preserved_1', (array) $tree['children']);
+            $this->assertSame('user', ((array) $tree['children'])['preserved_1']['module']);
+        }
     }
 }

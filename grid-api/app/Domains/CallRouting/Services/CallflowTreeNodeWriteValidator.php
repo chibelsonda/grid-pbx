@@ -7,58 +7,14 @@ use Illuminate\Validation\ValidationException;
 
 class CallflowTreeNodeWriteValidator
 {
-    /** @var list<string> */
-    private const GUIDED_MODULES = [
-        'user',
-        'device',
-        'voicemail',
-        'callflow',
-        'play',
-        'directory',
-        'group',
-        'acdc_member',
-        'menu',
-        'conference',
-        'faxbox',
-        'temporal_route',
-        'sleep',
-        'tts',
-        'collect_dtmf',
-        'record_call',
-        'record_caller',
-        'send_dtmf',
-        'flush_dtmf',
-        'dead_air',
-        'language',
-        'response',
-        'hangup',
-        'set_variable',
-        'set_variables',
-        'manual_presence',
-        'group_pickup',
-        'page_group',
-        'ring_group',
-        'receive_fax',
-        'branch_variable',
-        'branch_bnumber',
-        'missed_call_alert',
-        'set_cid',
-        'prepend_cid',
-        'set_alert_info',
-        'check_cid',
-        'cidlistmatch',
-        'ring_group_toggle',
-        'hotdesk',
-        'do_not_disturb',
-        'call_forward',
-    ];
-
     /** @param list<string> $parentPath */
     public function assertCanCreate(
         SwitchCallflow $callflow,
         array $parentPath,
         string $branch,
         string $module,
+        string $placement = 'append',
+        bool $confirmReplace = false,
     ): void {
         $flow = $this->flow($callflow);
         $parent = $this->nodeAt($flow, $parentPath, 'parent_path');
@@ -68,7 +24,7 @@ class CallflowTreeNodeWriteValidator
             $this->fail('parent_path', 'This conditional action has preserved branches that cannot be edited.');
         }
 
-        if (! in_array($parentModule, self::GUIDED_MODULES, true)) {
+        if (! CallflowBranchPolicy::isGuidedModule($parentModule)) {
             $this->fail('parent_path', 'New actions cannot be attached to this unsupported callflow module.');
         }
 
@@ -76,7 +32,7 @@ class CallflowTreeNodeWriteValidator
             $this->fail('parent_path', 'Resolve the parent callflow action before adding a child action.');
         }
 
-        if (! in_array($module, self::GUIDED_MODULES, true)) {
+        if (! CallflowBranchPolicy::isGuidedModule($module)) {
             $this->fail('destination_type', 'This callflow action is not available in the guided editor.');
         }
 
@@ -86,8 +42,26 @@ class CallflowTreeNodeWriteValidator
 
         $children = is_array($parent['children'] ?? null) ? $parent['children'] : [];
 
-        if (array_key_exists($branch, $children)) {
+        $occupied = array_key_exists($branch, $children);
+
+        if ($placement === 'append' && $occupied) {
             $this->fail('branch', 'The selected callflow branch is already occupied.');
+        }
+
+        if ($placement !== 'append' && ! $occupied) {
+            $this->fail('placement', 'The selected callflow branch is no longer occupied. Reload the route.');
+        }
+
+        if ($placement !== 'append' && $branch !== '_') {
+            $this->fail('placement', 'Only an occupied continuation branch can use this placement.');
+        }
+
+        if ($placement === 'insert_before' && CallflowBranchPolicy::isTerminalModule($module)) {
+            $this->fail('placement', 'A terminal action cannot preserve the existing next step.');
+        }
+
+        if ($placement === 'replace' && ! $confirmReplace) {
+            $this->fail('confirm_replace', 'Confirm replacement of the existing next step.');
         }
     }
 
@@ -105,7 +79,7 @@ class CallflowTreeNodeWriteValidator
         $node = $this->nodeAt($this->flow($callflow), $nodePath, 'node_path');
         $currentModule = is_string($node['module'] ?? null) ? $node['module'] : '';
 
-        if (! in_array($currentModule, self::GUIDED_MODULES, true)) {
+        if (! CallflowBranchPolicy::isGuidedModule($currentModule)) {
             $this->fail('node_path', 'This callflow action is not supported by the guided editor.');
         }
 
@@ -153,6 +127,11 @@ class CallflowTreeNodeWriteValidator
         if ($currentModule === 'ring_group'
             && ($node['settings']['supported_configuration'] ?? false) !== true) {
             $this->fail('node_path', 'This existing Ring Group configuration is not supported by the guided editor.');
+        }
+
+        if ($currentModule === 'acdc_queue'
+            && ($node['settings']['supported_configuration'] ?? false) !== true) {
+            $this->fail('node_path', 'Synchronize the Queue before editing this ACDC Queue action.');
         }
 
         if ($currentModule === 'receive_fax'

@@ -9,6 +9,11 @@ class ServiceOverviewService
 {
     public function get(SwitchAccount $account): ?SwitchServiceSummary
     {
-        return $account->serviceSummary()->with(['plans', 'quantities', 'switchAccount.serviceLimit'])->first();
+        return $account->serviceSummary()->with([
+            'billingResellerAccount:account_id,id,name,realm',
+            'plans',
+            'quantities',
+            'switchAccount.serviceLimit',
+        ])->first();
     }
 }

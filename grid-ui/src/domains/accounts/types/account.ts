@@ -20,6 +20,7 @@ export type Account = {
     can_sync_call_detail_records: boolean
     can_view_services: boolean
     can_manage_account_settings: boolean
+    can_onboard_descendants: boolean
   }
 }
 

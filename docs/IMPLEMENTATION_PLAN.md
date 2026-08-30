@@ -769,9 +769,10 @@ Acceptance criteria:
   normalized membership relationships, complete redacted `switch_json`, safe
   public references, dependency-aware deletion, and guided callflow targets.
   A Device-only inline `ring_group` timing/strategy foundation is delivered
-  with bounded public UUID endpoints and computed attempt duration. User/group
-  expansion, weighted-random routing, and media/private behavior remain part of
-  advanced visual callflow work.
+  with bounded public UUID endpoints, computed attempt duration,
+  weighted-random routing, and the two schema-backed bridge flags. User/group
+  expansion and ringback/ringtone media behavior remain part of advanced
+  visual callflow work.
 - Queue and agent foundation: ACDc-aware typed queue CRUD, normalized roster
   projection, redacted `switch_json`, queued synchronization, compensating
   roster updates, live agent status commands, right-side panels, and guided

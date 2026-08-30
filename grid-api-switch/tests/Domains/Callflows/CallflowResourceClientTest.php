@@ -49,6 +49,8 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('callflow-created', $snapshot->id);
         self::assertSame('PUT', $this->history[0]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/callflows', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame('GET', $this->history[1]['request']->getMethod());
+        self::assertSame('/v2/accounts/account-1/callflows/callflow-created', $this->history[1]['request']->getUri()->getPath());
         self::assertStringContainsString('"children":{}', (string) $this->history[0]['request']->getBody());
         self::assertSame([
             'data' => [
@@ -61,6 +63,44 @@ final class CallflowResourceClientTest extends TestCase
                 ],
             ],
         ], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public function test_it_projects_the_authoritative_callflow_returned_after_a_write(): void
+    {
+        $submitted = [
+            'id' => 'callflow-1',
+            'flow' => [
+                'module' => 'device',
+                'data' => ['id' => 'device-1'],
+                'children' => [
+                    '_' => [
+                        'module' => 'unsupported_child',
+                        'data' => [],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ];
+        $persisted = [
+            'id' => 'callflow-1',
+            'flow' => [
+                'module' => 'device',
+                'data' => ['id' => 'device-1'],
+                'children' => [],
+            ],
+        ];
+        $client = $this->clientWithResponse($submitted, $persisted);
+
+        $snapshot = $client->update('account-1', 'callflow-1', new CallflowWriteData(
+            current: $submitted,
+            destinationModule: 'device',
+            destinationResourceId: 'device-1',
+        ));
+
+        self::assertSame(1, $snapshot->nodeCount);
+        self::assertSame([], $snapshot->flow?->children);
+        self::assertSame('POST', $this->history[0]['request']->getMethod());
+        self::assertSame('GET', $this->history[1]['request']->getMethod());
     }
 
     public function test_it_creates_a_managed_extension_callflow_with_voicemail_fallback(): void
@@ -771,6 +811,26 @@ final class CallflowResourceClientTest extends TestCase
         );
     }
 
+    public function test_it_rejects_children_under_terminal_switch_actions(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('destination branch is not valid');
+
+        CallflowInlineNodeWriteData::create(
+            [
+                'flow' => [
+                    'module' => 'response',
+                    'data' => ['code' => 486],
+                    'children' => [],
+                ],
+            ],
+            [],
+            '_',
+            'sleep',
+            ['duration' => 1, 'unit' => 's', 'skip_module' => false],
+        );
+    }
+
     public function test_it_creates_and_updates_call_priority_branch_variables_without_rebuilding_children(): void
     {
         $base = [
@@ -1158,6 +1218,212 @@ final class CallflowResourceClientTest extends TestCase
         }
     }
 
+    public function test_it_writes_ring_group_toggle_and_preserves_unknown_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'ring_group_toggle',
+            ['action' => 'login', 'callflow_id' => 'ring-group-callflow', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('login', $createdNode['data']['action']);
+        self::assertSame('ring-group-callflow', $createdNode['data']['callflow_id']);
+        self::assertFalse($createdNode['data']['skip_module']);
+
+        $createdNode['data']['server_owned'] = ['preserve' => true];
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'ring_group_toggle',
+            ['action' => 'logout', 'callflow_id' => 'other-ring-group', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('logout', $updatedNode['data']['action']);
+        self::assertSame('other-ring-group', $updatedNode['data']['callflow_id']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame(['preserve' => true], $updatedNode['data']['server_owned']);
+
+        foreach (['toggle', ''] as $action) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group_toggle', [
+                    'action' => $action,
+                    'callflow_id' => 'ring-group-callflow',
+                    'skip_module' => false,
+                ]);
+                self::fail('Ring Group Toggle must reject unsupported actions.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_acdc_queue_actions_and_preserves_unknown_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'acdc_queue',
+            ['action' => 'login', 'id' => 'queue-1', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('login', $createdNode['data']['action']);
+        self::assertSame('queue-1', $createdNode['data']['id']);
+        self::assertFalse($createdNode['data']['skip_module']);
+
+        $createdNode['data']['server_owned'] = ['preserve' => true];
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'acdc_queue',
+            ['action' => 'logout', 'id' => 'queue-2', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('logout', $updatedNode['data']['action']);
+        self::assertSame('queue-2', $updatedNode['data']['id']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame(['preserve' => true], $updatedNode['data']['server_owned']);
+
+        foreach (['toggle', ''] as $action) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'acdc_queue', [
+                    'action' => $action,
+                    'id' => 'queue-1',
+                    'skip_module' => false,
+                ]);
+                self::fail('ACDC Queue must reject unsupported actions.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
+    public function test_it_writes_hotdesk_actions_and_preserves_unknown_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'hotdesk',
+            ['action' => 'login', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('login', $createdNode['data']['action']);
+        self::assertFalse($createdNode['data']['skip_module']);
+
+        $createdNode['data']['id'] = 'server-selected-user';
+        $createdNode['data']['interdigit_timeout'] = 2750;
+        $createdNode['data']['server_owned'] = ['preserve' => true];
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'hotdesk',
+            ['action' => 'toggle', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('toggle', $updatedNode['data']['action']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('server-selected-user', $updatedNode['data']['id']);
+        self::assertSame(2750, $updatedNode['data']['interdigit_timeout']);
+        self::assertSame(['preserve' => true], $updatedNode['data']['server_owned']);
+
+        try {
+            CallflowInlineNodeWriteData::create($base, [], '_', 'hotdesk', [
+                'action' => 'bridge',
+                'skip_module' => false,
+            ]);
+            self::fail('Hotdesking must reject the bridge action from the public editor.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+    }
+
+    public function test_it_writes_resource_free_dnd_actions_and_preserves_server_owned_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $created = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'do_not_disturb',
+            ['action' => 'activate', 'skip_module' => false],
+        )->toSwitchData();
+        $createdNode = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('activate', $createdNode['data']['action']);
+        self::assertFalse($createdNode['data']['skip_module']);
+
+        $createdNode['data']['id'] = 'server-selected-device';
+        $createdNode['data']['server_owned'] = ['preserve' => true];
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $createdNode];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'do_not_disturb',
+            ['action' => 'toggle', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('toggle', $updatedNode['data']['action']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame('server-selected-device', $updatedNode['data']['id']);
+        self::assertSame(['preserve' => true], $updatedNode['data']['server_owned']);
+
+        foreach ([
+            ['action' => 'enable', 'skip_module' => false],
+            ['action' => 'activate', 'id' => 'raw-user-id', 'skip_module' => false],
+        ] as $settings) {
+            try {
+                CallflowInlineNodeWriteData::create($base, [], '_', 'do_not_disturb', $settings);
+                self::fail('Do Not Disturb must reject legacy actions and public raw IDs.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
+    }
+
     public function test_it_writes_bounded_device_page_groups_and_preserves_endpoint_fields(): void
     {
         $base = [
@@ -1253,6 +1519,8 @@ final class CallflowResourceClientTest extends TestCase
             ]],
             'repeats' => 2,
             'timeout' => 25,
+            'ignore_forward' => true,
+            'fail_on_single_reject' => false,
             'skip_module' => false,
         ];
         $created = CallflowInlineNodeWriteData::create(
@@ -1267,7 +1535,6 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame($settings, $createdNode['data']);
 
         $createdNode['data']['ringback'] = 'private-media-id';
-        $createdNode['data']['ignore_forward'] = false;
         $createdNode['data']['endpoints'][0]['weight'] = 25;
         $createdNode['data']['endpoints'][0]['server_owned'] = 'preserve-endpoint';
         $current = ['flow' => $base['flow']];
@@ -1286,6 +1553,8 @@ final class CallflowResourceClientTest extends TestCase
                 ]],
                 'repeats' => 1,
                 'timeout' => 30,
+                'ignore_forward' => false,
+                'fail_on_single_reject' => true,
                 'skip_module' => true,
             ],
         )->toSwitchData();
@@ -1295,19 +1564,63 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame(30, $updatedNode['data']['timeout']);
         self::assertSame('private-media-id', $updatedNode['data']['ringback']);
         self::assertFalse($updatedNode['data']['ignore_forward']);
+        self::assertTrue($updatedNode['data']['fail_on_single_reject']);
         self::assertSame(25, $updatedNode['data']['endpoints'][0]['weight']);
         self::assertSame('preserve-endpoint', $updatedNode['data']['endpoints'][0]['server_owned']);
         self::assertSame(0, $updatedNode['data']['endpoints'][0]['delay']);
         self::assertSame(30, $updatedNode['data']['endpoints'][0]['timeout']);
         self::assertTrue($updatedNode['data']['skip_module']);
 
-        $this->expectException(InvalidArgumentException::class);
-        CallflowInlineNodeWriteData::update(
-            $current,
+        $weightedCurrent = ['flow' => $base['flow']];
+        $weightedCurrent['flow']['children'] = ['_' => $updatedNode];
+        $weighted = CallflowInlineNodeWriteData::update(
+            $weightedCurrent,
             ['_'],
             'ring_group',
-            [...$settings, 'strategy' => 'weighted_random'],
-        );
+            [
+                'strategy' => 'weighted_random',
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'device-1',
+                    'delay' => 0,
+                    'timeout' => 30,
+                    'weight' => 75,
+                ]],
+                'repeats' => 1,
+                'timeout' => 30,
+                'ignore_forward' => false,
+                'fail_on_single_reject' => true,
+                'skip_module' => true,
+            ],
+        )->toSwitchData();
+        $weightedNode = ((array) $weighted['flow']['children'])['_'];
+
+        self::assertSame('weighted_random', $weightedNode['data']['strategy']);
+        self::assertSame(75, $weightedNode['data']['endpoints'][0]['weight']);
+        self::assertSame('preserve-endpoint', $weightedNode['data']['endpoints'][0]['server_owned']);
+
+        $malformedCurrent = $weightedCurrent;
+        $malformedCurrent['flow']['children']['_']['data']['ignore_forward'] = 'true';
+
+        try {
+            CallflowInlineNodeWriteData::update($malformedCurrent, ['_'], 'ring_group', $settings);
+            self::fail('Ring Group must reject malformed existing bridge flags.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
+        }
+
+        $this->expectException(InvalidArgumentException::class);
+        CallflowInlineNodeWriteData::update($weightedCurrent, ['_'], 'ring_group', [
+            ...$settings,
+            'strategy' => 'weighted_random',
+            'endpoints' => [[
+                'endpoint_type' => 'device',
+                'id' => 'device-1',
+                'delay' => 0,
+                'timeout' => 20,
+            ]],
+            'timeout' => 20,
+        ]);
     }
 
     public function test_it_writes_conference_service_without_a_resource_id_and_preserves_unknown_settings(): void
@@ -1413,7 +1726,7 @@ final class CallflowResourceClientTest extends TestCase
         );
     }
 
-    public function test_it_preserves_exact_operational_action_variants_in_inline_nodes(): void
+    public function test_it_preserves_exact_recording_action_variants_in_inline_nodes(): void
     {
         $base = [
             'flow' => [
@@ -1441,19 +1754,215 @@ final class CallflowResourceClientTest extends TestCase
                 'skip_module' => false,
             ],
         )->toSwitchData();
-        $forwarding = CallflowInlineNodeWriteData::create(
-            $base,
-            [],
-            '_',
-            'call_forward',
-            ['action' => 'update', 'skip_module' => false],
-        )->toSwitchData();
-
         $recordingChildren = (array) $recording['flow']['children'];
-        $forwardingChildren = (array) $forwarding['flow']['children'];
 
         self::assertSame('stop', $recordingChildren['_']['data']['action']);
-        self::assertSame('update', $forwardingChildren['_']['data']['action']);
+    }
+
+    public function test_it_rejects_call_forward_writes_and_preserves_existing_private_data(): void
+    {
+        $forwarding = [
+            'module' => 'call_forward',
+            'data' => [
+                'action' => 'activate',
+                'number' => '+15551234567',
+                'future_option' => ['preserve' => true],
+            ],
+            'children' => [
+                '_' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []],
+            ],
+        ];
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '1' => $forwarding,
+                    '2' => ['module' => 'hangup', 'data' => ['skip_module' => false], 'children' => []],
+                ],
+            ],
+        ];
+
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['2'],
+            'hangup',
+            ['skip_module' => true],
+        )->toSwitchData();
+        $children = (array) $updated['flow']['children'];
+
+        self::assertSame($forwarding['data'], $children['1']['data']);
+        self::assertSame(
+            'user',
+            ((array) $children['1']['children'])['_']['module'],
+        );
+        self::assertTrue($children['2']['data']['skip_module']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('inline Switch callflow action is not supported');
+        CallflowInlineNodeWriteData::create(
+            $current,
+            [],
+            '3',
+            'call_forward',
+            ['action' => 'update', 'skip_module' => false],
+        );
+    }
+
+    public function test_it_rejects_acdc_agent_writes(): void
+    {
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [],
+            ],
+        ];
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('inline Switch callflow action is not supported');
+        CallflowInlineNodeWriteData::create(
+            $current,
+            [],
+            '1',
+            'acdc_agent',
+            ['action' => 'login', 'skip_module' => false],
+        );
+    }
+
+    public function test_it_preserves_existing_acdc_agent_data_and_locks_its_subtree(): void
+    {
+        $agentAction = [
+            'module' => 'acdc_agent',
+            'data' => [
+                'action' => 'paused',
+                'presence_id' => 'raw-presence-id',
+                'timeout' => 999999,
+                'future_option' => ['preserve' => true],
+            ],
+            'children' => [
+                '_' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []],
+            ],
+        ];
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '1' => $agentAction,
+                    '2' => ['module' => 'hangup', 'data' => ['skip_module' => false], 'children' => []],
+                ],
+            ],
+        ];
+
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['2'],
+            'hangup',
+            ['skip_module' => true],
+        )->toSwitchData();
+        $children = (array) $updated['flow']['children'];
+
+        self::assertSame($agentAction['data'], $children['1']['data']);
+        self::assertSame('user', ((array) $children['1']['children'])['_']['module']);
+        self::assertTrue($children['2']['data']['skip_module']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('preserved branches that cannot be edited');
+        CallflowInlineNodeWriteData::create(
+            $current,
+            ['1'],
+            '2',
+            'hangup',
+            ['skip_module' => false],
+        );
+    }
+
+    public function test_it_rejects_eavesdrop_family_writes_and_preserves_private_subtrees(): void
+    {
+        $eavesdrop = [
+            'module' => 'eavesdrop',
+            'data' => [
+                'approved_group_id' => 'raw-approved-group-id',
+                'device_id' => 'raw-target-device-id',
+                'future_option' => ['preserve' => true],
+            ],
+            'children' => [
+                '_' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []],
+            ],
+        ];
+        $eavesdropFeature = [
+            'module' => 'eavesdrop_feature',
+            'data' => [
+                'approved_user_id' => 'raw-approved-user-id',
+                'group_id' => 'raw-target-group-id',
+                'future_option' => ['preserve' => true],
+            ],
+            'children' => [
+                '_' => ['module' => 'device', 'data' => ['id' => 'device-1'], 'children' => []],
+            ],
+        ];
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    '1' => $eavesdrop,
+                    '2' => $eavesdropFeature,
+                    '3' => ['module' => 'hangup', 'data' => ['skip_module' => false], 'children' => []],
+                ],
+            ],
+        ];
+
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['3'],
+            'hangup',
+            ['skip_module' => true],
+        )->toSwitchData();
+        $children = (array) $updated['flow']['children'];
+
+        self::assertSame($eavesdrop['data'], $children['1']['data']);
+        self::assertSame(
+            'user',
+            ((array) $children['1']['children'])['_']['module'],
+        );
+        self::assertSame($eavesdropFeature['data'], $children['2']['data']);
+        self::assertSame(
+            'device',
+            ((array) $children['2']['children'])['_']['module'],
+        );
+        self::assertTrue($children['3']['data']['skip_module']);
+
+        foreach ([['1'], ['2']] as $path) {
+            try {
+                CallflowInlineNodeWriteData::create(
+                    $current,
+                    $path,
+                    '1',
+                    'hangup',
+                    ['skip_module' => false],
+                );
+                self::fail('Expected the Eavesdrop subtree to remain locked.');
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame(
+                    'This conditional action has preserved branches that cannot be edited.',
+                    $exception->getMessage(),
+                );
+            }
+        }
+
+        foreach (['eavesdrop', 'eavesdrop_feature'] as $module) {
+            try {
+                CallflowInlineNodeWriteData::create($current, [], '4', $module, []);
+                self::fail('Expected the Eavesdrop action to be rejected.');
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame(
+                    'The inline Switch callflow action is not supported.',
+                    $exception->getMessage(),
+                );
+            }
+        }
     }
 
     /** @throws JsonException */
@@ -1588,6 +2097,94 @@ final class CallflowResourceClientTest extends TestCase
             self::assertSame($module, $children['_']['module']);
             self::assertSame($settings, $children['_']['data']);
         }
+    }
+
+    public function test_it_inserts_a_non_terminal_inline_action_before_an_occupied_continuation(): void
+    {
+        $document = CallflowInlineNodeWriteData::create(
+            [
+                'flow' => [
+                    'module' => 'set_variables',
+                    'data' => ['custom_application_vars' => ['department' => 'support']],
+                    'children' => [
+                        '_' => [
+                            'module' => 'device',
+                            'data' => ['id' => 'device-1'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ],
+            [],
+            '_',
+            'tts',
+            [
+                'text' => 'Please wait while we connect you.',
+                'voice' => null,
+                'language' => 'en-US',
+                'engine' => null,
+                'endless_playback' => false,
+                'terminators' => ['#'],
+                'skip_module' => false,
+            ],
+            'insert_before',
+        )->toSwitchData();
+
+        $inserted = ((array) $document['flow']['children'])['_'];
+        self::assertSame('tts', $inserted['module']);
+        self::assertSame('device-1', ((array) $inserted['children'])['_']['data']['id']);
+    }
+
+    public function test_it_atomically_replaces_an_occupied_continuation_with_a_terminal_action(): void
+    {
+        $document = CallflowInlineNodeWriteData::create(
+            [
+                'flow' => [
+                    'module' => 'set_variables',
+                    'data' => ['custom_application_vars' => ['department' => 'support']],
+                    'children' => [
+                        '_' => [
+                            'module' => 'device',
+                            'data' => ['id' => 'device-1'],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ],
+            [],
+            '_',
+            'response',
+            ['code' => 486, 'message' => 'Busy here', 'skip_module' => false],
+            'replace',
+        )->toSwitchData();
+
+        $replacement = ((array) $document['flow']['children'])['_'];
+        self::assertSame('response', $replacement['module']);
+        self::assertSame(486, $replacement['data']['code']);
+        self::assertSame([], (array) $replacement['children']);
+    }
+
+    public function test_it_rejects_inserting_a_terminal_action_before_an_existing_subtree(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('terminal action cannot preserve');
+
+        CallflowInlineNodeWriteData::create(
+            [
+                'flow' => [
+                    'module' => 'set_variables',
+                    'data' => [],
+                    'children' => [
+                        '_' => ['module' => 'device', 'data' => ['id' => 'device-1'], 'children' => []],
+                    ],
+                ],
+            ],
+            [],
+            '_',
+            'response',
+            ['code' => 486, 'message' => null, 'skip_module' => false],
+            'insert_before',
+        );
     }
 
     public function test_it_rejects_an_invalid_call_language(): void
@@ -1886,14 +2483,23 @@ final class CallflowResourceClientTest extends TestCase
     }
 
     /** @param array<string, mixed> $responseData */
-    private function clientWithResponse(array $responseData): CallflowResourceClient
-    {
+    private function clientWithResponse(
+        array $responseData,
+        ?array $authoritativeResponseData = null,
+    ): CallflowResourceClient {
         $this->history = [];
-        $response = new Response(200, [], json_encode([
+        $responseBody = json_encode([
             'status' => 'success',
             'data' => $responseData,
-        ], JSON_THROW_ON_ERROR));
-        $stack = HandlerStack::create(new MockHandler([$response]));
+        ], JSON_THROW_ON_ERROR);
+        $authoritativeBody = json_encode([
+            'status' => 'success',
+            'data' => $authoritativeResponseData ?? $responseData,
+        ], JSON_THROW_ON_ERROR);
+        $stack = HandlerStack::create(new MockHandler([
+            new Response(200, [], $responseBody),
+            new Response(200, [], $authoritativeBody),
+        ]));
         $stack->push(Middleware::history($this->history));
         $switch = new SwitchClient(
             new Client(['handler' => $stack]),

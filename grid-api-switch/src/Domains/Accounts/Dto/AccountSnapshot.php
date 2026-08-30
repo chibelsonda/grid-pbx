@@ -32,6 +32,16 @@ final readonly class AccountSnapshot
 
     public bool $showRate;
 
+    public bool $isReseller;
+
+    public ?string $resellerId;
+
+    public ?string $billingMode;
+
+    public bool $superduperAdmin;
+
+    public int $descendantsCount;
+
     public ?string $internalCallerIdName;
 
     public ?string $internalCallerIdNumber;
@@ -81,6 +91,13 @@ final readonly class AccountSnapshot
         $this->doNotDisturbEnabled = ($doNotDisturb['enabled'] ?? false) === true;
         $this->outboundPrivacy = $this->nullableString($callerIdOptions['outbound_privacy'] ?? null) ?? 'none';
         $this->showRate = ($callerIdOptions['show_rate'] ?? false) === true;
+        $this->isReseller = ($data['is_reseller'] ?? false) === true;
+        $this->resellerId = $this->nullableString($data['reseller_id'] ?? null);
+        $this->billingMode = $this->nullableString($data['billing_mode'] ?? null);
+        $this->superduperAdmin = ($data['superduper_admin'] ?? false) === true;
+        $this->descendantsCount = is_numeric($data['descendants_count'] ?? null)
+            ? max(0, (int) $data['descendants_count'])
+            : 0;
         $this->internalCallerIdName = $this->nullableString($internalCallerId['name'] ?? null);
         $this->internalCallerIdNumber = $this->nullableString($internalCallerId['number'] ?? null);
         $this->externalCallerIdName = $this->nullableString($externalCallerId['name'] ?? null);

@@ -46,6 +46,68 @@ function findCallflowNodeByModule(
   return null
 }
 
+function callflowNodeAtPath(
+  node: PublicCallflowNode | null | undefined,
+  path: string[],
+): PublicCallflowNode | null {
+  let current = node
+
+  for (const branch of path) {
+    current = current?.children?.[branch]
+    if (!current) return null
+  }
+
+  return current ?? null
+}
+
+function defaultBranchPath(depth: number): string[] {
+  return Array<string>(depth).fill('_')
+}
+
+async function deleteCallflowRoute(page: Page, routeName: string): Promise<void> {
+  await page.goto('/call-routing')
+  const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+  await routeSearch.fill(routeName)
+  await expect(routeSearch).toHaveValue(routeName)
+  await page.getByRole('button', { name: 'Apply filters' }).click()
+  const viewRoute = page.getByRole('button', { name: `View ${routeName}` })
+  await expect(viewRoute).toHaveCount(1)
+  await viewRoute.click()
+
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
+
+  if (await deleteRoute.isDisabled()) {
+    await workspace.getByRole('button', { name: 'Edit guided route' }).click()
+    const editRoute = page.getByRole('dialog', { name: 'Edit guided route' })
+    const selectedNumbers = editRoute.getByRole('checkbox', { checked: true })
+
+    for (let index = (await selectedNumbers.count()) - 1; index >= 0; index--) {
+      await selectedNumbers.nth(index).uncheck()
+    }
+
+    const clearResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(response.url()).pathname),
+    )
+    await editRoute.getByRole('button', { name: 'Save route' }).click()
+    expect((await clearResponse).status()).toBe(200)
+  }
+
+  await deleteRoute.click()
+  const confirmation = page.getByRole('dialog', { name: 'Delete this route?' })
+  const deleteResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'DELETE' &&
+      /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(response.url()).pathname),
+  )
+  await confirmation.getByRole('button', { name: 'Delete route' }).click()
+  expect((await deleteResponse).status()).toBe(204)
+  await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
+  await expect(page.getByText(routeName, { exact: true })).toHaveCount(0)
+}
+
 test('opens a deep UI-only callflow demo without mutating Switch', async ({ page }) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
@@ -243,7 +305,344 @@ test('opens a deep UI-only callflow demo without mutating Switch', async ({ page
   expect(issues).toEqual([])
 })
 
+test('keeps Call Forwarding capability gated without mutating Switch', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/callflows') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Open complex demo' }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('button', { name: /^Call Forwarding/ }).click()
+
+  for (const label of [
+    'Enable call forwarding',
+    'Disable call forwarding',
+    'Update call forwarding',
+  ]) {
+    const title = `${label} · call_forward · Capability required`
+    const action = palette.getByTitle(title, { exact: true })
+    await expect(action).toBeDisabled()
+    await expect(action).toHaveAttribute('title', title)
+  }
+
+  await workspace.getByRole('treeitem', { name: 'Enable call forwarding' }).click()
+  const nodeInformation = page.getByRole('dialog', { name: 'Call Forward' })
+  await expect(nodeInformation).toContainText('Capability required')
+  await expect(nodeInformation).toContainText('unauthenticated arbitrary destination')
+  await expect(nodeInformation.getByRole('button', { name: 'Edit action target' })).toHaveCount(0)
+
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
+test('keeps ACDC Agent search-only and capability gated without mutating Switch', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/callflows') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Open complex demo' }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('searchbox', { name: 'Search callflow actions' }).fill('agent')
+
+  for (const label of ['Agent login', 'Agent logout', 'Pause agent', 'Resume agent']) {
+    const title = `${label} · acdc_agent · Capability required`
+    const action = palette.getByTitle(title, { exact: true })
+    await expect(action).toBeDisabled()
+    await expect(action).toHaveAttribute('title', title)
+  }
+
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
+test('keeps Eavesdrop search-only and capability gated without mutating Switch', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/callflows') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Open complex demo' }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('searchbox', { name: 'Search callflow actions' }).fill('eavesdrop')
+
+  for (const [label, module] of [
+    ['Eavesdrop configured target', 'eavesdrop'],
+    ['Eavesdrop by extension', 'eavesdrop_feature'],
+  ] as const) {
+    const title = `${label} · ${module} · Capability required`
+    const action = palette.getByTitle(title, { exact: true })
+    await expect(action).toBeDisabled()
+    await expect(action).toHaveAttribute('title', title)
+  }
+
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
+test('creates and reopens live ACDC Queue feature actions', async ({ page }) => {
+  test.setTimeout(60_000)
+  const routeName = process.env.GRID_E2E_ACDC_QUEUE_ROUTE_NAME?.trim()
+  test.skip(!routeName, 'Set GRID_E2E_ACDC_QUEUE_ROUTE_NAME to a disposable synchronized route.')
+  const configuredQueueLabel = process.env.GRID_E2E_ACDC_QUEUE_LABEL?.trim()
+  const rawQueueId = process.env.GRID_E2E_ACDC_QUEUE_RAW_ID?.trim()
+  const verificationFile = process.env.GRID_E2E_ACDC_QUEUE_VERIFICATION_FILE?.trim()
+  const issues = collectPageIssues(page)
+  let opened = false
+
+  try {
+    await page.goto('/call-routing')
+    const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+    await routeSearch.fill(routeName!)
+    await page.getByRole('button', { name: 'Apply filters' }).click()
+    await page.getByRole('button', { name: `View ${routeName}` }).click()
+    opened = true
+
+    const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+    const diagram = workspace.getByRole('tree', { name: 'Callflow diagram' })
+    const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+    const paletteSearch = palette.getByRole('searchbox', { name: 'Search callflow actions' })
+    const nodeInformation = page.getByRole('dialog')
+
+    await diagram.getByRole('treeitem').nth(1).click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Queue agent login')
+    await palette.getByTitle('Queue agent login · acdc_queue · Guided now').click()
+    const addLogin = page.getByRole('dialog', { name: 'Add Queue agent login' })
+    await expect(addLogin).toContainText('does not prompt for a PIN')
+    await expect(addLogin).toContainText('never stores an agent ID')
+    await addLogin.getByRole('button', { name: 'Queue' }).click()
+    const queueOption = configuredQueueLabel
+      ? page.getByRole('option').filter({ hasText: configuredQueueLabel })
+      : page.getByRole('option').first()
+    const queueLabel = (await queueOption.locator('span').first().textContent())?.trim() ?? ''
+    await queueOption.click()
+
+    const createLoginResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addLogin.getByRole('button', { name: 'Add action' }).click()
+    const createdLogin = await createLoginResponse
+    expect(createdLogin.status()).toBe(200)
+    const loginPayload = createdLogin.request().postDataJSON()
+    expect(loginPayload).toMatchObject({
+      parent_path: [],
+      branch: '_',
+      module: 'acdc_queue',
+      data: {
+        action: 'login',
+        queue_id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        ),
+        skip_module: false,
+      },
+    })
+    const createdLoginBody = (await createdLogin.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    expect(callflowNodeAtPath(createdLoginBody.data.flow, ['_'])).toMatchObject({
+      module: 'acdc_queue',
+      reference_status: 'resolved',
+      settings: {
+        action: 'login',
+        queue_id: loginPayload.data.queue_id,
+        queue_label: queueLabel,
+        supported_configuration: true,
+        skip_module: false,
+      },
+    })
+    if (rawQueueId) expect(JSON.stringify(createdLoginBody)).not.toContain(rawQueueId)
+
+    const loginNode = diagram.getByRole('treeitem', { name: 'Queue agent login' })
+    await expect(loginNode).toContainText(queueLabel)
+    await loginNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editLogin = page.getByRole('dialog', { name: 'Edit Queue agent login' })
+    await editLogin.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateLoginResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editLogin.getByRole('button', { name: 'Save action' }).click()
+    const updatedLogin = await updateLoginResponse
+    expect(updatedLogin.status()).toBe(200)
+    expect(updatedLogin.request().postDataJSON()).toMatchObject({
+      node_path: ['_'],
+      module: 'acdc_queue',
+      data: {
+        action: 'login',
+        queue_id: loginPayload.data.queue_id,
+        skip_module: true,
+      },
+    })
+
+    await loginNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedLogin = page.getByRole('dialog', { name: 'Edit Queue agent login' })
+    await expect(reopenedLogin.getByRole('button', { name: 'Queue' })).toContainText(queueLabel)
+    await expect(reopenedLogin.getByRole('switch', { name: 'Skip this action' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await reopenedLogin.getByRole('button', { name: 'Close' }).click()
+
+    await loginNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Queue agent logout')
+    await palette.getByTitle('Queue agent logout · acdc_queue · Guided now').click()
+    const addLogout = page.getByRole('dialog', { name: 'Add Queue agent logout' })
+    await addLogout.getByRole('button', { name: 'Queue' }).click()
+    await page.getByRole('option').filter({ hasText: queueLabel }).click()
+    await addLogout.getByRole('switch', { name: 'Skip this action' }).click()
+
+    const createLogoutResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addLogout.getByRole('button', { name: 'Add action' }).click()
+    const createdLogout = await createLogoutResponse
+    expect(createdLogout.status()).toBe(200)
+    expect(createdLogout.request().postDataJSON()).toMatchObject({
+      parent_path: ['_'],
+      branch: '_',
+      module: 'acdc_queue',
+      data: {
+        action: 'logout',
+        queue_id: loginPayload.data.queue_id,
+        skip_module: true,
+      },
+    })
+    const createdLogoutBody = (await createdLogout.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    expect(callflowNodeAtPath(createdLogoutBody.data.flow, ['_', '_'])).toMatchObject({
+      module: 'acdc_queue',
+      reference_status: 'resolved',
+      settings: {
+        action: 'logout',
+        queue_id: loginPayload.data.queue_id,
+        queue_label: queueLabel,
+        supported_configuration: true,
+        skip_module: true,
+      },
+    })
+    if (rawQueueId) expect(JSON.stringify(createdLogoutBody)).not.toContain(rawQueueId)
+
+    const logoutNode = diagram.getByRole('treeitem', { name: 'Queue agent logout' })
+    await logoutNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedLogout = page.getByRole('dialog', { name: 'Edit Queue agent logout' })
+    await expect(reopenedLogout.getByRole('button', { name: 'Queue' })).toContainText(queueLabel)
+    await expect(reopenedLogout.getByRole('switch', { name: 'Skip this action' })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    )
+    await reopenedLogout.getByRole('button', { name: 'Close' }).click()
+
+    if (verificationFile) {
+      await expect.poll(() => existsSync(verificationFile), { timeout: 120_000 }).toBe(true)
+      const rawEvidence = JSON.parse(readFileSync(verificationFile, 'utf8')) as {
+        actions?: Array<{ action?: string; id?: string; skip_module?: boolean }>
+      }
+      expect(rawEvidence.actions).toEqual([
+        { action: 'login', id: rawQueueId, skip_module: true },
+        { action: 'logout', id: rawQueueId, skip_module: true },
+      ])
+    }
+
+    expect(issues).toEqual([])
+  } finally {
+    if (opened) await deleteCallflowRoute(page, routeName!)
+  }
+})
+
+test('classifies every installed palette action without planned gaps', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/callflows') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Open complex demo' }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  const categories = palette.locator('button[aria-expanded]')
+  const actionTitles: string[] = []
+
+  await expect(categories).toHaveCount(9)
+  for (let index = 0; index < (await categories.count()); index += 1) {
+    const category = categories.nth(index)
+    if ((await category.getAttribute('aria-expanded')) !== 'true') await category.click()
+    await expect(category).toHaveAttribute('aria-expanded', 'true')
+
+    const visibleActions = palette.locator(
+      'button[title$="Guided now"]:visible, button[title$="Capability required"]:visible, button[title$="Visual editor planned"]:visible',
+    )
+    const visibleTitles = await visibleActions.evaluateAll((actions) =>
+      actions.map((action) => action.getAttribute('title') ?? ''),
+    )
+    actionTitles.push(...visibleTitles)
+
+    for (const title of visibleTitles.filter((value) => value.endsWith('Capability required'))) {
+      await expect(palette.getByTitle(title, { exact: true })).toBeDisabled()
+    }
+  }
+
+  expect(new Set(actionTitles).size).toBe(49)
+  expect(actionTitles.filter((title) => title.endsWith('Guided now'))).toHaveLength(40)
+  expect(actionTitles.filter((title) => title.endsWith('Capability required'))).toHaveLength(9)
+  expect(actionTitles.filter((title) => title.endsWith('Visual editor planned'))).toEqual([])
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
 test('creates, edits, branches, and removes live guided inline actions', async ({ page }) => {
+  test.setTimeout(90_000)
   const issues = collectPageIssues(page)
   const suffix = Date.now().toString().slice(-8)
   const seededRouteName = process.env.GRID_E2E_CALL_PRIORITY_ROUTE_NAME?.trim()
@@ -357,8 +756,14 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await replaceInputValue(paletteSearch, 'Hangup')
     await palette.getByTitle('Hangup · hangup · Guided now').click()
     const addHangup = page.getByRole('dialog', { name: 'Add Hangup' })
-    await addHangup.getByRole('button', { name: 'Parent branch' }).click()
-    await page.getByRole('option', { name: /^Priority 42\b/ }).click()
+    const priorityBranchOption = page.getByRole('option', { name: /^Priority 42\b/ })
+    await expect(async () => {
+      if (!(await priorityBranchOption.isVisible())) {
+        await addHangup.getByRole('button', { name: 'Parent branch' }).click()
+      }
+      await expect(priorityBranchOption).toBeVisible()
+    }).toPass()
+    await priorityBranchOption.click()
     const createBranchResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -1208,9 +1613,10 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     )
     await expect(editRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' })).toHaveValue('5')
     await editRingGroup.getByRole('button', { name: 'Ring strategy' }).click()
-    await page.getByRole('option', { name: 'In order' }).click()
+    await page.getByRole('option', { name: 'Weighted random order' }).click()
     await expect(editRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' })).toHaveValue('0')
     await editRingGroup.getByRole('spinbutton', { name: 'Device 1 timeout' }).fill('30')
+    await editRingGroup.getByRole('spinbutton', { name: 'Device 1 weight' }).fill('75')
     await editRingGroup.getByRole('spinbutton', { name: 'Attempts' }).fill('1')
     await editRingGroup.getByRole('switch', { name: 'Skip this action' }).click()
     const updateRingGroupResponse = page.waitForResponse(
@@ -1227,8 +1633,8 @@ test('creates, edits, branches, and removes live guided inline actions', async (
       node_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_', '_'],
       module: 'ring_group',
       data: {
-        strategy: 'single',
-        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 30 }],
+        strategy: 'weighted_random',
+        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 30, weight: 75 }],
         repeats: 1,
         skip_module: true,
       },
@@ -1243,8 +1649,8 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     expect(updatedPublicRingGroupNode).toMatchObject({
       settings: {
         supported_configuration: true,
-        strategy: 'single',
-        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 30 }],
+        strategy: 'weighted_random',
+        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 30, weight: 75 }],
         repeats: 1,
         skip_module: true,
       },
@@ -1269,9 +1675,10 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         id?: string
         delay?: number
         endpoint_timeout?: number
+        weight?: number
       }
       expect(rawEvidence).toMatchObject({
-        strategy: 'single',
+        strategy: 'weighted_random',
         repeats: 1,
         timeout: 30,
         skip_module: true,
@@ -1280,6 +1687,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         ...(ringGroupRawDeviceId ? { id: ringGroupRawDeviceId } : {}),
         delay: 0,
         endpoint_timeout: 30,
+        weight: 75,
       })
     }
     await expect(editRingGroup).toBeHidden()
@@ -1288,7 +1696,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
     const reopenedRingGroup = page.getByRole('dialog', { name: 'Edit Ring Group' })
     await expect(reopenedRingGroup.getByRole('button', { name: 'Ring strategy' })).toContainText(
-      'In order',
+      'Weighted random order',
     )
     await expect(reopenedRingGroup.getByRole('spinbutton', { name: 'Attempts' })).toHaveValue('1')
     await expect(reopenedRingGroup.getByRole('spinbutton', { name: 'Device 1 delay' })).toHaveValue(
@@ -1301,58 +1709,474 @@ test('creates, edits, branches, and removes live guided inline actions', async (
       reopenedRingGroup.getByRole('spinbutton', { name: 'Device 1 timeout' }),
     ).toHaveValue('30')
     await expect(
+      reopenedRingGroup.getByRole('spinbutton', { name: 'Device 1 weight' }),
+    ).toHaveValue('75')
+    await expect(
       reopenedRingGroup.getByRole('switch', { name: 'Skip this action' }),
     ).toHaveAttribute('aria-checked', 'true')
     await reopenedRingGroup.getByRole('button', { name: 'Close' }).click()
+
+    await ringGroupNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Ring Group Login')
+    await palette.getByTitle('Ring Group Login · ring_group_toggle · Guided now').click()
+    const addRingGroupLogin = page.getByRole('dialog', { name: 'Add Ring Group Login' })
+    await addRingGroupLogin.getByRole('button', { name: 'Ring-group callflow' }).click()
+    const ringGroupToggleTargetLabel = process.env.GRID_E2E_RING_GROUP_TOGGLE_TARGET_LABEL?.trim()
+    const ringGroupToggleTargetOption = ringGroupToggleTargetLabel
+      ? page.getByRole('option').filter({ hasText: ringGroupToggleTargetLabel })
+      : page.getByRole('option').first()
+    const selectedRingGroupToggleLabel =
+      (await ringGroupToggleTargetOption.locator('span').first().textContent())?.trim() ?? ''
+    await ringGroupToggleTargetOption.click()
+    const createRingGroupLoginResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addRingGroupLogin.getByRole('button', { name: 'Add action' }).click()
+    const createdRingGroupLogin = await createRingGroupLoginResponse
+    expect(createdRingGroupLogin.status()).toBe(200)
+    const createdRingGroupLoginPayload = createdRingGroupLogin.request().postDataJSON()
+    expect(createdRingGroupLoginPayload).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'ring_group_toggle',
+      data: {
+        action: 'login',
+        callflow_id: expect.stringMatching(
+          /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+        ),
+        skip_module: false,
+      },
+    })
+    const createdRingGroupLoginBody = (await createdRingGroupLogin.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const createdPublicRingGroupLogin = findCallflowNodeByModule(
+      createdRingGroupLoginBody.data.flow,
+      'ring_group_toggle',
+    )
+    expect(createdPublicRingGroupLogin).toMatchObject({
+      reference_status: 'resolved',
+      settings: {
+        action: 'login',
+        callflow_id: createdRingGroupLoginPayload.data.callflow_id,
+        supported_configuration: true,
+        skip_module: false,
+      },
+    })
+    const ringGroupToggleRawTargetId = process.env.GRID_E2E_RING_GROUP_TOGGLE_RAW_TARGET_ID?.trim()
+    const ringGroupTogglePrivateMarker =
+      process.env.GRID_E2E_RING_GROUP_TOGGLE_PRIVATE_MARKER?.trim()
+    const ringGroupToggleInjectionFile =
+      process.env.GRID_E2E_RING_GROUP_TOGGLE_INJECTION_FILE?.trim()
+    const ringGroupToggleVerificationFile =
+      process.env.GRID_E2E_RING_GROUP_TOGGLE_VERIFICATION_FILE?.trim()
+    if (ringGroupToggleRawTargetId) {
+      expect(JSON.stringify(createdRingGroupLoginBody)).not.toContain(ringGroupToggleRawTargetId)
+    }
+    if (ringGroupTogglePrivateMarker) {
+      expect(JSON.stringify(createdRingGroupLoginBody)).not.toContain(ringGroupTogglePrivateMarker)
+    }
+    if (ringGroupToggleInjectionFile) {
+      await expect
+        .poll(() => existsSync(ringGroupToggleInjectionFile), { timeout: 20_000 })
+        .toBe(true)
+    }
+
+    const ringGroupLoginNode = diagram.getByRole('treeitem', { name: 'Ring Group Login' })
+    await expect(ringGroupLoginNode).toContainText(selectedRingGroupToggleLabel)
+    await ringGroupLoginNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editRingGroupLogin = page.getByRole('dialog', { name: 'Edit Ring Group Login' })
+    await expect(
+      editRingGroupLogin.getByRole('button', { name: 'Ring-group callflow' }),
+    ).toContainText(selectedRingGroupToggleLabel)
+    await editRingGroupLogin.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateRingGroupLoginResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editRingGroupLogin.getByRole('button', { name: 'Save action' }).click()
+    const updatedRingGroupLogin = await updateRingGroupLoginResponse
+    expect(updatedRingGroupLogin.status()).toBe(200)
+    expect(updatedRingGroupLogin.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      module: 'ring_group_toggle',
+      data: {
+        action: 'login',
+        callflow_id: createdRingGroupLoginPayload.data.callflow_id,
+        skip_module: true,
+      },
+    })
+    const updatedRingGroupLoginBody = (await updatedRingGroupLogin.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    if (ringGroupToggleRawTargetId) {
+      expect(JSON.stringify(updatedRingGroupLoginBody)).not.toContain(ringGroupToggleRawTargetId)
+    }
+    if (ringGroupTogglePrivateMarker) {
+      expect(JSON.stringify(updatedRingGroupLoginBody)).not.toContain(ringGroupTogglePrivateMarker)
+    }
+    await expect(editRingGroupLogin).toBeHidden()
+
+    await ringGroupLoginNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedRingGroupLogin = page.getByRole('dialog', { name: 'Edit Ring Group Login' })
+    await expect(
+      reopenedRingGroupLogin.getByRole('button', { name: 'Ring-group callflow' }),
+    ).toContainText(selectedRingGroupToggleLabel)
+    await expect(
+      reopenedRingGroupLogin.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedRingGroupLogin.getByRole('button', { name: 'Close' }).click()
+
+    await ringGroupLoginNode.click()
+    await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+    await replaceInputValue(paletteSearch, 'Ring Group Logout')
+    await palette.getByTitle('Ring Group Logout · ring_group_toggle · Guided now').click()
+    const addRingGroupLogout = page.getByRole('dialog', { name: 'Add Ring Group Logout' })
+    await addRingGroupLogout.getByRole('button', { name: 'Ring-group callflow' }).click()
+    await page.getByRole('option').filter({ hasText: selectedRingGroupToggleLabel }).click()
+    const createRingGroupLogoutResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await addRingGroupLogout.getByRole('button', { name: 'Add action' }).click()
+    const createdRingGroupLogout = await createRingGroupLogoutResponse
+    expect(createdRingGroupLogout.status()).toBe(200)
+    expect(createdRingGroupLogout.request().postDataJSON()).toMatchObject({
+      parent_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      branch: '_',
+      module: 'ring_group_toggle',
+      data: {
+        action: 'logout',
+        callflow_id: createdRingGroupLoginPayload.data.callflow_id,
+        skip_module: false,
+      },
+    })
+    const createdRingGroupLogoutBody = (await createdRingGroupLogout.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    const createdPublicRingGroupLogout = findCallflowNodeByModule(
+      findCallflowNodeByModule(createdRingGroupLogoutBody.data.flow, 'ring_group_toggle')?.children
+        ?._,
+      'ring_group_toggle',
+    )
+    expect(createdPublicRingGroupLogout).toMatchObject({
+      reference_status: 'resolved',
+      settings: {
+        action: 'logout',
+        callflow_id: createdRingGroupLoginPayload.data.callflow_id,
+        supported_configuration: true,
+        skip_module: false,
+      },
+    })
+    if (ringGroupToggleRawTargetId) {
+      expect(JSON.stringify(createdRingGroupLogoutBody)).not.toContain(ringGroupToggleRawTargetId)
+    }
+
+    const ringGroupLogoutNode = diagram.getByRole('treeitem', { name: 'Ring Group Logout' })
+    await ringGroupLogoutNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const editRingGroupLogout = page.getByRole('dialog', { name: 'Edit Ring Group Logout' })
+    await editRingGroupLogout.getByRole('switch', { name: 'Skip this action' }).click()
+    const updateRingGroupLogoutResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editRingGroupLogout.getByRole('button', { name: 'Save action' }).click()
+    const updatedRingGroupLogout = await updateRingGroupLogoutResponse
+    expect(updatedRingGroupLogout.status()).toBe(200)
+    expect(updatedRingGroupLogout.request().postDataJSON()).toMatchObject({
+      node_path: ['_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_', '_'],
+      module: 'ring_group_toggle',
+      data: {
+        action: 'logout',
+        callflow_id: createdRingGroupLoginPayload.data.callflow_id,
+        skip_module: true,
+      },
+    })
+    const updatedRingGroupLogoutBody = (await updatedRingGroupLogout.json()) as {
+      data: { flow?: PublicCallflowNode | null }
+    }
+    if (ringGroupToggleRawTargetId) {
+      expect(JSON.stringify(updatedRingGroupLogoutBody)).not.toContain(ringGroupToggleRawTargetId)
+    }
+    if (ringGroupTogglePrivateMarker) {
+      expect(JSON.stringify(updatedRingGroupLogoutBody)).not.toContain(ringGroupTogglePrivateMarker)
+    }
+    if (ringGroupToggleVerificationFile) {
+      await expect
+        .poll(() => existsSync(ringGroupToggleVerificationFile), { timeout: 20_000 })
+        .toBe(true)
+      const rawEvidence = JSON.parse(readFileSync(ringGroupToggleVerificationFile, 'utf8')) as {
+        login_action?: string
+        login_callflow_id?: string
+        login_skip_module?: boolean
+        login_private_marker?: string
+        logout_action?: string
+        logout_callflow_id?: string
+        logout_skip_module?: boolean
+      }
+      expect(rawEvidence).toMatchObject({
+        login_action: 'login',
+        ...(ringGroupToggleRawTargetId ? { login_callflow_id: ringGroupToggleRawTargetId } : {}),
+        login_skip_module: true,
+        ...(ringGroupTogglePrivateMarker
+          ? { login_private_marker: ringGroupTogglePrivateMarker }
+          : {}),
+        logout_action: 'logout',
+        ...(ringGroupToggleRawTargetId ? { logout_callflow_id: ringGroupToggleRawTargetId } : {}),
+        logout_skip_module: true,
+      })
+    }
+    await expect(editRingGroupLogout).toBeHidden()
+
+    await ringGroupLogoutNode.click()
+    await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+    const reopenedRingGroupLogout = page.getByRole('dialog', { name: 'Edit Ring Group Logout' })
+    await expect(
+      reopenedRingGroupLogout.getByRole('button', { name: 'Ring-group callflow' }),
+    ).toContainText(selectedRingGroupToggleLabel)
+    await expect(
+      reopenedRingGroupLogout.getByRole('switch', { name: 'Skip this action' }),
+    ).toHaveAttribute('aria-checked', 'true')
+    await reopenedRingGroupLogout.getByRole('button', { name: 'Close' }).click()
+
+    const hotdeskActions = [
+      { label: 'Hot Desk login', action: 'login' },
+      { label: 'Hot Desk logout', action: 'logout' },
+      { label: 'Hot Desk toggle', action: 'toggle' },
+    ] as const
+    let hotdeskParentNode = ringGroupLogoutNode
+
+    for (const [index, hotdeskAction] of hotdeskActions.entries()) {
+      await hotdeskParentNode.click()
+      await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+      await replaceInputValue(paletteSearch, hotdeskAction.label)
+      await palette.getByTitle(`${hotdeskAction.label} · hotdesk · Guided now`).click()
+      const addHotdesk = page.getByRole('dialog', { name: `Add ${hotdeskAction.label}` })
+      await expect(addHotdesk).toContainText('caller enters the Hotdesk ID at call time')
+      await expect(addHotdesk).toContainText('logout path do not prompt for it')
+      const createHotdeskResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+            new URL(response.url()).pathname,
+          ),
+      )
+      await addHotdesk.getByRole('button', { name: 'Add action' }).click()
+      const createdHotdesk = await createHotdeskResponse
+      expect(createdHotdesk.status()).toBe(200)
+      const createdHotdeskPayload = createdHotdesk.request().postDataJSON()
+      const parentDepth = 12 + index
+      expect(createdHotdeskPayload).toEqual({
+        parent_path: defaultBranchPath(parentDepth),
+        branch: '_',
+        module: 'hotdesk',
+        data: {
+          action: hotdeskAction.action,
+          skip_module: false,
+        },
+      })
+      const createdHotdeskBody = (await createdHotdesk.json()) as {
+        data: { flow?: PublicCallflowNode | null }
+      }
+      expect(
+        callflowNodeAtPath(createdHotdeskBody.data.flow, defaultBranchPath(parentDepth + 1)),
+      ).toMatchObject({
+        module: 'hotdesk',
+        reference_status: 'not_applicable',
+        target: null,
+        settings: {
+          action: hotdeskAction.action,
+          skip_module: false,
+        },
+      })
+      expect(
+        callflowNodeAtPath(createdHotdeskBody.data.flow, defaultBranchPath(parentDepth + 1))
+          ?.settings,
+      ).toEqual({ action: hotdeskAction.action, skip_module: false })
+
+      const hotdeskNode = diagram.getByRole('treeitem', { name: hotdeskAction.label })
+      hotdeskParentNode = hotdeskNode
+      await hotdeskNode.click()
+      await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+      const editHotdesk = page.getByRole('dialog', { name: `Edit ${hotdeskAction.label}` })
+      await editHotdesk.getByRole('switch', { name: 'Skip this action' }).click()
+      const updateHotdeskResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PATCH' &&
+          /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+            new URL(response.url()).pathname,
+          ),
+      )
+      await editHotdesk.getByRole('button', { name: 'Save action' }).click()
+      const updatedHotdesk = await updateHotdeskResponse
+      expect(updatedHotdesk.status()).toBe(200)
+      expect(updatedHotdesk.request().postDataJSON()).toEqual({
+        node_path: defaultBranchPath(parentDepth + 1),
+        module: 'hotdesk',
+        data: {
+          action: hotdeskAction.action,
+          skip_module: true,
+        },
+      })
+      const updatedHotdeskBody = (await updatedHotdesk.json()) as {
+        data: { flow?: PublicCallflowNode | null }
+      }
+      expect(
+        callflowNodeAtPath(updatedHotdeskBody.data.flow, defaultBranchPath(parentDepth + 1))
+          ?.settings,
+      ).toEqual({ action: hotdeskAction.action, skip_module: true })
+      await expect(editHotdesk).toBeHidden()
+
+      await hotdeskNode.click()
+      await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+      const reopenedHotdesk = page.getByRole('dialog', { name: `Edit ${hotdeskAction.label}` })
+      await expect(
+        reopenedHotdesk.getByRole('switch', { name: 'Skip this action' }),
+      ).toHaveAttribute('aria-checked', 'true')
+      await reopenedHotdesk.getByRole('button', { name: 'Close' }).click()
+    }
+
+    const hotdeskVerificationFile = process.env.GRID_E2E_HOTDESK_VERIFICATION_FILE?.trim()
+    if (hotdeskVerificationFile) {
+      await expect.poll(() => existsSync(hotdeskVerificationFile), { timeout: 20_000 }).toBe(true)
+      const rawEvidence = JSON.parse(readFileSync(hotdeskVerificationFile, 'utf8')) as {
+        actions?: Array<{ action?: string; skip_module?: boolean }>
+      }
+      expect(rawEvidence.actions).toEqual([
+        { action: 'login', skip_module: true },
+        { action: 'logout', skip_module: true },
+        { action: 'toggle', skip_module: true },
+      ])
+    }
+
+    const dndActions = [
+      { label: 'Activate Do Not Disturb', action: 'activate' },
+      { label: 'Deactivate Do Not Disturb', action: 'deactivate' },
+      { label: 'Toggle Do Not Disturb', action: 'toggle' },
+    ] as const
+    let dndParentNode = hotdeskParentNode
+
+    for (const [index, dndAction] of dndActions.entries()) {
+      await dndParentNode.click()
+      await nodeInformation.getByRole('button', { name: 'Close node information' }).click()
+      await replaceInputValue(paletteSearch, dndAction.label)
+      await palette.getByRole('button', { name: `Add ${dndAction.label}`, exact: true }).click()
+      const addDnd = page.getByRole('dialog', { name: `Add ${dndAction.label}` })
+      await expect(addDnd).toContainText('authenticated caller’s owner')
+      await expect(addDnd).toContainText('does not prompt for a PIN')
+      const createDndResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'POST' &&
+          /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+            new URL(response.url()).pathname,
+          ),
+      )
+      await addDnd.getByRole('button', { name: 'Add action' }).click()
+      const createdDnd = await createDndResponse
+      expect(createdDnd.status()).toBe(200)
+      const createdDndPayload = createdDnd.request().postDataJSON()
+      const parentDepth = 15 + index
+      expect(createdDndPayload).toEqual({
+        parent_path: defaultBranchPath(parentDepth),
+        branch: '_',
+        module: 'do_not_disturb',
+        data: {
+          action: dndAction.action,
+          skip_module: false,
+        },
+      })
+      const createdDndBody = (await createdDnd.json()) as {
+        data: { flow?: PublicCallflowNode | null }
+      }
+      expect(
+        callflowNodeAtPath(createdDndBody.data.flow, defaultBranchPath(parentDepth + 1)),
+      ).toMatchObject({
+        module: 'do_not_disturb',
+        reference_status: 'not_applicable',
+        target: null,
+        settings: {
+          action: dndAction.action,
+          skip_module: false,
+        },
+      })
+      expect(
+        callflowNodeAtPath(createdDndBody.data.flow, defaultBranchPath(parentDepth + 1))?.settings,
+      ).toEqual({ action: dndAction.action, skip_module: false })
+
+      const dndNode = diagram.getByRole('treeitem', { name: dndAction.label })
+      dndParentNode = dndNode
+      await dndNode.click()
+      await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+      const editDnd = page.getByRole('dialog', { name: `Edit ${dndAction.label}` })
+      await editDnd.getByRole('switch', { name: 'Skip this action' }).click()
+      const updateDndResponse = page.waitForResponse(
+        (response) =>
+          response.request().method() === 'PATCH' &&
+          /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+            new URL(response.url()).pathname,
+          ),
+      )
+      await editDnd.getByRole('button', { name: 'Save action' }).click()
+      const updatedDnd = await updateDndResponse
+      expect(updatedDnd.status()).toBe(200)
+      expect(updatedDnd.request().postDataJSON()).toEqual({
+        node_path: defaultBranchPath(parentDepth + 1),
+        module: 'do_not_disturb',
+        data: {
+          action: dndAction.action,
+          skip_module: true,
+        },
+      })
+      const updatedDndBody = (await updatedDnd.json()) as {
+        data: { flow?: PublicCallflowNode | null }
+      }
+      expect(
+        callflowNodeAtPath(updatedDndBody.data.flow, defaultBranchPath(parentDepth + 1))?.settings,
+      ).toEqual({ action: dndAction.action, skip_module: true })
+      await expect(editDnd).toBeHidden()
+
+      await dndNode.click()
+      await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
+      const reopenedDnd = page.getByRole('dialog', { name: `Edit ${dndAction.label}` })
+      await expect(reopenedDnd.getByRole('switch', { name: 'Skip this action' })).toHaveAttribute(
+        'aria-checked',
+        'true',
+      )
+      await reopenedDnd.getByRole('button', { name: 'Close' }).click()
+    }
+
+    const dndVerificationFile = process.env.GRID_E2E_DND_VERIFICATION_FILE?.trim()
+    if (dndVerificationFile) {
+      await expect.poll(() => existsSync(dndVerificationFile), { timeout: 20_000 }).toBe(true)
+      const rawEvidence = JSON.parse(readFileSync(dndVerificationFile, 'utf8')) as {
+        actions?: Array<{ action?: string; skip_module?: boolean; has_id?: boolean }>
+      }
+      expect(rawEvidence.actions).toEqual([
+        { action: 'activate', skip_module: true, has_id: false },
+        { action: 'deactivate', skip_module: true, has_id: false },
+        { action: 'toggle', skip_module: true, has_id: false },
+      ])
+    }
     expect(issues).toEqual([])
   } finally {
-    if (created) {
-      await page.goto('/call-routing')
-      const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
-      await routeSearch.fill(routeName)
-      await expect(routeSearch).toHaveValue(routeName)
-      await page.getByRole('button', { name: 'Apply filters' }).click()
-      const viewRoute = page.getByRole('button', { name: `View ${routeName}` })
-      await expect(viewRoute).toHaveCount(1)
-
-      if ((await viewRoute.count()) === 1) {
-        await viewRoute.click()
-        const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-        const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
-
-        if (await deleteRoute.isDisabled()) {
-          await workspace.getByRole('button', { name: 'Edit guided route' }).click()
-          const editRoute = page.getByRole('dialog', { name: 'Edit guided route' })
-          const selectedNumbers = editRoute.getByRole('checkbox', { checked: true })
-
-          for (let index = (await selectedNumbers.count()) - 1; index >= 0; index--) {
-            await selectedNumbers.nth(index).uncheck()
-          }
-
-          const clearResponse = page.waitForResponse(
-            (response) =>
-              response.request().method() === 'PUT' &&
-              /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(
-                new URL(response.url()).pathname,
-              ),
-          )
-          await editRoute.getByRole('button', { name: 'Save route' }).click()
-          expect((await clearResponse).status()).toBe(200)
-        }
-
-        await deleteRoute.click()
-        const confirmation = page.getByRole('dialog', { name: 'Delete this route?' })
-        const deleteResponse = page.waitForResponse(
-          (response) =>
-            response.request().method() === 'DELETE' &&
-            /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(response.url()).pathname),
-        )
-        await confirmation.getByRole('button', { name: 'Delete route' }).click()
-        expect((await deleteResponse).status()).toBe(204)
-        await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
-        await expect(page.getByText(routeName, { exact: true })).toHaveCount(0)
-      }
-    }
+    if (created) await deleteCallflowRoute(page, routeName)
   }
 })
 

@@ -34,7 +34,6 @@ class CallflowEditorService
         'directory',
         'group',
         'acdc_member',
-        'acdc_queue',
         'menu',
         'conference',
         'faxbox',
@@ -122,6 +121,7 @@ class CallflowEditorService
                         'id' => $item->id,
                         'label' => $item->name ?? ($item->numbers[0] ?? 'Unnamed route'),
                         'detail' => $item->root_module,
+                        'supports_ring_group_toggle' => $item->canBeRingGroupToggleTarget(),
                     ])->values()->all(),
                 'media' => $account->media()->orderBy('name')->get()->map(fn ($item): array => [
                     'id' => $item->id,

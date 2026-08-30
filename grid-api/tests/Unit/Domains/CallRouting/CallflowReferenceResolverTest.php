@@ -7,6 +7,7 @@ use App\Domains\CallRouting\Services\CallflowReferenceResolver;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Queues\Models\SwitchQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
@@ -32,8 +33,101 @@ class CallflowReferenceResolverTest extends TestCase
         ]);
 
         $this->assertSame(['action' => 'activate', 'skip_module' => false], $flow['settings']);
-        $this->assertSame(['action' => 'check'], $flow['children']['_']['settings']);
+        $this->assertSame(
+            ['action' => 'check', 'skip_module' => false],
+            $flow['children']['_']['settings'],
+        );
         $this->assertArrayNotHasKey('number', $flow['settings']);
+    }
+
+    #[Test]
+    public function it_exposes_only_safe_acdc_agent_state_without_raw_runtime_fields(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'acdc_agent',
+            'data' => [
+                'action' => 'paused',
+                'presence_id' => 'raw-presence-id',
+                'presence_state' => 'red_solid',
+                'timeout' => 999999,
+                'skip_module' => true,
+                'server_owned' => ['preserve' => true],
+            ],
+            'children' => [],
+        ]);
+
+        $this->assertSame(['action' => 'paused', 'skip_module' => true], $flow['settings']);
+        $this->assertSame('not_applicable', $flow['reference_status']);
+        $this->assertNull($flow['target']);
+    }
+
+    #[Test]
+    public function it_exposes_only_skip_state_for_eavesdrop_nodes(): void
+    {
+        $account = SwitchAccount::factory()->create();
+
+        foreach (['eavesdrop', 'eavesdrop_feature'] as $module) {
+            $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+                'module' => $module,
+                'data' => [
+                    'approved_device_id' => 'raw-approved-device-id',
+                    'approved_group_id' => 'raw-approved-group-id',
+                    'approved_user_id' => 'raw-approved-user-id',
+                    'device_id' => 'raw-target-device-id',
+                    'user_id' => 'raw-target-user-id',
+                    'group_id' => 'raw-target-group-id',
+                    'skip_module' => true,
+                    'server_owned' => ['preserve' => true],
+                ],
+                'children' => [],
+            ]);
+
+            $this->assertSame(['skip_module' => true], $flow['settings']);
+            $this->assertSame('not_applicable', $flow['reference_status']);
+            $this->assertNull($flow['target']);
+        }
+    }
+
+    #[Test]
+    public function it_exposes_only_resource_free_hotdesk_settings(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'hotdesk',
+            'data' => [
+                'action' => 'toggle',
+                'skip_module' => true,
+                'id' => 'raw-user-id',
+                'interdigit_timeout' => 2750,
+                'server_owned' => ['preserve' => true],
+            ],
+            'children' => [],
+        ]);
+
+        $this->assertSame(['action' => 'toggle', 'skip_module' => true], $flow['settings']);
+        $this->assertSame('not_applicable', $flow['reference_status']);
+        $this->assertNull($flow['target']);
+    }
+
+    #[Test]
+    public function it_exposes_only_resource_free_do_not_disturb_settings(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'do_not_disturb',
+            'data' => [
+                'action' => 'toggle',
+                'skip_module' => true,
+                'id' => 'raw-device-id',
+                'server_owned' => ['preserve' => true],
+            ],
+            'children' => [],
+        ]);
+
+        $this->assertSame(['action' => 'toggle', 'skip_module' => true], $flow['settings']);
+        $this->assertSame('not_applicable', $flow['reference_status']);
+        $this->assertNull($flow['target']);
     }
 
     #[Test]
@@ -96,6 +190,7 @@ class CallflowReferenceResolverTest extends TestCase
         $ringGroupCallflow = SwitchCallflow::factory()->for($account)->create([
             'switch_resource_id' => 'switch-ring-group-callflow',
             'name' => 'Support ring group',
+            'modules' => ['ring_group', 'voicemail'],
         ]);
         $flow = app(CallflowReferenceResolver::class)->resolve($account, [
             'module' => 'ring_group_toggle',
@@ -110,6 +205,38 @@ class CallflowReferenceResolverTest extends TestCase
         $this->assertSame('resolved', $flow['reference_status']);
         $this->assertSame((string) $ringGroupCallflow->id, $flow['target']['id']);
         $this->assertSame((string) $ringGroupCallflow->id, $flow['settings']['callflow_id']);
+        $this->assertTrue($flow['settings']['supported_configuration']);
+    }
+
+    #[Test]
+    public function it_resolves_acdc_queue_actions_without_exposing_the_raw_queue_id(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $queue = SwitchQueue::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-support-queue',
+            'name' => 'Support',
+        ]);
+        $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'acdc_queue',
+            'data' => [
+                'action' => 'login',
+                'id' => 'switch-support-queue',
+                'skip_module' => true,
+                'server_owned' => ['preserve' => true],
+            ],
+            'children' => [],
+        ]);
+
+        $this->assertSame('resolved', $flow['reference_status']);
+        $this->assertSame((string) $queue->id, $flow['target']['id']);
+        $this->assertSame([
+            'action' => 'login',
+            'queue_id' => (string) $queue->id,
+            'queue_label' => 'Support',
+            'supported_configuration' => true,
+            'skip_module' => true,
+        ], $flow['settings']);
+        $this->assertStringNotContainsString('switch-support-queue', json_encode($flow, JSON_THROW_ON_ERROR));
     }
 
     #[Test]
@@ -237,6 +364,8 @@ class CallflowReferenceResolverTest extends TestCase
                 'timeout' => 25,
                 'repeats' => 2,
                 'ringback' => 'private-media-id',
+                'ignore_forward' => false,
+                'fail_on_single_reject' => true,
                 'endpoints' => [[
                     'endpoint_type' => 'device',
                     'id' => 'switch-ring-group-device',
@@ -260,6 +389,8 @@ class CallflowReferenceResolverTest extends TestCase
                 'timeout' => 20,
             ]],
             'repeats' => 2,
+            'ignore_forward' => false,
+            'fail_on_single_reject' => true,
             'reference_status' => 'resolved',
             'skip_module' => true,
         ], $flow['settings']);
@@ -267,7 +398,7 @@ class CallflowReferenceResolverTest extends TestCase
         $this->assertStringNotContainsString('private-media-id', json_encode($flow));
         $this->assertStringNotContainsString('secret', json_encode($flow));
 
-        $unsafe = app(CallflowReferenceResolver::class)->resolve($account, [
+        $weighted = app(CallflowReferenceResolver::class)->resolve($account, [
             'module' => 'ring_group',
             'data' => [
                 'strategy' => 'weighted_random',
@@ -283,7 +414,58 @@ class CallflowReferenceResolverTest extends TestCase
             'children' => [],
         ]);
 
+        $this->assertSame('resolved', $weighted['reference_status']);
+        $this->assertSame([
+            'supported_configuration' => true,
+            'strategy' => 'weighted_random',
+            'endpoints' => [[
+                'device_id' => (string) $device->id,
+                'delay' => 0,
+                'timeout' => 20,
+                'weight' => 50,
+            ]],
+            'repeats' => 1,
+            'ignore_forward' => true,
+            'fail_on_single_reject' => false,
+            'reference_status' => 'resolved',
+            'skip_module' => false,
+        ], $weighted['settings']);
+
+        $unsafe = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'ring_group',
+            'data' => [
+                'strategy' => 'weighted_random',
+                'timeout' => 20,
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'switch-ring-group-device',
+                    'delay' => 0,
+                    'timeout' => 20,
+                ]],
+            ],
+            'children' => [],
+        ]);
+
         $this->assertFalse($unsafe['settings']['supported_configuration']);
         $this->assertSame([], $unsafe['settings']['endpoints']);
+
+        $malformedFlag = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'ring_group',
+            'data' => [
+                'strategy' => 'simultaneous',
+                'timeout' => 20,
+                'ignore_forward' => 'true',
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'switch-ring-group-device',
+                    'delay' => 0,
+                    'timeout' => 20,
+                ]],
+            ],
+            'children' => [],
+        ]);
+
+        $this->assertFalse($malformedFlag['settings']['supported_configuration']);
+        $this->assertNull($malformedFlag['settings']['ignore_forward']);
     }
 }

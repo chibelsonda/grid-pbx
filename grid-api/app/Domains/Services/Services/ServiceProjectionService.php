@@ -31,7 +31,16 @@ class ServiceProjectionService
 
         $summary = SwitchServiceSummary::query()->firstOrNew(['switch_account_id' => $account->getKey()]);
         $next = $summaryData['billing_cycle_next_gregorian'] ?? null;
+        $billingResellerSwitchAccountId = $this->string($summaryData['reseller_id'] ?? null);
+        $billingReseller = $billingResellerSwitchAccountId === null
+            ? null
+            : SwitchAccount::query()
+                ->where('organization_id', $account->organization_id)
+                ->where('switch_account_id', $billingResellerSwitchAccountId)
+                ->first();
         $summary->fill([
+            'billing_reseller_account_id' => $billingReseller?->getKey(),
+            'billing_reseller_switch_account_id' => $billingResellerSwitchAccountId,
             'status_acceptable' => (bool) ($summaryData['acceptable'] ?? false), 'status_reason' => $this->string($summaryData['status_reason'] ?? null),
             'is_reseller' => (bool) ($summaryData['is_reseller'] ?? false), 'billing_cycle_period' => max(0, (int) ($summaryData['billing_cycle_period'] ?? 0)),
             'billing_cycle_unit' => $this->string($summaryData['billing_cycle_unit'] ?? null),

@@ -6,6 +6,7 @@ namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Domains\Accounts\AccountResource;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
+use GridPbx\Switch\Domains\Accounts\Dto\AccountHierarchySnapshot;
 use GridPbx\Switch\Domains\Users\Dto\UserSnapshot;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
@@ -20,6 +21,63 @@ use PHPUnit\Framework\TestCase;
 
 final class AccountResourceClientTest extends TestCase
 {
+    public function test_it_maps_typed_reseller_status_from_an_account_response(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => [
+                'id' => 'account-1',
+                'name' => 'Primary reseller',
+                'is_reseller' => true,
+                'reseller_id' => 'master-account',
+                'billing_mode' => 'limits_only',
+                'superduper_admin' => true,
+                'descendants_count' => 4,
+            ]]),
+        ]);
+
+        $account = $client->account('account-1');
+
+        self::assertTrue($account->isReseller);
+        self::assertSame('master-account', $account->resellerId);
+        self::assertSame('limits_only', $account->billingMode);
+        self::assertTrue($account->superduperAdmin);
+        self::assertSame(4, $account->descendantsCount);
+    }
+
+    public function test_it_fetches_typed_descendant_hierarchy_entries(): void
+    {
+        $responses = new MockHandler([
+            $this->response(['data' => [
+                [
+                    'id' => 'child-1',
+                    'name' => 'Child account',
+                    'realm' => 'child.example.test',
+                    'tree' => ['master-account', 'account-1'],
+                    'descendants_count' => 2,
+                ],
+            ]]),
+        ]);
+        $history = [];
+        $stack = HandlerStack::create($responses);
+        $stack->push(Middleware::history($history));
+        $client = new AccountResourceClient(new SwitchClient(
+            new Client(['handler' => $stack]),
+            new SwitchConfig('http://switch.test/v2', 'unused-api-key'),
+            $this->tokenProvider(),
+        ));
+
+        $descendants = $client->descendants('account-1');
+
+        self::assertCount(1, $descendants);
+        self::assertInstanceOf(AccountHierarchySnapshot::class, $descendants[0]);
+        self::assertSame('child-1', $descendants[0]->id);
+        self::assertSame('account-1', $descendants[0]->parentId);
+        self::assertSame(['master-account', 'account-1'], $descendants[0]->tree);
+        self::assertSame(2, $descendants[0]->descendantsCount);
+        self::assertSame('/v2/accounts/account-1/descendants', $history[0]['request']->getUri()->getPath());
+        self::assertSame('GET', $history[0]['request']->getMethod());
+    }
+
     public function test_it_fetches_every_collection_page_and_hydrates_full_detail_snapshots(): void
     {
         $responses = new MockHandler([

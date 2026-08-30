@@ -33,8 +33,10 @@ use App\Domains\Media\Controllers\MusicOnHoldController;
 use App\Domains\Menus\Controllers\MenuController;
 use App\Domains\Menus\Controllers\MenuSyncController;
 use App\Domains\Organizations\Controllers\AccountController;
+use App\Domains\Organizations\Controllers\AccountHierarchyController;
 use App\Domains\Organizations\Controllers\AccountSettingsOptionsController;
 use App\Domains\Organizations\Controllers\AccountStatusController;
+use App\Domains\Organizations\Controllers\DescendantOnboardingController;
 use App\Domains\PhoneNumbers\Controllers\PhoneNumberController;
 use App\Domains\PhoneNumbers\Controllers\PhoneNumberSyncController;
 use App\Domains\Queues\Controllers\AgentController;
@@ -70,6 +72,10 @@ Route::prefix('v1')->group(function (): void {
         Route::prefix('accounts/{account}')->group(function (): void {
             Route::get('/', [AccountController::class, 'show']);
             Route::get('/settings-options', AccountSettingsOptionsController::class);
+            Route::get('/hierarchy', [AccountHierarchyController::class, 'hierarchy']);
+            Route::get('/reseller', [AccountHierarchyController::class, 'reseller']);
+            Route::get('/descendant-onboarding', [DescendantOnboardingController::class, 'index']);
+            Route::post('/descendant-onboarding', [DescendantOnboardingController::class, 'store']);
             Route::put('/', [AccountController::class, 'update']);
             Route::post('/sync', [AccountController::class, 'refresh']);
             Route::put('/status', [AccountStatusController::class, 'update']);

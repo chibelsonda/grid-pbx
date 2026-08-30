@@ -1,10 +1,13 @@
 <?php
 
+use App\Support\Http\ApiResponse;
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -20,9 +23,19 @@ return Application::configure(basePath: dirname(__DIR__))
         );
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        /** @var WeakMap<Throwable, string> $errorReferences */
+        $errorReferences = new WeakMap;
+
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        $exceptions->context(function (Throwable $exception) use ($errorReferences): array {
+            $errorReferences[$exception] ??= (string) Str::uuid();
+
+            return ['error_id' => $errorReferences[$exception]];
+        });
+
         $exceptions->render(function (SwitchRequestException $exception, Request $request) {
             if (! $request->is('api/*')) {
                 return null;
@@ -43,5 +56,26 @@ return Application::configure(basePath: dirname(__DIR__))
             return response()->json([
                 'message' => 'Switch is unavailable. Try again later.',
             ], 502);
+        });
+
+        $exceptions->respond(function (
+            SymfonyResponse $response,
+            Throwable $exception,
+            Request $request,
+        ) use ($errorReferences): SymfonyResponse {
+            if (! $request->is('api/*')
+                || $response->getStatusCode() < SymfonyResponse::HTTP_INTERNAL_SERVER_ERROR
+                || $exception instanceof SwitchRequestException
+                || method_exists($exception, 'render')) {
+                return $response;
+            }
+
+            $errorReferences[$exception] ??= (string) Str::uuid();
+
+            return ApiResponse::error(
+                'An unexpected server error occurred. Try again. If the problem continues, contact support.',
+                $response->getStatusCode(),
+                ['error_id' => $errorReferences[$exception]],
+            );
         });
     })->create();

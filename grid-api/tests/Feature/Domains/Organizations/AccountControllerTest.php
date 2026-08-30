@@ -578,11 +578,11 @@ class AccountControllerTest extends TestCase
         $account = SwitchAccount::factory()->for($organization)->create([
             'switch_account_id' => 'switch-account-1',
         ]);
-        $this->mock(SwitchAccountGateway::class)
+        $gateway = $this->mock(SwitchAccountGateway::class);
+        $gateway
             ->shouldReceive('find')
             ->once()
             ->andReturn($this->accountSnapshot());
-
         $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/sync")
             ->assertOk()
             ->assertJsonPath('data.projection.status', 'synced')

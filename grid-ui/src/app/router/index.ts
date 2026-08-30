@@ -35,16 +35,18 @@ const router = createRouter({
           path: 'devices',
           name: 'devices',
           component: () => import('@/domains/devices/pages/DevicesPage.vue'),
-        },
-        {
-          path: 'devices/new',
-          name: 'device-create',
-          component: () => import('@/domains/devices/pages/DeviceFormPage.vue'),
-        },
-        {
-          path: 'devices/:deviceId/edit',
-          name: 'device-edit',
-          component: () => import('@/domains/devices/pages/DeviceFormPage.vue'),
+          children: [
+            {
+              path: 'new',
+              name: 'device-create',
+              component: () => import('@/domains/devices/pages/DeviceFormPage.vue'),
+            },
+            {
+              path: ':deviceId/edit',
+              name: 'device-edit',
+              component: () => import('@/domains/devices/pages/DeviceFormPage.vue'),
+            },
+          ],
         },
         {
           path: 'devices/:deviceId',
@@ -155,6 +157,11 @@ const router = createRouter({
           path: 'accounts',
           name: 'accounts',
           component: () => import('@/domains/accounts/pages/AccountsPage.vue'),
+        },
+        {
+          path: 'reseller',
+          name: 'reseller-administration',
+          component: () => import('@/domains/reseller/pages/ResellerAdministrationPage.vue'),
         },
         ...(
           [['settings', 'Settings', 'Configure account and application preferences.']] as const

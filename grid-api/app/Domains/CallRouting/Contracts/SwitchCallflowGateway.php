@@ -80,6 +80,7 @@ interface SwitchCallflowGateway
         ?string $branch,
         string $module,
         array $settings,
+        string $placement = 'append',
     ): array;
 
     public function delete(SwitchAccount $account, string $resourceId): void;

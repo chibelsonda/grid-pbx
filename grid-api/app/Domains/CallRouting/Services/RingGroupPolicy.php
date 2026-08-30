@@ -17,7 +17,7 @@ final class RingGroupPolicy
     /** @param list<array{delay: int, timeout: int}> $endpoints */
     public static function attemptTimeout(string $strategy, array $endpoints): int
     {
-        if ($strategy === 'single') {
+        if (in_array($strategy, ['single', 'weighted_random'], true)) {
             return array_sum(array_column($endpoints, 'timeout'));
         }
 

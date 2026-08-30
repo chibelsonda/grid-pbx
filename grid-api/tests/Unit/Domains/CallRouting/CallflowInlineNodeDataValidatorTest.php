@@ -27,9 +27,43 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
             $validator->validate('hotdesk', ['action' => 'logout', 'skip_module' => false]),
         );
         $this->assertSame(
-            ['action' => 'update', 'skip_module' => false],
-            $validator->validate('call_forward', ['action' => 'update', 'skip_module' => false]),
+            [
+                'action' => 'login',
+                'queue_id' => '11111111-1111-4111-8111-111111111111',
+                'skip_module' => false,
+            ],
+            $validator->validate('acdc_queue', [
+                'action' => 'login',
+                'queue_id' => '11111111-1111-4111-8111-111111111111',
+                'skip_module' => false,
+            ]),
         );
+
+        foreach ([
+            ['action' => 'toggle', 'queue_id' => '11111111-1111-4111-8111-111111111111', 'skip_module' => false],
+            ['action' => 'login', 'queue_id' => 'raw-switch-queue', 'skip_module' => false],
+            ['action' => 'login', 'queue_id' => '11111111-1111-4111-8111-111111111111', 'id' => 'raw-switch-queue', 'skip_module' => false],
+        ] as $data) {
+            try {
+                $validator->validate('acdc_queue', $data);
+                $this->fail('ACDC Queue must reject unsupported actions and raw Queue IDs.');
+            } catch (ValidationException) {
+                $this->assertTrue(true);
+            }
+        }
+    }
+
+    #[Test]
+    public function it_rejects_capability_gated_call_forward_payloads(): void
+    {
+        $validator = app(CallflowInlineNodeDataValidator::class);
+
+        try {
+            $validator->validate('call_forward', ['action' => 'update', 'skip_module' => false]);
+            $this->fail('Call Forwarding must remain outside the guided mutation boundary.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('module', $exception->errors());
+        }
     }
 
     #[Test]
@@ -122,13 +156,43 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
                 'timeout' => 20,
             ]],
             'repeats' => 2,
+            'ignore_forward' => true,
+            'fail_on_single_reject' => false,
             'skip_module' => false,
         ];
 
         $this->assertSame($settings, $validator->validate('ring_group', $settings));
+        $weighted = [
+            ...$settings,
+            'strategy' => 'weighted_random',
+            'endpoints' => [[
+                'device_id' => $deviceId,
+                'delay' => 0,
+                'timeout' => 20,
+                'weight' => 75,
+            ]],
+        ];
+
+        $this->assertSame($weighted, $validator->validate('ring_group', $weighted));
 
         foreach ([
-            [...$settings, 'strategy' => 'weighted_random'],
+            [...$weighted, 'endpoints' => [[
+                'device_id' => $deviceId,
+                'delay' => 0,
+                'timeout' => 20,
+            ]]],
+            [...$weighted, 'endpoints' => [[
+                'device_id' => $deviceId,
+                'delay' => 1,
+                'timeout' => 20,
+                'weight' => 75,
+            ]]],
+            [...$settings, 'endpoints' => [[
+                'device_id' => $deviceId,
+                'delay' => 5,
+                'timeout' => 20,
+                'weight' => 75,
+            ]]],
             [...$settings, 'endpoints' => []],
             [...$settings, 'endpoints' => [[
                 'device_id' => 'raw-switch-device',
@@ -163,6 +227,8 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
                 'timeout' => 61,
             ]]],
             [...$settings, 'repeats' => 4],
+            [...$settings, 'ignore_forward' => 'true'],
+            [...$settings, 'fail_on_single_reject' => 1],
         ] as $data) {
             try {
                 $validator->validate('ring_group', $data);

@@ -16,6 +16,19 @@ function dispatchPointerEvent(
   element.dispatchEvent(event)
 }
 
+function dispatchWheelEvent(
+  element: Element,
+  properties: { deltaY: number; ctrlKey?: boolean; metaKey?: boolean },
+): void {
+  element.dispatchEvent(
+    new WheelEvent('wheel', {
+      bubbles: true,
+      cancelable: true,
+      ...properties,
+    }),
+  )
+}
+
 describe('CallflowDiagram', () => {
   it('uses SVG connectors without generic path-count or default-branch labels', () => {
     const node: CallflowNode = {
@@ -37,7 +50,8 @@ describe('CallflowDiagram', () => {
 
     expect(wrapper.text()).not.toContain('1 path')
     expect(wrapper.text()).not.toContain('Default branch')
-    expect(wrapper.findAll('svg.h-10.w-5')).toHaveLength(2)
+    expect(wrapper.findAll('[data-callflow-connector-arrow]')).toHaveLength(2)
+    expect(wrapper.get('[role="group"].mt-1').classes()).toContain('mt-1')
   })
 
   it('renders recursive branch semantics without displaying internal map keys', () => {
@@ -82,13 +96,13 @@ describe('CallflowDiagram', () => {
       '+15551234567',
     )
     expect(wrapper.text()).toContain('Schedule matches')
-    expect(wrapper.text()).toContain('Preserved branch 1')
+    expect(wrapper.text()).not.toContain('Preserved branch 1')
     expect(wrapper.text()).toContain('Reception')
     expect(wrapper.text()).not.toContain('switch-rule-secret')
     expect(wrapper.findAll('[data-callflow-branch-bus]')).toHaveLength(2)
     expect(wrapper.find('[data-callflow-parent-stem]').exists()).toBe(true)
     expect(wrapper.findAll('svg[data-callflow-branch-bus]')).toHaveLength(2)
-    expect(wrapper.findAll('[data-callflow-branch-bus] line[stroke-width="8"]')).toHaveLength(2)
+    expect(wrapper.findAll('[data-callflow-branch-bus] line[stroke-width="6"]')).toHaveLength(2)
   })
 
   it('pans the scrollable canvas from blank space without intercepting node interaction', async () => {
@@ -100,6 +114,7 @@ describe('CallflowDiagram', () => {
     }
     const wrapper = mount(CallflowDiagram, { props: { node } })
     const canvas = wrapper.get<HTMLElement>('[data-callflow-pan-canvas]')
+    expect(canvas.classes()).toContain('callflow-canvas-texture')
     canvas.element.scrollLeft = 80
     canvas.element.scrollTop = 120
 
@@ -140,6 +155,58 @@ describe('CallflowDiagram', () => {
     )
     await nextTick()
     expect(canvas.classes()).not.toContain('cursor-grabbing')
+  })
+
+  it('zooms the node canvas independently and resets to 100 percent', async () => {
+    const node: CallflowNode = {
+      module: 'device',
+      target: { type: 'device', id: 'device-public', label: 'Reception phone' },
+      reference_status: 'resolved',
+      children: {},
+    }
+    const wrapper = mount(CallflowDiagram, { props: { node } })
+    const diagram = wrapper.get<HTMLElement>('[role="tree"][aria-label="Callflow diagram"]')
+    const controls = wrapper.get('[role="group"][aria-label="Canvas zoom controls"]')
+
+    expect(diagram.attributes('style')).toContain('zoom: 1')
+    expect(controls.text()).toContain('100%')
+
+    await wrapper.get('[aria-label="Zoom in"]').trigger('click')
+    expect(diagram.attributes('style')).toContain('zoom: 1.1')
+    expect(controls.text()).toContain('110%')
+
+    await wrapper.get('[aria-label="Zoom out"]').trigger('click')
+    await wrapper.get('[aria-label="Zoom out"]').trigger('click')
+    expect(diagram.attributes('style')).toContain('zoom: 0.9')
+    expect(controls.text()).toContain('90%')
+
+    await wrapper.get('[aria-label="Reset canvas zoom"]').trigger('click')
+    expect(diagram.attributes('style')).toContain('zoom: 1')
+    expect(controls.text()).toContain('100%')
+  })
+
+  it('supports ctrl-wheel zoom while leaving ordinary canvas scrolling untouched', async () => {
+    const node: CallflowNode = {
+      module: 'device',
+      target: { type: 'device', id: 'device-public', label: 'Reception phone' },
+      reference_status: 'resolved',
+      children: {},
+    }
+    const wrapper = mount(CallflowDiagram, { props: { node } })
+    const canvas = wrapper.get('[data-callflow-pan-canvas]')
+    const diagram = wrapper.get('[role="tree"][aria-label="Callflow diagram"]')
+
+    dispatchWheelEvent(canvas.element, { deltaY: -100 })
+    await nextTick()
+    expect(diagram.attributes('style')).toContain('zoom: 1')
+
+    dispatchWheelEvent(canvas.element, { deltaY: -100, ctrlKey: true })
+    await nextTick()
+    expect(diagram.attributes('style')).toContain('zoom: 1.1')
+
+    dispatchWheelEvent(canvas.element, { deltaY: 100, metaKey: true })
+    await nextTick()
+    expect(diagram.attributes('style')).toContain('zoom: 1')
   })
 
   it('selects nested nodes using only the sanitized public branch path', async () => {
@@ -196,11 +263,22 @@ describe('CallflowDiagram', () => {
           branch: { key: '2', label: 'Key 2', kind: 'key' },
           children: {},
         },
+        timeout: {
+          module: 'response',
+          target: null,
+          reference_status: 'not_applicable',
+          branch: { key: 'timeout', label: 'Timeout', kind: 'key' },
+          children: {},
+        },
       },
     }
     const wrapper = mount(CallflowDiagram, {
       props: { node, editable: true, dragSourcePath: ['1'] },
     })
+    const branchLabels = wrapper.findAll('[data-callflow-branch-label]')
+    expect(branchLabels.map((label) => label.text())).toEqual(['1', '2', 'timeout'])
+    expect(branchLabels.every((label) => label.classes().includes('w-36'))).toBe(true)
+    expect(branchLabels.every((label) => label.classes().includes('bg-callflow-node'))).toBe(true)
     const destination = wrapper.get('[aria-label="Group: Support"]')
 
     await destination.trigger('dragover', { dataTransfer: { dropEffect: 'none' } })
@@ -239,6 +317,123 @@ describe('CallflowDiagram', () => {
     await target.trigger('dragover', { dataTransfer: { dropEffect: 'none' } })
     await target.trigger('drop', { dataTransfer: { dropEffect: 'copy' } })
 
-    expect(wrapper.emitted('add-action')).toEqual([[{ node, path: [] }, action]])
+    expect(wrapper.emitted('add-action')).toEqual([[{ node, path: [] }, action, 'append']])
+  })
+
+  it('marks every node as allowed or disallowed while a palette action is dragged', () => {
+    const response: CallflowNode = {
+      module: 'response',
+      target: null,
+      reference_status: 'not_applicable',
+      branch: { key: '1', label: 'Key 1', kind: 'key' },
+      drop_capability: {
+        accepts_children: false,
+        default_branch_available: false,
+        branch_mode: 'terminal',
+        reason: 'This Switch action is terminal and cannot accept another action.',
+      },
+      children: {},
+    }
+    const user: CallflowNode = {
+      module: 'user',
+      target: { type: 'extension', id: 'user-public', label: 'Reception' },
+      reference_status: 'resolved',
+      branch: { key: '2', label: 'Key 2', kind: 'key' },
+      drop_capability: {
+        accepts_children: true,
+        default_branch_available: true,
+        branch_mode: 'continuation',
+        reason: null,
+      },
+      children: {},
+    }
+    const node: CallflowNode = {
+      module: 'menu',
+      target: null,
+      reference_status: 'not_applicable',
+      drop_capability: {
+        accepts_children: true,
+        default_branch_available: true,
+        branch_mode: 'menu',
+        reason: null,
+      },
+      children: { '1': response, '2': user },
+    }
+    const action = {
+      id: 'tts',
+      module: 'tts',
+      label: 'TTS',
+      description: 'Generate speech from configured text.',
+      status: 'guided' as const,
+    }
+    const wrapper = mount(CallflowDiagram, {
+      props: { node, editable: true, paletteAction: action },
+    })
+
+    expect(wrapper.get('[aria-label="Menu"]').attributes('data-drop-state')).toBe('allowed')
+    expect(wrapper.get('[aria-label="User: Reception"]').attributes('data-drop-state')).toBe(
+      'allowed',
+    )
+    const terminal = wrapper.get('[aria-label="Response"]')
+    expect(terminal.attributes('data-drop-state')).toBe('disallowed')
+    expect(terminal.attributes('title')).toBe(
+      'This Switch action is terminal and cannot accept another action.',
+    )
+    expect(wrapper.text()).not.toContain('Allowed')
+    expect(wrapper.text()).not.toContain('Not allowed')
+    expect(terminal.attributes('aria-description')).toContain('Drop not allowed')
+  })
+
+  it('disallows subtree drops into the source subtree or an occupied continuation', () => {
+    const node: CallflowNode = {
+      module: 'menu',
+      target: null,
+      reference_status: 'not_applicable',
+      children: {
+        '1': {
+          module: 'user',
+          target: { type: 'extension', id: 'user-public', label: 'Reception' },
+          reference_status: 'resolved',
+          branch: { key: '1', label: 'Key 1', kind: 'key' },
+          children: {
+            _: {
+              module: 'voicemail',
+              target: { type: 'voicemail', id: 'voicemail-public', label: 'Reception mailbox' },
+              reference_status: 'resolved',
+              branch: { key: '_', label: 'Default branch', kind: 'default' },
+              children: {},
+            },
+          },
+        },
+        '2': {
+          module: 'group',
+          target: { type: 'group', id: 'group-public', label: 'Support' },
+          reference_status: 'resolved',
+          branch: { key: '2', label: 'Key 2', kind: 'key' },
+          children: {
+            _: {
+              module: 'response',
+              target: null,
+              reference_status: 'not_applicable',
+              branch: { key: '_', label: 'Default branch', kind: 'default' },
+              children: {},
+            },
+          },
+        },
+      },
+    }
+    const wrapper = mount(CallflowDiagram, {
+      props: { node, editable: true, dragSourcePath: ['1'] },
+    })
+
+    expect(wrapper.get('[aria-label="User: Reception"]').attributes('title')).toContain(
+      'own subtree',
+    )
+    expect(
+      wrapper.get('[aria-label="Voicemail: Reception mailbox"]').attributes('title'),
+    ).toContain('own subtree')
+    expect(wrapper.get('[aria-label="Group: Support"]').attributes('title')).toBe(
+      'All editable branches on this Switch action are occupied.',
+    )
   })
 })

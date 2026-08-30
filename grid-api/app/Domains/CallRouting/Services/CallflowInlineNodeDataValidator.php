@@ -13,6 +13,12 @@ class CallflowInlineNodeDataValidator
     /** @param array<string, mixed> $data @return array<string, mixed> */
     public function validate(string $module, array $data): array
     {
+        $strictBoolean = function (string $attribute, mixed $value, \Closure $fail): void {
+            if (! is_bool($value)) {
+                $fail("The {$attribute} field must be true or false.");
+            }
+        };
+
         $rules = match ($module) {
             'sleep' => [
                 'data' => ['required', 'array:duration,unit,skip_module'],
@@ -124,14 +130,17 @@ class CallflowInlineNodeDataValidator
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'ring_group' => [
-                'data' => ['required', 'array:strategy,endpoints,repeats,skip_module'],
-                'data.strategy' => ['required', 'string', Rule::in(['simultaneous', 'single'])],
+                'data' => ['required', 'array:strategy,endpoints,repeats,ignore_forward,fail_on_single_reject,skip_module'],
+                'data.strategy' => ['required', 'string', Rule::in(['simultaneous', 'single', 'weighted_random'])],
                 'data.endpoints' => ['required', 'array', 'min:1', 'max:'.RingGroupPolicy::MAX_ENDPOINTS],
-                'data.endpoints.*' => ['required', 'array:device_id,delay,timeout'],
+                'data.endpoints.*' => ['required', 'array:device_id,delay,timeout,weight'],
                 'data.endpoints.*.device_id' => ['required', 'uuid', 'distinct:strict'],
                 'data.endpoints.*.delay' => ['required', 'integer', 'min:0', 'max:'.RingGroupPolicy::MAX_ENDPOINT_DELAY],
                 'data.endpoints.*.timeout' => ['required', 'integer', 'min:1', 'max:'.RingGroupPolicy::MAX_ENDPOINT_TIMEOUT],
+                'data.endpoints.*.weight' => ['nullable', 'integer', 'min:1', 'max:100'],
                 'data.repeats' => ['required', 'integer', 'min:1', 'max:'.RingGroupPolicy::MAX_REPEATS],
+                'data.ignore_forward' => ['required', $strictBoolean],
+                'data.fail_on_single_reject' => ['required', $strictBoolean],
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'receive_fax' => [
@@ -232,6 +241,12 @@ class CallflowInlineNodeDataValidator
                 'data.callflow_id' => ['required', 'uuid'],
                 'data.skip_module' => ['required', 'boolean'],
             ],
+            'acdc_queue' => [
+                'data' => ['required', 'array:action,queue_id,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['login', 'logout'])],
+                'data.queue_id' => ['required', 'uuid'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
             'hotdesk' => [
                 'data' => ['required', 'array:action,skip_module'],
                 'data.action' => ['required', 'string', Rule::in(['login', 'logout', 'toggle'])],
@@ -242,11 +257,9 @@ class CallflowInlineNodeDataValidator
                 'data.action' => ['required', 'string', Rule::in(['activate', 'deactivate', 'toggle'])],
                 'data.skip_module' => ['required', 'boolean'],
             ],
-            'call_forward' => [
-                'data' => ['required', 'array:action,skip_module'],
-                'data.action' => ['required', 'string', Rule::in(['activate', 'deactivate', 'update'])],
-                'data.skip_module' => ['required', 'boolean'],
-            ],
+            default => throw ValidationException::withMessages([
+                'module' => ['This callflow action is not available in the guided editor.'],
+            ]),
         };
 
         /** @var array{data: array<string, mixed>} $validated */
@@ -295,13 +308,27 @@ class CallflowInlineNodeDataValidator
     {
         $errors = [];
 
-        if ($settings['strategy'] === 'single') {
+        if (in_array($settings['strategy'], ['single', 'weighted_random'], true)) {
             foreach ($settings['endpoints'] as $index => $endpoint) {
                 if ($endpoint['delay'] !== 0) {
                     $errors["data.endpoints.$index.delay"] = [
-                        'In-order Ring Group endpoints cannot use a delay.',
+                        'Sequential Ring Group strategies cannot use a delay.',
                     ];
                 }
+            }
+        }
+
+        foreach ($settings['endpoints'] as $index => $endpoint) {
+            $weight = $endpoint['weight'] ?? null;
+
+            if ($settings['strategy'] === 'weighted_random' && $weight === null) {
+                $errors["data.endpoints.$index.weight"] = [
+                    'Enter a weight from 1 through 100 for weighted-random routing.',
+                ];
+            } elseif ($settings['strategy'] !== 'weighted_random' && $weight !== null) {
+                $errors["data.endpoints.$index.weight"] = [
+                    'Weights are available only for weighted-random routing.',
+                ];
             }
         }
 

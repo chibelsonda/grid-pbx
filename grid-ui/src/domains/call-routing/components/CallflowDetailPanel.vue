@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
   ArrowLeftIcon,
+  ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
   ArrowsRightLeftIcon,
   HashtagIcon,
@@ -18,6 +19,7 @@ import FormListbox, {
 import { findCallflowAction, type CallflowAction } from '../catalog/callflowActionCatalog'
 import {
   availableCallflowBranches,
+  callflowPalettePlacement,
   canAddCallflowChild,
 } from '../services/callflowTreeBranches'
 import CallflowActionPalette from './CallflowActionPalette.vue'
@@ -26,6 +28,7 @@ import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
 import type {
   Callflow,
   CallflowNode,
+  CallflowNodePlacement,
   CallflowNodeEditorContext,
   CallflowNodeSelection,
   CallflowTreeBranchKey,
@@ -43,11 +46,21 @@ const props = withDefaults(
     mutationError: string | null
     treeMoving?: boolean
     treeMutationError?: string | null
+    canRefresh?: boolean
+    refreshing?: boolean
+    synchronizing?: boolean
   }>(),
-  { treeMoving: false, treeMutationError: null },
+  {
+    treeMoving: false,
+    treeMutationError: null,
+    canRefresh: true,
+    refreshing: false,
+    synchronizing: false,
+  },
 )
 const emit = defineEmits<{
   close: []
+  refresh: []
   edit: []
   delete: []
   'move-node': [input: CallflowTreeMoveInput]
@@ -67,6 +80,7 @@ const paletteShell = ref<HTMLElement | null>(null)
 const paletteFloating = ref(false)
 const palettePosition = ref({ left: 0, top: 0, width: 304 })
 let palettePointerOffset = { x: 0, y: 0 }
+let paletteDragFrame: number | null = null
 const title = computed(
   () =>
     props.record?.name ??
@@ -91,7 +105,11 @@ const selectionBreadcrumb = computed(() => {
   for (const segment of selectedPath.value) {
     node = node?.children[segment] ?? null
     if (!node) break
-    labels.push(node.branch?.label ?? humanize(segment))
+    labels.push(
+      node.branch?.kind === 'preserved'
+        ? (findCallflowAction(node.module)?.label ?? humanize(node.module))
+        : (node.branch?.label ?? humanize(segment)),
+    )
   }
 
   return labels
@@ -244,13 +262,20 @@ function finishDrag(): void {
 
 function startPaletteActionDrag(action: CallflowAction): void {
   dragSource.value = null
-  // The action travels with the native DataTransfer payload. Avoid mutating the
-  // route tree during dragstart because replacing the drag source can cancel the
-  // browser's active drag operation.
-  void action
+  if (paletteDragFrame !== null) window.cancelAnimationFrame(paletteDragFrame)
+  // Wait until the browser has established its native drag session before
+  // updating every canvas node with its destination state.
+  paletteDragFrame = window.requestAnimationFrame(() => {
+    paletteAction.value = action
+    paletteDragFrame = null
+  })
 }
 
 function finishPaletteActionDrag(): void {
+  if (paletteDragFrame !== null) {
+    window.cancelAnimationFrame(paletteDragFrame)
+    paletteDragFrame = null
+  }
   paletteAction.value = null
 }
 
@@ -329,7 +354,10 @@ const paletteStyle = computed(() =>
     : undefined,
 )
 
-onBeforeUnmount(stopMovingPalette)
+onBeforeUnmount(() => {
+  finishPaletteActionDrag()
+  stopMovingPalette()
+})
 
 function cancelMove(): void {
   moveSource.value = null
@@ -337,18 +365,24 @@ function cancelMove(): void {
 }
 
 function createNode(action: CallflowAction): void {
-  if (!selectedParentAddable.value || !selectedNode.value) return
-  createNodeAt(action, { node: selectedNode.value, path: [...selectedPath.value] })
+  if (!selectedNode.value) return
+  const placement = callflowPalettePlacement(selectedNode.value, action)
+  if (!placement) return
+  createNodeAt(action, { node: selectedNode.value, path: [...selectedPath.value] }, placement)
 }
 
-function createNodeAt(action: CallflowAction, selection: CallflowNodeSelection): void {
+function createNodeAt(
+  action: CallflowAction,
+  selection: CallflowNodeSelection,
+  placement: CallflowNodePlacement,
+): void {
   if (
     !props.canManage ||
     action.status !== 'guided' ||
     selection.node.reference_status === 'unresolved' ||
     selection.node.branch?.kind === 'preserved' ||
     findCallflowAction(selection.node.module)?.status !== 'guided' ||
-    !canAddCallflowChild(selection.node)
+    callflowPalettePlacement(selection.node, action) !== placement
   ) {
     return
   }
@@ -362,6 +396,7 @@ function createNodeAt(action: CallflowAction, selection: CallflowNodeSelection):
     path: [...selection.path],
     node: selection.node,
     module: action.module,
+    placement,
     ...(action.preset ? { preset: action.preset } : {}),
   })
 }
@@ -410,14 +445,27 @@ function humanize(value: string | null): string {
           The full-width route map stays on the main page; select a node to inspect it in a modal.
         </p>
       </div>
-      <button
-        v-if="canManage && record"
-        type="button"
-        class="ml-auto inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
-        @click="$emit('edit')"
-      >
-        <PencilSquareIcon class="size-4" /> Edit guided route
-      </button>
+      <div v-if="record" class="ml-auto flex items-center gap-2">
+        <button
+          v-if="canRefresh"
+          type="button"
+          aria-label="Refresh callflow nodes"
+          title="Refresh callflow nodes"
+          :disabled="refreshing || synchronizing"
+          class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-wait disabled:text-slate-300"
+          @click="$emit('refresh')"
+        >
+          <ArrowPathIcon class="size-4" :class="(refreshing || synchronizing) && 'animate-spin'" />
+        </button>
+        <button
+          v-if="canManage"
+          type="button"
+          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
+          @click="$emit('edit')"
+        >
+          <PencilSquareIcon class="size-4" /> Edit guided route
+        </button>
+      </div>
     </header>
 
     <div v-if="loading" class="card-surface p-10 text-center text-xs text-slate-400">
@@ -497,7 +545,9 @@ function humanize(value: string | null): string {
             @drag-start="startDrag"
             @drag-end="finishDrag"
             @move="requestMove"
-            @add-action="(selection, action) => createNodeAt(action, selection)"
+            @add-action="
+              (selection, action, placement) => createNodeAt(action, selection, placement)
+            "
           />
           <p v-else class="text-xs text-slate-500">
             Switch did not return a structural flow for this route.
@@ -623,6 +673,12 @@ function humanize(value: string | null): string {
         Select an action below or close to return to the canvas.
       </p>
     </div>
+    <p
+      v-if="selectedAction?.status === 'restricted'"
+      class="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] leading-4 text-amber-900"
+    >
+      {{ selectedAction.description }}
+    </p>
     <dl class="mt-5 grid gap-4 text-[10px] sm:grid-cols-2 lg:grid-cols-4">
       <div>
         <dt class="font-bold tracking-wide text-slate-500 uppercase">Module</dt>

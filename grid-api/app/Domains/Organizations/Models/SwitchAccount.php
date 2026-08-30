@@ -46,7 +46,9 @@ class SwitchAccount extends Model
 
     protected $fillable = [
         'organization_id',
+        'parent_account_id',
         'switch_account_id',
+        'parent_switch_account_id',
         'name',
         'org_name',
         'realm',
@@ -54,6 +56,11 @@ class SwitchAccount extends Model
         'language',
         'music_on_hold_media_id',
         'is_enabled',
+        'is_reseller',
+        'is_superduper_admin',
+        'billing_mode',
+        'descendants_count',
+        'hierarchy_synced_at',
         'call_waiting_enabled',
         'do_not_disturb_enabled',
         'outbound_privacy',
@@ -69,6 +76,18 @@ class SwitchAccount extends Model
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'organization_id', 'organization_id');
+    }
+
+    /** @return BelongsTo<SwitchAccount, $this> */
+    public function parentAccount(): BelongsTo
+    {
+        return $this->belongsTo(self::class, 'parent_account_id', 'account_id');
+    }
+
+    /** @return HasMany<SwitchAccount, $this> */
+    public function childAccounts(): HasMany
+    {
+        return $this->hasMany(self::class, 'parent_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchExtension, $this> */
@@ -244,6 +263,11 @@ class SwitchAccount extends Model
     {
         return [
             'is_enabled' => 'boolean',
+            'parent_account_id' => 'integer',
+            'is_reseller' => 'boolean',
+            'is_superduper_admin' => 'boolean',
+            'descendants_count' => 'integer',
+            'hierarchy_synced_at' => 'datetime',
             'call_waiting_enabled' => 'boolean',
             'do_not_disturb_enabled' => 'boolean',
             'last_synced_at' => 'datetime',

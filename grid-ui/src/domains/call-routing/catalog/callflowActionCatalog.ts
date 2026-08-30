@@ -56,6 +56,7 @@ const guidedModules = new Set([
   'directory',
   'group',
   'acdc_member',
+  'acdc_queue',
   'menu',
   'conference',
   'faxbox',
@@ -64,6 +65,8 @@ const guidedModules = new Set([
 ])
 
 const restrictedModules = new Set([
+  'acdc_agent',
+  'call_forward',
   'disa',
   'dynamic_cid',
   'eavesdrop',
@@ -78,13 +81,16 @@ const restrictedModules = new Set([
 ])
 
 const descriptions: Record<string, string> = {
-  acdc_agent: 'Manage an agent state inside a queue flow.',
+  acdc_agent:
+    'Feature-code agent state changes are gated; use the authenticated and audited Queue Agent status panel.',
   acdc_member: 'Send the caller to a queue as a member.',
-  acdc_queue: 'Enter a configured call-center queue.',
+  acdc_queue: "Change the authenticated caller owner's membership in one configured queue.",
   callflow: 'Continue execution in another callflow.',
   branch_variable: 'Branch by the supported call-priority value with a safe fallback path.',
   branch_bnumber:
     'Branch on the feature-code capture group or hunt for the matching account callflow.',
+  call_forward:
+    'Call forwarding is gated because Kazoo accepts an unauthenticated arbitrary destination without toll-fraud controls.',
   check_cid: 'Branch by a safe regular expression matched against incoming caller ID.',
   cidlistmatch: 'Branch when incoming caller ID matches a synchronized Caller-ID List.',
   collect_dtmf: 'Collect keypad input before continuing.',
@@ -99,12 +105,20 @@ const descriptions: Record<string, string> = {
   flush_dtmf: 'Clear a named collection of buffered keypad digits.',
   group: 'Ring a configured group of endpoints.',
   group_pickup: 'Pick up a ringing call for one device, extension, or group.',
+  hotdesk: 'Prompt the caller for a Hotdesk ID and change the session on the current device.',
+  do_not_disturb:
+    "Change Do Not Disturb for the authenticated caller's owner or authorizing device.",
+  eavesdrop:
+    'Live call monitoring is gated pending supervisor authorization, privacy controls, and immutable audit records.',
+  eavesdrop_feature:
+    'Feature-code live call monitoring is gated pending supervisor authorization, privacy controls, and immutable audit records.',
   receive_fax: 'Receive a fax and deliver it to one extension owner.',
   hangup: 'End the current callflow path and disconnect the call.',
   menu: 'Route input through a configured IVR menu.',
   missed_call_alert: 'Notify extensions or email addresses about a missed call.',
   page_group: 'Page up to 20 synchronized devices with one-way or two-way audio.',
-  ring_group: 'Ring up to 20 synchronized devices simultaneously or in order with bounded timing.',
+  ring_group:
+    'Ring up to 20 synchronized devices simultaneously, in order, or in a bounded weighted random order.',
   offnet:
     'Global carrier routing; gated pending outbound-context, call-restriction, and toll-fraud controls.',
   pivot: 'External call control; gated pending allowlisted egress and authenticated callbacks.',
@@ -140,6 +154,8 @@ const moduleLabels: Record<string, string> = {
   collect_dtmf: 'Collect DTMF',
   disa: 'DISA',
   dynamic_cid: 'Dynamic cid',
+  eavesdrop: 'Eavesdrop configured target',
+  eavesdrop_feature: 'Eavesdrop by extension',
   edr: 'Event Data Record',
   faxbox: 'Fax Boxes',
   group_pickup: 'Group Pickup',
@@ -174,10 +190,10 @@ function makeAction(input: string | CallflowActionDefinition): CallflowAction {
   const item = typeof input === 'string' ? definition(input) : input
   const actionStatus =
     item.status ??
-    (guidedModules.has(item.module)
-      ? 'guided'
-      : restrictedModules.has(item.module)
-        ? 'restricted'
+    (restrictedModules.has(item.module)
+      ? 'restricted'
+      : guidedModules.has(item.module)
+        ? 'guided'
         : 'planned')
 
   return {
@@ -298,7 +314,20 @@ export const searchableCallflowActions: CallflowAction[] = [
   'set_cid',
   'set_variable',
   'hangup',
-].map(makeAction)
+]
+  .map(makeAction)
+  .concat(
+    [
+      definition('acdc_agent', 'Agent login', 'login'),
+      definition('acdc_agent', 'Agent logout', 'logout'),
+      definition('acdc_agent', 'Pause agent', 'paused'),
+      definition('acdc_agent', 'Resume agent', 'resume'),
+      definition('acdc_queue', 'Queue agent login', 'login'),
+      definition('acdc_queue', 'Queue agent logout', 'logout'),
+      definition('eavesdrop', 'Eavesdrop configured target'),
+      definition('eavesdrop_feature', 'Eavesdrop by extension'),
+    ].map(makeAction),
+  )
 
 const allCallflowActions = [
   ...callflowActionCatalog.flatMap((catalogCategory) => catalogCategory.actions),
@@ -343,9 +372,9 @@ export function callflowActionDestinationType(module: string): CallflowDestinati
 const operationModules = new Set([
   'temporal_route',
   'ring_group_toggle',
+  'acdc_queue',
   'hotdesk',
   'do_not_disturb',
-  'call_forward',
 ])
 
 export function isGuidedInlineCallflowModule(
@@ -368,6 +397,7 @@ const inlineModulesUsingEditorCatalog = new Set<CallflowInlineModule>([
   'cidlistmatch',
   'temporal_route',
   'ring_group_toggle',
+  'acdc_queue',
 ])
 
 export function callflowInlineModuleNeedsEditorCatalog(module: string): boolean {

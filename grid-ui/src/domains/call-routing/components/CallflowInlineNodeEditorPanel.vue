@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -55,13 +55,19 @@ const action = computed(() =>
   ),
 )
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const replacementConfirmed = ref(false)
+const replacementError = ref<string | null>(null)
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
   props.context.operation === 'create'
     ? `Add ${action.value?.label ?? 'callflow action'}`
     : `Edit ${action.value?.label ?? 'callflow action'}`,
 )
-const actionIcon = computed(() => callflowActionIcon(module.value))
+const actionIcon = computed(() =>
+  callflowActionIcon(module.value, {
+    action: typeof form.data.action === 'string' ? form.data.action : undefined,
+  }),
+)
 const branchBnumberHasExactChildren = computed(
   () =>
     module.value === 'branch_bnumber' &&
@@ -103,6 +109,11 @@ const pageGroupAudioOptions: ListboxOptionValue[] = [
 const ringGroupStrategyOptions: ListboxOptionValue[] = [
   { value: 'simultaneous', label: 'At the same time' },
   { value: 'single', label: 'In order' },
+  {
+    value: 'weighted_random',
+    label: 'Weighted random order',
+    description: 'Try every device in a new weighted random sequence per attempt',
+  },
 ]
 const faxOptionOptions: ListboxOptionValue[] = [
   { value: 'auto', label: 'Automatic', description: 'Let Switch negotiate T.38 when available' },
@@ -153,7 +164,16 @@ const callerIdListOptions = computed<ListboxOptionValue[]>(() =>
 )
 const temporalRuleOptions = computed(() => props.editor?.temporal_rules ?? [])
 const callflowOptions = computed<ListboxOptionValue[]>(() =>
-  (props.editor?.destinations.callflow ?? []).map(({ id, label, detail }) => ({
+  (props.editor?.destinations.callflow ?? [])
+    .filter(({ supports_ring_group_toggle }) => supports_ring_group_toggle === true)
+    .map(({ id, label, detail }) => ({
+      value: id,
+      label,
+      description: detail,
+    })),
+)
+const queueOptions = computed<ListboxOptionValue[]>(() =>
+  (props.editor?.destinations.queue ?? []).map(({ id, label, detail }) => ({
     value: id,
     label,
     description: detail,
@@ -186,9 +206,9 @@ const faxOptionValue = computed(() => {
 const operationalModules = new Set([
   'temporal_route',
   'ring_group_toggle',
+  'acdc_queue',
   'hotdesk',
   'do_not_disturb',
-  'call_forward',
 ])
 const lockedReason = computed<string | null>(() => {
   if (props.context.operation !== 'update') return null
@@ -214,13 +234,25 @@ const lockedReason = computed<string | null>(() => {
     module.value === 'ring_group' &&
     props.context.node.settings?.supported_configuration !== true
   ) {
-    return 'This Ring Group uses unresolved or expanded endpoints, weighted-random routing, unsafe timing values, or more than 20 devices. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
+    return 'This Ring Group uses unresolved or expanded endpoints, unsafe timing or weight values, or more than 20 devices. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
   }
   if (
     module.value === 'receive_fax' &&
     props.context.node.settings?.supported_configuration !== true
   ) {
     return 'This Receive Fax node has no synchronized Extension owner or uses an unsupported T.38 mode. GridPBX preserves its complete configuration without exposing or rewriting it.'
+  }
+  if (
+    module.value === 'ring_group_toggle' &&
+    props.context.node.settings?.supported_configuration !== true
+  ) {
+    return 'This Ring Group Toggle target is unavailable or does not contain a Ring Group. GridPBX preserves its raw target without exposing or rewriting it.'
+  }
+  if (
+    module.value === 'acdc_queue' &&
+    props.context.node.settings?.supported_configuration !== true
+  ) {
+    return 'This ACDC Queue target is unavailable or its action is unsupported. GridPBX preserves the raw Queue ID and unknown settings without exposing or rewriting them.'
   }
   if (
     module.value === 'branch_variable' &&
@@ -305,24 +337,35 @@ function addRingGroupEndpoint(value: ListboxValue): void {
   }
 
   if (ringGroupEndpoints().length < 20) {
-    ringGroupEndpoints().push({ device_id: value, delay: 0, timeout: 20 })
-  }
-}
-
-function setRingGroupStrategy(value: ListboxValue): void {
-  if (value !== 'simultaneous' && value !== 'single') return
-
-  form.data.strategy = value
-  if (value === 'single') {
-    ringGroupEndpoints().forEach((endpoint) => {
-      endpoint.delay = 0
+    ringGroupEndpoints().push({
+      device_id: value,
+      delay: 0,
+      timeout: 20,
+      ...(form.data.strategy === 'weighted_random' ? { weight: 20 } : {}),
     })
   }
 }
 
+function setRingGroupStrategy(value: ListboxValue): void {
+  if (!['simultaneous', 'single', 'weighted_random'].includes(String(value))) return
+
+  form.data.strategy = value as 'simultaneous' | 'single' | 'weighted_random'
+  ringGroupEndpoints().forEach((endpoint) => {
+    if (value !== 'simultaneous') {
+      endpoint.delay = 0
+    }
+
+    if (value === 'weighted_random') {
+      endpoint.weight ??= 20
+    } else {
+      delete endpoint.weight
+    }
+  })
+}
+
 function setRingGroupTiming(
   index: number,
-  field: 'delay' | 'timeout',
+  field: 'delay' | 'timeout' | 'weight',
   value: string | number | null,
 ): void {
   const endpoint = ringGroupEndpoints()[index]
@@ -348,6 +391,10 @@ function ringGroupDeviceLabel(deviceId: string): string {
 
 function setRingGroupCallflow(value: ListboxValue): void {
   if (typeof value === 'string') form.data.callflow_id = value
+}
+
+function setAcdcQueue(value: ListboxValue): void {
+  if (typeof value === 'string') form.data.queue_id = value
 }
 
 function setGroupPickupTarget(value: ListboxValue): void {
@@ -416,9 +463,26 @@ function setCallerIdentityOwner(value: ListboxValue): void {
 }
 
 function submit(): void {
+  if (props.context.placement === 'replace' && !replacementConfirmed.value) {
+    replacementError.value = 'Confirm that the existing next step will be replaced.'
+    return
+  }
   const input = validate()
-  if (input) emit('save', input)
+  if (input) {
+    if ('parent_path' in input && props.context.placement === 'replace') {
+      input.confirm_replace = true
+    }
+    emit('save', input)
+  }
 }
+
+watch(
+  () => props.context,
+  () => {
+    replacementConfirmed.value = false
+    replacementError.value = null
+  },
+)
 </script>
 
 <template>
@@ -447,6 +511,38 @@ function submit(): void {
       </div>
     </div>
     <form v-else class="grid gap-5" novalidate @submit.prevent="submit">
+      <div
+        v-if="context.placement === 'insert_before'"
+        class="flex gap-3 rounded-md border border-blue-200 bg-blue-50 p-4 text-xs leading-5 text-blue-900"
+      >
+        <ShieldCheckIcon class="mt-0.5 size-5 shrink-0" />
+        <p>
+          This action will be inserted before the current next step. The existing downstream
+          callflow remains attached beneath the new action.
+        </p>
+      </div>
+
+      <div
+        v-if="context.placement === 'replace'"
+        class="grid gap-3 rounded-md border border-amber-300 bg-amber-50 p-4"
+      >
+        <div class="flex gap-3 text-xs leading-5 text-amber-950">
+          <ShieldCheckIcon class="mt-0.5 size-5 shrink-0" />
+          <p>
+            This terminal action cannot retain the existing next step. Saving will replace that step
+            and its complete downstream subtree in one atomic Switch update.
+          </p>
+        </div>
+        <FormCheckbox
+          v-model="replacementConfirmed"
+          label="Replace the current next step"
+          description="I understand that the existing downstream route will be removed."
+          :error="replacementError"
+          variant="compact"
+          @update:model-value="replacementError = null"
+        />
+      </div>
+
       <section class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
@@ -495,6 +591,33 @@ function submit(): void {
               <span class="font-mono">action={{ form.data.action }}</span
               >.
             </p>
+          </div>
+
+          <div
+            v-if="module === 'hotdesk'"
+            class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+          >
+            The caller enters the Hotdesk ID at call time. Login enforces the user’s configured PIN,
+            but logout and toggle’s logout path do not prompt for it. Keep this action behind a
+            trusted feature-code route.
+          </div>
+
+          <div
+            v-if="module === 'do_not_disturb'"
+            class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+          >
+            Kazoo changes Do Not Disturb for the authenticated caller’s owner, or the authorizing
+            device when no owner is available. It does not prompt for a PIN. Keep this action behind
+            a trusted feature-code route; GridPBX never stores a user or device ID in this node.
+          </div>
+
+          <div
+            v-if="module === 'acdc_queue'"
+            class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+          >
+            Kazoo adds or removes the authenticated caller’s owner from the selected Queue. It does
+            not prompt for a PIN. Keep this action behind a trusted feature-code route; GridPBX maps
+            the Queue UUID on the server and never stores an agent ID in this node.
           </div>
 
           <div
@@ -549,6 +672,21 @@ function submit(): void {
             />
             <span v-if="fieldError('data.callflow_id')" class="text-[10px] text-danger">
               {{ fieldError('data.callflow_id') }}
+            </span>
+          </label>
+
+          <label v-if="module === 'acdc_queue'" class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-700">Queue</span>
+            <FormListbox
+              :model-value="form.data.queue_id ?? ''"
+              :options="queueOptions"
+              aria-label="Queue"
+              :invalid="Boolean(fieldError('data.queue_id'))"
+              placeholder="Select a synchronized queue"
+              @update:model-value="setAcdcQueue"
+            />
+            <span v-if="fieldError('data.queue_id')" class="text-[10px] text-danger">
+              {{ fieldError('data.queue_id') }}
             </span>
           </label>
 
@@ -957,7 +1095,12 @@ function submit(): void {
                     <TrashIcon class="size-4" />
                   </button>
                 </div>
-                <div class="grid gap-3 sm:grid-cols-2">
+                <div
+                  class="grid gap-3"
+                  :class="
+                    form.data.strategy === 'weighted_random' ? 'sm:grid-cols-3' : 'sm:grid-cols-2'
+                  "
+                >
                   <FormInput
                     :model-value="endpoint.delay"
                     :label="`Device ${index + 1} delay`"
@@ -966,7 +1109,7 @@ function submit(): void {
                     min="0"
                     max="60"
                     required
-                    :disabled="form.data.strategy === 'single'"
+                    :disabled="form.data.strategy !== 'simultaneous'"
                     :model-modifiers="{ number: true }"
                     :error="fieldError(`data.endpoints.${index}.delay`)"
                     @update:model-value="setRingGroupTiming(index, 'delay', $event)"
@@ -983,6 +1126,19 @@ function submit(): void {
                     :error="fieldError(`data.endpoints.${index}.timeout`)"
                     @update:model-value="setRingGroupTiming(index, 'timeout', $event)"
                   />
+                  <FormInput
+                    v-if="form.data.strategy === 'weighted_random'"
+                    :model-value="endpoint.weight ?? 20"
+                    :label="`Device ${index + 1} weight`"
+                    description="Relative chance of being tried earlier, from 1–100."
+                    type="number"
+                    min="1"
+                    max="100"
+                    required
+                    :model-modifiers="{ number: true }"
+                    :error="fieldError(`data.endpoints.${index}.weight`)"
+                    @update:model-value="setRingGroupTiming(index, 'weight', $event)"
+                  />
                 </div>
               </div>
               <p v-if="fieldError('data.endpoints')" class="text-[10px] text-danger">
@@ -990,13 +1146,36 @@ function submit(): void {
               </p>
             </section>
 
+            <section class="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
+              <div>
+                <h3 class="text-xs font-semibold text-slate-700">Call handling</h3>
+                <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                  Control how device forwarding and individual rejections affect this attempt.
+                </p>
+              </div>
+              <FormCheckbox
+                :model-value="Boolean(form.data.ignore_forward)"
+                label="Ignore device forwarding"
+                description="Do not follow SIP redirects from devices in this Ring Group. This is Kazoo's safe default."
+                variant="compact"
+                @update:model-value="form.data.ignore_forward = Boolean($event)"
+              />
+              <FormCheckbox
+                :model-value="Boolean(form.data.fail_on_single_reject)"
+                label="Stop when one device rejects"
+                description="Cancel the remaining ringing devices when any one device rejects the call."
+                variant="compact"
+                @update:model-value="form.data.fail_on_single_reject = Boolean($event)"
+              />
+            </section>
+
             <div
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
-              GridPBX computes Kazoo's overall attempt timeout from the ordered Device rows.
-              Ringback, ringtones, forwarding and reject flags, endpoint weights, and unknown fields
-              stay private and are preserved. Expanded user/group endpoints and weighted-random
-              routing remain read-only.
+              GridPBX computes Kazoo's overall attempt timeout from the Device rows. Weighted random
+              tries every device sequentially in a newly shuffled weighted order per attempt.
+              Ringback, ringtones, and unknown fields stay private and are preserved. Expanded
+              user/group endpoints remain read-only.
             </div>
           </template>
 

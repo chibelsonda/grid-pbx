@@ -12,6 +12,12 @@ interface SwitchAccountGateway
     /** @return array<string, mixed> */
     public function find(SwitchAccount $account): array;
 
+    /** @return list<array<string, mixed>> */
+    public function descendants(SwitchAccount $account): array;
+
+    /** @return array<string, mixed> */
+    public function findBySwitchAccountId(string $switchAccountId): array;
+
     /**
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>

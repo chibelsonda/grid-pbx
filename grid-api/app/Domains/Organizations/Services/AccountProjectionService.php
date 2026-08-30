@@ -25,6 +25,18 @@ class AccountProjectionService
             'timezone' => $this->string($snapshot['timezone'] ?? null),
             'language' => $this->string($snapshot['language'] ?? null),
             'is_enabled' => ($snapshot['enabled'] ?? true) !== false,
+            'is_reseller' => array_key_exists('is_reseller', $snapshot)
+                ? $snapshot['is_reseller'] === true
+                : $account->is_reseller,
+            'is_superduper_admin' => array_key_exists('superduper_admin', $snapshot)
+                ? $snapshot['superduper_admin'] === true
+                : $account->is_superduper_admin,
+            'billing_mode' => array_key_exists('billing_mode', $snapshot)
+                ? $this->string($snapshot['billing_mode'])
+                : $account->billing_mode,
+            'descendants_count' => is_numeric($snapshot['descendants_count'] ?? null)
+                ? max(0, (int) $snapshot['descendants_count'])
+                : max(0, (int) ($account->descendants_count ?? 0)),
             'call_waiting_enabled' => Arr::get($snapshot, 'call_waiting.enabled', true) !== false,
             'do_not_disturb_enabled' => Arr::get($snapshot, 'do_not_disturb.enabled', false) === true,
             'outbound_privacy' => $this->string(Arr::get($snapshot, 'caller_id_options.outbound_privacy')) ?? 'none',

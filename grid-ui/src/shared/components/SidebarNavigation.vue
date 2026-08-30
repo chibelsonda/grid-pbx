@@ -21,6 +21,7 @@ import {
   MusicalNoteIcon,
   PrinterIcon,
   QueueListIcon,
+  RectangleGroupIcon,
   ShieldExclamationIcon,
   Squares2X2Icon,
   UserGroupIcon,
@@ -63,6 +64,7 @@ const sections: { label: string; items: Item[] }[] = [
     label: 'Workspace',
     items: [
       { label: 'Accounts', to: '/accounts', icon: BuildingOffice2Icon },
+      { label: 'Reseller administration', to: '/reseller', icon: RectangleGroupIcon },
       { label: 'Settings', to: '/settings', icon: Cog6ToothIcon },
     ],
   },

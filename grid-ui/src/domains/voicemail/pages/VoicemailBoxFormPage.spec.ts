@@ -40,6 +40,7 @@ describe('VoicemailBoxFormPage', () => {
           can_sync_call_detail_records: true,
           can_view_services: true,
           can_manage_account_settings: true,
+          can_onboard_descendants: true,
         },
       },
     ]

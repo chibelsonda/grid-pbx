@@ -17,7 +17,7 @@ class CallflowTreeReorderValidator
         'branch_bnumber',
         'missed_call_alert',
         'set_cid', 'prepend_cid', 'set_alert_info', 'check_cid', 'cidlistmatch',
-        'ring_group_toggle', 'hotdesk', 'do_not_disturb', 'call_forward',
+        'ring_group_toggle', 'acdc_queue', 'hotdesk', 'do_not_disturb',
     ];
 
     /** @param list<string> $sourcePath @param list<string> $targetPath */

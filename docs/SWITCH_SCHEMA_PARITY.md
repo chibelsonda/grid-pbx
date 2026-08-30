@@ -939,21 +939,27 @@ guided foundation rather than full Page Group completion.
 
 The installed `callflows.ring_group` schema and compiled `cf_ring_group`
 runtime define the payload and execution contract. Monster confirms the
-Device/User/Group ordering workflow; GridPBX currently exposes only direct
-Device endpoints so fan-out and total attempt duration remain enforceable.
+Device/User/Group ordering workflow but has no installed weighted-random form.
+The installed runtime sorts all endpoints without replacement for each
+weighted attempt, then uses sequential FreeSWITCH dialing and reshuffles on a
+retry. GridPBX exposes only direct Device endpoints so fan-out and total attempt
+duration remain enforceable.
 
 | Schema path or operation | GridPBX treatment | Current status |
 | --- | --- | --- |
 | `strategy = simultaneous` or `single` | Guided as At the same time or In order | Implemented |
-| `strategy = weighted_random` | Existing values remain private and read-only until weight semantics and operator expectations are modeled | Capability-gated |
+| `strategy = weighted_random` | Guided as Weighted random order. Every Device requires an explicit integer weight `1`–`100`; the runtime still tries every Device once per attempt and reshuffles for each retry | Implemented |
 | `endpoints[]` with `endpoint_type = device` and raw `id` | One to twenty ordered account-scoped public Device UUIDs; Laravel resolves raw Switch IDs only for the SDK write | Implemented |
 | `endpoints[]` with `endpoint_type = user` or `group` | Runtime expands memberships into devices; kept read-only until expansion, deduplication, inactive-member filtering, authorization, and final fan-out can be enforced | Capability-gated |
-| endpoint `delay` | Guided integer `0`–`60`; in-order strategy requires `0` | Implemented |
+| endpoint `delay` | Guided integer `0`–`60`; in-order and weighted-random strategies require `0` | Implemented |
 | endpoint `timeout` | Guided integer `1`–`60` | Implemented |
-| top-level `timeout` | Server-computed per attempt: maximum `delay + timeout` for simultaneous and sum of endpoint timeouts for in-order; capped at `120`; never accepted or exposed publicly | Implemented |
+| endpoint `weight` | Public only for weighted-random and required as an explicit integer `1`–`100`; rejected for simultaneous/in-order public writes. Existing private weights on other strategies remain preserved | Implemented |
+| top-level `timeout` | Server-computed per attempt: maximum `delay + timeout` for simultaneous and sum of endpoint timeouts for in-order or weighted-random; capped at `120`; never accepted or exposed publicly | Implemented |
 | `repeats` | Guided integer `1`–`3` | Implemented |
+| `ignore_forward` | Strict public boolean. Omitted existing values read as the installed schema/runtime default `true`; enabled maps to FreeSWITCH's fatal outbound-redirect behavior | Implemented and live verified |
+| `fail_on_single_reject` | Strict public boolean. Omitted existing values read as disabled (`false`); enabled tells the bridge to stop the remaining legs after one rejection | Implemented and live verified |
 | `skip_module` | Guided boolean | Implemented |
-| `ringback`, `ringtones`, `ignore_forward`, `fail_on_single_reject`, endpoint `weight`/`disable_until`, and unknown properties | Hidden from public API/UI and merged losslessly by the Switch DTO; unsafe or unsupported current shapes are read-only | Preservation boundary implemented |
+| `ringback`, `ringtones`, endpoint `disable_until`, and unknown properties | Hidden from public API/UI and merged losslessly by the Switch DTO; malformed legacy bridge flags or other unsupported current shapes are read-only | Preservation boundary implemented |
 
 A 2026-08-30 disposable isolated-headless lifecycle verified creation below
 Page Group, simultaneous-to-in-order editing, delay reset, bounded timeout and
@@ -965,7 +971,82 @@ focused SDK regression test; direct CouchDB writes were not used. No media-leg
 call was originated, so this matrix records a verified guided foundation rather
 than full Ring Group completion.
 
-## 23. Next matrices
+A second 2026-08-30 disposable lifecycle used
+`E2E Ring Group Weighted 20260830150119890`. One focused isolated headless test
+created simultaneous routing, edited it to weighted-random with endpoint weight
+`75`, confirmed the automatic zero delay, reopened all authoritative values,
+and verified that only the account-scoped public Device UUID crossed the API.
+An independent raw watcher observed the expected private Device ID, nested
+endpoint weight, computed timeout `30`, one attempt, and `skip_module = true`.
+Browser deletion was followed by an independent synchronization proving MySQL
+soft deletion and zero active Switch matches. Unknown/private-field
+preservation remains focused SDK regression evidence because no direct CouchDB
+write or unsafe live injection was used.
+
+A final 2026-08-30 lifecycle used
+`E2E Ring Group Flags 1788104697523`. It verified the public create defaults
+`ignore_forward = true` and `fail_on_single_reject = false`, then edited them to
+`false` and `true` with weighted-random weight `75`, endpoint timeout `30`, and
+`skip_module = true`. Reopen returned those authoritative values. Public
+responses omitted the raw Device ID, private `ringtones.external`, and an
+unknown node marker. An independent watcher used the production DTO
+normalization path to add those private values and then observed that the typed
+edit retained both, while the raw Device endpoint matched the seeded public
+Device. One isolated headless test passed in 4.4 seconds. Browser deletion and
+independent synchronization confirmed MySQL soft deletion and zero active
+Switch matches. No direct CouchDB write or media-leg call was used.
+
+## 23. ACDC Queue guided field-level matrix
+
+The installed `callflows.acdc_queue` schema and compiled `cf_acdc_queue`
+runtime define this search-only compatibility action. It is separate from
+`acdc_member`: Queue Member sends the current call into a Queue, while ACDC
+Queue changes the authenticated caller owner's membership in one Queue.
+
+| Schema path or operation | GridPBX treatment | Current status |
+| --- | --- | --- |
+| `action` | Required guided enum: `login` or `logout` | Implemented |
+| raw Queue `id` | Public API/UI accept one account-scoped Queue UUID; Laravel resolves the raw Switch resource ID only for the SDK write | Implemented |
+| design-time Agent selection | Not accepted. Installed runtime infers the authorizing endpoint's single Hotdesk user or owner | Runtime-owned |
+| authentication | The installed module has no PIN challenge; the form warns that the action must remain behind a trusted feature-code route | Operational constraint documented |
+| `skip_module` | Guided boolean | Implemented |
+| unresolved or cross-account Queue | Public writes reject it; existing unresolved nodes and their descendants remain preserved and read-only | Implemented |
+| unknown node properties | Hidden from the public API/UI and merged losslessly by the Switch DTO | Implemented boundary |
+
+A 2026-08-30 disposable isolated-headless lifecycle verified login creation,
+Queue selection by public UUID, `skip_module`, authoritative reopen, nested
+logout creation, public-to-raw Queue mapping, raw-ID redaction, browser deletion,
+MySQL soft deletion, and zero matching active Switch callflows. The independent
+raw read found the expected private Queue ID on both nodes. Unknown-field
+preservation is claimed from the focused SDK regression rather than live
+injection. No media-leg call was originated, so prompts, Agent inference, and
+User Queue membership changes remain compiled-runtime evidence.
+
+## 24. Eavesdrop compatibility field-level matrix
+
+The installed `callflows.eavesdrop` and `callflows.eavesdrop_feature` schemas
+and compiled runtime define these search-only compatibility actions. They are
+not present in the installed Monster palette and are not safe public mutation
+contracts.
+
+| Schema path or operation | GridPBX treatment | Current status |
+| --- | --- | --- |
+| direct target `device_id` / `user_id` | Raw Switch identifiers are never accepted or exposed; existing values remain private | Hidden and capability-gated |
+| Feature `group_id` | Raw target-restriction Group ID is never accepted or exposed; existing values remain private | Hidden and capability-gated |
+| `approved_device_id`, `approved_user_id`, `approved_group_id` | Raw caller-authorization identifiers are never accepted or exposed. Runtime denies when none is configured and evaluates only the first configured field in Device/User/Group precedence | Hidden and capability-gated |
+| target discovery | Direct action finds live channels for one Device or a User's Devices. Feature captures an extension, recursively finds the first Device/User node in its callflow, then delegates to direct Eavesdrop | Runtime evidence only |
+| Group restrictions | Approval Group membership expands direct Device members and User members to their Devices. Feature target Group matching checks direct endpoint keys instead | Runtime evidence only |
+| monitoring behavior | Runtime enables DTMF control, can redirect to the target media server, monitors the live channel, and stops the callflow | Runtime evidence only |
+| `skip_module` | Safe read-only public summary for existing nodes; no create or update contract | Read-only |
+| descendants and unknown node properties | Existing descendants are exposed only as preserved branches; raw and unknown data remain private and survive unrelated typed SDK edits | Preservation boundary implemented |
+
+Focused SDK, Laravel API/resolver/public-tree, catalog, and isolated E2E checks
+passed. The browser confirmed both search-only cards are disabled and emitted
+zero Callflow writes. No disposable Switch node or live monitoring call was
+created because GridPBX does not yet provide supervisor entitlement, immutable
+monitor auditing, privacy/consent policy, or bounded monitoring controls.
+
+## 25. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 

@@ -10,7 +10,7 @@ vi.mock('../api/serviceApi', () => ({
 const overview: ServiceOverview = {
   id: 'summary-1',
   standing: { acceptable: true, reason: 'good standing' },
-  reseller: { is_reseller: false },
+  reseller: { is_reseller: false, billing_account: null, billing_account_projected: true },
   billing_cycle: { next_at: null, period: 1, unit: 'month' },
   billing_impact: { invoice_count: 0, due_today: 0, recurring_amount: 0 },
   plans: [],

@@ -16,7 +16,16 @@ class ServiceOverviewResource extends JsonResource
         return [
             'id' => $this->id,
             'standing' => ['acceptable' => $this->status_acceptable, 'reason' => $this->status_reason],
-            'reseller' => ['is_reseller' => $this->is_reseller],
+            'reseller' => [
+                'is_reseller' => $this->is_reseller,
+                'billing_account' => $this->billingResellerAccount === null ? null : [
+                    'id' => $this->billingResellerAccount->id,
+                    'name' => $this->billingResellerAccount->name,
+                    'realm' => $this->billingResellerAccount->realm,
+                ],
+                'billing_account_projected' => $this->billing_reseller_switch_account_id === null
+                    || $this->billingResellerAccount !== null,
+            ],
             'billing_cycle' => ['next_at' => $this->billing_cycle_next_at?->toIso8601String(), 'period' => $this->billing_cycle_period, 'unit' => $this->billing_cycle_unit],
             'billing_impact' => ['invoice_count' => $this->invoice_count, 'due_today' => (float) $this->due_today, 'recurring_amount' => (float) $this->recurring_amount],
             'plans' => $this->whenLoaded('plans', fn () => $this->plans->map(fn ($plan) => ['id' => $plan->id, 'name' => $plan->name, 'description' => $plan->description, 'category' => $plan->category])->values()),

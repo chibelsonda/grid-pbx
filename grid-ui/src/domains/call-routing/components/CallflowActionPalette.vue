@@ -293,7 +293,7 @@ function toggleCategory(categoryId: string): void {
               variant="palette"
               :label="action.label"
               :module="action.module"
-              :icon="callflowActionIcon(action.module)"
+              :icon="callflowActionIcon(action.module, { action: action.action })"
               border-class="border-white/10"
               :icon-class="callflowActionAppearance(action.module).paletteIcon"
             />
@@ -302,7 +302,10 @@ function toggleCategory(categoryId: string): void {
                 class="grid size-7 shrink-0 place-items-center rounded-md"
                 :class="callflowActionAppearance(action.module).paletteIcon"
               >
-                <component :is="callflowActionIcon(action.module)" class="size-3.5" />
+                <component
+                  :is="callflowActionIcon(action.module, { action: action.action })"
+                  class="size-3.5"
+                />
               </span>
               <div class="min-w-0">
                 <h4 class="truncate text-[11px] font-semibold text-slate-700">

@@ -7,52 +7,6 @@ use Illuminate\Validation\ValidationException;
 
 class CallflowTreeMoveValidator
 {
-    /** @var list<string> */
-    private const GUIDED_MODULES = [
-        'user',
-        'device',
-        'voicemail',
-        'callflow',
-        'play',
-        'directory',
-        'group',
-        'acdc_member',
-        'menu',
-        'conference',
-        'faxbox',
-        'temporal_route',
-        'sleep',
-        'tts',
-        'collect_dtmf',
-        'record_call',
-        'record_caller',
-        'send_dtmf',
-        'flush_dtmf',
-        'dead_air',
-        'language',
-        'response',
-        'hangup',
-        'set_variable',
-        'set_variables',
-        'manual_presence',
-        'group_pickup',
-        'page_group',
-        'ring_group',
-        'receive_fax',
-        'branch_variable',
-        'branch_bnumber',
-        'missed_call_alert',
-        'set_cid',
-        'prepend_cid',
-        'set_alert_info',
-        'check_cid',
-        'cidlistmatch',
-        'ring_group_toggle',
-        'hotdesk',
-        'do_not_disturb',
-        'call_forward',
-    ];
-
     /**
      * @param  list<string>  $sourcePath
      * @param  list<string>  $destinationParentPath
@@ -87,7 +41,7 @@ class CallflowTreeMoveValidator
         $destination = $this->nodeAt($flow, $destinationParentPath, 'destination_parent_path');
         $sourceModule = is_string($source['module'] ?? null) ? $source['module'] : '';
 
-        if (! in_array($sourceModule, self::GUIDED_MODULES, true)) {
+        if (! CallflowBranchPolicy::isGuidedModule($sourceModule)) {
             $this->fail(
                 'source_path',
                 'This callflow action is not supported by the guided tree editor and remains unchanged.',

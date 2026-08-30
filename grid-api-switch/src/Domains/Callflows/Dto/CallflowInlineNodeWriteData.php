@@ -12,6 +12,8 @@ use InvalidArgumentException;
  */
 final readonly class CallflowInlineNodeWriteData
 {
+    private const PLACEMENTS = ['append', 'insert_before', 'replace'];
+
     /** @var array<string, list<string>> */
     private const MANAGED_KEYS = [
         'sleep' => ['duration', 'unit', 'skip_module'],
@@ -33,7 +35,10 @@ final readonly class CallflowInlineNodeWriteData
         'manual_presence' => ['presence_id', 'status', 'skip_module'],
         'group_pickup' => ['device_id', 'user_id', 'group_id', 'skip_module'],
         'page_group' => ['audio', 'endpoints', 'skip_module'],
-        'ring_group' => ['strategy', 'endpoints', 'repeats', 'timeout', 'skip_module'],
+        'ring_group' => [
+            'strategy', 'endpoints', 'repeats', 'timeout', 'ignore_forward',
+            'fail_on_single_reject', 'skip_module',
+        ],
         'receive_fax' => ['owner_id', 'media', 'skip_module'],
         'conference' => ['skip_module'],
         'voicemail' => ['action', 'skip_module'],
@@ -49,9 +54,9 @@ final readonly class CallflowInlineNodeWriteData
         'cidlistmatch' => ['id', 'skip_module'],
         'temporal_route' => ['action', 'rules', 'skip_module'],
         'ring_group_toggle' => ['action', 'callflow_id', 'skip_module'],
+        'acdc_queue' => ['action', 'id', 'skip_module'],
         'hotdesk' => ['action', 'skip_module'],
         'do_not_disturb' => ['action', 'skip_module'],
-        'call_forward' => ['action', 'skip_module'],
     ];
 
     /**
@@ -64,6 +69,7 @@ final readonly class CallflowInlineNodeWriteData
         private string $operation,
         private array $path,
         private ?string $branch,
+        private string $placement,
         public string $module,
         private array $settings,
     ) {
@@ -73,6 +79,10 @@ final readonly class CallflowInlineNodeWriteData
 
         if (! array_key_exists($this->module, self::MANAGED_KEYS)) {
             throw new InvalidArgumentException('The inline Switch callflow action is not supported.');
+        }
+
+        if (! in_array($this->placement, self::PLACEMENTS, true)) {
+            throw new InvalidArgumentException('The inline action placement is invalid.');
         }
 
         $this->assertPublicPath($this->path);
@@ -97,8 +107,23 @@ final readonly class CallflowInlineNodeWriteData
 
             $children = is_array($parent['children'] ?? null) ? $parent['children'] : [];
 
-            if (array_key_exists($this->branch, $children)) {
+            $occupied = array_key_exists($this->branch, $children);
+
+            if ($this->placement === 'append' && $occupied) {
                 throw new InvalidArgumentException('The destination callflow branch is already occupied.');
+            }
+
+            if ($this->placement !== 'append' && ! $occupied) {
+                throw new InvalidArgumentException('The destination callflow branch is no longer occupied.');
+            }
+
+            if ($this->placement !== 'append' && $this->branch !== '_') {
+                throw new InvalidArgumentException('Only an occupied continuation branch can be inserted into or replaced.');
+            }
+
+            if ($this->placement === 'insert_before'
+                && CallflowBranchPolicy::isTerminalModule($this->module)) {
+                throw new InvalidArgumentException('A terminal action cannot preserve the existing next step.');
             }
 
             return;
@@ -199,8 +224,9 @@ final readonly class CallflowInlineNodeWriteData
         string $branch,
         string $module,
         array $settings,
+        string $placement = 'append',
     ): self {
-        return new self($current, 'create', $parentPath, $branch, $module, $settings);
+        return new self($current, 'create', $parentPath, $branch, $placement, $module, $settings);
     }
 
     /** @param array<string, mixed> $current @param list<string> $nodePath @param array<string, mixed> $settings */
@@ -210,7 +236,7 @@ final readonly class CallflowInlineNodeWriteData
         string $module,
         array $settings,
     ): self {
-        return new self($current, 'update', $nodePath, null, $module, $settings);
+        return new self($current, 'update', $nodePath, null, 'append', $module, $settings);
     }
 
     /** @return array<string, mixed> */
@@ -221,7 +247,7 @@ final readonly class CallflowInlineNodeWriteData
         $flow = $data['flow'];
 
         if ($this->operation === 'create' && $this->branch !== null) {
-            $this->insertAt($flow, $this->path, $this->branch);
+            $this->insertAt($flow, $this->path, $this->branch, $this->placement);
         } else {
             $this->updateAt($flow, $this->path);
         }
@@ -272,9 +298,9 @@ final readonly class CallflowInlineNodeWriteData
             'cidlistmatch' => $this->string('id', 1, 128),
             'temporal_route' => $this->assertTemporalRouteOperation(),
             'ring_group_toggle' => $this->assertRingGroupToggle(),
+            'acdc_queue' => $this->assertAcdcQueue(),
             'hotdesk' => $this->oneOf('action', ['login', 'logout', 'toggle']),
             'do_not_disturb' => $this->oneOf('action', ['activate', 'deactivate', 'toggle']),
-            'call_forward' => $this->oneOf('action', ['activate', 'deactivate', 'update']),
         };
 
         if (array_key_exists('skip_module', $this->settings) && ! is_bool($this->settings['skip_module'])) {
@@ -485,9 +511,11 @@ final readonly class CallflowInlineNodeWriteData
 
     private function assertRingGroup(): void
     {
-        $this->oneOf('strategy', ['simultaneous', 'single']);
+        $this->oneOf('strategy', ['simultaneous', 'single', 'weighted_random']);
         $this->integer('repeats', 1, 3);
         $this->integer('timeout', 1, 120);
+        $this->boolean('ignore_forward');
+        $this->boolean('fail_on_single_reject');
         $endpoints = $this->settings['endpoints'] ?? null;
 
         if (! is_array($endpoints) || ! array_is_list($endpoints)
@@ -500,7 +528,7 @@ final readonly class CallflowInlineNodeWriteData
 
         foreach ($endpoints as $endpoint) {
             if (! is_array($endpoint)
-                || array_diff(array_keys($endpoint), ['endpoint_type', 'id', 'delay', 'timeout']) !== []
+                || array_diff(array_keys($endpoint), ['endpoint_type', 'id', 'delay', 'timeout', 'weight']) !== []
                 || ($endpoint['endpoint_type'] ?? null) !== 'device'
                 || ! is_string($endpoint['id'] ?? null)
                 || $endpoint['id'] === ''
@@ -511,7 +539,13 @@ final readonly class CallflowInlineNodeWriteData
                 || ! is_int($endpoint['timeout'] ?? null)
                 || $endpoint['timeout'] < 1
                 || $endpoint['timeout'] > 60
-                || ($this->settings['strategy'] === 'single' && $endpoint['delay'] !== 0)
+                || (in_array($this->settings['strategy'], ['single', 'weighted_random'], true)
+                    && $endpoint['delay'] !== 0)
+                || ($this->settings['strategy'] === 'weighted_random'
+                    && (! array_key_exists('weight', $endpoint)
+                        || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)))
+                || ($this->settings['strategy'] !== 'weighted_random'
+                    && array_key_exists('weight', $endpoint))
                 || in_array($endpoint['id'], $ids, true)) {
                 throw new InvalidArgumentException('The inline Ring Group endpoint selection is invalid.');
             }
@@ -532,9 +566,11 @@ final readonly class CallflowInlineNodeWriteData
         $repeats = is_int($data['repeats'] ?? null) ? $data['repeats'] : 1;
         $endpoints = $data['endpoints'] ?? null;
 
-        if (! in_array($strategy, ['simultaneous', 'single'], true)
+        if (! in_array($strategy, ['simultaneous', 'single', 'weighted_random'], true)
             || $repeats < 1
             || $repeats > 3
+            || (array_key_exists('ignore_forward', $data) && ! is_bool($data['ignore_forward']))
+            || (array_key_exists('fail_on_single_reject', $data) && ! is_bool($data['fail_on_single_reject']))
             || ! is_array($endpoints)
             || ! array_is_list($endpoints)
             || $endpoints === []
@@ -558,8 +594,10 @@ final readonly class CallflowInlineNodeWriteData
                 || $delay > 60
                 || $timeout < 1
                 || $timeout > 60
-                || ($strategy === 'single' && $delay !== 0)
+                || (in_array($strategy, ['single', 'weighted_random'], true) && $delay !== 0)
                 || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
+                || ($strategy === 'weighted_random'
+                    && ! array_key_exists('weight', $endpoint))
                 || in_array($endpoint['id'], $ids, true)) {
                 throw new InvalidArgumentException('The existing Ring Group configuration is not supported.');
             }
@@ -579,7 +617,7 @@ final readonly class CallflowInlineNodeWriteData
     /** @param list<array{delay: int, timeout: int}> $endpoints */
     private function ringGroupAttemptTimeout(string $strategy, array $endpoints): int
     {
-        if ($strategy === 'single') {
+        if (in_array($strategy, ['single', 'weighted_random'], true)) {
             return array_sum(array_column($endpoints, 'timeout'));
         }
 
@@ -704,6 +742,12 @@ final readonly class CallflowInlineNodeWriteData
     {
         $this->oneOf('action', ['login', 'logout']);
         $this->string('callflow_id', 1, 128);
+    }
+
+    private function assertAcdcQueue(): void
+    {
+        $this->oneOf('action', ['login', 'logout']);
+        $this->string('id', 1, 128);
     }
 
     private function assertSetAlertInfo(): void
@@ -872,14 +916,22 @@ final readonly class CallflowInlineNodeWriteData
     }
 
     /** @param array<string, mixed> $node @param list<string> $parentPath */
-    private function insertAt(array &$node, array $parentPath, string $branch): void
-    {
+    private function insertAt(
+        array &$node,
+        array $parentPath,
+        string $branch,
+        string $placement,
+    ): void {
         if ($parentPath === []) {
             $children = is_array($node['children'] ?? null) ? $node['children'] : [];
+            $existing = is_array($children[$branch] ?? null) ? $children[$branch] : null;
+            $newChildren = $placement === 'insert_before' && $existing !== null
+                ? ['_' => $existing]
+                : [];
             $children[$branch] = [
                 'module' => $this->module,
                 'data' => $this->settingsForWrite([]),
-                'children' => (object) [],
+                'children' => $newChildren === [] ? (object) [] : $newChildren,
             ];
             $node['children'] = $children;
 
@@ -894,7 +946,7 @@ final readonly class CallflowInlineNodeWriteData
             throw new InvalidArgumentException('The destination callflow path no longer exists.');
         }
 
-        $this->insertAt($child, $parentPath, $branch);
+        $this->insertAt($child, $parentPath, $branch, $placement);
         $children[$segment] = $child;
         $node['children'] = $children;
     }
