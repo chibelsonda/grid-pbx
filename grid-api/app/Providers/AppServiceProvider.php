@@ -30,6 +30,8 @@ use App\Domains\Menus\Models\SwitchMenu;
 use App\Domains\Menus\Policies\MenuPolicy;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Organizations\Policies\AccountPolicy;
+use App\Domains\Payments\Models\PaymentAttempt;
+use App\Domains\Payments\Policies\PaymentAttemptPolicy;
 use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\Queues\Policies\QueuePolicy;
 use App\Domains\Recordings\Models\SwitchRecording;
@@ -66,6 +68,7 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading(! $this->app->isProduction());
         Gate::policy(SwitchCallflow::class, CallflowPolicy::class);
         Gate::policy(SwitchAccount::class, AccountPolicy::class);
+        Gate::policy(PaymentAttempt::class, PaymentAttemptPolicy::class);
         Gate::policy(SwitchConference::class, ConferencePolicy::class);
         Gate::policy(SwitchBlacklist::class, BlacklistPolicy::class);
         Gate::policy(SwitchCallerIdList::class, CallerIdListPolicy::class);

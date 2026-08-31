@@ -38,8 +38,18 @@ const phoneNumber = {
   },
   capabilities: {
     available_features: ['cnam', 'e911', 'port'],
-    cnam: { available: true, writable: false, reason: 'CNAM policy required.' },
-    e911: { available: true, writable: false, reason: 'E911 policy required.' },
+    cnam: {
+      available: true,
+      writable: false,
+      reason:
+        'Switch reports CNAM as selectable, but the installed notifier workflow does not confirm carrier completion. Mutation remains disabled pending approved quote, charge-confirmation, audit, and reconciliation policy.',
+    },
+    e911: {
+      available: true,
+      writable: false,
+      reason:
+        'Switch reports E911 as selectable, but GridPBX has not confirmed provider readiness or emergency-caller-ID safeguards. Mutation remains disabled pending approved emergency-service, billing, confirmation, audit, and reconciliation policy.',
+    },
     porting: { available: true, writable: false, reason: 'Porting policy required.' },
     purchasing: { available: false, writable: false, reason: 'Carrier required.' },
     release: { available: false, writable: false, reason: 'Carrier required.' },
@@ -87,6 +97,8 @@ test('shows allowlisted Phone Number feature details and explicit operation gate
   await expect(dialog.getByText('ops@example.test', { exact: false })).toBeVisible()
   await expect(dialog.getByText('Example Carrier')).toBeVisible()
   await expect(dialog.getByText('Caller name (CNAM)')).toBeVisible()
+  await expect(dialog.getByText(/does not confirm carrier completion/)).toBeVisible()
+  await expect(dialog.getByText(/has not confirmed provider readiness/)).toBeVisible()
   await expect(dialog.getByText('Policy gated', { exact: true })).toHaveCount(3)
   await expect(dialog.getByRole('button', { name: /purchase|release|port/i })).toHaveCount(0)
   expect(issues).toEqual([])

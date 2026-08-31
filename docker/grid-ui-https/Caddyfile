@@ -1,0 +1,24 @@
+{
+	auto_https disable_redirects
+}
+
+https://localhost:5443 {
+	tls internal
+
+	@grid_api path /api/* /sanctum/*
+	handle @grid_api {
+		reverse_proxy grid-api:8081
+	}
+
+	@grid_auth {
+		method POST
+		path /login /logout
+	}
+	handle @grid_auth {
+		reverse_proxy grid-api:8081
+	}
+
+	handle {
+		reverse_proxy grid-ui-https-app:5173
+	}
+}

@@ -3,6 +3,7 @@ import { defineConfig, devices } from '@playwright/test'
 
 const gridUiUrl = process.env.GRID_E2E_UI_URL ?? 'http://localhost:5173'
 const switchUiUrl = process.env.SWITCH_E2E_UI_URL ?? 'http://localhost:3001'
+const ignoreLocalHttpsErrors = process.env.GRID_E2E_IGNORE_HTTPS_ERRORS === 'true'
 
 export default defineConfig({
   testDir: './e2e-live',
@@ -27,9 +28,10 @@ export default defineConfig({
     {
       name: 'gridpbx-live',
       testMatch:
-        /gridpbx-(account-projection|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|group-form|layout-alignment|media-form|menu-form|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|system-status|temporal-routing)\.spec\.ts/,
+        /gridpbx-(account-projection|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|feature-codes|group-form|layout-alignment|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|system-status|temporal-routing)\.spec\.ts/,
       use: {
         baseURL: gridUiUrl,
+        ignoreHTTPSErrors: ignoreLocalHttpsErrors,
         storageState: '.playwright/.auth/gridpbx.json',
       },
     },

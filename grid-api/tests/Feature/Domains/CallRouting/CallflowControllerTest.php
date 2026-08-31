@@ -116,6 +116,9 @@ class CallflowControllerTest extends TestCase
             'is_feature_code' => true,
             'feature_code_name' => 'Do Not Disturb',
             'feature_code_number' => '*78',
+            'switch_resource_id' => 'raw-feature-code-id',
+            'owner_switch_resource_id' => 'raw-owner-id',
+            'switch_json' => ['flow' => ['data' => ['id' => 'raw-runtime-id']]],
         ]);
         $otherCallflow = SwitchCallflow::factory()->create();
 
@@ -124,7 +127,11 @@ class CallflowControllerTest extends TestCase
             ->assertOk()
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $featureCode->id)
-            ->assertJsonPath('data.0.feature_code.number', '*78');
+            ->assertJsonPath('data.0.feature_code.number', '*78')
+            ->assertJsonMissingPath('data.0.callflow_id')
+            ->assertJsonMissingPath('data.0.switch_resource_id')
+            ->assertJsonMissingPath('data.0.owner_switch_resource_id')
+            ->assertJsonMissingPath('data.0.switch_json');
 
         $this->actingAs($user)
             ->getJson("/api/v1/accounts/{$account->id}/callflows/{$otherCallflow->id}")

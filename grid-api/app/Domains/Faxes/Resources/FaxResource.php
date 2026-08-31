@@ -9,6 +9,30 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin SwitchFax */
 class FaxResource extends JsonResource
 {
+    /**
+     * @return array<string, array{switch_supported: true, enabled: false, reason: string}>
+     */
+    public static function operationCapabilities(): array
+    {
+        return [
+            'send' => self::disabledOperation(
+                'The installed Switch supports asynchronous outbound Fax jobs, but GridPBX has not approved document conversion, retention, notification, billing, or abuse-control policy.',
+            ),
+            'forward' => self::disabledOperation(
+                'Forwarding copies a retained inbound document into a new outbound job. It remains disabled pending destination confirmation, retention, authorization, audit, and reconciliation policy.',
+            ),
+            'resubmit' => self::disabledOperation(
+                'Resubmission copies an outbox document into a new outbound job. It remains disabled pending duplicate-safe execution, exact-message confirmation, audit, and reconciliation policy.',
+            ),
+            'delete_message' => self::disabledOperation(
+                'Permanent Fax message deletion remains disabled pending retention, legal-hold, exact-message confirmation, authorization, and immutable audit policy.',
+            ),
+            'delete_document' => self::disabledOperation(
+                'Fax document deletion is separate from message deletion and remains disabled pending binary-retention, legal-hold, confirmation, and reconciliation policy.',
+            ),
+        ];
+    }
+
     public function toArray(Request $request): array
     {
         return [
@@ -21,6 +45,16 @@ class FaxResource extends JsonResource
             'created_at' => $this->switch_created_at?->toIso8601String(), 'has_document' => $this->has_document,
             'document_content_type' => $this->document_content_type, 'document_size' => $this->document_size,
             'last_synced_at' => $this->last_synced_at?->toIso8601String(), 'sync_status' => $this->sync_status?->value,
+        ];
+    }
+
+    /** @return array{switch_supported: true, enabled: false, reason: string} */
+    private static function disabledOperation(string $reason): array
+    {
+        return [
+            'switch_supported' => true,
+            'enabled' => false,
+            'reason' => $reason,
         ];
     }
 }

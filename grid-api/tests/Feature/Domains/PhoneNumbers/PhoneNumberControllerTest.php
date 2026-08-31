@@ -36,7 +36,11 @@ class PhoneNumberControllerTest extends TestCase
                 'state' => 'in_service',
                 'features' => ['local', 'inbound_cnam'],
                 '_read_only' => ['features' => ['available' => ['cnam', 'e911', 'port']]],
-                'cnam' => ['display_name' => 'GridPBX', 'inbound_lookup' => true],
+                'cnam' => [
+                    'display_name' => 'GridPBX',
+                    'inbound_lookup' => true,
+                    'provider_status' => 'private-provider-state',
+                ],
                 'e911' => [
                     'status' => 'PROVISIONED',
                     'caller_name' => 'GridPBX Reception',
@@ -48,6 +52,7 @@ class PhoneNumberControllerTest extends TestCase
                     'notification_contact_emails' => ['ops@example.test', 'invalid'],
                     'location_id' => 'private-provider-id',
                     'latitude' => '37.789',
+                    'provider_status' => 'private-provider-state',
                 ],
                 'porting' => [
                     'requested_port_date' => '2026-09-15',
@@ -86,8 +91,20 @@ class PhoneNumberControllerTest extends TestCase
             ->assertJsonPath('data.capabilities.available_features.0', 'cnam')
             ->assertJsonPath('data.capabilities.cnam.available', true)
             ->assertJsonPath('data.capabilities.cnam.writable', false)
+            ->assertJsonPath(
+                'data.capabilities.cnam.reason',
+                'Switch reports CNAM as selectable, but the installed notifier workflow does not confirm carrier completion. Mutation remains disabled pending approved quote, charge-confirmation, audit, and reconciliation policy.',
+            )
+            ->assertJsonMissingPath('data.cnam.provider_status')
             ->assertJsonMissingPath('data.e911.location_id')
             ->assertJsonMissingPath('data.e911.latitude')
+            ->assertJsonMissingPath('data.e911.provider_status')
+            ->assertJsonPath('data.capabilities.e911.available', true)
+            ->assertJsonPath('data.capabilities.e911.writable', false)
+            ->assertJsonPath(
+                'data.capabilities.e911.reason',
+                'Switch reports E911 as selectable, but GridPBX has not confirmed provider readiness or emergency-caller-ID safeguards. Mutation remains disabled pending approved emergency-service, billing, confirmation, audit, and reconciliation policy.',
+            )
             ->assertJsonMissingPath('data.porting.billing_account_id')
             ->assertJsonMissingPath('data.porting.comments')
             ->assertJsonMissingPath('data.switch_json');

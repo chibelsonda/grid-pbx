@@ -111,10 +111,22 @@ class PhoneNumberResource extends JsonResource
         return [
             'available' => $available,
             'writable' => false,
-            'reason' => $available
-                ? 'Supported by Switch; mutation remains disabled until billing and compliance policy is configured.'
-                : 'The connected Switch does not report this feature as available for the number.',
+            'reason' => $this->featureCapabilityReason($feature, $available),
         ];
+    }
+
+    private function featureCapabilityReason(string $feature, bool $available): string
+    {
+        if (! $available) {
+            return 'The connected Switch does not report this feature as selectable for the number.';
+        }
+
+        return match ($feature) {
+            'cnam' => 'Switch reports CNAM as selectable, but the installed notifier workflow does not confirm carrier completion. Mutation remains disabled pending approved quote, charge-confirmation, audit, and reconciliation policy.',
+            'e911' => 'Switch reports E911 as selectable, but GridPBX has not confirmed provider readiness or emergency-caller-ID safeguards. Mutation remains disabled pending approved emergency-service, billing, confirmation, audit, and reconciliation policy.',
+            'port' => 'Switch reports porting as selectable; mutation remains disabled pending approved authority, document-retention, billing, confirmation, audit, and reconciliation policy.',
+            default => 'Switch reports this feature as selectable; mutation remains disabled pending approved billing, confirmation, audit, and reconciliation policy.',
+        };
     }
 
     /** @return array{available: bool, writable: bool, reason: string} */

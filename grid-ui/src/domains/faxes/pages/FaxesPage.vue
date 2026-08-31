@@ -13,12 +13,30 @@ import SearchInput from '@/shared/components/SearchInput.vue'
 import FaxBoxFormPanel from '../components/FaxBoxFormPanel.vue'
 import FaxDetailPanel from '../components/FaxDetailPanel.vue'
 import { useFaxStore } from '../stores/faxStore'
-import type { FaxBoxInput } from '../types/fax'
+import type { FaxBoxInput, FaxOperationCapabilities } from '../types/fax'
 const accounts = useAccountStore()
 const faxes = useFaxStore()
 const boxPanel = ref(false)
 const messagePanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+type FaxOperation = keyof FaxOperationCapabilities
+const operationLabels: Record<FaxOperation, string> = {
+  send: 'Send fax',
+  forward: 'Forward received fax',
+  resubmit: 'Resubmit sent fax',
+  delete_message: 'Delete fax message',
+  delete_document: 'Delete fax document',
+}
+const operationEntries = computed(() => {
+  const capabilities = faxes.capabilities
+  if (!capabilities) return []
+
+  return (Object.keys(operationLabels) as FaxOperation[]).map((operation) => ({
+    operation,
+    label: operationLabels[operation],
+    capability: capabilities[operation],
+  }))
+})
 watch(
   () => accounts.selectedId,
   (id) => {
@@ -85,6 +103,25 @@ async function removeBox(): Promise<void> {
     >
       {{ faxes.error }}
     </div>
+    <section v-if="operationEntries.length" class="card-surface overflow-hidden">
+      <header class="border-b border-slate-100 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700">Fax message operations</h2>
+        <p class="mt-1 text-[10px] text-slate-400">
+          Installed Switch operations remain unavailable until their safety policies are approved.
+        </p>
+      </header>
+      <dl class="grid gap-px bg-slate-100 md:grid-cols-2 xl:grid-cols-3">
+        <div v-for="entry in operationEntries" :key="entry.operation" class="bg-white px-5 py-4">
+          <div class="flex items-center justify-between gap-3">
+            <dt class="text-xs font-semibold text-slate-700">{{ entry.label }}</dt>
+            <dd class="rounded-full bg-amber-50 px-2 py-1 text-[10px] font-semibold text-amber-700">
+              Policy gated
+            </dd>
+          </div>
+          <p class="mt-2 text-[10px] leading-4 text-slate-500">{{ entry.capability.reason }}</p>
+        </div>
+      </dl>
+    </section>
     <section>
       <div class="mb-3 flex items-center gap-2">
         <PrinterIcon class="size-5 text-brand-500" />
@@ -135,7 +172,13 @@ async function removeBox(): Promise<void> {
         class="mb-4 flex gap-3"
         @submit.prevent="accounts.selectedId && faxes.load(accounts.selectedId)"
       >
-        <SearchInput v-model="faxes.search" label="Search faxes" class="min-w-0 flex-1" placeholder="Search sender, recipient, or subject…" input-class="h-10 bg-white text-xs" /><FormSelect
+        <SearchInput
+          v-model="faxes.search"
+          label="Search faxes"
+          class="min-w-0 flex-1"
+          placeholder="Search sender, recipient, or subject…"
+          input-class="h-10 bg-white text-xs"
+        /><FormSelect
           v-model="faxes.folder"
           class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
           ><option value="">Inbox & outbox</option>

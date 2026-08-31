@@ -149,6 +149,11 @@ const router = createRouter({
           component: () => import('@/domains/call-routing/pages/CallRoutingPage.vue'),
         },
         {
+          path: 'feature-codes',
+          name: 'feature-codes',
+          component: () => import('@/domains/call-routing/pages/FeatureCodesPage.vue'),
+        },
+        {
           path: 'call-history',
           name: 'call-history',
           component: () => import('@/domains/call-detail-records/pages/CallDetailRecordsPage.vue'),

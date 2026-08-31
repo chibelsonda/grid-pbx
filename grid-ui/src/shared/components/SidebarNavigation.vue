@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   ArrowPathRoundedSquareIcon,
   Bars3BottomLeftIcon,
+  BoltIcon,
   BookOpenIcon,
   BuildingOffice2Icon,
   CalendarDaysIcon,
@@ -45,6 +46,7 @@ const sections: { label: string; items: Item[] }[] = [
       { label: 'Line Keys', to: '/line-keys', icon: WrenchScrewdriverIcon },
       { label: 'Phone Numbers', to: '/phone-numbers', icon: HashtagIcon },
       { label: 'Call Routing', to: '/call-routing', icon: ArrowPathRoundedSquareIcon },
+      { label: 'Feature Codes', to: '/feature-codes', icon: BoltIcon },
       { label: 'Directories', to: '/directories', icon: BookOpenIcon },
       { label: 'Groups & Ring Groups', to: '/groups', icon: UserGroupIcon },
       { label: 'Queues & Agents', to: '/queues', icon: QueueListIcon },

@@ -13,13 +13,13 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
-test('shows only safe read-only presence and parked-call capabilities', async ({ page }) => {
+test('shows only safe read-only operational capabilities', async ({ page }) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
     if (
       ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
-      /\/api\/v1\/accounts\/[^/]+\/operational-status$/.test(new URL(request.url()).pathname)
+      /\/api\/v1\/accounts\/[^/]+\//.test(new URL(request.url()).pathname)
     ) {
       mutations.push(`${request.method()} ${request.url()}`)
     }
@@ -44,11 +44,47 @@ test('shows only safe read-only presence and parked-call capabilities', async ({
         active_call_count: number | null
         actions_available: false
       }
+      webhooks: {
+        event_catalog_available: boolean
+        available_event_count: number | null
+        configuration_summary_available: boolean
+        configured_count: number | null
+        enabled_count: number | null
+        configuration_mutations_available: false
+        delivery_history_available: false
+      }
+      messaging: {
+        sms_inventory_available: boolean
+        mms_inventory_available: boolean
+        message_content_available: false
+        sending_available: false
+      }
+      number_porting: {
+        inventory_available: boolean
+        request_details_available: false
+        documents_available: false
+        workflow_mutations_available: false
+      }
+      number_management: {
+        carrier_configuration_available: boolean
+        search_available: false
+        purchase_available: false
+        reservation_available: false
+        release_available: false
+      }
     }
   }
 
   expect(response.status()).toBe(200)
-  expect(Object.keys(payload.data).sort()).toEqual(['observed_at', 'parking', 'presence'])
+  expect(Object.keys(payload.data).sort()).toEqual([
+    'messaging',
+    'number_management',
+    'number_porting',
+    'observed_at',
+    'parking',
+    'presence',
+    'webhooks',
+  ])
   expect(Object.keys(payload.data.presence).sort()).toEqual([
     'commands_available',
     'live_status_available',
@@ -62,12 +98,59 @@ test('shows only safe read-only presence and parked-call capabilities', async ({
   expect(payload.data.presence.live_status_available).toBe(false)
   expect(payload.data.presence.commands_available).toBe(false)
   expect(payload.data.parking.actions_available).toBe(false)
+  expect(Object.keys(payload.data.webhooks).sort()).toEqual([
+    'available_event_count',
+    'configuration_mutations_available',
+    'configuration_summary_available',
+    'configured_count',
+    'delivery_history_available',
+    'enabled_count',
+    'event_catalog_available',
+  ])
+  expect(payload.data.webhooks.configuration_mutations_available).toBe(false)
+  expect(payload.data.webhooks.delivery_history_available).toBe(false)
+  expect(Object.keys(payload.data.messaging).sort()).toEqual([
+    'message_content_available',
+    'mms_inventory_available',
+    'sending_available',
+    'sms_inventory_available',
+  ])
+  expect(payload.data.messaging.sms_inventory_available).toBe(false)
+  expect(payload.data.messaging.mms_inventory_available).toBe(false)
+  expect(payload.data.messaging.message_content_available).toBe(false)
+  expect(payload.data.messaging.sending_available).toBe(false)
+  expect(Object.keys(payload.data.number_porting).sort()).toEqual([
+    'documents_available',
+    'inventory_available',
+    'request_details_available',
+    'workflow_mutations_available',
+  ])
+  expect(payload.data.number_porting.inventory_available).toBe(true)
+  expect(payload.data.number_porting.request_details_available).toBe(false)
+  expect(payload.data.number_porting.documents_available).toBe(false)
+  expect(payload.data.number_porting.workflow_mutations_available).toBe(false)
+  expect(Object.keys(payload.data.number_management).sort()).toEqual([
+    'carrier_configuration_available',
+    'purchase_available',
+    'release_available',
+    'reservation_available',
+    'search_available',
+  ])
+  expect(payload.data.number_management.carrier_configuration_available).toBe(true)
+  expect(payload.data.number_management.search_available).toBe(false)
+  expect(payload.data.number_management.purchase_available).toBe(false)
+  expect(payload.data.number_management.reservation_available).toBe(false)
+  expect(payload.data.number_management.release_available).toBe(false)
   expect(JSON.stringify(payload)).not.toMatch(
-    /Call-ID|Presence-ID|Switch-URI|contact|subscription_id|switch_account_id/i,
+    /Call-ID|Presence-ID|Switch-URI|contact|subscription_id|switch_account_id|hook_id|req_body|resp_body|uri|message_id|\"body\"|\"from\"|\"to\"|attachment|port_request_id|billing_account|signee|signing_date|transfer_date|port_authority|comments|uploads|\"pin\"|usable_carriers|usable_creation_states|carrier_modules|available_numbers|accept_charges|quotes/i,
   )
 
   await expect(page.getByRole('heading', { name: 'Presence' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Parked calls' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Webhooks' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'SMS / MMS' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Number porting' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Number acquisition' })).toBeVisible()
   await expect(
     page.getByText('Live presence status and set/reset commands remain capability-gated.'),
   ).toBeVisible()
@@ -75,6 +158,20 @@ test('shows only safe read-only presence and parked-call capabilities', async ({
   await expect(
     page.getByText(/Park and retrieve actions require an active phone call/),
   ).toBeVisible()
+  await expect(
+    page.getByText(/URLs, custom data, raw IDs, and delivery payloads remain private/),
+  ).toBeVisible()
+  await expect(
+    page.getByText(/Configuration changes and delivery history remain capability-gated/),
+  ).toBeVisible()
+  await expect(page.getByText(/Only endpoint availability is reported/)).toBeVisible()
+  await expect(page.getByText(/Sending and message content remain capability-gated/)).toBeVisible()
+  await expect(page.getByText(/Only collection availability is reported/)).toBeVisible()
+  await expect(page.getByText(/Create, submit, schedule, complete, cancel/)).toBeVisible()
+  await expect(
+    page.getByText(/Only the account-scoped carrier configuration endpoint shape/),
+  ).toBeVisible()
+  await expect(page.getByText(/Search, purchase, reservation, and release remain/)).toBeVisible()
   await expect(page.getByText(/Observed/)).toBeVisible()
   expect(mutations).toEqual([])
   expect(issues).toEqual([])

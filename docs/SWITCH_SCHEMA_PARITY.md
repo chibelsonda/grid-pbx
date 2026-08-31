@@ -99,7 +99,7 @@ completion.
 | Account | `accounts.json` | hierarchy, limits, service plans, capabilities | Foundation | Safe projection matrix complete below; typed settings mutations pending | 6 |
 | Blacklist | `blacklists.json` | account activation and number entries | Foundation | Complete below | 4 |
 | CallDetailRecord | `cdrs.json` plus MODB CDR endpoints | interactions, recordings, retention | Foundation | Safe read/filter/relationship matrix complete below; retention remains policy-gated | 5 |
-| Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Full-width main-page safe recursive workspace, node inspector, 73-module schema reference palette, root, entry-point, wildcard fallback, Menu keys, Rule Set routing, and ordered direct Temporal Rule match routes complete; drag-and-drop and deeper recursive mutation editors pending | 3 |
+| Callflow | `callflows.json` and `callflows.*.json` module schemas | users, devices, groups, queues, menus, temporal routes, numbers | Foundation | Full-width main-page safe recursive workspace, node inspector, 73-module schema reference palette, root, entry-point, wildcard fallback, Menu keys, Rule Set routing, ordered direct Temporal Rule match routes, and dedicated read-only Feature Codes inventory complete; safe Feature Code lifecycle mutations and future dynamic branch contracts remain gated | 3 |
 | Conference | `conferences.json` and conference action endpoints | users, role numbers, callflows, live participants | Foundation | Form matrix complete below; actions pending | 3 |
 | Device | `devices.json` and referenced endpoint schemas | users, registrations, line keys, provisioner, numbers | Foundation | Complete below | 1 |
 | Directory | `directories.json` | users and destination callflows | Foundation | Complete below | 2 |
@@ -109,7 +109,7 @@ completion.
 | Media | `media.json` plus upload/content endpoints | menus, music on hold, prompts | Foundation | Upload/audio/MOH matrix complete below; generated sources gated | 5 |
 | Menu | `menus.json` | media prompts and callflow DTMF branches | Foundation | CRUD form audited; root-level DTMF/timeout routing delivered | 3 |
 | PhoneNumber | `phone_numbers.json` plus number-manager feature/action endpoints | callflows, CNAM, E911, porting, carriers, SMS/MMS | Foundation | Safe read/detail matrix complete below; mutations policy-gated | 4 |
-| Queue | `queues.json`, agent endpoints, and ACDc runtime | users, devices, callflows, agent state/statistics | Foundation | Pending | 3 |
+| Queue | `queues.json`, agent endpoints, and ACDc runtime | users, devices, callflows, agent state/statistics | Foundation | Detailed matrix complete below; live controls and statistics remain capability-gated | 3 |
 | Recording | MODB recording documents and content endpoints; no single Crossbar CRUD schema | CDRs, storage policy, retention | Foundation | Safe metadata/playback matrix complete below; deletion and retention remain policy-gated | 5 |
 | Services | services, limits, service-plan, ledger, and quote endpoints | accounts, reseller hierarchy, billing provider | Foundation/read-only | Pending | 6 |
 | SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Initial safe presence/parking capability matrix delivered below | 6 |
@@ -726,6 +726,47 @@ checks, Vue and E2E TypeScript typechecks, and one isolated authenticated
 headless browser test passed. This is an initial operational-status foundation,
 not completion of live presence or parked-call actions.
 
+### 12.2 Webhook resource capability matrix
+
+| Endpoint or operation | Treatment | Current status |
+| --- | --- | --- |
+| global Webhook event catalog | Availability and aggregate event count only; event metadata and modifiers remain private | Implemented and live verified |
+| account Webhook configuration inventory | Read-only configured and enabled counts; URLs, names, raw IDs, custom data, modifiers, and descendant settings are discarded | Implemented and live verified |
+| create, edit, delete, enable, disable, and bulk re-enable | No public mutation until outbound delivery is hardened and separately authorized | Capability-gated |
+| event selection, internal-leg and descendant inclusion, custom data, and retry policy | Not exposed because these controls can expand sensitive event delivery or overwrite payload fields | Capability-gated |
+| attempts, samples, and delivery history | Not exposed; installed attempt records can include destination URI, raw hook ID, request/response headers, request/response bodies, and client errors | Capability-gated |
+| caching and persistence | Ten-second account-scoped cache shared with operational status; no durable MySQL projection | Implemented |
+
+The installed `webhooks.json` schema requires `hook`, `name`, and `uri`, permits
+HTTP GET/POST/PUT, form or JSON bodies, zero to four configured retries,
+arbitrary string `custom_data`, internal-leg inclusion, and optional descendant
+delivery. Crossbar stores the documents in the global Webhooks database and
+scopes account reads through the private Switch account identifier. The public
+GridPBX endpoint instead accepts only the GridPBX account UUID and returns the
+fixed Webhook fields `event_catalog_available`, `available_event_count`,
+`configuration_summary_available`, `configured_count`, `enabled_count`, and
+two literal-false mutation/history capabilities.
+
+Installed-runtime and live read-only inspection found nine available event
+types, zero configured hooks for the selected account, zero attempts, and seven
+sample payloads. Event payloads may contain caller data, call/account/resource
+identifiers, custom channel and application variables, SIP data, SMS/MMS
+bodies, or broad notification content. Delivery sends raw `X-Hook-ID` and
+`X-Account-ID` headers without a signature. URI validation blocks only the
+configured literal-host and direct-IP blacklist; it does not resolve hostnames
+or recheck every destination after redirects. Only a connect timeout is passed
+by this runtime path, retries use fixed sleeps, and failed-attempt persistence
+retains raw request and response material. Crossbar attempt reads strip only
+document IDs, so their remaining content is not a safe public contract.
+
+Focused SDK, Laravel API, strict Zod/store, Vue type, and E2E TypeScript checks
+passed. One isolated authenticated headless check passed and confirmed the
+aggregate Webhook card, fixed disabled controls, no operational mutation, and
+absence of raw Webhook configuration or delivery data. No Webhook was created,
+changed, enabled, disabled, deleted, or delivered during this audit. This is a
+safe capability/inventory foundation, not Webhook CRUD or delivery-health
+completion.
+
 ## 13. Conference field-level matrix
 
 | Schema path or operation | Treatment | Current status |
@@ -822,11 +863,25 @@ pass without creating a live Blacklist.
 | `flags[]` | External-application metadata prohibited from operator input and preserved during full writes | Implemented preservation boundary |
 | `attempts` | System-owned retry state reset by Switch on writes; never operator-editable | Intentionally read-only |
 | deletion and document access | Callflow dependencies block Fax Box deletion; fax documents stream through an authorized audited API | Implemented |
+| outbound Send Fax | Schema permits multipart documents or server-side HTTP GET/POST retrieval. Crossbar returns 202 before background conversion/storage finishes; URL fetch lacks a proven SSRF boundary and installed defaults retain original/TIFF/PDF copies | Switch-supported but disabled pending upload/content/malware limits, URL prohibition or hardened egress, caller-ID/destination authorization, billing, rate limits, idempotency, audit, and reconciliation |
+| inbox Forward | Copies the retained inbound document into a random new outbound job and resets results/attempts | Switch-supported but disabled pending destination confirmation, retention authority, duplicate-safe execution, audit, and reconciliation |
+| outbox Resubmit | Copies the retained outbox document into a random new outbound job and resets results/attempts | Switch-supported but disabled pending exact-message confirmation, duplicate-safe execution, abuse controls, audit, and reconciliation |
+| message DELETE | Permanently deletes the Fax document record | Switch-supported but disabled pending retention, legal hold, exact-message confirmation, authorization, immutable audit, and projection reconciliation |
+| attachment DELETE | Permanently deletes attachments independently of message metadata | Switch-supported but disabled pending binary-retention/legal-hold policy and message/document reconciliation |
+| public operation capabilities | Collection-level object exposes only `switch_supported`, fixed `enabled = false`, and safe reasons for the five operations; strict Zod rejects extra fields | Implemented explicit capability gate |
 
 The Fax Box slide-over uses a domain composable, Zod, Headless UI choices,
 shared invalid controls, and inline-only errors. No new MySQL fields were added
 for hidden JSON values. Focused component, Laravel, Switch package, and isolated
 authenticated Playwright checks pass without creating a live Fax Box.
+
+The live Fax-operation audit found empty available Fax Box, inbox, and outbox
+collections, while the active outgoing-job collection returned HTTP 503. The
+effective defaults validate caller ID and serialize by destination but also
+allow ten account jobs, one-hour job control, URL retrieval, broad
+content-type prefixes, five storage retries, and original/TIFF/PDF retention.
+No write or attachment request was issued. Installed support is therefore not
+an enabled GridPBX operation.
 
 ## 17. Phone Number field-level matrix
 
@@ -835,13 +890,14 @@ authenticated Playwright checks pass without creating a live Fax Box.
 | number identity, `state`, `used_by`, carrier, active `features[]` | Normalized searchable MySQL projection using a server-owned numeric primary key and public UUID; Switch number remains a display value | Implemented |
 | `_read_only.features.available` | Preferred current runtime feature capability source; never writable | Implemented |
 | `_read_only.features_available` / root `features_available` | Version-aware compatibility fallback for older Switch responses | Implemented and package-tested |
-| `cnam.display_name`, `cnam.inbound_lookup` | Typed allowlisted detail projection | Implemented read-only |
-| `e911.status`, caller name, address, and notification emails | Typed allowlisted virtual values from redacted `switch_json`; provider location IDs and coordinates are not exposed | Implemented read-only |
-| `porting.requested_port_date`, `porting.service_provider` | Minimal operational summary; billing identifiers, comments, and customer/billing details remain hidden | Implemented read-only |
+| `cnam.display_name`, `cnam.inbound_lookup` | Typed allowlisted detail projection. Installed schema is a 1–15 character name plus boolean inbound lookup; raw provider state and unknown nested fields remain private | Implemented read-only |
+| `e911.status`, caller name, address, and notification emails | Typed allowlisted virtual values from redacted `switch_json`; provider activation time, location IDs, coordinates, legacy/provider state, and unknown nested fields are not exposed | Implemented read-only |
+| `porting.requested_port_date`, `porting.service_provider` | Minimal Phone Number operational summary; billing identifiers, comments, customer/billing details, and Port Request IDs remain hidden. System Status separately reports only filtered Port Request collection availability | Implemented read-only capability foundation |
 | callflow assignment | Resolved through the Callflow domain with public UUIDs; not duplicated as a Phone Number CRUD control | Implemented |
-| CNAM and E911 mutation | Requires both runtime feature availability and an approved server-side billing/compliance confirmation policy | Intentionally policy-gated |
+| CNAM mutation | Must use recursive `PATCH`, never public-document-resetting `POST`; requires a target provider completion contract, quote/charge confirmation, authorization, immutable audit, duplicate-safe recovery, and authoritative reconciliation. The live account inherits notification-only `knm_cnam_notifier` and has no numbers for disposable verification | Intentionally capability-gated after installed-runtime and live read-only audit |
+| E911 mutation | Must use recursive `PATCH` and preserve provider-owned fields; requires configured provider readiness, verified transport, emergency-caller-ID dependency enforcement, address/privacy and notification policy, server-owned geocode choices, quote/charge confirmation, exact-number removal confirmation, immutable audit, duplicate-safe compensation, and authoritative reconciliation. The live deployment inherits uncredentialed Dash E911, leaves emergency-CID validation disabled, and has no number for disposable verification | Intentionally capability-gated after installed-runtime and live read-only audit |
 | purchase, reserve, activate, port, release | Separate carrier commands, never generic CRUD; require provider capabilities, quote/billing behavior, authorization, confirmation, and audit | Intentionally capability-gated |
-| SMS/MMS and carrier-specific features | Must be discovered from the connected provider rather than inferred from the base schema | Intentionally capability-gated |
+| SMS/MMS and carrier-specific features | Must be discovered from the connected provider rather than inferred from the base schema. System Status now reports only independent account endpoint availability; the live deployment reports both unavailable | Read-only capability foundation; mutations gated |
 
 The Phone Number detail slide-over now shows the safe schema-backed state and
 an explicit operational capability matrix. “Available” from Switch does not
@@ -849,6 +905,23 @@ mean “writable” in GridPBX: schema presence and carrier support are distinct
 from authorization, billing, and compliance policy. Focused Switch package,
 Laravel, Vue, TypeScript, and isolated authenticated Playwright checks pass
 without executing any carrier mutation.
+
+For CNAM specifically, `_read_only.features.available` means Kazoo selected the
+feature as allowable for that number; it is not a provider acknowledgement.
+The installed default provider publishes an asynchronous notification for an
+outbound-name change outside dry-run mode and returns no carrier completion
+state. A future command must retain the projected raw document server-side,
+merge only the two typed CNAM fields through Crossbar `PATCH`, and resynchronize
+before reporting an authoritative outcome.
+
+For E911, the installed provider contract is not uniform. Dash can return
+multiple geocoded choices and can deactivate local feature state despite an
+upstream removal error; Telnyx replaces addresses through a remove/create/
+assign sequence with asynchronous cleanup; and Vitelity has separate provider
+calls. The current Dash HTTP path also disables certificate verification. The
+live account has no E911 provider override or phone numbers, the global Dash
+credentials are absent, and Stepswitch's `ensure_valid_emergency_cid` safeguard
+is unset. Schema availability is therefore not provider or routing readiness.
 
 ## 18. Media field-level matrix
 
@@ -1126,7 +1199,145 @@ zero Callflow writes. No disposable Switch node or live monitoring call was
 created because GridPBX does not yet provide supervisor entitlement, immutable
 monitor auditing, privacy/consent policy, or bounded monitoring controls.
 
-## 25. Next matrices
+## 25. SMS/MMS capability matrix
+
+The installed `sms.json` schema requires `body` and `to`, limits the SMS body
+to 700 characters, and optionally accepts `from`. The installed `mms.json`
+schema requires `to` and optionally accepts a MIME-encoded body or multipart
+uploads plus `from`. These schemas describe request shape only; they do not
+prove carrier enablement, number eligibility, consent, billing, or a running
+delivery application.
+
+| Capability or field | Installed/runtime evidence | GridPBX treatment |
+| --- | --- | --- |
+| SMS inventory | `cb_sms` is loaded, but the authenticated account collection probe returns HTTP 503 | System Status exposes `sms_inventory_available = false` only |
+| MMS inventory | `cb_mms` is installed but not loaded; the authenticated account collection probe returns HTTP 404 | System Status exposes `mms_inventory_available = false` only |
+| inbound routing | Doodle is not running and its listener handles SMS only | No receive workflow or delivery claim |
+| number capability | Runtime requires an in-service assigned number, carrier feature enablement, and account service enablement; the audited account has no projected phone numbers | No inferred or writable SMS/MMS capability |
+| outbound sending | Runtime additionally checks account/reseller standing and service entitlement, normalizes offnet destinations, and creates billable flat-rate ledger entries after broker confirmation | Hard-disabled pending carrier, consent, billing, authorization, rate-limit, idempotency, and audit policy |
+| message content and participants | Raw list/detail views include document IDs, `from`, `to`, status, direction, timestamps, and full body | Never included in the public capability response or MySQL projection |
+| MMS attachments | Crossbar applies only its global request limit, then builds MIME parts from supplied content types and filenames; no MMS-specific type, filename, or content policy was found | Hidden pending strict type/size/count, filename, storage, malware, and disposition controls |
+| retention and backpressure | Doodle's durable queue uses unlimited TTL/length and infinite route timeout; Crossbar supports direct message-document deletion | Hidden pending explicit retention, deletion/legal-hold, retry, and backpressure policy |
+| installed MMS entitlement check | The installed reseller MMS validator calls the SMS entitlement helper | MMS remains unavailable until corrected and live-verified upstream |
+
+The Switch SDK probes each account collection independently with pagination
+enabled and `page_size=1`, validates only that the response is a list, and
+immediately reduces it to a boolean. Laravel hard-codes message content and
+sending to unavailable. Strict Zod and browser assertions reject or detect
+message bodies, participant numbers, raw IDs, and attachments. The slice is a
+capability foundation, not an SMS/MMS messaging feature, and performs no
+Switch mutation.
+
+Focused verification passed with 2 SDK tests and 14 assertions, 3 Laravel
+tests and 35 assertions, and 2 UI files with 5 tests. Vue and isolated E2E
+TypeScript checks passed. One isolated authenticated headless Playwright check
+passed in 3.5 seconds and confirmed the strict public shape, both live
+inventory endpoints unavailable, hard-disabled content/sending, zero mutation
+requests, and no raw message data.
+
+## 26. Number Porting capability matrix
+
+The installed `port_requests.json` schema requires a 1–128 character name and
+at least one numeric-keyed number. It also permits losing-carrier account and
+billing-address data, BTN, PIN, comments, notification recipients, winning
+carrier references, signee identity, signing and transfer dates, and arbitrary
+per-number objects. These fields are materially more sensitive than the
+minimal `phone_numbers.json` porting summary already exposed by GridPBX.
+
+| Capability or field | Installed/runtime evidence | GridPBX treatment |
+| --- | --- | --- |
+| account inventory | `cb_port_requests` is loaded. The live account endpoint responds successfully with zero records, but its active-state listing explicitly disables pagination | System Status uses `by_number=gridpbx-capability-probe` and exposes only `inventory_available = true` |
+| request data | Public Switch documents can include request ID, numbers, losing-carrier billing account/PIN/address, winning-carrier references, signee/dates, notification recipients, uploads, comments, state, and read-only account/port-authority identifiers | No detail/list contract or MySQL projection; strict public schemas reject raw request data |
+| creation and edit | Schema validation checks number conflicts and existing local ownership. Ordinary accounts may update only `unconfirmed` or `rejected`; super administrators have broader update power | Hard-disabled pending dedicated validation, public identity model, authority policy, audit, and safe recovery |
+| state transitions | Runtime supports `unconfirmed → submitted`, `submitted → pending`, `submitted|pending → scheduled`, `submitted|pending|scheduled → rejected`, and active/rejected → canceled. Completion is allowed from pending, scheduled, or rejected | Hard-disabled; never modeled as generic CRUD |
+| submission automation | Submission may forward the request and current auth token to the configured Phonebook URL. The live Phonebook configuration is unset/disabled | Hard-disabled pending fixed allowlisted HTTPS egress, scoped service authentication, timeouts, redaction, idempotency, and reconciliation |
+| completion | Completing a request creates the numbers locally, assigns them in service, marks them ported-in, clears the request numbers, and reconciles callflow/trunk usage | Hard-disabled pending carrier confirmation, billing, atomic orchestration, compensation, projection sync, and immutable audit |
+| submitted-request export | A configured account URL can receive the submitted request plus every attachment; the live audited account has no such URL | Hard-disabled pending the same SSRF, authentication, redaction, and delivery controls as other sensitive egress |
+| documents | Crossbar accepts PDF, text, and generic octet-stream uploads under the global 8 MB limit. Monster restricts its own workflow to PDF and 5 MB, which is not the runtime contract | No document access/upload until strict PDF verification, 5 MB product limit, generated filenames, malware scanning, encrypted storage decision, retention/legal hold, and audited streaming exist |
+| LOA generation | Runtime generates a PDF and calls Google Charts with raw account and Port Request identifiers to create a QR image | Hidden until external disclosure is removed or explicitly approved and audited |
+| comments/timeline | Comments can be private or action-required depending on port-authority status; timelines include transition authorization account/user IDs and reasons | Hidden pending public UUID translation, field-level privacy rules, retention, and role/authority authorization |
+
+The Switch SDK does not list Port Requests. It sends one read-only exact-number
+filter using a non-number sentinel, validates only the list envelope, and
+immediately reduces the result to a boolean. Laravel fixes request detail,
+documents, and workflow mutations to false. No Port Request record, attachment,
+comment, transition, number, or raw authority identifier is persisted or
+returned.
+
+Focused verification passed with 2 SDK tests and 17 assertions, 3 Laravel
+tests and 42 assertions, and 2 UI files with 6 tests. Vue and isolated E2E
+TypeScript checks passed. One isolated authenticated headless Playwright check
+passed in 3.5 seconds and confirmed the live filtered endpoint is available,
+all higher-risk capabilities remain false, zero mutation requests occur, and
+no raw or sensitive Port Request field enters the public response or UI.
+
+## 27. Number acquisition, reservation, and release capability matrix
+
+The installed `find_numbers.json` schema requires a three-to-ten-character
+prefix, accepts a two-character country defaulting to `US`, and accepts a
+positive quantity defaulting to one. Runtime caps quantity at 500 and derives a
+query identifier from the private account identifier plus the current auth
+token. Search fans out to every effective carrier module and can therefore
+perform external provider requests even though its HTTP verb is GET.
+
+| Capability or field | Installed/runtime evidence | GridPBX treatment |
+| --- | --- | --- |
+| carrier information | `GET .../phone_numbers/carriers_info` returns maximum prefix length, the static usable-carrier catalog, and creation states allowed to the authorizing account. The catalog does not prove that those providers are configured or reachable | SDK validates the complete expected shape and exposes only `carrier_configuration_available`; names, modules, states, and provider configuration are discarded |
+| live carrier configuration | Global and audited-account `carrier_modules` are unset, so installed defaults select `knm_local`. Live carrier-info returns a valid maximum prefix of 10, 24 catalog entries, and five allowed creation states | Recorded as deployment evidence only; the public boolean is true and makes no purchase/search claim |
+| number search | `GET .../phone_numbers?prefix=...` invokes all effective carrier modules, hashes account plus token into the query ID, caches discovery results, and returns number/state pairs. Installed `knm_local` searches only internal available inventory and is non-billable, but other deployments can call external carriers | Hard-disabled in the public API/UI and never used as a periodic capability probe |
+| purchase/activate | `PUT .../phone_numbers/{number}/activate` and collection activation first run with `dry_run=true`. Non-empty quotes produce HTTP 402; retry with `accept_charges=true` performs the state/carrier operation and may return per-number partial success | Hard-disabled pending server-owned quotes, explicit confirmation, authorization, stable idempotency, uncertain-outcome recovery, compensation, audit, and projection reconciliation |
+| reservation | `PUT .../phone_numbers/{number}/reserve` can change account ownership/history and, from discovery, call the carrier's acquisition function | Hard-disabled pending the same provider, billing, hierarchy-authorization, idempotency, compensation, and reconciliation controls |
+| release | DELETE uses release unless a super administrator supplies `hard=true`. Release strips public fields/features, unwinds reserve history to a previous account when present, and otherwise can disconnect the carrier and delete or age the number. With the live defaults, released state is `available`, aging and permanent deletion are globally disabled, but local numbers with no reserve history are still permanently deleted | Hard-disabled pending exact-number confirmation, current dependency checks, E911/CNAM cleanup policy, callflow/trunk compensation, immutable audit, and authoritative resynchronization |
+| public identity | Existing acquired numbers already have account-scoped GridPBX UUIDs; search candidates do not | Future release/reservation commands must accept only an existing public Phone Number UUID. Future search/purchase must use a short-lived server-owned selection contract and issue a public UUID only after successful synchronization |
+| raw/unknown fields | Carrier responses can include provider-specific discovery data and quote/transaction material | Never returned by this foundation; no carrier response or number mutation payload is persisted in MySQL |
+
+Monster's reference workflow first reads carrier info, searches by regular,
+toll-free, vanity, or locality criteria, lets the operator select numbers, and
+activates the collection. Its shared API handler displays a 402 quote and then
+retries with `accept_charges=true` after confirmation. Its availability recheck
+is explicitly mocked rather than authoritative. The delete workflow groups
+numbers, performs a UI-only E911 guard and confirmation, and then calls the
+collection DELETE endpoint. Those interaction steps do not add server-side
+idempotency, dependency, or compensation guarantees.
+
+GridPBX performs one account-scoped carrier-info GET, validates the response,
+and immediately reduces it to a boolean. Laravel fixes search, purchase,
+reservation, and release to false. Strict Zod and browser assertions reject
+carrier catalogs/modules, creation states, available numbers, quotes, charges,
+and `accept_charges`. No search or mutation was executed during the live audit.
+
+Focused verification passed with 2 SDK tests and 20 assertions, 3 Laravel tests
+and 51 assertions, and 2 UI files with 7 tests. Vue and isolated E2E TypeScript
+checks passed. One isolated authenticated headless Playwright test passed in
+3.5 seconds and confirmed the live boolean, all four operational flags fixed to
+false, zero mutation requests, and no raw carrier information in the public
+response or UI.
+
+## 28. Feature-code Callflow inventory matrix
+
+Feature codes are ordinary Callflow documents with optional top-level
+`featurecode` metadata. The installed schema has no standalone Feature Code
+resource or enabled property; existence of the Callflow makes the route
+active.
+
+| Field or workflow | Installed/runtime evidence | GridPBX treatment |
+| --- | --- | --- |
+| identity | `featurecode.name` and `featurecode.number` are bounded strings on the Callflow document | Projected as display metadata beside an account-scoped public Callflow UUID; no raw Callflow ID is returned |
+| dial entry | Actual matching remains in `numbers[]` or `patterns[]`; Monster stores a display-oriented number separately | The UI derives a readable star prefix from the projected entry shape without parsing or accepting a writable regular expression |
+| enabled state | Installed Monster treats every listed Callflow with `featurecode.name` as enabled | Existing non-deleted records display as Projected active beside projection freshness; absent/deleted routes are not synthesized as editable defaults |
+| action and dependencies | Runtime behavior is owned by the root `flow.module` and its private data/call context | The inventory shows only the safe root module/action label and a non-identifying runtime dependency summary; raw node data remains private |
+| lifecycle operations | Monster creates, fully updates, or deletes the whole Callflow; no atomic enable/disable/renumber endpoint exists | Capability-gated pending a versioned supported-code registry, collision-safe validation, lossless Switch-first write/compensation, dependency checks, authorization/audit, and disposable live verification for each enabled action |
+| unknown/private data | Callflows can contain raw resource references and arbitrary future fields | Preserved in the server-side redacted snapshot and existing lossless Callflow machinery; strict Zod reduction prevents unrelated response fields from entering Feature Codes state |
+| live evidence | Direct Switch detail hydration and MySQL independently returned the same 17 active feature-code routes on 2026-08-31 | One isolated authenticated headless test confirmed the dedicated page, keyboard search, responsive containment, public UUIDs, raw-ID absence, and zero mutations |
+
+The current UI intentionally does not render disabled defaults from Monster's
+registry. That registry includes contracts which differ from the installed
+schemas, while the active account has no Do Not Disturb feature-code Callflow.
+Showing those defaults as safely enableable would make an unsupported mutation
+claim. The normalized Callflow synchronization remains the single import,
+reconciliation, freshness, and soft-deletion path for this read-only view.
+
+## 29. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 

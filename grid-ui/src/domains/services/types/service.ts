@@ -54,6 +54,31 @@ export type BillingProjection = {
   }>
   last_synced_at: string | null
 }
+export type ReconciliationCheckStatus = 'passed' | 'warning' | 'failed'
+export type ServiceReconciliation = {
+  status: 'healthy' | 'attention' | 'error'
+  checks: Array<{
+    code: string
+    label: string
+    status: ReconciliationCheckStatus
+    message: string
+    guidance: string
+    expected_count: number | null
+    actual_count: number | null
+  }>
+  sync_history: Array<{
+    id: string
+    status: 'queued' | 'running' | 'succeeded' | 'failed'
+    processed_count: number
+    failure_category:
+      'authentication' | 'switch_request' | 'response_validation' | 'synchronization' | null
+    message: string | null
+    guidance: string | null
+    started_at: string | null
+    finished_at: string | null
+    created_at: string | null
+  }>
+}
 export type ServiceOverview = {
   id: string
   standing: { acceptable: boolean; reason: string | null }
@@ -65,6 +90,7 @@ export type ServiceOverview = {
   billing_cycle: { next_at: string | null; period: number; unit: string | null }
   billing_impact: { invoice_count: number; due_today: number; recurring_amount: number }
   billing: BillingProjection | null
+  reconciliation: ServiceReconciliation
   plans: ServicePlan[]
   quantities: ServiceQuantity[]
   limits: ServiceLimits | null

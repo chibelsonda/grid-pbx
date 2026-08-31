@@ -57,6 +57,18 @@ export type Fax = {
   sync_status: 'healthy' | 'syncing' | 'stale' | 'error'
   last_synced_at: string | null
 }
+export type FaxOperationCapability = {
+  switch_supported: true
+  enabled: false
+  reason: string
+}
+export type FaxOperationCapabilities = {
+  send: FaxOperationCapability
+  forward: FaxOperationCapability
+  resubmit: FaxOperationCapability
+  delete_message: FaxOperationCapability
+  delete_document: FaxOperationCapability
+}
 export type FaxOption = { id: string; label: string; detail: string | null }
 export type FaxBoxOptions = {
   owners: FaxOption[]

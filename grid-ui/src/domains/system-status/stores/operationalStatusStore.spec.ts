@@ -26,6 +26,34 @@ describe('operationalStatusStore', () => {
         active_call_count: 0,
         actions_available: false as const,
       },
+      webhooks: {
+        event_catalog_available: true,
+        available_event_count: 9,
+        configuration_summary_available: true,
+        configured_count: 0,
+        enabled_count: 0,
+        configuration_mutations_available: false as const,
+        delivery_history_available: false as const,
+      },
+      messaging: {
+        sms_inventory_available: false,
+        mms_inventory_available: false,
+        message_content_available: false as const,
+        sending_available: false as const,
+      },
+      number_porting: {
+        inventory_available: true,
+        request_details_available: false as const,
+        documents_available: false as const,
+        workflow_mutations_available: false as const,
+      },
+      number_management: {
+        carrier_configuration_available: true,
+        search_available: false as const,
+        purchase_available: false as const,
+        reservation_available: false as const,
+        release_available: false as const,
+      },
     }
     vi.mocked(operationalStatusApi.get).mockResolvedValue(status)
     const store = useOperationalStatusStore()

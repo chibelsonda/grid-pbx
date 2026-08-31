@@ -19,6 +19,7 @@ const overview: ServiceOverview = {
   billing_cycle: { next_at: null, period: 1, unit: 'month' },
   billing_impact: { invoice_count: 0, due_today: 0, recurring_amount: 0 },
   billing: null,
+  reconciliation: { status: 'attention', checks: [], sync_history: [] },
   plans: [],
   quantities: [],
   limits: null,

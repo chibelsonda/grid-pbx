@@ -37,6 +37,12 @@ use App\Domains\Organizations\Controllers\AccountHierarchyController;
 use App\Domains\Organizations\Controllers\AccountSettingsOptionsController;
 use App\Domains\Organizations\Controllers\AccountStatusController;
 use App\Domains\Organizations\Controllers\DescendantOnboardingController;
+use App\Domains\Payments\Controllers\PaymentAttemptController;
+use App\Domains\Payments\Controllers\PaymentCapabilityController;
+use App\Domains\Payments\Controllers\SandboxChargeController;
+use App\Domains\Payments\Controllers\SandboxPaymentProfileController;
+use App\Domains\Payments\Controllers\SandboxRefundController;
+use App\Domains\Payments\Controllers\SandboxVoidController;
 use App\Domains\PhoneNumbers\Controllers\PhoneNumberController;
 use App\Domains\PhoneNumbers\Controllers\PhoneNumberSyncController;
 use App\Domains\Queues\Controllers\AgentController;
@@ -212,6 +218,22 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/sync/faxes', [FaxSyncController::class, 'store']);
             Route::get('/sync/faxes/{run}', [FaxSyncController::class, 'show']);
             Route::get('/services', [ServiceOverviewController::class, 'show']);
+            Route::get('/payments/capabilities', PaymentCapabilityController::class);
+            Route::get('/payments/attempts', [PaymentAttemptController::class, 'index']);
+            Route::post('/payments/sandbox-charges', SandboxChargeController::class)
+                ->middleware('throttle:payment-sandbox');
+            Route::post(
+                '/payments/attempts/{paymentAttempt}/sandbox-void',
+                SandboxVoidController::class,
+            )->middleware('throttle:payment-sandbox');
+            Route::post(
+                '/payments/attempts/{paymentAttempt}/sandbox-refunds',
+                SandboxRefundController::class,
+            )->middleware('throttle:payment-sandbox');
+            Route::post(
+                '/payments/attempts/{paymentAttempt}/sandbox-customer-profile',
+                SandboxPaymentProfileController::class,
+            )->middleware('throttle:payment-sandbox');
             Route::post('/sync/services', [ServiceSyncController::class, 'store']);
             Route::get('/sync/services/{run}', [ServiceSyncController::class, 'show']);
             Route::get('/media', [MediaController::class, 'index']);

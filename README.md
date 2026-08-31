@@ -43,6 +43,33 @@ environment or relying on durable sessions.
 | Local provisioning catalog | http://localhost:8082/api/phones |
 | MySQL | `127.0.0.1:3309` (`gridpbx` database) |
 
+### Optional local HTTPS UI
+
+Start the isolated HTTPS profile when a browser integration requires a secure
+origin. It runs a separate Vite process and does not change the normal HTTP UI:
+
+```bash
+docker compose --profile payment-https up -d grid-ui-https
+```
+
+Open `https://localhost:5443`. Caddy uses a persistent local development CA, so
+the browser may require explicit trust or a one-time certificate warning. API,
+Sanctum, login, and logout requests are proxied through the same HTTPS origin.
+
+For isolated Playwright checks against the local certificate:
+
+```bash
+GRID_E2E_UI_URL=https://localhost:5443 \
+GRID_E2E_IGNORE_HTTPS_ERRORS=true \
+npm --prefix grid-ui run test:e2e:isolated
+```
+
+Stop only the optional HTTPS services with:
+
+```bash
+docker compose --profile payment-https stop grid-ui-https grid-ui-https-app
+```
+
 The initial local Laravel account is:
 
 - Email: `admin@gridpbx.local`

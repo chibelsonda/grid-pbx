@@ -18,6 +18,7 @@ use App\Domains\Faxes\Models\SwitchFaxBox;
 use App\Domains\Groups\Models\SwitchGroup;
 use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Menus\Models\SwitchMenu;
+use App\Domains\Payments\Models\PaymentAttempt;
 use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\Recordings\Models\SwitchRecording;
@@ -151,6 +152,12 @@ class SwitchAccount extends Model
     public function billingTransactions(): HasMany
     {
         return $this->hasMany(SwitchBillingTransaction::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<PaymentAttempt, $this> */
+    public function paymentAttempts(): HasMany
+    {
+        return $this->hasMany(PaymentAttempt::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchDevice, $this> */

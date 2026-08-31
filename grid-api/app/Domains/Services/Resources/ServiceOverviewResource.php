@@ -9,6 +9,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin SwitchServiceSummary */
 class ServiceOverviewResource extends JsonResource
 {
+    /** @param array<string, mixed> $reconciliation */
+    public function __construct(SwitchServiceSummary $resource, private readonly array $reconciliation)
+    {
+        parent::__construct($resource);
+    }
+
     public function toArray(Request $request): array
     {
         $account = $this->switchAccount;
@@ -57,6 +63,7 @@ class ServiceOverviewResource extends JsonResource
                 ])->values(),
                 'last_synced_at' => $account->billingSummary->last_synced_at?->toIso8601String(),
             ],
+            'reconciliation' => $this->reconciliation,
             'plans' => $this->whenLoaded('plans', fn () => $this->plans->map(fn ($plan) => ['id' => $plan->id, 'name' => $plan->name, 'description' => $plan->description, 'category' => $plan->category])->values()),
             'quantities' => $this->whenLoaded('quantities', fn () => $this->quantities->map(fn ($quantity) => ['id' => $quantity->id, 'scope' => $quantity->scope, 'category' => $quantity->category, 'item' => $quantity->item, 'quantity' => (float) $quantity->quantity])->values()),
             'limits' => $account?->serviceLimit === null ? null : ['id' => $account->serviceLimit->id, 'enabled' => $account->serviceLimit->enabled, 'allow_prepay' => $account->serviceLimit->allow_prepay, 'allow_postpay' => $account->serviceLimit->allow_postpay, 'inbound_trunks' => $account->serviceLimit->inbound_trunks, 'outbound_trunks' => $account->serviceLimit->outbound_trunks, 'twoway_trunks' => $account->serviceLimit->twoway_trunks, 'burst_trunks' => $account->serviceLimit->burst_trunks, 'calls' => $account->serviceLimit->calls, 'resource_consuming_calls' => $account->serviceLimit->resource_consuming_calls, 'soft_limit_inbound' => $account->serviceLimit->soft_limit_inbound, 'soft_limit_outbound' => $account->serviceLimit->soft_limit_outbound],

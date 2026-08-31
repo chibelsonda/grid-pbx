@@ -134,6 +134,25 @@ class FaxControllerTest extends TestCase
         $this->assertSame('%PDF', $response->streamedContent());
     }
 
+    public function test_fax_history_exposes_safe_disabled_operation_capabilities(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/faxes");
+
+        $response->assertOk()
+            ->assertJsonCount(0, 'data')
+            ->assertJsonPath('capabilities.send.switch_supported', true)
+            ->assertJsonPath('capabilities.send.enabled', false)
+            ->assertJsonPath('capabilities.forward.enabled', false)
+            ->assertJsonPath('capabilities.resubmit.enabled', false)
+            ->assertJsonPath('capabilities.delete_message.enabled', false)
+            ->assertJsonPath('capabilities.delete_document.enabled', false)
+            ->assertJsonMissingPath('capabilities.send.url')
+            ->assertJsonMissingPath('capabilities.send.switch_resource_id');
+    }
+
     private function boxPayload(): array
     {
         return ['name' => 'Main fax', 'owner_id' => null, 'caller_id' => '+12025550100', 'caller_name' => 'Main fax', 'fax_header' => 'GridPBX', 'fax_identity' => '+12025550100', 'fax_timezone' => 'UTC', 'retries' => 2, 't38_enabled' => true, 'custom_smtp_email_address' => null, 'smtp_permission_list' => ['.*@example\\.test'], 'inbound_notification_emails' => ['ops@example.test'], 'outbound_notification_emails' => ['ops@example.test']];

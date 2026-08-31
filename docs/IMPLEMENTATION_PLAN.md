@@ -859,7 +859,13 @@ Acceptance criteria:
   account summary, assigned-plan, quantity, limit, ledger-source, and recent
   transaction projections; complete redacted `switch_json` for source
   objects; administrator-only authorization; queued synchronization; and a
-  Vue inventory plus right-side detail panel. Endpoint availability is stored
+  Vue inventory plus right-side detail panel. The detail contract also exposes
+  an account-scoped read-only reconciliation report: projection health,
+  version-specific endpoint availability, stored-versus-active ledger and
+  transaction row counts, billing-owner mapping, and the ten latest public
+  service-sync runs. Failures are mapped to safe categories and recovery
+  guidance; exception classes, raw backend messages, credentials, and private
+  Switch identifiers never reach the UI. Endpoint availability is stored
   explicitly so older Switch deployments do not display missing data as zero.
   Immutable projected transaction history is retained when an endpoint is
   unavailable. Billing identifiers, payment tokens, provider metadata, and
@@ -887,7 +893,12 @@ Acceptance criteria:
   remain next.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after
-  carrier and compliance approval.
+  carrier and compliance approval. Read-only System Status probes now report
+  only Port Request collection availability through an exact non-number filter
+  and the validated shape availability of the account-scoped carrier-info
+  endpoint. Number search, provider inventory, quotes, charges, purchase,
+  reservation, release, request details/documents, state transitions, carrier
+  automation, and number completion remain capability-gated.
 
 ### Phase 4: Business modules
 
@@ -911,6 +922,40 @@ must use server-side idempotency and webhook reconciliation, and must begin
 with provider sandbox credentials stored only in local environment or secret
 management. Authorize.Net charge, tokenize, refund, credit/debit, and payment
 method mutations remain disabled until that separate design is approved.
+
+The payment-provider foundation is separate from the Switch billing projection.
+It provides an administrator-only capability contract and a server-side,
+read-only Authorize.Net sandbox diagnostic using merchant details. The
+diagnostic refuses production endpoints and returns only safe booleans and
+status categories; API login IDs, transaction keys, signature keys, public
+client-key values, merchant details, and raw provider errors are never returned.
+The configured sandbox credentials have been verified as reachable and
+authenticated, including a boolean public-client-key match, without creating a
+transaction.
+
+Sandbox operation paths now have testable, default-off groundwork: named BIGINT
+internal keys, public UUIDs, account-scoped HMAC idempotency keys, request
+fingerprints, encrypted provider references, append-only safe event rows,
+administrator authorization, explicit typed confirmation, per-account/user/IP
+rate limiting, and independent charge, void, refund, and profile flags. Hosted
+Authorize.Net tokenization is the only card-entry design; a charge also fails
+closed unless its public tokenization key is configured. Raw PAN/CVV, opaque
+tokens, raw gateway requests/responses, and webhook payloads are not persisted.
+
+This groundwork is not an enabled payment feature. `PAYMENTS_ENABLED`, the
+global mutation flag, and every operation flag default to `false`; production
+endpoints are rejected, indeterminate attempts reserve their source operation
+until reconciliation, and the live mutation Playwright case requires a separate
+explicit opt-in. The default-off browser acceptance sends no payment mutation
+and loads no provider script. One separately authorized `$1.00` hosted-tokenized
+sandbox charge has completed successfully and remains as the only stored payment
+attempt; its provider reference is encrypted and absent from public responses.
+Tenant-scoped attempt history and independently gated, typed-confirmation UI
+controls are implemented for void, bounded partial refund, and customer-profile
+creation. Those three operations remain provider-mocked only and must not be
+enabled or exercised live until separately authorized. The dedicated threat
+model, reconciliation/operations workflow, signed webhook design, and disposable
+sandbox cleanup procedure are still required before broader acceptance.
 
 ### Phase 5: Migration and hardening
 

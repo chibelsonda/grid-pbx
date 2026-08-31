@@ -25,6 +25,15 @@ class OperationalStatusControllerTest extends TestCase
                 'presence_subscription_diagnostics_available' => true,
                 'parked_call_summary_available' => true,
                 'active_parked_call_count' => 2,
+                'webhook_event_catalog_available' => true,
+                'webhook_available_event_count' => 9,
+                'webhook_configuration_summary_available' => true,
+                'webhook_configured_count' => 3,
+                'webhook_enabled_count' => 2,
+                'sms_inventory_available' => false,
+                'mms_inventory_available' => false,
+                'port_request_inventory_available' => true,
+                'number_carrier_configuration_available' => true,
             ]);
 
         $response = $this->actingAs($user)
@@ -37,11 +46,44 @@ class OperationalStatusControllerTest extends TestCase
             ->assertJsonPath('data.parking.summary_available', true)
             ->assertJsonPath('data.parking.active_call_count', 2)
             ->assertJsonPath('data.parking.actions_available', false)
+            ->assertJsonPath('data.webhooks.event_catalog_available', true)
+            ->assertJsonPath('data.webhooks.available_event_count', 9)
+            ->assertJsonPath('data.webhooks.configuration_summary_available', true)
+            ->assertJsonPath('data.webhooks.configured_count', 3)
+            ->assertJsonPath('data.webhooks.enabled_count', 2)
+            ->assertJsonPath('data.webhooks.configuration_mutations_available', false)
+            ->assertJsonPath('data.webhooks.delivery_history_available', false)
+            ->assertJsonPath('data.messaging.sms_inventory_available', false)
+            ->assertJsonPath('data.messaging.mms_inventory_available', false)
+            ->assertJsonPath('data.messaging.message_content_available', false)
+            ->assertJsonPath('data.messaging.sending_available', false)
+            ->assertJsonPath('data.number_porting.inventory_available', true)
+            ->assertJsonPath('data.number_porting.request_details_available', false)
+            ->assertJsonPath('data.number_porting.documents_available', false)
+            ->assertJsonPath('data.number_porting.workflow_mutations_available', false)
+            ->assertJsonPath('data.number_management.carrier_configuration_available', true)
+            ->assertJsonPath('data.number_management.search_available', false)
+            ->assertJsonPath('data.number_management.purchase_available', false)
+            ->assertJsonPath('data.number_management.reservation_available', false)
+            ->assertJsonPath('data.number_management.release_available', false)
             ->assertJsonStructure(['data' => ['observed_at']])
             ->assertJsonMissingPath('data.switch_account_id')
             ->assertDontSee($account->switch_account_id)
             ->assertDontSee('Call-ID')
-            ->assertDontSee('Presence-ID');
+            ->assertDontSee('Presence-ID')
+            ->assertDontSee('hook_id')
+            ->assertDontSee('uri')
+            ->assertDontSee('req_body')
+            ->assertDontSee('message_id')
+            ->assertDontSee('private SMS body')
+            ->assertDontSee('+15550000001')
+            ->assertDontSee('private-billing-account')
+            ->assertDontSee('private-port-pin')
+            ->assertDontSee('raw-port-request-id')
+            ->assertDontSee('usable_carriers')
+            ->assertDontSee('carrier_modules')
+            ->assertDontSee('accept_charges')
+            ->assertDontSee('quotes');
     }
 
     public function test_returns_401_for_an_unauthenticated_request(): void

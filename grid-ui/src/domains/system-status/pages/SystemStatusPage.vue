@@ -2,10 +2,14 @@
 import { computed, watch } from 'vue'
 import {
   ArrowPathIcon,
+  ArrowsRightLeftIcon,
+  ChatBubbleLeftRightIcon,
   CheckCircleIcon,
   ClockIcon,
+  LinkIcon,
   NoSymbolIcon,
   PhoneArrowUpRightIcon,
+  ShoppingCartIcon,
   SignalIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
@@ -74,7 +78,7 @@ watch(
     >
       Select an account to inspect its operational capabilities.
     </div>
-    <div v-else-if="operationalStatus.status" class="grid gap-5 lg:grid-cols-2">
+    <div v-else-if="operationalStatus.status" class="grid gap-5 lg:grid-cols-2 xl:grid-cols-4">
       <article class="card-surface p-5">
         <div class="flex items-start gap-4">
           <span
@@ -113,6 +117,51 @@ watch(
               class="mt-4 rounded-md border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800"
             >
               Live presence status and set/reset commands remain capability-gated.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card-surface p-5">
+        <div class="flex items-start gap-4">
+          <span
+            class="grid size-10 shrink-0 place-items-center rounded-md bg-teal-50 text-teal-600"
+          >
+            <ShoppingCartIcon class="size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="text-sm font-semibold text-slate-800">Number acquisition</h2>
+              <span
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                :class="
+                  operationalStatus.status.number_management.carrier_configuration_available
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600'
+                "
+              >
+                <CheckCircleIcon
+                  v-if="operationalStatus.status.number_management.carrier_configuration_available"
+                  class="size-3.5"
+                />
+                <NoSymbolIcon v-else class="size-3.5" />
+                {{
+                  operationalStatus.status.number_management.carrier_configuration_available
+                    ? 'Carrier endpoint available'
+                    : 'Unavailable'
+                }}
+              </span>
+            </div>
+            <p class="mt-4 text-xs leading-5 text-slate-500">
+              Only the account-scoped carrier configuration endpoint shape is reported. Carrier
+              names, modules, provider credentials, available numbers, quotes, and charges remain
+              private.
+            </p>
+            <div
+              class="mt-4 rounded-md border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800"
+            >
+              Search, purchase, reservation, and release remain capability-gated pending provider,
+              billing, confirmation, idempotency, dependency, and recovery controls.
             </div>
           </div>
         </div>
@@ -168,7 +217,162 @@ watch(
         </div>
       </article>
 
-      <p class="flex items-center gap-2 text-[11px] text-slate-400 lg:col-span-2">
+      <article class="card-surface p-5">
+        <div class="flex items-start gap-4">
+          <span
+            class="grid size-10 shrink-0 place-items-center rounded-md bg-cyan-50 text-cyan-600"
+          >
+            <LinkIcon class="size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="text-sm font-semibold text-slate-800">Webhooks</h2>
+              <span
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                :class="
+                  operationalStatus.status.webhooks.configuration_summary_available
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600'
+                "
+              >
+                <CheckCircleIcon
+                  v-if="operationalStatus.status.webhooks.configuration_summary_available"
+                  class="size-3.5"
+                />
+                <NoSymbolIcon v-else class="size-3.5" />
+                {{
+                  operationalStatus.status.webhooks.configuration_summary_available
+                    ? 'Summary available'
+                    : 'Unavailable'
+                }}
+              </span>
+            </div>
+            <p class="mt-3 text-3xl font-semibold text-slate-800">
+              {{ operationalStatus.status.webhooks.enabled_count ?? '—' }}
+              <span class="text-base font-medium text-slate-400">
+                / {{ operationalStatus.status.webhooks.configured_count ?? '—' }}
+              </span>
+            </p>
+            <p class="mt-1 text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+              Enabled / configured
+            </p>
+            <p class="mt-4 text-xs leading-5 text-slate-500">
+              {{ operationalStatus.status.webhooks.available_event_count ?? 'No' }} installed event
+              types are discoverable. URLs, custom data, raw IDs, and delivery payloads remain
+              private.
+            </p>
+            <div
+              class="mt-4 rounded-md border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800"
+            >
+              Configuration changes and delivery history remain capability-gated pending hardened
+              outbound delivery and redacted attempt records.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card-surface p-5">
+        <div class="flex items-start gap-4">
+          <span
+            class="grid size-10 shrink-0 place-items-center rounded-md bg-fuchsia-50 text-fuchsia-600"
+          >
+            <ChatBubbleLeftRightIcon class="size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="text-sm font-semibold text-slate-800">SMS / MMS</h2>
+              <span
+                class="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-600"
+              >
+                <NoSymbolIcon class="size-3.5" />
+                Sending unavailable
+              </span>
+            </div>
+            <dl class="mt-4 grid grid-cols-2 gap-3 text-xs">
+              <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <dt class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                  SMS
+                </dt>
+                <dd class="mt-1 font-medium text-slate-700">
+                  {{
+                    operationalStatus.status.messaging.sms_inventory_available
+                      ? 'Inventory available'
+                      : 'Unavailable'
+                  }}
+                </dd>
+              </div>
+              <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+                <dt class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+                  MMS
+                </dt>
+                <dd class="mt-1 font-medium text-slate-700">
+                  {{
+                    operationalStatus.status.messaging.mms_inventory_available
+                      ? 'Inventory available'
+                      : 'Unavailable'
+                  }}
+                </dd>
+              </div>
+            </dl>
+            <p class="mt-4 text-xs leading-5 text-slate-500">
+              Only endpoint availability is reported. Message bodies, participants, raw IDs, and
+              attachments remain private.
+            </p>
+            <div
+              class="mt-4 rounded-md border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800"
+            >
+              Sending and message content remain capability-gated pending carrier enablement,
+              consent, abuse controls, billing, and retention policy.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <article class="card-surface p-5">
+        <div class="flex items-start gap-4">
+          <span
+            class="grid size-10 shrink-0 place-items-center rounded-md bg-orange-50 text-orange-600"
+          >
+            <ArrowsRightLeftIcon class="size-5" />
+          </span>
+          <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 class="text-sm font-semibold text-slate-800">Number porting</h2>
+              <span
+                class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+                :class="
+                  operationalStatus.status.number_porting.inventory_available
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600'
+                "
+              >
+                <CheckCircleIcon
+                  v-if="operationalStatus.status.number_porting.inventory_available"
+                  class="size-3.5"
+                />
+                <NoSymbolIcon v-else class="size-3.5" />
+                {{
+                  operationalStatus.status.number_porting.inventory_available
+                    ? 'Inventory endpoint available'
+                    : 'Unavailable'
+                }}
+              </span>
+            </div>
+            <p class="mt-4 text-xs leading-5 text-slate-500">
+              Only collection availability is reported. Request numbers, losing-carrier billing
+              details, PINs, comments, raw authority identities, and uploads remain private.
+            </p>
+            <div
+              class="mt-4 rounded-md border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800"
+            >
+              Create, submit, schedule, complete, cancel, document access, and carrier automation
+              remain capability-gated.
+            </div>
+          </div>
+        </div>
+      </article>
+
+      <p class="flex items-center gap-2 text-[11px] text-slate-400 lg:col-span-2 xl:col-span-4">
         <ClockIcon class="size-4" /> Observed {{ observedAt }}. Results are cached for up to 10
         seconds.
       </p>

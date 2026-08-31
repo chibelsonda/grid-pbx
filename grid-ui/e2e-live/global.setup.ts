@@ -7,19 +7,20 @@ const emptyStorageState = JSON.stringify({ cookies: [], origins: [] })
 
 async function saveGridPbxSession(baseURL: string): Promise<void> {
   const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext({ baseURL })
+  const context = await browser.newContext({
+    baseURL,
+    ignoreHTTPSErrors: process.env.GRID_E2E_IGNORE_HTTPS_ERRORS === 'true',
+  })
   const page = await context.newPage()
 
   try {
     await page.goto('/login')
 
     if (new URL(page.url()).pathname.includes('/login')) {
-      await page.getByLabel('Email address').fill(
-        process.env.GRID_E2E_EMAIL ?? 'admin@gridpbx.local',
-      )
-      await page.getByLabel('Password').fill(
-        process.env.GRID_E2E_PASSWORD ?? 'admin-change-me',
-      )
+      await page
+        .getByLabel('Email address')
+        .fill(process.env.GRID_E2E_EMAIL ?? 'admin@gridpbx.local')
+      await page.getByLabel('Password').fill(process.env.GRID_E2E_PASSWORD ?? 'admin-change-me')
       await page.getByRole('button', { name: 'Sign in' }).click()
       await page.waitForURL((url) => !url.pathname.includes('/login'))
     }

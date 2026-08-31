@@ -1,7 +1,13 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { faxApi } from '../api/faxApi'
-import type { Fax, FaxBox, FaxBoxInput, FaxBoxOptions } from '../types/fax'
+import type {
+  Fax,
+  FaxBox,
+  FaxBoxInput,
+  FaxBoxOptions,
+  FaxOperationCapabilities,
+} from '../types/fax'
 
 const emptyOptions: FaxBoxOptions = {
   owners: [],
@@ -16,6 +22,7 @@ export const useFaxStore = defineStore('faxes', {
   state: () => ({
     boxes: [] as FaxBox[],
     messages: [] as Fax[],
+    capabilities: null as FaxOperationCapabilities | null,
     boxDetail: null as FaxBox | null,
     messageDetail: null as Fax | null,
     options: { ...emptyOptions },
@@ -37,6 +44,7 @@ export const useFaxStore = defineStore('faxes', {
     reset(): void {
       this.boxes = []
       this.messages = []
+      this.capabilities = null
       this.boxDetail = null
       this.messageDetail = null
       this.options = { ...emptyOptions }
@@ -63,6 +71,7 @@ export const useFaxStore = defineStore('faxes', {
         ])
         this.boxes = boxes.data
         this.messages = messages.data
+        this.capabilities = messages.capabilities
         this.page = messages.meta.current_page
         this.lastPage = messages.meta.last_page
         this.total = messages.meta.total

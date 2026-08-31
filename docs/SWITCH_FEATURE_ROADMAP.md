@@ -123,10 +123,10 @@ satisfied.
 
 | Confirmed capability | Owning domains | Delivery gate | Status |
 | --- | --- | --- | --- |
-| Number purchasing, porting, releasing, CNAM, and E911 changes | Phone numbers, carriers, auditing | Carrier APIs and charges, porting workflow, emergency-service compliance, privileged confirmation, and reconciliation | Planned |
+| Number purchasing, porting, releasing, CNAM, and E911 changes | Phone numbers, carriers, auditing | Read-only Port Request and carrier-info endpoint-shape foundations delivered; number search/provider inventory, quotes/charges, sensitive request/document handling, ownership transitions, privileged confirmation, emergency-service compliance, idempotency, compensation, and reconciliation still gate mutations | Conditional |
 | Advanced visual callflow editing | Call routing and referenced PBX domains | Full main-page drag-and-drop graph and action palette, selected-node-only right panel, version-safe writes, public-ID reference resolution, schema validation, dependency checks, and lossless preservation of unknown branches | Planned |
 | Queues and agents | Queues, users, devices, and call routing | Foundation delivered for configuration, roster, live status commands, and guided routing; statistics remain conditional | Foundation |
-| SMS/MMS | Messaging, phone numbers, users, and auditing | Enabled carrier capability, consent, retention, attachment storage, delivery events, and abuse controls | Conditional |
+| SMS/MMS | Messaging, phone numbers, users, and auditing | Read-only endpoint-availability foundation delivered; enabled carrier capability, consent, retention, attachment policy, delivery events, billing, and abuse controls still gate content and sending | Conditional |
 | Recordings | Recordings, call history, storage, and auditing | Retention policy, legal authorization, access audit, encryption, and streaming/storage decision | Planned |
 | Provisioning | Devices, line keys, templates, and vendor integrations | Supported vendors/models, template ownership, credential protection, and preview/rollback workflow | Conditional |
 | Billing and reseller management | Organizations, accounts, services, billing, and authorization | Authoritative billing source, tenant hierarchy, financial permissions, immutable audit, and payment compliance where applicable | Planned |
@@ -335,10 +335,16 @@ normalized inventory, features, caller-name and E911 status, current callflow
 assignment, freshness metadata, and a redacted `switch_json` snapshot into
 MySQL. Account-authorized list/detail and explicit queued synchronization APIs
 use public UUIDs, while Vue provides search/state/assignment filters and a
-right-side detail panel. Acquisition, release, porting, caller-name changes,
+right-side detail panel. Acquisition, reservation, release, porting, caller-name changes,
 E911 changes, and assignment mutations are intentionally unavailable until
 deployment capabilities, carrier charges, permissions, and compliance rules
-are approved.
+are approved. System Status adds separate non-sensitive Port Request and
+carrier-info probes. The first uses an exact non-number filter because the
+installed listing disables normal pagination; the second validates the
+carrier-info envelope and immediately reduces it to one boolean. The live
+routes are available, but provider names/modules, creation states, number
+search results, quotes, charges, request details, documents, comments,
+transitions, carrier automation, and number completion remain unavailable.
 
 ### 5.6 Basic call routing
 
@@ -846,6 +852,16 @@ per-hop DNS/IP enforcement, verified TLS, bounded request/response handling,
 signed minimal public-safe payloads with replay protection, redacted retention-
 bounded delivery records, safe retry/rate/circuit policy, audit events, and a
 kill switch.
+The broader Webhook resource API is now audited separately from that callflow
+action. GridPBX exposes only a read-only event-catalog count and account-level
+configured/enabled counts through System Status. The live deployment reported
+nine available events and no configured hooks for the selected account. Raw
+hook documents, URLs, names, custom data, modifiers, descendant/internal-leg
+controls, samples, and attempts remain private. CRUD, enable/disable, bulk
+re-enable, event selection, and delivery history remain capability-gated
+because those operations use the same unsigned outbound runtime and Crossbar's
+attempt response retains raw URI, header, body, hook-ID, and error material.
+No hook mutation or callback was issued during this read-only audit.
 Dynamic CID remains capability-gated after inspection of the installed schema,
 compiled runtime, Monster workflow, downstream caller-ID selection, and active
 system configuration. Monster creates an empty node, which the runtime treats
@@ -876,16 +892,16 @@ unavailable.
 | Directories | CRUD and user membership | Directories and users | Directory membership projection | Foundation |
 | Groups and ring groups | CRUD, membership, endpoints, ring strategy | Groups, users, devices, callflows | Group/member relationships | Foundation |
 | Conferences | CRUD, role numbers, write-only PIN replacement/removal, participant behavior, and runtime summary | Conferences and callflows | Normalized role-number projection, owner relationship, redacted source snapshot, dependency-safe deletion, guided routing, and right-side panel delivered; live participant commands remain planned | Foundation |
-| Fax boxes | CRUD, owner assignment, inbound/outbound message metadata, protected document access, and guided callflow destinations | Fax boxes, faxes, users, and callflows | Normalized fax-box/message projections, redacted `switch_json`, bounded import window, dependency-safe deletion, right-side panels, and audited document streaming delivered; sending, forwarding, resubmission, and message deletion remain policy-gated | Foundation |
+| Fax boxes | CRUD, owner assignment, inbound/outbound message metadata, protected document access, and guided callflow destinations | Fax boxes, faxes, users, and callflows | Normalized fax-box/message projections, redacted `switch_json`, bounded import window, dependency-safe deletion, right-side panels, audited document streaming, and a strict five-operation capability matrix delivered. Send, Forward, Resubmit, message deletion, and document deletion remain disabled after installed-runtime/security and live read-only audit | Foundation |
 | Blacklists | CRUD, number entries, anonymous-caller policy, and account activation | Blacklists and account settings | Normalized entries, redacted source snapshot, safe activation/deactivation, sync, and right-side UI panel delivered | Foundation |
 | Caller-ID Lists | Reusable number/pattern lists for conditional routing | Lists, list entries, and `cidlistmatch` callflows | Account-scoped list and entry projection, separate redacted `switch_json`, queued sync, public UUID selector, private Switch-ID resolution, compensated API mutations, and standalone slide-over CRUD UI delivered. Authenticated create, edit, authoritative reopen, entry clear, and delete are verified against the local Switch; the deployment must autoload `cb_lists` | Foundation |
-| Phone numbers | Inventory, routing assignment, CNAM, E911, porting, purchasing, and release | Phone numbers, number manager, callflows, and carrier providers | Safe inventory/detail projection and runtime feature-availability matrix delivered; billable and regulated mutations remain disabled until provider, billing, compliance, and confirmation policies are configured | Foundation |
-| Feature codes | View and manage supported star-code callflows for DND, hotdesk, voicemail, and related actions | Callflows | Code, action, enabled state, and dependency summary | Planned |
+| Phone numbers | Inventory, routing assignment, CNAM, E911, porting, purchasing, reservation, and release | Phone numbers, number manager, callflows, port requests, and carrier providers | Safe inventory/detail projection, runtime feature-availability matrix, Port Request and carrier-info probes, and CNAM/E911 schema/provider/runtime audits delivered. The live account has no numbers, inherits notification-only CNAM, and inherits uncredentialed Dash E911 with emergency-CID validation disabled; search inventory, carrier metadata, quotes, request data/documents, billable actions, and regulated mutations remain disabled until provider completion, verified transport, billing, retention/privacy, emergency-routing compliance, authority, duplicate-safe recovery, dependency, compensation, and confirmation policies are configured | Foundation |
+| Feature codes | View active star-code callflows for DND, hotdesk, voicemail, and related actions; safe lifecycle management remains gated | Callflows | Dedicated account-scoped inventory reuses the normalized Callflow projection and exposes only a public Callflow UUID, code, action/module, active state, dependency summary, and projection freshness. Enable, disable, and renumber remain unavailable because installed Monster performs whole-document create/update/delete, its registry contains schema-stale and unaudited actions, and Kazoo has no atomic feature-code mutation endpoint | Foundation |
 | Account voice settings | Caller ID, timezone, language, music on hold, restrictions, recording defaults, dial plans, request formatters, preflow, metaflow activation/actions, and supported account defaults | Accounts, media, phone-number classifiers, callflows, devices, extensions, and configs | Typed virtual settings from redacted `switch_json`; safe regex rules, shared recursive action editor, locked-tree/unknown-option preservation, public UUID references, unresolved-reference controls, and protected storage URL preservation | Foundation |
 | Call history | Search, direction/date/duration/outcome/cause filters, interaction detail | CDRs | Bounded, indexed CDR projection | Foundation |
 | Recordings | Search, metadata, authorized playback/download | Recordings and storage | Bounded metadata-only projection, audited protected playback/download, and no GridPBX deletion until retention/provider cleanup is approved | Foundation |
 | Active channels | Current calls and account activity | Channels | Short-lived cache, not durable projection | Conditional |
-| Services and billing visibility | Assigned plans, account/cascade/manual quantities, standing, billing cycle, current limits, aggregate billing impact, ledger-source usage, ledger total, and recent Switch transactions | Services summary, limits, ledgers, ledger total, and transactions | Administrator-only normalized read projection, explicit version-aware endpoint availability, immutable transaction retention, payment/bookkeeper redaction, queued sync, and right-side detail panel delivered; plan/limit/top-up/credit/debit/sale/refund/charge mutations remain disabled | Foundation |
+| Services and billing visibility | Assigned plans, account/cascade/manual quantities, standing, billing cycle, current limits, aggregate billing impact, ledger-source usage, ledger total, recent Switch transactions, reconciliation checks, and safe sync history | Services summary, limits, ledgers, ledger total, and transactions | Administrator-only normalized read projection, explicit version-aware endpoint availability, immutable transaction retention, payment/bookkeeper redaction, queued sync, stored-versus-active count checks, billing-owner dependency checks, sanitized failure categories, recovery guidance, and right-side detail panel delivered; plan/limit/top-up/credit/debit/sale/refund/charge mutations remain disabled | Foundation |
 | Line keys and provisioning preview | Device combo/feature key inventory, safe full-replacement preview, and capability-gated apply | Device `provision.combo_keys` / `feature_keys` PATCH | Device-owned normalized rows plus the redacted device snapshot; no SIP credentials, provisioning URLs, templates, or generated documents exposed | Foundation |
 
 Implementation status: Foundation. The entity-organized Switch client now
@@ -982,9 +998,13 @@ but their sequence still requires deployment discovery and dependency design.
 | --- | --- | --- |
 | Queues and agents | Queue CRUD, membership, agent state, call statistics | Foundation for CRUD, roster, live status, sync, and guided routing. Read-only account probes now distinguish configuration, live controls, and statistics; the installed deployment reports `true`, `false`, and `false`. Live controls require ACDc, and statistics remain capability-gated |
 | Presence and parked calls | Presence status, parked-call visibility and actions | Read-only foundation delivered: subscription-diagnostic capability plus aggregate parked-call count. Live presence state, presence commands, slot detail, and park/retrieve actions remain capability-gated |
-| Webhooks | CRUD, event selection, delivery health, secret-safe configuration | Conditional; security review required |
-| SMS/MMS | Message threads, send/receive, number capability | Conditional; carrier and retention requirements |
-| Number porting | Port requests, documents, status workflow | Conditional; compliance and carrier integration |
+| Webhooks | CRUD, event selection, delivery health, secret-safe configuration | Read-only capability foundation delivered: installed-event and configured/enabled counts only. CRUD, event controls, raw attempts, and delivery health remain capability-gated pending hardened signed egress, redaction, authorization, audit, and kill-switch controls |
+| SMS/MMS | Message threads, send/receive, number capability | Read-only System Status foundation reports SMS/MMS inventory-endpoint availability without message data. Live deployment reports both unavailable; content and sending remain gated by carrier entitlement, number capability, consent, retention, attachment policy, delivery events, billing, and abuse controls |
+| Number porting | Port requests, documents, status workflow | Read-only System Status foundation reports only filtered collection availability. Live deployment reports available with zero requests; details, documents, comments, LOA generation, transitions, carrier automation, and completion remain gated by sensitive-data handling, retention, malware controls, port-authority authorization, external-egress hardening, billing, confirmation, audit, and reconciliation |
+| Number acquisition and release | Carrier discovery, number search, purchase, reservation, and release | Read-only System Status foundation reports only validated carrier-info endpoint-shape availability. Live deployment falls back to local, non-billable inventory and reports the endpoint available. Search results, carrier/module names, creation states, quotes, charges, purchase, reservation, and release remain gated by provider policy, short-lived selection integrity, authorization, confirmation, idempotency, dependency cleanup, compensation, audit, and reconciliation |
+| CNAM | Outbound display name and inbound lookup | Installed schema/runtime and Monster workflow audited. The live account has no provider override, inherits `knm_cnam_notifier`, and contains no numbers. Selectability remains visible per number, but writes are gated because the notifier publishes asynchronously without carrier completion status and Crossbar may require a quote/charge-accepting retry. Enable only with typed recursive `PATCH`, provider acknowledgement, billing confirmation, authorization, immutable audit, duplicate-safe recovery, and authoritative reconciliation |
+| E911 | Emergency service address, caller name, notifications, provisioning status, and removal | Installed schema, Dash/Telnyx/Vitelity runtime, emergency-routing dependency, and Monster workflow audited. The live deployment inherits uncredentialed `knm_dash_e911`, leaves `ensure_valid_emergency_cid` disabled, and has no numbers. Writes remain gated pending a configured provider, verified TLS/bounded timeouts, account-locked emergency-CID dependency checks, server-owned geocode choices, address/privacy and notification policy, billing confirmation, exact-number removal confirmation, immutable audit, provider-specific compensation, and authoritative reconciliation |
+| Fax message operations | Send, Forward, Resubmit, message deletion, and document deletion | Installed schema/runtime and Monster history workflows audited. Send can fetch operator-directed HTTP GET/POST content without a proven SSRF boundary or accept broad upload types, then returns 202 before background conversion/storage completes. Forward/Resubmit create random new jobs and are not retry-safe; message and attachment deletion are separate permanent commands. Live Fax Box/inbox/outbox collections are empty and available, but outgoing jobs return HTTP 503. All five operations are explicit public policy gates pending content/malware controls, hardened egress, authorization, destination confirmation, retention/legal hold, billing, rate limits, idempotency, immutable audit, and reconciliation |
 | Connectivity/trunks | Resources, gateways, limits, routing and failover | P3; high-risk administrator-only feature |
 | Account administration | Create/update accounts, descendants, limits, service plans | P3; reseller authorization required |
 | White-labeling | Brand, domain, logo, colors, email identity | P3; split Switch and GridPBX ownership explicitly |
@@ -1015,6 +1035,24 @@ design and must not be inferred from the legacy code. Any future provider
 adapter must use hosted/tokenized card capture, idempotent payment attempts,
 signed-webhook reconciliation, immutable audit, and sandbox-only credentials
 before live processing is considered.
+
+The first provider boundary is delivered without enabling financial mutations:
+an administrator-only capability response, a production-refusing Authorize.Net
+sandbox merchant diagnostic, and provider-neutral attempt/event/profile tables
+with public UUIDs, HMAC idempotency data, encrypted provider references, and
+append-only safe events. Live read-only sandbox authentication and public-client-
+key matching are verified. Default-off, independently gated sandbox charge,
+void, refund, and profile paths now enforce hosted tokenization, explicit
+confirmation, bounded amounts, rate limits, public source-attempt UUIDs, local
+source-balance reservation, and private provider references. All payment and
+operation flags remain false in the live environment; one isolated browser run
+confirmed no provider script and zero payment mutations. One separately
+authorized `$1.00` hosted-tokenized sandbox charge has also completed
+successfully. Tenant-safe attempt history and typed-confirmation controls for
+void, bounded partial refund, and customer-profile creation are implemented and
+provider-mocked, but those operations have not run against the live sandbox.
+Webhook processing and every production provider request remain disabled and
+must not be marked complete.
 
 ## 10. Explicitly excluded from the management application
 

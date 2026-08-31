@@ -50,6 +50,9 @@ services:
       context: .
       dockerfile: docker/grid-api/Dockerfile
     restart: unless-stopped
+    dns:
+      - ${GRID_DNS_PRIMARY:-1.1.1.1}
+      - ${GRID_DNS_SECONDARY:-8.8.8.8}
     environment:
       APP_NAME: GridPBX
       APP_ENV: local
@@ -135,11 +138,50 @@ services:
       timeout: 3s
       retries: 20
 
+  grid-ui-https-app:
+    build:
+      context: .
+      dockerfile: docker/grid-ui/Dockerfile
+    profiles: ["payment-https"]
+    restart: unless-stopped
+    environment:
+      VITE_API_BASE_URL: https://localhost:${GRID_UI_HTTPS_PORT:-5443}
+    volumes:
+      - ./grid-ui:/app
+      - grid-ui-https-node-modules:/app/node_modules
+    depends_on:
+      grid-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 3s
+      retries: 20
+
+  grid-ui-https:
+    image: caddy:2.10-alpine
+    profiles: ["payment-https"]
+    restart: unless-stopped
+    volumes:
+      - ./docker/grid-ui-https/Caddyfile:/etc/caddy/Caddyfile:ro
+      - grid-ui-https-data:/data
+      - grid-ui-https-config:/config
+    ports:
+      - "127.0.0.1:${GRID_UI_HTTPS_PORT:-5443}:5443"
+    depends_on:
+      grid-api:
+        condition: service_healthy
+      grid-ui-https-app:
+        condition: service_healthy
+
   grid-worker:
     build:
       context: .
       dockerfile: docker/grid-api/Dockerfile
     restart: unless-stopped
+    dns:
+      - ${GRID_DNS_PRIMARY:-1.1.1.1}
+      - ${GRID_DNS_SECONDARY:-8.8.8.8}
     environment:
       APP_NAME: GridPBX
       APP_ENV: local
@@ -193,3 +235,6 @@ volumes:
   redis-data:
   grid-api-vendor:
   grid-ui-node-modules:
+  grid-ui-https-node-modules:
+  grid-ui-https-data:
+  grid-ui-https-config:

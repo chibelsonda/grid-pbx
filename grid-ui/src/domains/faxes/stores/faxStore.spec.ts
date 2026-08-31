@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import { faxApi } from '../api/faxApi'
-import type { Fax, FaxBox, FaxBoxInput, FaxBoxOptions, FaxSyncRun } from '../types/fax'
+import { faxApi, type FaxMessagePage } from '../api/faxApi'
+import type {
+  Fax,
+  FaxBox,
+  FaxBoxInput,
+  FaxBoxOptions,
+  FaxOperationCapabilities,
+  FaxSyncRun,
+} from '../types/fax'
 import type { PaginatedResponse } from '@/shared/api/http'
 import { useFaxStore } from './faxStore'
 
@@ -13,7 +20,7 @@ vi.mock('../api/faxApi', () => ({
     createBox: vi.fn<() => Promise<FaxBox>>(),
     updateBox: vi.fn<() => Promise<FaxBox>>(),
     removeBox: vi.fn<() => Promise<void>>(),
-    messages: vi.fn<() => Promise<PaginatedResponse<Fax>>>(),
+    messages: vi.fn<() => Promise<FaxMessagePage>>(),
     message: vi.fn<() => Promise<Fax>>(),
     document: vi.fn<() => Promise<Blob>>(),
     startSync: vi.fn<() => Promise<FaxSyncRun>>(),
@@ -69,6 +76,18 @@ const options: FaxBoxOptions = {
   timezones: ['UTC'],
   account_defaults: { timezone: 'UTC' },
 }
+const capability = {
+  switch_supported: true,
+  enabled: false,
+  reason: 'Policy approval is required.',
+} as const
+const capabilities: FaxOperationCapabilities = {
+  send: capability,
+  forward: capability,
+  resubmit: capability,
+  delete_message: capability,
+  delete_document: capability,
+}
 const page = <T>(data: T[]): PaginatedResponse<T> => ({
   data,
   links: { first: null, last: null, prev: null, next: null },
@@ -81,6 +100,7 @@ const page = <T>(data: T[]): PaginatedResponse<T> => ({
     total: data.length,
   },
 })
+const faxPage = (data: Fax[]): FaxMessagePage => ({ ...page(data), capabilities })
 describe('fax store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -88,11 +108,12 @@ describe('fax store', () => {
   })
   it('loads fax boxes and messages together', async () => {
     vi.mocked(faxApi.boxes).mockResolvedValue(page([box]))
-    vi.mocked(faxApi.messages).mockResolvedValue(page([fax]))
+    vi.mocked(faxApi.messages).mockResolvedValue(faxPage([fax]))
     const store = useFaxStore()
     await store.load('account-1')
     expect(store.boxes).toEqual([box])
     expect(store.messages).toEqual([fax])
+    expect(store.capabilities).toEqual(capabilities)
   })
   it('creates a box from public owner input', async () => {
     const input: FaxBoxInput = {
@@ -113,7 +134,7 @@ describe('fax store', () => {
     vi.mocked(faxApi.options).mockResolvedValue(options)
     vi.mocked(faxApi.createBox).mockResolvedValue(box)
     vi.mocked(faxApi.boxes).mockResolvedValue(page([box]))
-    vi.mocked(faxApi.messages).mockResolvedValue(page([]))
+    vi.mocked(faxApi.messages).mockResolvedValue(faxPage([]))
     const store = useFaxStore()
     await store.prepareBox('account-1')
     expect(await store.saveBox('account-1', input)).toBe(true)

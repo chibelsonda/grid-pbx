@@ -20,6 +20,11 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
     links: { first: null, last: null, prev: null, next: null },
     meta: { current_page: 1, last_page: 1, per_page: 25, total: 0 },
   }
+  const capability = {
+    switch_supported: true,
+    enabled: false,
+    reason: 'Policy approval is required before this Fax operation can be enabled.',
+  }
   await page.route('**/api/v1/accounts/*/fax-boxes?*', (route) =>
     route.fulfill({
       status: 200,
@@ -31,7 +36,16 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(emptyPage),
+      body: JSON.stringify({
+        ...emptyPage,
+        capabilities: {
+          send: capability,
+          forward: capability,
+          resubmit: capability,
+          delete_message: capability,
+          delete_document: capability,
+        },
+      }),
     }),
   )
   await page.route('**/api/v1/accounts/*/fax-boxes/options', (route) =>
@@ -57,6 +71,11 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
 
   await page.goto('/faxes')
   await expect(page.getByRole('heading', { name: 'Fax boxes & history' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Fax message operations' })).toBeVisible()
+  await expect(page.getByText('Policy gated', { exact: true })).toHaveCount(5)
+  await expect(page.getByRole('button', { name: /send|forward|resubmit|delete fax/i })).toHaveCount(
+    0,
+  )
   await page.getByRole('button', { name: 'New fax box' }).click()
   const dialog = page.getByRole('dialog', { name: 'Create fax box' })
 

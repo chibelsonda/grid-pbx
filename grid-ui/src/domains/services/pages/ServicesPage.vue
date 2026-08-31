@@ -152,7 +152,12 @@ const amount = (value: number): string =>
           </article>
         </div>
         <div class="mb-4 grid gap-3 sm:grid-cols-[1fr_180px]">
-          <SearchInput v-model="search" label="Search services" placeholder="Search category or item…" input-class="h-10 bg-white text-xs" /><FormSelect
+          <SearchInput
+            v-model="search"
+            label="Search services"
+            placeholder="Search category or item…"
+            input-class="h-10 bg-white text-xs"
+          /><FormSelect
             v-model="scope"
             class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
           >
@@ -201,7 +206,8 @@ const amount = (value: number): string =>
     ></template>
   </div>
   <ServiceDetailPanel
-    v-if="services.detailsOpen && services.overview"
+    v-if="services.detailsOpen && services.overview && accounts.selectedId"
+    :account-id="accounts.selectedId"
     :overview="services.overview"
     @close="services.detailsOpen = false"
   />

@@ -14,6 +14,9 @@ use App\Domains\Services\Models\SwitchServicePlan;
 use App\Domains\Services\Models\SwitchServiceQuantity;
 use App\Domains\Services\Models\SwitchServiceSummary;
 use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use App\Domains\SwitchSynchronization\Enums\SyncRunStatus;
+use App\Domains\SwitchSynchronization\Models\SyncRun;
+use GridPbx\Switch\Shared\Exceptions\SwitchAuthenticationException;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Tests\TestCase;
 
@@ -70,6 +73,15 @@ class ServiceOverviewControllerTest extends TestCase
             'switch_created_at' => now(),
             'sync_status' => ProjectionStatus::Healthy,
         ]);
+        $run = SyncRun::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'requested_by_user_id' => $user->getKey(),
+            'resource_type' => 'services',
+            'status' => SyncRunStatus::Succeeded,
+            'processed_count' => 8,
+            'started_at' => now()->subSecond(),
+            'finished_at' => now(),
+        ]);
 
         $response = $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/services");
 
@@ -82,10 +94,62 @@ class ServiceOverviewControllerTest extends TestCase
             ->assertJsonPath('data.billing.ledger_total', '-44.56040000')
             ->assertJsonPath('data.billing.ledger_summaries.0.id', $ledger->id)
             ->assertJsonPath('data.billing.transactions.0.id', $transaction->id)
+            ->assertJsonPath('data.reconciliation.status', 'healthy')
+            ->assertJsonPath('data.reconciliation.checks.0.code', 'latest_service_sync')
+            ->assertJsonPath('data.reconciliation.checks.0.status', 'passed')
+            ->assertJsonPath('data.reconciliation.sync_history.0.id', $run->id)
+            ->assertJsonPath('data.reconciliation.sync_history.0.status', 'succeeded')
             ->assertJsonMissingPath('data.service_summary_id')
             ->assertJsonMissingPath('data.switch_resource_id')->assertJsonMissingPath('data.switch_account_id')
             ->assertJsonMissingPath('data.switch_json')
             ->assertJsonMissing(['private-switch-transaction-id']);
+    }
+
+    public function test_account_administrator_receives_safe_failed_dependency_drill_down(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        SwitchServiceSummary::factory()->for($account)->create([
+            'sync_status' => ProjectionStatus::Healthy,
+        ]);
+        SwitchBillingSummary::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'ledger_source_count' => 2,
+            'transaction_count' => 1,
+            'ledgers_available' => true,
+            'ledger_total_available' => true,
+            'transactions_available' => true,
+            'sync_status' => ProjectionStatus::Healthy,
+        ]);
+        $run = SyncRun::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'requested_by_user_id' => $user->getKey(),
+            'resource_type' => 'services',
+            'status' => SyncRunStatus::Failed,
+            'error_code' => SwitchAuthenticationException::class,
+            'error_message' => 'SQLSTATE secret password=do-not-expose switch-account-private-id',
+            'started_at' => now()->subSecond(),
+            'finished_at' => now(),
+        ]);
+
+        $response = $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/services");
+
+        $response->assertOk()
+            ->assertJsonPath('data.reconciliation.status', 'error')
+            ->assertJsonPath('data.reconciliation.checks.0.status', 'failed')
+            ->assertJsonPath(
+                'data.reconciliation.checks.0.message',
+                'Switch authentication prevented the billing synchronization.',
+            )
+            ->assertJsonPath('data.reconciliation.checks.6.code', 'ledger_projection_count')
+            ->assertJsonPath('data.reconciliation.checks.6.expected_count', 2)
+            ->assertJsonPath('data.reconciliation.checks.6.actual_count', 0)
+            ->assertJsonPath('data.reconciliation.checks.7.code', 'transaction_projection_count')
+            ->assertJsonPath('data.reconciliation.checks.7.status', 'failed')
+            ->assertJsonPath('data.reconciliation.sync_history.0.id', $run->id)
+            ->assertJsonPath('data.reconciliation.sync_history.0.failure_category', 'authentication')
+            ->assertJsonMissing(['SQLSTATE'])
+            ->assertJsonMissing(['do-not-expose'])
+            ->assertJsonMissing([SwitchAuthenticationException::class]);
     }
 
     public function test_non_administrator_cannot_view_billing_service_data(): void
