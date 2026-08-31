@@ -154,6 +154,25 @@ class CallflowTreeNodeWriteValidator
         }
     }
 
+    /** @param list<string> $nodePath */
+    public function assertCanDelete(SwitchCallflow $callflow, array $nodePath): void
+    {
+        if ($nodePath === []) {
+            $this->fail('node_path', 'The root callflow action cannot be removed.');
+        }
+
+        $node = $this->nodeAt($this->flow($callflow), $nodePath, 'node_path');
+        $module = is_string($node['module'] ?? null) ? $node['module'] : '';
+
+        if (! CallflowBranchPolicy::isGuidedModule($module)) {
+            $this->fail('node_path', 'This callflow action is preserved and cannot be removed here.');
+        }
+
+        if (($node['branch']['kind'] ?? null) === 'preserved') {
+            $this->fail('node_path', 'This preserved callflow branch cannot be removed here.');
+        }
+    }
+
     /** @return array<string, mixed> */
     private function flow(SwitchCallflow $callflow): array
     {

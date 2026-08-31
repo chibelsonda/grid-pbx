@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs'
 import process from 'node:process'
 
 import { expect, test, type Page } from '@playwright/test'
+import { expectControlRowAligned } from './support/formAlignment.js'
 
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
@@ -49,6 +50,10 @@ test('shows schema-backed Conference sounds with inline validation and bounded l
     page.getByRole('tablist', { name: 'Conference advanced sections' }).getByRole('tab'),
   ).toHaveText(['Basic', 'Options', 'Conference Server'])
   await page.getByRole('tab', { name: 'Options', exact: true }).click()
+  await expectControlRowAligned(
+    page.getByRole('button', { name: 'Participant entry tone' }),
+    page.getByRole('button', { name: 'Participant exit tone' }),
+  )
   await page.getByRole('button', { name: 'Participant entry tone' }).click()
   const options = page.getByRole('listbox')
   await expect(options).toBeVisible()

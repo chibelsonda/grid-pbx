@@ -437,7 +437,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
               :to="{ name: 'call-routing', query: { create: '1' } }"
               class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             >
-              Create route
+              Create callflow
             </RouterLink>
           </div>
         </div>

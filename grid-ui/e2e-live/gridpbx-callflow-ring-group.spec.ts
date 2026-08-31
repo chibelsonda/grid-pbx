@@ -64,7 +64,7 @@ function findCallflowNode(
 
 async function openRoute(page: Page, routeName: string): Promise<void> {
   await page.goto('/call-routing')
-  const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+  const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
   await routeSearch.fill(routeName)
   await page.getByRole('button', { name: 'Apply filters' }).click()
   await page.getByRole('button', { name: `View ${routeName}` }).click()

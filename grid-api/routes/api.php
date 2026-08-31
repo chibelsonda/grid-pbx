@@ -211,6 +211,7 @@ Route::prefix('v1')->group(function (): void {
             Route::patch('/callflows/{callflow}/tree/order', [CallflowController::class, 'reorderNodes']);
             Route::post('/callflows/{callflow}/tree/nodes', [CallflowController::class, 'createNode']);
             Route::patch('/callflows/{callflow}/tree/nodes', [CallflowController::class, 'updateNode']);
+            Route::delete('/callflows/{callflow}/tree/nodes', [CallflowController::class, 'deleteNode']);
             Route::post('/callflows/{callflow}/tree/inline-nodes', [CallflowController::class, 'createInlineNode']);
             Route::patch('/callflows/{callflow}/tree/inline-nodes', [CallflowController::class, 'updateInlineNode']);
             Route::delete('/callflows/{callflow}', [CallflowController::class, 'destroy']);

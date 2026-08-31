@@ -17,6 +17,7 @@ interface SwitchCallflowGateway
         ?string $fallbackResourceId = null,
         array $branchRoutes = [],
         array $destinationTemporalRuleIds = [],
+        ?array $destinationSettings = null,
     ): array;
 
     /** @return array<string, mixed> */
@@ -60,6 +61,13 @@ interface SwitchCallflowGateway
         ?string $branch,
         string $module,
         string $targetResourceId,
+    ): array;
+
+    /** @param list<string> $path @return array<string, mixed> */
+    public function deleteTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        array $path,
     ): array;
 
     /** @param list<string> $sourcePath @param list<string> $targetPath @return array<string, mixed> */

@@ -11,8 +11,9 @@ const props = withDefaults(
     editing?: boolean
     originalUsername?: string | null
     passwordConfigured?: boolean
+    section?: 'all' | 'login' | 'password'
   }>(),
-  { editing: false, originalUsername: null, passwordConfigured: false },
+  { editing: false, originalUsername: null, passwordConfigured: false, section: 'all' },
 )
 const credentials = defineModel<ExtensionCredentialsInput>({ required: true })
 const hasUsername = computed(() => Boolean(credentials.value.username?.trim()))
@@ -49,7 +50,7 @@ function keepCredentials(): void {
 </script>
 
 <template>
-  <article class="card-surface overflow-hidden">
+  <article v-if="section === 'all' || section === 'login'" class="card-surface overflow-hidden">
     <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
       <span class="grid size-9 place-items-center rounded-md bg-emerald-50 text-emerald-600">
         <LockClosedIcon class="size-5" />
@@ -100,50 +101,6 @@ function keepCredentials(): void {
         @input="onUsernameInput"
       />
 
-      <template v-if="hasUsername">
-        <FormInput
-          v-model="credentials.password"
-          :label="editing ? 'New password' : 'Password'"
-          type="password"
-          minlength="6"
-          maxlength="256"
-          autocomplete="new-password"
-          :description="editing && !needsNewPassword ? 'Optional when unchanged.' : null"
-          :error="fieldErrors.password"
-        />
-
-        <FormInput
-          v-model="credentials.password_confirmation"
-          label="Confirm password"
-          type="password"
-          maxlength="256"
-          autocomplete="new-password"
-          :error="fieldErrors.password_confirmation"
-        />
-
-        <div
-          class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
-          :class="fieldErrors.require_password_update && 'border-danger'"
-        >
-          <ToggleSwitch
-            v-model="credentials.require_password_update"
-            label="Require password change on next login"
-            description="Switch asks the user to replace this password after signing in"
-            :invalid="Boolean(fieldErrors.require_password_update)"
-          />
-          <span
-            v-if="fieldErrors.require_password_update"
-            class="mt-2 block text-[10px] text-danger"
-          >
-            {{ fieldErrors.require_password_update[0] }}
-          </span>
-        </div>
-
-        <p class="text-[10px] leading-4 text-slate-400 sm:col-span-2">
-          Passwords are sent once to Switch, hashed upstream, and are never returned to GridPBX.
-        </p>
-      </template>
-
       <button
         v-if="editing && passwordConfigured"
         type="button"
@@ -152,6 +109,59 @@ function keepCredentials(): void {
       >
         Remove login credentials
       </button>
+    </div>
+  </article>
+
+  <article v-if="section === 'all' || section === 'password'" class="card-surface overflow-hidden">
+    <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+      <LockClosedIcon class="size-5 text-emerald-600" />
+      <div>
+        <h2 class="text-sm font-semibold text-slate-700">Password management</h2>
+        <p class="text-[10px] text-slate-400">
+          Passwords are sent once to Switch and are never returned to GridPBX.
+        </p>
+      </div>
+    </header>
+
+    <div v-if="hasUsername && !credentials.clear_credentials" class="grid gap-4 p-5 sm:grid-cols-2">
+      <FormInput
+        v-model="credentials.password"
+        :label="editing ? 'New password' : 'Password'"
+        type="password"
+        minlength="6"
+        maxlength="256"
+        autocomplete="new-password"
+        :description="editing && !needsNewPassword ? 'Optional when unchanged.' : null"
+        :error="fieldErrors.password"
+      />
+
+      <FormInput
+        v-model="credentials.password_confirmation"
+        label="Confirm password"
+        type="password"
+        maxlength="256"
+        autocomplete="new-password"
+        :error="fieldErrors.password_confirmation"
+      />
+
+      <div
+        class="rounded-md border border-slate-200 px-3 py-2.5 sm:col-span-2"
+        :class="fieldErrors.require_password_update && 'border-danger'"
+      >
+        <ToggleSwitch
+          v-model="credentials.require_password_update"
+          label="Require password change on next login"
+          description="Switch asks the user to replace this password after signing in"
+          :invalid="Boolean(fieldErrors.require_password_update)"
+        />
+        <span v-if="fieldErrors.require_password_update" class="mt-2 block text-[10px] text-danger">
+          {{ fieldErrors.require_password_update[0] }}
+        </span>
+      </div>
+    </div>
+
+    <div v-else class="p-5 text-xs leading-5 text-slate-500">
+      Add a portal login username in Basic before configuring a password.
     </div>
   </article>
 </template>

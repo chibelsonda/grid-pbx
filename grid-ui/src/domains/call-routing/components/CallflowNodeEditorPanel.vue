@@ -84,7 +84,7 @@ function submit(): void {
 <template>
   <CrudSlideOver
     :title="title"
-    eyebrow="GridPBX / Call Routing / Action"
+    eyebrow="GridPBX / Callflows / Action"
     :description="
       context.operation === 'create'
         ? 'Attach one schema-aligned action to an empty branch of the selected node.'

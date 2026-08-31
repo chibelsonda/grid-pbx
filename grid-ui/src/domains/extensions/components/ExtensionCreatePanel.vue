@@ -25,6 +25,10 @@ import {
   defaultExtensionUserConfiguration,
   hydrateExtensionAdvancedCalling,
 } from '../extensionForm'
+import {
+  extensionAdvancedSectionForField,
+  type ExtensionAdvancedSection,
+} from '../extensionAdvancedSections'
 import { useExtensionFormOptions } from '../composables/useExtensionFormOptions'
 import { extensionCreateSchema } from '../schemas/extensionFormSchema'
 import type {
@@ -36,6 +40,7 @@ import type {
 } from '../types/extension'
 import ExtensionCredentialsProfile from './ExtensionCredentialsProfile.vue'
 import ExtensionAdvancedCallingSettings from './ExtensionAdvancedCallingSettings.vue'
+import ExtensionAdvancedTabSelector from './ExtensionAdvancedTabSelector.vue'
 import ExtensionCallRecordingSettings from './ExtensionCallRecordingSettings.vue'
 import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
@@ -62,6 +67,7 @@ const advancedCalling = reactive(
   ),
 )
 const selectedFormSection = ref(0)
+const selectedAdvancedSection = ref<ExtensionAdvancedSection>('options')
 const panelView = ref<'extension' | 'device' | 'voicemail'>('extension')
 const configuredDevice = ref<DeviceInput | null>(null)
 const configuredVoicemail = ref<VoicemailBoxInput | null>(null)
@@ -192,25 +198,18 @@ function updateAdvancedCalling(
 }
 
 function isAdvancedField(field: string): boolean {
-  return [
-    'language',
-    'presence_id',
-    'call_waiting',
-    'do_not_disturb',
-    'contact_list',
-    'caller_id_options',
-    'caller_id',
-    'call_forward',
-    'call_restriction',
-    'call_recording',
-    'hotdesk',
-  ].some((prefix) => field === prefix || field.startsWith(`${prefix}.`))
+  return extensionAdvancedSectionForField(field) !== null
 }
 
 function revealValidationSection(errors: FormErrors): void {
   const fields = Object.keys(errors)
 
-  selectedFormSection.value = fields.length > 0 && fields.every(isAdvancedField) ? 1 : 0
+  const advancedOnly = fields.length > 0 && fields.every(isAdvancedField)
+  selectedFormSection.value = advancedOnly ? 1 : 0
+
+  if (advancedOnly) {
+    selectedAdvancedSection.value = extensionAdvancedSectionForField(fields[0] ?? '') ?? 'options'
+  }
 }
 
 watch(
@@ -381,6 +380,7 @@ function submit(): void {
         <ExtensionCredentialsProfile
           :model-value="credentials"
           :field-errors="displayErrors"
+          section="login"
           @update:model-value="updateCredentials"
         />
       </div>
@@ -390,33 +390,105 @@ function submit(): void {
         data-testid="extension-advanced-section"
         class="contents"
       >
-        <ExtensionUserOptions
-          :model-value="userConfiguration"
-          :field-errors="displayErrors"
-          :language-options="languageOptions"
-          :presence-options="presenceOptions"
-          @update:model-value="updateUserConfiguration"
-        />
+        <ExtensionAdvancedTabSelector v-model="selectedAdvancedSection" />
 
-        <ExtensionAdvancedCallingSettings
-          :model-value="advancedCalling"
-          :field-errors="displayErrors"
-          :phone-numbers="options.caller_id_numbers"
-          :restrictions="options.restrictions"
-          :unresolved-numbers="{ external: null, emergency: null }"
-          @update:model-value="updateAdvancedCalling"
-        />
+        <div
+          v-show="selectedAdvancedSection === 'caller-id'"
+          data-testid="extension-advanced-caller-id"
+          class="contents"
+        >
+          <ExtensionAdvancedCallingSettings
+            :model-value="advancedCalling"
+            :field-errors="displayErrors"
+            :phone-numbers="options.caller_id_numbers"
+            :restrictions="options.restrictions"
+            :unresolved-numbers="{ external: null, emergency: null }"
+            section="caller-id"
+            @update:model-value="updateAdvancedCalling"
+          />
+        </div>
 
-        <ExtensionCallRecordingSettings
-          v-model="advancedCalling.call_recording"
-          :field-errors="displayErrors"
-        />
+        <div
+          v-show="selectedAdvancedSection === 'options'"
+          data-testid="extension-advanced-options"
+          class="contents"
+        >
+          <ExtensionUserOptions
+            :model-value="userConfiguration"
+            :field-errors="displayErrors"
+            :language-options="languageOptions"
+            :presence-options="presenceOptions"
+            @update:model-value="updateUserConfiguration"
+          />
+        </div>
 
-        <ExtensionHotdeskProfile
-          :model-value="hotdesk"
-          :field-errors="displayErrors"
-          @update:model-value="updateHotdesk"
-        />
+        <div
+          v-show="selectedAdvancedSection === 'call-forward'"
+          data-testid="extension-advanced-call-forward"
+          class="contents"
+        >
+          <ExtensionAdvancedCallingSettings
+            :model-value="advancedCalling"
+            :field-errors="displayErrors"
+            :phone-numbers="options.caller_id_numbers"
+            :restrictions="options.restrictions"
+            :unresolved-numbers="{ external: null, emergency: null }"
+            section="call-forward"
+            @update:model-value="updateAdvancedCalling"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'password'"
+          data-testid="extension-advanced-password"
+          class="contents"
+        >
+          <ExtensionCredentialsProfile
+            :model-value="credentials"
+            :field-errors="displayErrors"
+            section="password"
+            @update:model-value="updateCredentials"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'recording'"
+          data-testid="extension-advanced-recording"
+          class="contents"
+        >
+          <ExtensionCallRecordingSettings
+            v-model="advancedCalling.call_recording"
+            :field-errors="displayErrors"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'hot-desking'"
+          data-testid="extension-advanced-hot-desking"
+          class="contents"
+        >
+          <ExtensionHotdeskProfile
+            :model-value="hotdesk"
+            :field-errors="displayErrors"
+            @update:model-value="updateHotdesk"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'restrictions'"
+          data-testid="extension-advanced-restrictions"
+          class="contents"
+        >
+          <ExtensionAdvancedCallingSettings
+            :model-value="advancedCalling"
+            :field-errors="displayErrors"
+            :phone-numbers="options.caller_id_numbers"
+            :restrictions="options.restrictions"
+            :unresolved-numbers="{ external: null, emergency: null }"
+            section="restrictions"
+            @update:model-value="updateAdvancedCalling"
+          />
+        </div>
       </div>
 
       <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">

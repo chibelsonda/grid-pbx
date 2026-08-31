@@ -8,6 +8,7 @@ use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeDeleteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
@@ -119,6 +120,27 @@ final readonly class CallflowResourceClient
                 rawurlencode($accountId),
                 rawurlencode($callflowId),
             ),
+            ['json' => ['data' => $node->toSwitchData()]],
+        );
+        $snapshot = $this->snapshot($payload);
+
+        if ($snapshot->id !== $callflowId) {
+            throw new InvalidSwitchPayloadException('Switch callflow response id does not match the requested resource.');
+        }
+
+        return $this->find($accountId, $callflowId);
+    }
+
+    public function deleteTreeNode(
+        string $accountId,
+        string $callflowId,
+        CallflowTreeNodeDeleteData $node,
+    ): CallflowSnapshot {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $callflowId = $this->requiredIdentifier($callflowId, 'callflow');
+        $payload = $this->client->request(
+            'POST',
+            sprintf('accounts/%s/callflows/%s', rawurlencode($accountId), rawurlencode($callflowId)),
             ['json' => ['data' => $node->toSwitchData()]],
         );
         $snapshot = $this->snapshot($payload);

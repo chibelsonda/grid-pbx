@@ -432,14 +432,8 @@ class ExtensionSynchronizationService
         $records = [];
 
         foreach ($callflows as $callflow) {
-            $ownerId = null;
-
-            foreach ($callflow->numbers as $number) {
-                if (isset($ownersByExtension[$number])) {
-                    $ownerId = $ownersByExtension[$number];
-                    break;
-                }
-            }
+            $ownerId = $this->callflowOwnerResourceId($callflow, $extensionRecords, $ownersByExtension);
+            $rawFlow = is_array($callflow->data['flow'] ?? null) ? $callflow->data['flow'] : null;
 
             $records[$callflow->id] = [
                 'owner_switch_resource_id' => $ownerId,
@@ -454,9 +448,7 @@ class ExtensionSynchronizationService
                 'is_feature_code' => $callflow->featureCodeName !== null || $callflow->featureCodeNumber !== null,
                 'feature_code_name' => $callflow->featureCodeName,
                 'feature_code_number' => $callflow->featureCodeNumber,
-                'flow_structure' => $callflow->flow === null
-                    ? null
-                    : $this->callflowJson->flow($callflow->flow->toArray()),
+                'flow_structure' => $rawFlow === null ? null : $this->callflowJson->flow($rawFlow),
                 'switch_json' => $this->callflowJson->document(
                     $this->redactSensitiveData->handle($callflow->toArray()),
                 ),
@@ -464,6 +456,38 @@ class ExtensionSynchronizationService
         }
 
         return $records;
+    }
+
+    /**
+     * The root user reference is the authoritative owner of a managed extension
+     * callflow. Number matching remains a fallback for older Switch documents,
+     * whose root node may not identify the owning user.
+     *
+     * @param  array<string, array<string, mixed>>  $extensionRecords
+     * @param  array<string, string>  $ownersByExtension
+     */
+    private function callflowOwnerResourceId(
+        CallflowSnapshot $callflow,
+        array $extensionRecords,
+        array $ownersByExtension,
+    ): ?string {
+        $rawFlow = is_array($callflow->data['flow'] ?? null) ? $callflow->data['flow'] : [];
+        $rootData = is_array($rawFlow['data'] ?? null) ? $rawFlow['data'] : [];
+        $rootUserId = ($rawFlow['module'] ?? null) === 'user'
+            ? $this->stringValue($rootData['id'] ?? null)
+            : null;
+
+        if ($rootUserId !== null && isset($extensionRecords[$rootUserId])) {
+            return $rootUserId;
+        }
+
+        foreach ($callflow->numbers as $number) {
+            if (isset($ownersByExtension[$number])) {
+                return $ownersByExtension[$number];
+            }
+        }
+
+        return null;
     }
 
     private function stringValue(mixed $value): ?string

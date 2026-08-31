@@ -9,6 +9,7 @@ import type {
   CallflowTreeMoveInput,
   CallflowTreeReorderInput,
   CallflowTreeNodeCreateInput,
+  CallflowTreeNodeDeleteInput,
   CallflowTreeNodeUpdateInput,
   CallflowUpdate,
   SyncRun,
@@ -50,6 +51,14 @@ vi.mock('../api/callflowApi', () => ({
           accountId: string,
           callflowId: string,
           input: CallflowTreeNodeUpdateInput,
+        ) => Promise<Callflow>
+      >(),
+    deleteTreeNode:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowTreeNodeDeleteInput,
         ) => Promise<Callflow>
       >(),
     createInlineTreeNode:
@@ -472,6 +481,32 @@ describe('callflow store', () => {
     expect(store.detail?.node_count).toBe(3)
     expect(store.records[0]?.flow?.children._?.children._?.target?.label).toBe('After hours')
     expect(store.treeNodeError).toBeNull()
+  })
+
+  it('replaces the projection after removing a confirmed public subtree', async () => {
+    const input: CallflowTreeNodeDeleteInput = {
+      node_path: ['_'],
+      confirm_subtree: true,
+    }
+    const updated: Callflow = {
+      ...callflow,
+      node_count: 1,
+      flow: {
+        ...callflow.flow!,
+        children: {},
+      },
+    }
+    vi.mocked(callflowApi.deleteTreeNode).mockResolvedValue(updated)
+    const store = useCallflowStore()
+    store.detail = callflow
+    store.records = [callflow]
+
+    await store.deleteTreeNode('account-1', callflow.id, input)
+
+    expect(callflowApi.deleteTreeNode).toHaveBeenCalledWith('account-1', callflow.id, input)
+    expect(store.detail?.node_count).toBe(1)
+    expect(store.records[0]?.flow?.children).toEqual({})
+    expect(store.treeMutationError).toBeNull()
   })
 
   it('replaces the projection after adding a schema-backed inline action', async () => {

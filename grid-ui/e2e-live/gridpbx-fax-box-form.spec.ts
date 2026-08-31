@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectControlRowAligned } from './support/formAlignment.js'
 
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
@@ -78,6 +79,13 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
   )
   await page.getByRole('button', { name: 'New fax box' }).click()
   const dialog = page.getByRole('dialog', { name: 'Create fax box' })
+
+  await dialog.getByRole('tab', { name: 'Advanced' }).click()
+  await expectControlRowAligned(
+    dialog.getByRole('button', { name: 'Caller ID number' }),
+    dialog.getByLabel('Caller ID name'),
+  )
+  await dialog.getByRole('tab', { name: 'Basic' }).click()
 
   await dialog.getByRole('button', { name: 'Fax-box owner' }).click()
   const listbox = page.getByRole('listbox')

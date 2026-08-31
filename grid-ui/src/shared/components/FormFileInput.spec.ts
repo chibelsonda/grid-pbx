@@ -15,6 +15,7 @@ describe('FormFileInput', () => {
     const input = wrapper.get('input')
     const file = new File(['audio'], 'greeting.wav', { type: 'audio/wav' })
 
+    expect(wrapper.classes()).toContain('content-start')
     expect(wrapper.get('label').attributes('for')).toBe(input.attributes('id'))
     expect(input.attributes('aria-label')).toBe('Media audio file')
     expect(input.attributes('aria-invalid')).toBe('true')

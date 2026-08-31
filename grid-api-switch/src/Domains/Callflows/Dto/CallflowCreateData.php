@@ -38,10 +38,15 @@ final readonly class CallflowCreateData
         'temporal_route',
     ];
 
+    private const SUPPORTED_INLINE_ROOT_MODULES = [
+        'ring_group',
+    ];
+
     /**
      * @param  list<string>  $phoneNumbers
      * @param  list<CallflowBranchWriteData>  $branchRoutes
      * @param  list<string>  $destinationTemporalRuleIds
+     * @param  array<string, mixed>|null  $destinationSettings
      */
     public function __construct(
         public string $name,
@@ -52,12 +57,16 @@ final readonly class CallflowCreateData
         public ?string $fallbackResourceId = null,
         public array $branchRoutes = [],
         public array $destinationTemporalRuleIds = [],
+        public ?array $destinationSettings = null,
     ) {
         if (trim($this->name) === '') {
             throw new InvalidArgumentException('Switch callflow name is required.');
         }
 
-        if (! in_array($this->destinationModule, self::SUPPORTED_DESTINATION_MODULES, true)) {
+        if (! in_array($this->destinationModule, [
+            ...self::SUPPORTED_DESTINATION_MODULES,
+            ...self::SUPPORTED_INLINE_ROOT_MODULES,
+        ], true)) {
             throw new InvalidArgumentException('Unsupported Switch callflow destination module.');
         }
 
@@ -144,6 +153,13 @@ final readonly class CallflowCreateData
     /** @return array<string, mixed> */
     private function rootDestinationData(): array
     {
+        if (in_array($this->destinationModule, self::SUPPORTED_INLINE_ROOT_MODULES, true)) {
+            return CallflowInlineNodeWriteData::rootNode(
+                $this->destinationModule,
+                $this->destinationSettings ?? [],
+            )['data'];
+        }
+
         if ($this->destinationTemporalRuleIds !== []) {
             return ['rules' => array_values($this->destinationTemporalRuleIds)];
         }
@@ -153,6 +169,25 @@ final readonly class CallflowCreateData
 
     private function assertDestinationConfiguration(): void
     {
+        if (in_array($this->destinationModule, self::SUPPORTED_INLINE_ROOT_MODULES, true)) {
+            if ($this->destinationResourceId !== null
+                || $this->destinationTemporalRuleIds !== []
+                || $this->destinationSettings === null) {
+                throw new InvalidArgumentException('Inline callflow roots require settings without a destination identifier.');
+            }
+
+            CallflowInlineNodeWriteData::rootNode(
+                $this->destinationModule,
+                $this->destinationSettings,
+            );
+
+            return;
+        }
+
+        if ($this->destinationSettings !== null) {
+            throw new InvalidArgumentException('Resource-backed callflow destinations cannot contain inline settings.');
+        }
+
         if ($this->destinationTemporalRuleIds !== []) {
             if ($this->destinationModule !== 'temporal_route' || $this->destinationResourceId !== null) {
                 throw new InvalidArgumentException('Direct temporal rules require a temporal-route destination without a rule-set identifier.');

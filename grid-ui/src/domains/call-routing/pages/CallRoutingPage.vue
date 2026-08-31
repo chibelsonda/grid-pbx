@@ -9,7 +9,6 @@ import {
   PhoneArrowDownLeftIcon,
   QueueListIcon,
   PlusIcon,
-  SquaresPlusIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
@@ -21,17 +20,16 @@ import {
   callflowInlineModuleNeedsEditorCatalog,
   isGuidedInlineCallflowModule,
 } from '../catalog/callflowActionCatalog'
-import { createComplexCallflowDemo } from '../services/complexCallflowDemo'
 import { useCallflowStore } from '../stores/callflowStore'
 import type {
   CallflowNodeEditorContext,
+  CallflowCreateInput,
   CallflowTreeMoveInput,
   CallflowTreeReorderInput,
   CallflowTreeNodeCreateInput,
   CallflowTreeNodeUpdateInput,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
-  CallflowUpdate,
 } from '../types/callRouting'
 
 const accounts = useAccountStore()
@@ -48,9 +46,6 @@ function nodeEditorAction(context: CallflowNodeEditorContext): unknown {
       : undefined)
   )
 }
-const demoOpen = ref(false)
-const complexDemo = createComplexCallflowDemo()
-const activeRecord = computed(() => (demoOpen.value ? complexDemo : callflows.detail))
 const nodesOnPage = computed(() =>
   callflows.records.reduce((total, route) => total + route.node_count, 0),
 )
@@ -68,10 +63,7 @@ const workspaceOpen = computed(
   () =>
     creatingRoute.value ||
     (!callflows.editorOpen &&
-      (demoOpen.value ||
-        callflows.detailLoading ||
-        callflows.detail !== null ||
-        callflows.detailError !== null)),
+      (callflows.detailLoading || callflows.detail !== null || callflows.detailError !== null)),
 )
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const freshnessLabel = computed(() =>
@@ -84,7 +76,6 @@ watch(
   [() => accounts.selectedId, () => route.query.callflow],
   ([accountId, callflowId]) => {
     nodeEditorContext.value = null
-    demoOpen.value = false
     callflows.reset()
     if (accountId) {
       void callflows.load(accountId, 1)
@@ -108,20 +99,11 @@ function refreshCallflowNodes(): void {
 }
 
 function openDetail(id: string): void {
-  demoOpen.value = false
   if (accounts.selectedId) void callflows.loadDetail(accounts.selectedId, id)
-}
-
-function openComplexDemo(): void {
-  nodeEditorContext.value = null
-  callflows.closeDetail()
-  callflows.closeEditor()
-  demoOpen.value = true
 }
 
 function closeWorkspace(): void {
   if (creatingRoute.value) callflows.closeEditor()
-  else if (demoOpen.value) demoOpen.value = false
   else callflows.closeDetail()
 }
 
@@ -135,11 +117,13 @@ function openCreateEditor(): void {
   if (accounts.selectedId) void callflows.openCreateEditor(accounts.selectedId)
 }
 
-function saveRoute(input: CallflowUpdate): void {
+function saveRoute(input: CallflowCreateInput): void {
   if (!accounts.selectedId) return
 
-  if (callflows.detail) void callflows.update(accounts.selectedId, callflows.detail.id, input)
-  else void callflows.create(accounts.selectedId, input)
+  if (callflows.detail) {
+    if (input.destination_type === null) return
+    void callflows.update(accounts.selectedId, callflows.detail.id, input)
+  } else void callflows.create(accounts.selectedId, input)
 }
 
 function moveTreeNode(input: CallflowTreeMoveInput): void {
@@ -152,6 +136,17 @@ function reorderTreeNodes(input: CallflowTreeReorderInput): void {
   if (accounts.selectedId && callflows.detail) {
     void callflows.reorderTreeNodes(accounts.selectedId, callflows.detail.id, input)
   }
+}
+
+async function deleteTreeNode(path: string[]): Promise<void> {
+  if (!accounts.selectedId || !callflows.detail) return
+
+  const updated = await callflows.deleteTreeNode(accounts.selectedId, callflows.detail.id, {
+    node_path: path,
+    confirm_subtree: true,
+  })
+
+  if (updated) nodeEditorContext.value = null
 }
 
 function openNodeEditor(context: CallflowNodeEditorContext): void {
@@ -222,20 +217,13 @@ function routeTitle(route: {
   <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
     <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
       <div>
-        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Call Routing</p>
-        <h1 class="text-xl font-semibold tracking-tight text-slate-800">Call Routing</h1>
+        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Callflows</p>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-800">Callflows</h1>
         <p class="mt-1 text-xs text-slate-500">
           Understand incoming entry points and the safe structural path each call follows.
         </p>
       </div>
       <div class="flex gap-3 sm:ml-auto">
-        <button
-          type="button"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-brand-200 bg-brand-50 px-4 text-xs font-semibold text-brand-700 shadow-sm hover:bg-brand-100"
-          @click="openComplexDemo"
-        >
-          <SquaresPlusIcon class="size-4" /> Open complex demo
-        </button>
         <button
           v-if="canManage"
           type="button"
@@ -243,7 +231,7 @@ function routeTitle(route: {
           class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
           @click="openCreateEditor"
         >
-          <PlusIcon class="size-4" /> Create route
+          <PlusIcon class="size-4" /> Create callflow
         </button>
         <button
           type="button"
@@ -280,35 +268,26 @@ function routeTitle(route: {
         @save="saveRoute"
       />
       <template v-else>
-        <div
-          v-if="demoOpen"
-          class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900"
-        >
-          <SquaresPlusIcon class="size-5 shrink-0" />
-          <p>
-            <strong>UI-only demonstration.</strong> Select nodes and move the action palette freely.
-            Editing and drag-to-mutate controls are disabled, and nothing is written to Switch or
-            MySQL.
-          </p>
-        </div>
         <CallflowDetailPanel
-          :record="activeRecord"
-          :loading="demoOpen ? false : callflows.detailLoading"
-          :error="demoOpen ? null : callflows.detailError"
-          :can-manage="demoOpen ? false : canManage"
-          :deleting="demoOpen ? false : callflows.deleting"
-          :mutation-error="demoOpen ? null : callflows.mutationError"
-          :tree-moving="demoOpen ? false : callflows.treeMoving"
-          :tree-mutation-error="demoOpen ? null : callflows.treeMutationError"
-          :can-refresh="!demoOpen"
-          :refreshing="demoOpen ? false : callflows.detailLoading"
-          :synchronizing="demoOpen ? false : callflows.synchronizing"
+          :record="callflows.detail"
+          :loading="callflows.detailLoading"
+          :error="callflows.detailError"
+          :can-manage="canManage"
+          :deleting="callflows.deleting"
+          :mutation-error="callflows.mutationError"
+          :tree-moving="callflows.treeMoving"
+          :tree-deleting="callflows.treeDeleting"
+          :tree-mutation-error="callflows.treeMutationError"
+          can-refresh
+          :refreshing="callflows.detailLoading"
+          :synchronizing="callflows.synchronizing"
           @close="closeWorkspace"
           @refresh="refreshCallflowNodes"
           @edit="openEditor"
           @delete="deleteRoute"
           @move-node="moveTreeNode"
           @reorder-nodes="reorderTreeNodes"
+          @delete-node="deleteTreeNode"
           @create-node="openNodeEditor"
           @edit-node="openNodeEditor"
         />
@@ -369,7 +348,7 @@ function routeTitle(route: {
       >
         <SearchInput
           v-model="callflows.filters.search"
-          label="Search call routes"
+          label="Search callflows"
           placeholder="Search route, number, pattern, feature code…"
           input-class="h-10 bg-white text-xs shadow-sm"
         />
@@ -433,7 +412,7 @@ function routeTitle(route: {
             <tbody class="divide-y divide-slate-100 text-xs">
               <tr v-if="callflows.loading">
                 <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                  Loading projected call routes…
+                  Loading projected callflows…
                 </td>
               </tr>
               <tr v-else-if="callflows.records.length === 0">

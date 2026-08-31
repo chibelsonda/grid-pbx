@@ -108,6 +108,11 @@ export type CallflowTreeReorderInput = {
   target_path: string[]
 }
 
+export type CallflowTreeNodeDeleteInput = {
+  node_path: string[]
+  confirm_subtree: true
+}
+
 export type CallflowTreeNodeCreateInput = {
   parent_path: string[]
   branch: CallflowTreeBranchKey
@@ -439,6 +444,22 @@ export type CallflowUpdate = {
   temporal_match_destination_type?: CallflowDestinationType | null
   temporal_match_destination_id?: string | null
 }
+
+export type CallflowInlineRootAction = {
+  module: 'ring_group'
+  data: CallflowInlineNodeData
+}
+
+export type CallflowInlineRootCreateInput = Omit<
+  CallflowUpdate,
+  'destination_type' | 'destination_id'
+> & {
+  destination_type: null
+  destination_id: null
+  root_action: CallflowInlineRootAction
+}
+
+export type CallflowCreateInput = CallflowUpdate | CallflowInlineRootCreateInput
 
 export type Callflow = {
   id: string

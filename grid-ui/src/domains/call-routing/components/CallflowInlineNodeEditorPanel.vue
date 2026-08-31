@@ -39,8 +39,9 @@ const props = withDefaults(
     saving: boolean
     error: string | null
     fieldErrors: Record<string, string[]>
+    rootConfiguration?: boolean
   }>(),
-  { editor: null, loading: false },
+  { editor: null, loading: false, rootConfiguration: false },
 )
 const emit = defineEmits<{
   close: []
@@ -59,9 +60,11 @@ const replacementConfirmed = ref(false)
 const replacementError = ref<string | null>(null)
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
-  props.context.operation === 'create'
-    ? `Add ${action.value?.label ?? 'callflow action'}`
-    : `Edit ${action.value?.label ?? 'callflow action'}`,
+  props.rootConfiguration
+    ? `Configure ${action.value?.label ?? 'root action'}`
+    : props.context.operation === 'create'
+      ? `Add ${action.value?.label ?? 'callflow action'}`
+      : `Edit ${action.value?.label ?? 'callflow action'}`,
 )
 const actionIcon = computed(() =>
   callflowActionIcon(module.value, {
@@ -502,7 +505,7 @@ watch(
 <template>
   <CrudSlideOver
     :title="title"
-    eyebrow="GridPBX / Call Routing / Action"
+    eyebrow="GridPBX / Callflows / Action"
     description="Configure the public Switch schema fields for this inline action."
     width="medium"
     @close="emit('close')"
@@ -580,7 +583,10 @@ watch(
             :error="fieldError('branch')"
             @update:model-value="setCapturedNumberBranch"
           />
-          <label v-else-if="context.operation === 'create'" class="grid gap-2">
+          <label
+            v-else-if="context.operation === 'create' && !rootConfiguration"
+            class="grid gap-2"
+          >
             <span class="text-xs font-semibold text-slate-700">Parent branch</span>
             <FormListbox
               :model-value="form.branch"
@@ -1860,7 +1866,15 @@ watch(
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
           :disabled="saving"
         >
-          {{ saving ? 'Saving…' : context.operation === 'create' ? 'Add action' : 'Save action' }}
+          {{
+            saving
+              ? 'Saving…'
+              : rootConfiguration
+                ? 'Use action'
+                : context.operation === 'create'
+                  ? 'Add action'
+                  : 'Save action'
+          }}
         </button>
       </div>
     </form>

@@ -12,6 +12,7 @@ use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeDeleteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
@@ -34,6 +35,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
         ?string $fallbackResourceId = null,
         array $branchRoutes = [],
         array $destinationTemporalRuleIds = [],
+        ?array $destinationSettings = null,
     ): array {
         return $this->callflows->create(
             $account->switch_account_id,
@@ -46,6 +48,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 fallbackResourceId: $fallbackResourceId,
                 branchRoutes: $this->branchData($branchRoutes),
                 destinationTemporalRuleIds: $destinationTemporalRuleIds,
+                destinationSettings: $destinationSettings,
             ),
         )->toArray();
     }
@@ -165,6 +168,28 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
             $account->switch_account_id,
             $resourceId,
             $write,
+        )->toArray();
+    }
+
+    public function deleteTreeNode(
+        SwitchAccount $account,
+        string $resourceId,
+        array $path,
+    ): array {
+        $current = $this->resources->find(
+            $account->switch_account_id,
+            AccountResource::Callflows,
+            $resourceId,
+        );
+
+        if (! $current instanceof CallflowSnapshot) {
+            throw new UnexpectedValueException('Switch returned an unexpected callflow resource.');
+        }
+
+        return $this->callflows->deleteTreeNode(
+            $account->switch_account_id,
+            $resourceId,
+            new CallflowTreeNodeDeleteData($current->toArray(), $path),
         )->toArray();
     }
 

@@ -385,7 +385,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
               ><ArrowPathRoundedSquareIcon class="size-5"
             /></span>
             <div>
-              <h2 class="text-sm font-semibold text-slate-700">Call routing</h2>
+              <h2 class="text-sm font-semibold text-slate-700">Callflows</h2>
               <p class="text-[10px] text-slate-400">Callflows matched to this extension number</p>
             </div>
           </header>

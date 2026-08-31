@@ -203,6 +203,12 @@
     @apply h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
   }
 
+  /* Keep mixed input, select, and listbox stacks aligned when a neighboring field has help text. */
+  form label.grid:has(button[data-form-listbox-trigger]),
+  form label.grid:has(select) {
+    align-content: start;
+  }
+
   :where(
     input,
     textarea,

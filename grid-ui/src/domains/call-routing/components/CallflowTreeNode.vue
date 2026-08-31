@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { XMarkIcon } from '@heroicons/vue/20/solid'
 import { callflowActionAppearance } from '../catalog/callflowActionAppearance'
 import {
   callflowNodeLabel,
@@ -54,6 +55,7 @@ const emit = defineEmits<{
     action: CallflowAction,
     placement: CallflowNodePlacement,
   ]
+  remove: [selection: CallflowNodeSelection]
 }>()
 const depth = computed(() => props.depth)
 const selected = computed(
@@ -64,6 +66,14 @@ const selected = computed(
 )
 const children = computed(() => orderedCallflowChildren(props.node))
 const movable = computed(
+  () =>
+    props.editable &&
+    !props.moving &&
+    props.path.length > 0 &&
+    props.node.branch?.kind !== 'preserved' &&
+    findCallflowAction(props.node.module)?.status === 'guided',
+)
+const removable = computed(
   () =>
     props.editable &&
     !props.moving &&
@@ -329,6 +339,16 @@ const branchClass = computed(() => {
         :movable="movable"
       />
     </button>
+    <button
+      v-if="removable"
+      type="button"
+      :aria-label="`Remove ${moduleLabel}`"
+      :title="`Remove ${moduleLabel}`"
+      class="absolute top-1 right-1 z-10 grid size-4 place-items-center rounded-sm text-white/75 transition hover:bg-black/30 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white"
+      @click.stop="emit('remove', { node, path: [...path] })"
+    >
+      <XMarkIcon class="size-3.5" />
+    </button>
 
     <div v-if="children.length" role="group" class="mt-1 flex flex-col items-center">
       <CallflowBranchConnector v-if="children.length > 1" kind="parent-stem" />
@@ -359,6 +379,7 @@ const branchClass = computed(() => {
             @drag-end="emit('drag-end')"
             @move="emit('move', $event)"
             @add-action="forwardAddAction"
+            @remove="emit('remove', $event)"
           />
         </div>
       </div>

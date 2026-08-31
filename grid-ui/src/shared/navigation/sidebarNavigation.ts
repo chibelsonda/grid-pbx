@@ -62,7 +62,7 @@ export const cloudPhoneGroups: SidebarGroup[] = [
     icon: PhoneArrowUpRightIcon,
     items: [
       { label: 'Phone Numbers', to: '/phone-numbers', icon: HashtagIcon },
-      { label: 'Call Routing', to: '/call-routing', icon: ArrowPathRoundedSquareIcon },
+      { label: 'Callflows', to: '/call-routing', icon: ArrowPathRoundedSquareIcon },
       { label: 'Feature Codes', to: '/feature-codes', icon: BoltIcon },
       { label: 'Business Hours', to: '/business-hours', icon: CalendarDaysIcon },
       { label: 'Blacklists', to: '/blacklists', icon: ShieldExclamationIcon },

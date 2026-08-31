@@ -614,7 +614,11 @@ test('manages media and music on hold through right-side panels', async ({ page 
           last_page: 1,
           per_page: 25,
           total: 1,
-          sync: { status: 'healthy', last_successful_at: '2026-08-28T05:00:00Z', error_message: null },
+          sync: {
+            status: 'healthy',
+            last_successful_at: '2026-08-28T05:00:00Z',
+            error_message: null,
+          },
         },
       }),
     })
@@ -747,12 +751,53 @@ test('shows phone number inventory and opens details in a right-side panel', asy
   await expect(panel).toBeHidden()
 })
 
-test('shows projected call routes and a safe structural tree in a right-side panel', async ({
-  page,
-}) => {
+test('edits and creates projected callflows in the full-page workspace', async ({ page }) => {
+  const accountId = '4bb37213-1ddd-4afe-9cdb-142ea3a0ccf2'
   const callflowId = '6db510f0-7821-4ffc-a7fa-eae51d94b6b3'
+  const createdCallflowId = 'aab2b80b-c85a-43ae-a948-7c23c91742d7'
+  const extensionId = '16f95ac5-243c-476a-b238-9f51108f82e1'
+  const mailboxId = '216fe383-b79f-45ee-a98e-a507ef3b2995'
+  const numberId = '1078f5f7-a8c4-4296-abf8-610612cac312'
+  const newNumberId = '718b052d-7453-48f9-a6d4-798399ae3df0'
+  const busyNumberId = '908a48f5-73a3-49a0-b0d1-e8cb65bc5728'
+  const otherCallflowId = '9f9f9689-cc90-47c6-bce5-c721c694bbd1'
   let savedRoutePayload: Record<string, unknown> | null = null
   let createdRoutePayload: Record<string, unknown> | null = null
+  const editorState = {
+    editable: true,
+    blocked_reason: null,
+    fallback: { editable: true, blocked_reason: null, target: null },
+    menu_branches: {
+      editable: true,
+      blocked_reason: null,
+      branches: [],
+      legacy_hash_present: false,
+      unknown_branch_keys: [],
+    },
+    temporal_match: {
+      editable: true,
+      blocked_reason: null,
+      target: null,
+      preserved_branch_count: 0,
+    },
+    direct_temporal_routes: [],
+    temporal_rule_sets: {},
+    temporal_rules: [],
+    caller_id_lists: [],
+  }
+  const emptyDestinations = {
+    device: [],
+    callflow: [],
+    media: [],
+    directory: [],
+    group: [],
+    queue: [],
+    menu: [],
+    conference: [],
+    fax_box: [],
+    temporal_rule_set: [],
+    temporal_rules: [],
+  }
   const callflow = {
     id: callflowId,
     name: 'Main Reception',
@@ -779,11 +824,11 @@ test('shows projected call routes and a safe structural tree in a right-side pan
       },
     },
     linked_extension: {
-      id: 'extension-public-id',
+      id: extensionId,
       display_name: 'Reception',
       extension: '1001',
     },
-    phone_numbers: [{ id: 'number-public-id', number: '+15551234567', state: 'in_service' }],
+    phone_numbers: [{ id: numberId, number: '+15551234567', state: 'in_service' }],
     sync_status: 'healthy',
     last_synced_at: '2026-08-28T10:00:00+08:00',
   }
@@ -793,7 +838,13 @@ test('shows projected call routes and a safe structural tree in a right-side pan
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
-        data: { user: { id: 'user-public-id', name: 'Grid Admin', email: 'admin@gridpbx.local' } },
+        data: {
+          user: {
+            id: '4828b80e-b3aa-4cc0-b645-27404f31ab3f',
+            name: 'Grid Admin',
+            email: 'admin@gridpbx.local',
+          },
+        },
       }),
     }),
   )
@@ -804,7 +855,7 @@ test('shows projected call routes and a safe structural tree in a right-side pan
       body: JSON.stringify({
         data: [
           {
-            id: 'account-1',
+            id: accountId,
             name: 'GridPBX',
             realm: 'gridpbx.local',
             organization: { id: 'organization-1', name: 'GridPBX' },
@@ -819,7 +870,7 @@ test('shows projected call routes and a safe structural tree in a right-side pan
       }),
     }),
   )
-  await page.route('**/api/v1/accounts/account-1/callflows**', (route) => {
+  await page.route(`**/api/v1/accounts/${accountId}/callflows**`, (route) => {
     const path = new URL(route.request().url()).pathname
 
     if (path.endsWith('/callflows/editor')) {
@@ -828,20 +879,17 @@ test('shows projected call routes and a safe structural tree in a right-side pan
         contentType: 'application/json',
         body: JSON.stringify({
           data: {
+            ...editorState,
             mode: 'create',
-            editable: true,
-            blocked_reason: null,
             destination_types: [{ value: 'extension', label: 'Extension' }],
             destinations: {
-              extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
-              device: [],
+              ...emptyDestinations,
+              extension: [{ id: extensionId, label: 'Reception', detail: '1001' }],
               voicemail: [],
-              callflow: [],
-              media: [],
             },
             phone_numbers: [
               {
-                id: 'new-number-public-id',
+                id: newNumberId,
                 number: '+15559876543',
                 state: 'in_service',
                 selected: false,
@@ -863,12 +911,20 @@ test('shows projected call routes and a safe structural tree in a right-side pan
         body: JSON.stringify({
           data: {
             ...callflow,
-            id: 'created-route-public-id',
+            id: createdCallflowId,
             name: 'After hours route',
             numbers: ['+15559876543'],
-            phone_numbers: [
-              { id: 'new-number-public-id', number: '+15559876543', state: 'in_service' },
-            ],
+            modules: ['user'],
+            root_module: 'user',
+            node_count: 1,
+            max_depth: 1,
+            flow: {
+              module: 'user',
+              target: { type: 'extension', id: extensionId, label: 'Reception' },
+              reference_status: 'resolved',
+              children: {},
+            },
+            phone_numbers: [{ id: newNumberId, number: '+15559876543', state: 'in_service' }],
           },
         }),
       })
@@ -880,23 +936,20 @@ test('shows projected call routes and a safe structural tree in a right-side pan
         contentType: 'application/json',
         body: JSON.stringify({
           data: {
+            ...editorState,
             mode: 'update',
-            editable: true,
-            blocked_reason: null,
             destination_types: [
               { value: 'extension', label: 'Extension' },
               { value: 'voicemail', label: 'Voicemail' },
             ],
             destinations: {
-              extension: [{ id: 'extension-public-id', label: 'Reception', detail: '1001' }],
-              device: [],
-              voicemail: [{ id: 'mailbox-public-id', label: 'Reception mailbox', detail: '1001' }],
-              callflow: [],
-              media: [],
+              ...emptyDestinations,
+              extension: [{ id: extensionId, label: 'Reception', detail: '1001' }],
+              voicemail: [{ id: mailboxId, label: 'Reception mailbox', detail: '1001' }],
             },
             phone_numbers: [
               {
-                id: 'number-public-id',
+                id: numberId,
                 number: '+15551234567',
                 state: 'in_service',
                 selected: true,
@@ -904,12 +957,12 @@ test('shows projected call routes and a safe structural tree in a right-side pan
                 assigned_callflow: { id: callflowId, name: 'Main Reception' },
               },
               {
-                id: 'busy-number-public-id',
+                id: busyNumberId,
                 number: '+15557654321',
                 state: 'in_service',
                 selected: false,
                 available: false,
-                assigned_callflow: { id: 'other-route-id', name: 'Support queue' },
+                assigned_callflow: { id: otherCallflowId, name: 'Support queue' },
               },
             ],
           },
@@ -930,7 +983,7 @@ test('shows projected call routes and a safe structural tree in a right-side pan
             root_module: 'user',
             flow: {
               module: 'user',
-              target: { type: 'extension', id: 'extension-public-id', label: 'Reception' },
+              target: { type: 'extension', id: extensionId, label: 'Reception' },
               reference_status: 'resolved',
               children: callflow.flow.children,
             },
@@ -971,54 +1024,86 @@ test('shows projected call routes and a safe structural tree in a right-side pan
 
   await page.goto('/call-routing')
 
-  await expect(page.getByRole('heading', { name: 'Call Routing' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
   await expect(page.getByText('Main Reception')).toBeVisible()
   await page.getByRole('button', { name: 'View Main Reception' }).click()
 
-  const panel = page.getByRole('dialog', { name: 'Main Reception' })
-  await expect(panel).toBeVisible()
-  await expect(panel.getByText('Ring Group')).toBeVisible()
-  await expect(panel.getByText('Voicemail', { exact: true })).toBeVisible()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await expect(workspace.getByRole('heading', { name: 'Main Reception' })).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'Ring Group', exact: true })).toBeVisible()
+  await expect(workspace.getByRole('treeitem', { name: 'Voicemail', exact: true })).toBeVisible()
   await expect(
-    panel.getByText('Raw node data and Switch identifiers', { exact: false }),
+    workspace.getByText('Raw node data and Switch identifiers', { exact: false }),
   ).toBeVisible()
-  await expect(panel).not.toContainText('private-switch-id')
+  await expect(workspace).not.toContainText('private-switch-id')
 
-  await panel.getByRole('button', { name: 'Edit guided route' }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit guided route' })
-  await expect(editor).toBeVisible()
+  await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+  const editor = page.getByRole('dialog', { name: 'Edit callflow' })
+  await expect(editor.getByRole('heading', { name: 'Edit callflow', exact: true })).toBeVisible()
   await expect(editor.getByText('Resolved GridPBX target')).toBeVisible()
   await expect(editor.getByText('Currently enters this route')).toBeVisible()
   await expect(editor.getByText('Assigned to Support queue')).toBeVisible()
   await editor.getByLabel('Route name').fill('Updated reception route')
   await editor.getByRole('button', { name: 'Save route' }).click()
 
-  await expect(editor).toBeHidden()
-  await expect(page.getByRole('dialog', { name: 'Updated reception route' })).toBeVisible()
+  await expect(editor.getByRole('heading', { name: 'Edit callflow', exact: true })).toHaveCount(0)
+  await expect(workspace.getByRole('heading', { name: 'Updated reception route' })).toBeVisible()
   expect(savedRoutePayload).toEqual({
     name: 'Updated reception route',
     destination_type: 'extension',
-    destination_id: 'extension-public-id',
-    phone_number_ids: ['number-public-id'],
+    destination_id: extensionId,
+    temporal_rule_ids: [],
+    temporal_rule_routes: [],
+    phone_number_ids: [numberId],
+    manage_fallback: true,
+    fallback_destination_type: null,
+    fallback_destination_id: null,
+    manage_menu_branches: false,
+    menu_branches: [],
+    manage_temporal_match: false,
+    temporal_match_destination_type: null,
+    temporal_match_destination_id: null,
   })
 
-  await page.keyboard.press('Escape')
-  await expect(page.getByRole('dialog', { name: 'Updated reception route' })).toBeHidden()
+  await workspace.getByRole('button', { name: 'Back to callflows' }).click()
 
-  await page.getByRole('button', { name: 'Create route' }).click()
-  const creator = page.getByRole('dialog', { name: 'Create call route' })
-  await expect(creator).toBeVisible()
-  await creator.getByLabel('Route name').fill('After hours route')
-  await creator.getByText('+15559876543').click()
-  await creator.getByRole('button', { name: 'Create route' }).click()
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const creator = page.getByRole('region', { name: 'Create callflow' })
+  await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
+  await creator.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  const metadata = page.getByRole('dialog', { name: 'Callflow' })
+  await metadata.getByLabel('Callflow name').fill('After hours route')
+  await metadata.getByRole('checkbox', { name: '+15559876543' }).check()
+  await metadata.getByRole('button', { name: 'Done' }).click()
+  const palette = creator.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('button', { name: 'Use User as root action' }).click()
+  await page
+    .getByRole('dialog', { name: 'Configure User' })
+    .getByRole('button', { name: 'Use action' })
+    .click()
+  await creator.getByRole('button', { name: 'Create callflow' }).click()
 
-  await expect(creator).toBeHidden()
-  await expect(page.getByRole('dialog', { name: 'After hours route' })).toBeVisible()
+  await expect(creator).toHaveCount(0)
+  await expect(
+    page
+      .getByRole('region', { name: 'Callflow workspace' })
+      .getByRole('heading', { name: 'After hours route' }),
+  ).toBeVisible()
   expect(createdRoutePayload).toEqual({
     name: 'After hours route',
     destination_type: 'extension',
-    destination_id: 'extension-public-id',
-    phone_number_ids: ['new-number-public-id'],
+    destination_id: extensionId,
+    temporal_rule_ids: [],
+    temporal_rule_routes: [],
+    phone_number_ids: [newNumberId],
+    manage_fallback: false,
+    fallback_destination_type: null,
+    fallback_destination_id: null,
+    manage_menu_branches: false,
+    menu_branches: [],
+    manage_temporal_match: false,
+    temporal_match_destination_type: null,
+    temporal_match_destination_id: null,
   })
 })
 
@@ -1146,23 +1231,115 @@ test('filters projected call history and opens safe details in a right-side pane
 test('creates directories and groups through right-side panels', async ({ page }) => {
   let directoryPayload: Record<string, unknown> | null = null
   let groupPayload: Record<string, unknown> | null = null
-  await page.route('**/api/v1/session', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { user: { id: 'user-1', name: 'Grid Admin', email: 'admin@gridpbx.local' } } }) }))
-  await page.route('**/api/v1/accounts', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [{ id: 'account-1', name: 'GridPBX', realm: 'gridpbx.local', organization: { id: 'org-1', name: 'GridPBX' }, organization_role: 'account_operator', permissions: { can_manage_call_routing: true } }] }) }))
-  await page.route('**/api/v1/accounts/account-1/directories/options', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { extensions: [{ id: 'extension-1', label: 'Ada Lovelace', detail: '1001' }] } }) }))
+  await page.route('**/api/v1/session', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: { user: { id: 'user-1', name: 'Grid Admin', email: 'admin@gridpbx.local' } },
+      }),
+    }),
+  )
+  await page.route('**/api/v1/accounts', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: 'account-1',
+            name: 'GridPBX',
+            realm: 'gridpbx.local',
+            organization: { id: 'org-1', name: 'GridPBX' },
+            organization_role: 'account_operator',
+            permissions: { can_manage_call_routing: true },
+          },
+        ],
+      }),
+    }),
+  )
+  await page.route('**/api/v1/accounts/account-1/directories/options', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: { extensions: [{ id: 'extension-1', label: 'Ada Lovelace', detail: '1001' }] },
+      }),
+    }),
+  )
   await page.route('**/api/v1/accounts/account-1/directories**', (route) => {
     if (route.request().method() === 'POST') {
       directoryPayload = route.request().postDataJSON() as Record<string, unknown>
-      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { id: 'directory-1', name: 'People', confirm_match: true, min_dtmf: 3, max_dtmf: 0, sort_by: 'last_name', members: [], sync_status: 'healthy', last_synced_at: null } }) })
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            id: 'directory-1',
+            name: 'People',
+            confirm_match: true,
+            min_dtmf: 3,
+            max_dtmf: 0,
+            sort_by: 'last_name',
+            members: [],
+            sync_status: 'healthy',
+            last_synced_at: null,
+          },
+        }),
+      })
     }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], links: { first: null, last: null, prev: null, next: null }, meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 } }) })
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 },
+      }),
+    })
   })
-  await page.route('**/api/v1/accounts/account-1/groups/options', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: { users: [{ id: 'extension-1', label: 'Ada Lovelace', detail: '1001' }], devices: [], groups: [], media: [] } }) }))
+  await page.route('**/api/v1/accounts/account-1/groups/options', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          users: [{ id: 'extension-1', label: 'Ada Lovelace', detail: '1001' }],
+          devices: [],
+          groups: [],
+          media: [],
+        },
+      }),
+    }),
+  )
   await page.route('**/api/v1/accounts/account-1/groups**', (route) => {
     if (route.request().method() === 'POST') {
       groupPayload = route.request().postDataJSON() as Record<string, unknown>
-      return route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ data: { id: 'group-1', name: 'Support', member_count: 1, members: [], music_on_hold_media: null, sync_status: 'healthy', last_synced_at: null } }) })
+      return route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            id: 'group-1',
+            name: 'Support',
+            member_count: 1,
+            members: [],
+            music_on_hold_media: null,
+            sync_status: 'healthy',
+            last_synced_at: null,
+          },
+        }),
+      })
     }
-    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], links: { first: null, last: null, prev: null, next: null }, meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 } }) })
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: { current_page: 1, from: null, last_page: 1, per_page: 25, to: null, total: 0 },
+      }),
+    })
   })
 
   await page.goto('/directories')
@@ -1182,5 +1359,8 @@ test('creates directories and groups through right-side panels', async ({ page }
   await groupPanel.locator('select').nth(2).selectOption('extension-1')
   await groupPanel.getByRole('button', { name: 'Add' }).click()
   await groupPanel.getByRole('button', { name: 'Save group' }).click()
-  expect(groupPayload).toMatchObject({ name: 'Support', members: [{ type: 'user', id: 'extension-1', weight: 1 }] })
+  expect(groupPayload).toMatchObject({
+    name: 'Support',
+    members: [{ type: 'user', id: 'extension-1', weight: 1 }],
+  })
 })

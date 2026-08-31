@@ -45,6 +45,7 @@ const props = withDefaults(
     deleting: boolean
     mutationError: string | null
     treeMoving?: boolean
+    treeDeleting?: boolean
     treeMutationError?: string | null
     canRefresh?: boolean
     refreshing?: boolean
@@ -52,6 +53,7 @@ const props = withDefaults(
   }>(),
   {
     treeMoving: false,
+    treeDeleting: false,
     treeMutationError: null,
     canRefresh: true,
     refreshing: false,
@@ -67,8 +69,10 @@ const emit = defineEmits<{
   'reorder-nodes': [input: CallflowTreeReorderInput]
   'create-node': [context: CallflowNodeEditorContext]
   'edit-node': [context: CallflowNodeEditorContext]
+  'delete-node': [path: string[]]
 }>()
 const confirmingDelete = ref(false)
+const pendingNodeDeletion = ref<CallflowNodeSelection | null>(null)
 const selectedNode = ref<CallflowNode | null>(null)
 const selectedPath = ref<string[]>([])
 const moveSource = ref<CallflowNodeSelection | null>(null)
@@ -86,7 +90,7 @@ const title = computed(
     props.record?.name ??
     props.record?.feature_code?.name ??
     props.record?.numbers[0] ??
-    'Call route details',
+    'Callflow details',
 )
 const deletionBlocker = computed(() => {
   if (props.record?.feature_code) return 'Feature-code routes cannot be deleted here.'
@@ -205,6 +209,16 @@ const canSwap = computed(
     !pathStartsWith(selectedPath.value, moveSource.value.path) &&
     !pathStartsWith(moveSource.value.path, selectedPath.value),
 )
+const pendingNodeDeletionCount = computed(() =>
+  pendingNodeDeletion.value ? countSubtreeNodes(pendingNodeDeletion.value.node) : 0,
+)
+const pendingNodeDeletionDescription = computed(() => {
+  const count = pendingNodeDeletionCount.value
+
+  return count > 1
+    ? `This removes the selected action and all ${count - 1} action${count === 2 ? '' : 's'} below it from Switch.`
+    : 'This removes the selected action from Switch.'
+})
 
 watch(
   () => props.record?.flow,
@@ -216,6 +230,7 @@ watch(
     paletteAction.value = null
     destinationBranch.value = null
     nodeInfoOpen.value = false
+    pendingNodeDeletion.value = null
   },
   { immediate: true },
 )
@@ -412,6 +427,23 @@ function editNode(): void {
   })
 }
 
+function requestNodeDeletion(selection: CallflowNodeSelection): void {
+  if (!props.canManage || selection.path.length === 0 || props.treeDeleting) return
+  pendingNodeDeletion.value = selection
+  nodeInfoOpen.value = false
+}
+
+function confirmNodeDeletion(): void {
+  if (!pendingNodeDeletion.value || props.treeDeleting) return
+  emit('delete-node', [...pendingNodeDeletion.value.path])
+}
+
+function countSubtreeNodes(node: CallflowNode): number {
+  return (
+    1 + Object.values(node.children).reduce((total, child) => total + countSubtreeNodes(child), 0)
+  )
+}
+
 function setDestinationBranch(value: ListboxValue): void {
   if (availableBranchOptions.value.some((option) => option.value === value)) {
     destinationBranch.value = value as CallflowTreeBranchKey
@@ -430,7 +462,7 @@ function humanize(value: string | null): string {
     <header class="card-surface flex flex-wrap items-center gap-4 p-5">
       <button
         type="button"
-        aria-label="Back to call routes"
+        aria-label="Back to callflows"
         class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
         @click="$emit('close')"
       >
@@ -463,13 +495,13 @@ function humanize(value: string | null): string {
           class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
           @click="$emit('edit')"
         >
-          <PencilSquareIcon class="size-4" /> Edit guided route
+          <PencilSquareIcon class="size-4" /> Edit callflow
         </button>
       </div>
     </header>
 
     <div v-if="loading" class="card-surface p-10 text-center text-xs text-slate-400">
-      Loading call route…
+      Loading callflow…
     </div>
     <div
       v-else-if="error"
@@ -548,6 +580,7 @@ function humanize(value: string | null): string {
             @add-action="
               (selection, action, placement) => createNodeAt(action, selection, placement)
             "
+            @remove="requestNodeDeletion"
           />
           <p v-else class="text-xs text-slate-500">
             Switch did not return a structural flow for this route.
@@ -811,5 +844,14 @@ function humanize(value: string | null): string {
     :busy="deleting"
     @close="confirmingDelete = false"
     @confirm="$emit('delete')"
+  />
+  <ConfirmDialog
+    :open="pendingNodeDeletion !== null"
+    title="Remove this callflow action?"
+    :description="pendingNodeDeletionDescription"
+    confirm-label="Remove action"
+    :busy="treeDeleting"
+    @close="pendingNodeDeletion = null"
+    @confirm="confirmNodeDeletion"
   />
 </template>

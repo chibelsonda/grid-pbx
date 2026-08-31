@@ -281,9 +281,9 @@ are rejected for these forwarding-only types.
 | `sip.static_invite` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
 | `sip.transport` | string | Connected-schema conditional | Advanced / SIP | `switch_json`; omitted when unsupported | Implemented conditionally |
 | `sip.ignore_completed_elsewhere` | boolean | Editable for SIP Device and Softphone | Advanced / SIP | `switch_json`; omitted for Smartphone, Fax, and ATA | Implemented and live create/edit/clear verified for applicable types |
-| `sip.custom_sip_headers.<name>` | string map | Conditional/admin | Advanced / SIP headers | legacy undirected maps hydrate as outbound; authentication headers are denied | Implemented compatibility read; live verification pending |
-| `sip.custom_sip_headers.in.<name>` | string map | Conditional/admin | Advanced / SIP headers | bounded name/value rows mapped to a Switch object; authentication headers denied | Implemented; live create/edit/clear pending |
-| `sip.custom_sip_headers.out.<name>` | string map | Conditional/admin | Advanced / SIP headers | same as above | Implemented; live create/edit/clear pending |
+| `sip.custom_sip_headers.<name>` | string map | Conditional/admin | Advanced / SIP headers | legacy undirected maps hydrate as outbound; authentication headers are denied | Implemented compatibility read |
+| `sip.custom_sip_headers.in.<name>` | string map | Conditional/admin | Advanced / SIP headers | bounded name/value rows mapped to a Switch object; authentication headers denied | Implemented and live create/edit/clear verified |
+| `sip.custom_sip_headers.out.<name>` | string map | Conditional/admin | Advanced / SIP headers | same as above | Implemented and live create/edit/clear verified |
 
 ### 5.5 Caller ID and privacy
 
@@ -675,7 +675,32 @@ confirmed that Directory `POST` validation finishes through
 Directory updates now pass a private server-derived preservation bag into the
 typed SDK DTO, so a safe unknown future field survives without becoming form
 input or public response data. Focused SDK and Laravel preservation/rejection
-tests passed. No new live Directory mutation was performed for this re-audit.
+tests passed. At that stage, no new live Directory mutation had been performed.
+
+The 2026-08-31 disposable live follow-through then covered create, edit,
+authoritative reopen, removal of the final public Extension member,
+`max_dtmf = 0`, and delete. It found that an empty PHP mapping had been encoded
+as JSON `[]`; the typed User mapping DTO now emits the schema-required empty
+object `{}`. The Directory slide-over also now ignores its own close event
+while the nested delete confirmation is open, matching the existing Menu
+pattern. The isolated headless lifecycle passed, its public responses contained
+only the account-scoped Extension UUID, and independent cleanup checks found
+zero active matching MySQL projections and zero active Switch Directories. All
+six disposable MySQL projections from the focused attempts are soft-deleted.
+
+The Callflow create and tree-mutation recheck on 2026-08-31 confirmed that a
+new route now begins on the full main-page visual workspace with the document
+entry card and installed action palette, not in a create slide-over. The entry
+metadata and root-action modals accept only account-scoped public UUIDs; raw
+Switch resource identifiers remain server-side. Guided child-subtree deletion
+accepts only a non-empty public branch path plus explicit confirmation, refetches
+the latest raw Callflow, removes exactly that subtree, and preserves unrelated
+unknown document/node/sibling fields. Root and preserved paths are rejected.
+Focused SDK, Laravel, Vue, E2E TypeScript, and two isolated mocked browser
+checks passed. A disposable live User-rooted route with a Voicemail child then
+proved browser deletion, authoritative reopen, public/raw separation, and raw
+root preservation. Independent cleanup found zero active MySQL or Switch
+matches and one soft-deleted projection.
 
 ## 10. LineKey field-level matrix
 
@@ -1734,7 +1759,269 @@ mutation flags to false and rejects unknown raw payload fields. Focused
 isolated-browser coverage asserts that the page emits no mutation, exposes no
 administrative action buttons, and remains a single read-only operational view.
 
-## 31. Next matrices
+## 31. Connectivity, Trunk, and Resource capability matrix
+
+| Field or workflow | Installed schema/runtime evidence | GridPBX treatment |
+| --- | --- | --- |
+| Resource identity and availability | `resources.json` requires `name` and `gateways`, with resource/gateway enable flags and sequential or random gateway selection | No public Resource entity yet; must use a future account-scoped public UUID and never a raw document ID |
+| routing eligibility | Rules, classifiers, prefixes/suffixes, resource flags, required/ignored flags, flat-rate lists, weight/cost, and grace period select and order outbound routes | Administrator-only policy surface; unavailable until portable validation, final normalized-destination authorization, spend controls, and deterministic preview exist |
+| gateway destination and authentication | Gateways contain server, port, static route, realm, username, password, endpoint/interface type, and hardware span | Entire document remains private. Credentials require server-side vaulting/rotation and must never enter projections, API responses, logs, previews, or browser state |
+| SIP and invite customization | Gateways allow custom inbound/outbound SIP headers, static invite parameters, and dynamic values sourced from call channel variables, SIP headers, or zone | Capability-gated because these controls can disclose private call metadata or alter carrier trust/routing semantics |
+| media and transport | Gateway codecs, bypass-media, T.38, RTCP mux, progress timeout, invite format, port enforcement, and From-realm formatting affect signaling and RTP behavior | Requires deployment-specific SIP/RTP validation and representative FreeSWITCH/ecallmgr tests; no generic writable form is safe yet |
+| emergency behavior | Resource/classifier emergency flags and caller-ID selection feed StepSwitch; global validation defaults can allow unverified emergency caller ID, and account-hunted resources bypass the global validation path | Hard-gated pending fail-closed E911 ownership, emergency route testing, immutable audit, and a policy that also covers local/account resources |
+| selector documents | Resource selectors contain raw Resource IDs, selector names/values, and optional effective times | No public contract; future projection must replace raw relationships with account-scoped public UUIDs and preserve unknown selector data privately |
+| Trunkstore account and limits | `trunkstore.json` combines auth realm, caller IDs, emergency caller ID, prepaid credit, purchased trunk quantity, and call restrictions | Billing and connectivity cannot be one generic entity form. Credits, quantities, and restrictions require separate authorization, quote/confirmation, audit, and reconciliation operations |
+| Trunkstore servers and DIDs | Server entries contain authentication credentials, DIDs, arbitrary options/SIP headers, force-outbound, media handling, timing, and SIP/E.164 failover | No projection or mutation. Failover targets require loop prevention, ownership/classification checks, SSRF-safe SIP policy, and live failover evidence |
+| Monster Trunks workflow | The My Account slider reads and updates account limits and supports charge-cancellation callbacks; it does not configure Resource gateways | Workflow evidence only. GridPBX must not copy the slider until reseller authority and authoritative billing semantics are approved |
+| Monster carrier callflow workflow | Global Carrier writes an empty `offnet` terminal node; Account Carrier writes `resources` with an operator-entered raw `hunt_account_id` | Both remain disabled. Public API/SDK writes reject them, private node data stays redacted and losslessly preserved, and raw account IDs are never accepted |
+| current public capability | System Status validates carrier-info endpoint shape and reduces it to one boolean; provider names/modules, states, quotes, charges, and resource documents are discarded | Implemented read-only boundary only; it is not a connectivity-management foundation or proof that a live carrier is usable |
+
+The 2026-08-31 audit intentionally made no raw Resource/Trunkstore collection
+request because those documents can contain credentials and private routing
+configuration. Focused verification passed one Switch SDK preservation test /
+21 assertions, three Laravel rejection/redaction tests / 105 assertions, three
+Vue files / 22 tests, and two isolated non-mutating headless Playwright checks.
+The browser exposed only the safe carrier boolean, kept Global and Account
+Carrier disabled, and emitted no Callflow or connectivity mutation.
+
+## 32. Account Administration capability matrix
+
+The installed `accounts.json` schema requires only `name`, but that is not the
+runtime contract for a safely usable tenant. It also accepts account-wide
+telephony defaults and policies such as caller ID, call restrictions,
+recording, dial plan, voicemail, preflow, notifications, music on hold,
+language, timezone, realm, and enabled state. GridPBX already models the
+reviewed subset of these fields through the Account settings/status workflows;
+the following matrix covers the separate P3 lifecycle, hierarchy, reseller,
+limits, and service-management operations.
+
+| Operation | Installed schema/runtime and Monster workflow evidence | GridPBX treatment |
+| --- | --- | --- |
+| create Account | `PUT /accounts` or `PUT /accounts/{parent}` validates the Account document in a parent context. Kazoo creates the account database and definition, loads views, publishes `account.created`, creates the current monthly database, reconciles services, opens a rollover transaction, inherits notification preference, and sends a new-account notification | Unavailable. A future command must accept a public parent Account UUID, enforce reseller authority, be idempotent, project the new public Account UUID only after authoritative success, and compensate or clearly recover every side effect |
+| Monster create wizard | After creating the Account, Monster independently attempts app restrictions, limits, a no-match Callflow, service plans, credit, and one or more admin users. Feature-step failures are collected and the wizard still opens the new Account | Workflow evidence only. GridPBX must define an explicit resumable onboarding saga and cannot represent the wizard as one atomic create form |
+| update Account settings and enabled state | Account POST/PATCH merges public Account fields; update spawns notification and provisioner workers. Enabled-state import is hierarchy-sensitive | Existing typed Account settings and exact-name-confirmed status workflows only. Their audited field allowlists, unknown-field preservation, public UUID boundary, and focused tests remain authoritative; there is no generic Account JSON editor |
+| onboard existing descendant | Kazoo descendants expose raw hierarchy identifiers but perform no mutation | Implemented projection-only workflow: short-lived actor/scope-bound opaque reference, exact-name and inherited-access confirmation, public Account UUID response, audit event, and queued service projection. Raw Switch Account IDs never enter the UI |
+| move Account | `POST /accounts/{id}/move` requires raw `to`, applies configurable super-administrator or common-tree authorization, and calls the hierarchy move runtime | Unavailable. Requires public source/destination Account UUIDs, ancestor/descendant loop rejection, complete hierarchy and billing-owner projections, explicit confirmation, audit, recovery, and post-move account/service reconciliation |
+| delete Account | Master Account deletion is disallowed. Other deletion is blocked by descendants or an active port; execution cancels services, frees numbers, removes SIP aggregates, calls provisioner/mobile cleanup, deletes the Account database and monthly databases, then removes the global definition | Hard-gated destructive lifecycle. Requires complete dependency inventory, exact-name confirmation, retention/export policy, external cleanup contract, uncertain-outcome recovery, immutable audit, and independent Switch/MySQL absence verification |
+| promote/demote reseller | Only a super administrator may call the reseller endpoints. Kazoo rejects the master Account and reseller descendants; billing/service ownership changes are delegated to `kz_services_reseller` | Unavailable. Existing hierarchy response exposes read-only public-UUID preflight checks and always fixes `mutation_available=false`; platform policy, billing-dependent reassignment, explicit confirmation, recovery, and reconciliation are still required |
+| update Limits | `limits.json` exposes non-negative trunk/call caps and `allow_prepay`. A v2 update can return HTTP 402 with a quote and must be retried with `accept_charges=true`; Monster's Trunks and Account wizard workflows implement that callback/confirmation contract | Read projection only. No writable Limits form until reseller authority, server-owned quote expiry, explicit charge confirmation, idempotency, audit, rollback/reconciliation, and billing-source authority are approved |
+| assign/remove service plans | Services supports bulk add/delete, per-plan assign/unassign, and validates plan IDs from the billing reseller's database. Only the billing reseller or a super administrator may change assignments | Read projection only. Raw plan document IDs are private; any future selector needs an account-scoped public reference plus authoritative price/term presentation and reconciliation |
+| service overrides/manual quantities | POST replaces and PATCH merges global overrides or manual quantities, then commits the Services document | Unavailable. Editable-field policy, type/range validation, inheritance semantics, billable impact, public field identities, audit, and safe rollback are not yet modeled |
+| quote, top-up, synchronization, reconciliation | Quote summarizes prospective service changes. Top-up can create ledger/transaction records. Synchronization calls the bookkeeper; reconciliation recalculates Services quantities | Separate commands, never Account Advanced fields. Quote may become a read-only preflight after its public/redacted contract is proven; financial and state-changing commands remain gated by their own authority, idempotency, audit, and recovery requirements |
+
+The current Account hierarchy and Services APIs expose only account-scoped
+public UUIDs and allowlisted projection fields. Internal MySQL keys, raw Switch
+Account/Service Plan identifiers, full Account documents, Services overrides,
+and raw billing payloads remain private. This audit performed no Switch
+mutation and does not change Account Administration from Planned.
+
+Focused verification passed 22 Laravel Account hierarchy, policy, descendant
+onboarding, and Services visibility tests with 224 assertions. The isolated
+E2E TypeScript check passed, and one isolated authenticated headless Playwright
+scenario passed in 3.4 seconds. The browser confirmed public hierarchy and
+billing-owner presentation, opaque unmanaged-descendant references, reseller
+preflight guidance, and the absence of promote/demote controls. Its optional
+service refresh uses GridPBX's existing read-projection synchronization path;
+it does not invoke Kazoo's billing-side synchronization or reconciliation
+commands.
+
+## 33. White-labeling and tenant-brand ownership matrix
+
+The installed `whitelabel.json` schema is an account-scoped public-portal
+configuration document, not a generic theme contract. It contains company and
+domain metadata, external links, display-only prices, Porting authority/support
+fields, and SSO-provider definitions. Crossbar stores logo, icon, and welcome
+content as attachments to the same document and publishes account branding by
+domain through unauthenticated GET endpoints.
+
+| Field or workflow | Installed schema/runtime and Monster workflow evidence | GridPBX treatment |
+| --- | --- | --- |
+| company name | `company_name` is an optional string. Monster maps it to its deployment `companyName` only when the requested document domain exactly matches `window.location.hostname` | Unavailable as tenant branding until platform/reseller ownership, inheritance, fallback, cache invalidation, and audit rules are approved |
+| public domain | `domain` is schema-formatted as a URI, must be globally unique in the Accounts aggregate view, and is copied to the Account's private `pvt_whitelabel_domain`. Runtime does not prove DNS ownership or provision TLS | Hard-gated. A future workflow requires a normalized IDNA hostname contract, reserved-name checks, DNS challenge, verified ownership, deployment-managed certificate issuance/renewal, staged activation, rollback, and takeover prevention |
+| domain records and testing | Account GET formats administrator-defined A/CNAME/MX/NAPTR/SRV/TXT templates for a supplied or stored domain. Account POST discovers nameservers and performs live DNS queries; only the global domain-template POST is explicitly super-administrator-only | Read/write unavailable. Future checks require bounded allowed record types, normalized hostnames, resolver timeouts/rate limits, rebinding/cache-poisoning considerations, result redaction, and no arbitrary network resolver behavior from an operator-controlled value |
+| logo | POST accepts one JPG/JPEG/PNG/GIF or base64-labelled upload; validation relies on declared content type and the global 8 MB request cap. Replacement deletes the existing attachment metadata before saving the new binary | Unavailable pending magic-byte validation, decode/re-encode, strict dimensions/pixel and product-size limits, animated-image policy, generated filenames, malware scanning decision, cache invalidation, and recoverable replacement |
+| icon | POST accepts common ICO types plus the logo types and base64. It is retrieved publicly by domain | Unavailable under the same controls, with a stricter favicon format/dimension policy and content-sniffing-safe response headers |
+| welcome content | POST accepts a single `text/html` attachment, which is publicly retrievable by domain. Monster also inserts a separate `custom_welcome_message` into the login page with `.html()` | Raw tenant HTML is prohibited. Any future welcome content must be a bounded plain-text/structured contract rendered with escaping; supporting HTML would require an approved sanitizer, CSP, link/media policy, and security review |
+| public metadata lookup | `GET /whitelabel/{domain}` and public logo/icon/welcome GETs bypass ordinary authentication. Metadata can include external URLs, SSO client IDs/scopes, raw Port authority Account IDs, and display prices | No passthrough or raw projection. A future bootstrap endpoint must select only explicitly public fields, replace relationships with public UUIDs where appropriate, reject unknown fields, use host-scoped caching, and never expose raw Switch Account IDs |
+| external navigation | `nav.help`, `nav.learn_more`, and Porting features/LOA/RespOrg/terms URLs are schema-formatted URIs; `fake_api_url` is a beta developer-facing API URL | HTTPS links require an approved host policy and safe browser navigation. `fake_api_url` will not be accepted because tenant data must not redirect GridPBX API traffic |
+| Porting authority and support | `port.authority` accepts one or more raw Account IDs. `port.support_email` is display contact metadata; it is not an outbound mail sender identity | Port authority remains owned by the separate Porting authorization model and must use account-scoped public UUIDs. Support contact requires privacy/abuse policy. Neither field enables or configures email delivery |
+| display prices and hide flags | Inbound/outbound/two-way trunk prices are strings documented as display-only. Hide Credits, Powered-by, and Registration flags alter presentation, not billing or authorization | No authority or entitlement decision may depend on them. Pricing must come from the authoritative billing domain; visibility flags require product/deployment policy before becoming tenant settings |
+| SSO providers | Each provider requires an authorization URL and may expose client ID, response type `code`, scopes, and display name. Monster uses these values on the unauthenticated login page | Separate Identity and Access capability. Requires fixed provider/issuer registration, exact redirect URIs, state/nonce and PKCE, callback/session policy, key/secret handling, account binding, lockout recovery, and audit; never enabled through a generic Branding form |
+| colors and shell theme | The installed Switch schema has no tenant color tokens. Monster's `brandColor`, application title, additional CSS, and many feature flags are deployment configuration, not fields in `whitelabel.json` | GridPBX's existing Header/Sidebar theme customizer is intentionally personal UI preference only: fixed accessible token sets, browser-local storage, no API call, no organization inheritance, and no claim of Switch parity |
+| email identity | The installed schema has no outbound From name/address, DKIM, SPF, return-path, or notification-template identity | Owned by deployment and the future Notifications/email-delivery boundary. Requires verified sending domains, DKIM/SPF/DMARC, bounce/complaint handling, anti-abuse policy, and template authorization |
+| update/delete and preservation | PUT creates, POST merge-updates, and DELETE hard-deletes the Whitelabel document then clears the Account's private domain. Document and Account updates are separate; attachment replacement is also multi-step | All mutations gated pending idempotency, optimistic concurrency, lossless preservation of unknown private fields, immutable audit, asset/domain versioning, compensation, and authoritative post-write reconciliation |
+
+GridPBX has no White-label API route, SDK client, projection, or tenant-brand
+store. Its hard-coded product title/logo/favicon and browser-local shell palette
+remain GridPBX-owned presentation. They must not be silently populated from the
+public Switch Whitelabel document because that would merge unreviewed external
+URLs, SSO configuration, raw authority IDs, and HTML into the application
+bootstrap boundary.
+
+This audit intentionally made no live Whitelabel document request: the public
+runtime response can contain SSO and raw Port-authority configuration, and no
+strict GridPBX reduction exists yet. No DNS lookup, attachment read, or Switch
+mutation was performed. White-labeling remains Planned.
+
+Focused verification passed the four-test Vue theme-store file, the isolated
+E2E TypeScript check, and one isolated authenticated headless Playwright
+scenario in 2.5 seconds. The browser applied only catalogued Header/Sidebar
+tokens, persisted them in local storage, restored them after reload, and reset
+them without exposing a tenant-brand or Switch Whitelabel control.
+
+## 34. Provisioning Templates capability matrix
+
+The installed Crossbar source exposes global and local Provisioner Template
+resources, but the `provisioner_templates` validation schema referenced by
+their runtime is absent from this installed checkout. Generated API
+documentation lists the routes and methods without publishing a field
+contract. GridPBX therefore treats runtime behavior as evidence for storage,
+authorization, and lifecycle only; it does not infer editable template fields
+from undocumented JSON examples.
+
+| Field or workflow | Installed schema/runtime and Monster workflow evidence | GridPBX treatment |
+| --- | --- | --- |
+| identity and ownership | Global templates are documents in the shared Provisioner database; local templates are documents in the current Account database. Both mark private type, provider, and global/local scope values | No public Template entity exists. A future API must issue account-scoped GridPBX UUIDs for local templates and a separately authorized public identity for global templates; raw Couch/Switch IDs and internal database keys never enter the UI |
+| list and detail | Collection views expose only raw `id` and `name`. Detail loads the document and separately decodes the `template` attachment, which may be arbitrary vendor JSON | Current GridPBX reads only a reduced phone-model catalog. It must not passthrough template detail, raw IDs, unknown vendor configuration, SIP credentials, firmware endpoints, certificates, or secret values |
+| installed field schema | Both modules call validation for `provisioner_templates`, but that schema is missing and the generated docs contain no properties | No Basic/Advanced or JSON editor may be built until the exact installed/target validation contract and real representative payloads are proven. Unsupported fields stay private and losslessly preserved server-side |
+| template attachment | The runtime removes `template` from the metadata document and stores it as a separate JSON attachment, with source comments describing templates near 300 KB | Full template content remains a private encrypted/server-side value. Any future typed form edits only its allowlisted fields and merges them with the authoritative attachment so unknown fields are preserved without round-tripping them through the browser |
+| create and update atomicity | Metadata is saved first and the JSON attachment second. Attachment failure can leave a document without the intended template; update merge-preserves document fields but replaces the whole attachment | Unavailable until the workflow has immutable versions, optimistic concurrency, idempotency, staged validation, compensation/recovery, authoritative reread, and an audit record that never includes template or credential content |
+| authorization | Authenticated users may read global templates; global mutations are restricted to system administrators. Local operations use the ordinary Account-tree authorization path | GridPBX requires dedicated platform/reseller template roles in addition to Account access. A safe public API must reduce global reads and prevent local administrators from changing shared templates or escalating through copied sensitive content |
+| provisioning-default retrieval | On create, Kazoo URL-encodes operator-provided brand/model/product values into a GET to the configured Provisioner URL, logs the constructed URL, and decodes the response as template JSON. Error/non-200 responses become HTTP 500 | No browser-selected or operator-supplied URL is accepted. Future retrieval needs a deployment-owned allowlisted HTTPS origin, DNS/IP rebinding defenses, strict connect/read timeouts and response-size/type limits, no redirects to untrusted networks, secret-free logs, circuit breaking, and schema validation before storage |
+| broader provisioner data flow | Depending on configured Provisioner mode, Device operations can send MAC, Account data, contact lists, SIP realm, username, and password to an external service; one installed path logs the encoded request body | Vendor credentials and SIP secrets remain vault-owned and are never projected, returned, or logged. A provider-specific data-minimization and retention contract plus redaction tests is required before enabling external provisioning |
+| images | Each resource accepts one declared `image/*`, octet-stream, or base64-labelled attachment, bounded only by Crossbar's general request limit; replacement/deletion is a separate operation | Unavailable pending magic-byte verification, strict format/byte/pixel limits, decode/re-encode, generated filenames, content-sniffing-safe responses, malware policy, immutable asset versions, and recoverable replacement |
+| global/local precedence | The two Crossbar modules prove separate stores but do not establish a safe inheritance, override, or effective-template resolution contract for GridPBX | No inheritance is inferred. Future UI must show the effective source, immutable global base/version, local override diff, conflict rules, and the exact Devices affected before publication |
+| Device model relationship | Current catalog metadata can include a template identifier and model capabilities. GridPBX validates brand/family/model/template consistency but keeps that identifier as private provider metadata | Existing Device forms remain catalog selectors, not template administrators. Any future persisted relationship uses a public Template UUID resolved server-side; raw provider or Switch template IDs never cross the public API |
+| line keys | GridPBX uses reduced model limits and supported key types to preview/apply line keys, resolving Extension relationships with account-scoped public UUIDs | Implemented bounded foundation only. Line-key application does not prove that arbitrary template JSON, vendor firmware, or template rollout is safe |
+| deletion and dependencies | Crossbar deletes the template document without a visible Device/model dependency preflight in these modules; image deletion is independent | Hard-gated until GridPBX inventories model assignments and enrolled Devices, blocks unsafe deletion, offers an explicit replacement/migration plan, and independently reconciles Switch, provider, and MySQL state |
+| firmware | No firmware download, signature, compatibility, or rollback contract is established by these template modules | Separate supply-chain capability. Require deployment-owned HTTPS allowlists, signed hashes/vendor authenticity, device-model compatibility, bounded downloads, staged canaries, failure telemetry, and rollback before exposure |
+| zero-touch enrollment | Manufacturer enrollment is an external-provider concern, not implied by template CRUD. GridPBX currently reports the adapter as unavailable and requires explicit confirmation even when a provider is later configured | Keep capability-gated. Require MAC ownership/uniqueness, vendor authentication, replay/idempotency protection, exact Device confirmation, provider audit/reconciliation, detach/recovery, and no provider tokens in API responses |
+| publish, reload, and reboot | Current per-Device synchronize/reprovision commands are explicit audited operations. Crossbar template storage does not prove automatic fleet application semantics | Template publication must preview affected Devices, support opt-in batches/canaries and maintenance windows, separate save from deploy, provide per-Device status, and roll back without silently rebooting a fleet |
+
+Monster in this installed checkout contains Device model selection but no
+Provisioner Template administration workflow. GridPBX likewise has no template
+route, SDK CRUD client, projection, or form. Its existing foundation is the
+reduced catalog, model-capability checks, safe Device selection, public-UUID
+line-key values, redacted projection, explicit Device synchronization, and a
+manufacturer-enrollment adapter that is unavailable by default.
+
+This audit intentionally made no live template detail, image, default-retrieval,
+or mutation request. A template response can contain SIP/vendor credentials and
+arbitrary endpoints, and GridPBX has no strict public reduction for it. Template
+administration and zero-touch provisioning remain Conditional, not Complete.
+
+Focused verification passed the one-test Switch catalog mapper with 13
+assertions, four exact Laravel catalog/capability/enrollment tests with 52
+assertions, the isolated E2E TypeScript check, and the single authenticated
+headless provisioning walkthrough in 7.3 seconds. The browser used one
+disposable Device, confirmed enrollment remains disabled without an adapter,
+used only public UUIDs for resource-backed line keys, completed line-key
+create/edit/clear, and cleaned the Device up. It made no Provisioner Template
+read or write.
+
+## 35. Notifications and delivery ownership matrix
+
+The installed `notifications.json` schema models email template metadata.
+Crossbar stores the HTML and plain-text bodies as separate attachments and
+resolves metadata and attachments through the Account hierarchy to the
+reseller and then the system configuration database. Teletype renders and
+sends the effective template; SMTP delivery logs and failed-notification retry
+documents can retain complete message content and event payloads.
+
+| Field or workflow | Installed schema/runtime and Monster workflow evidence | GridPBX treatment |
+| --- | --- | --- |
+| template identity and catalog | System documents use `notification.<type>` IDs and fixed categories. Account collection reads merge local overrides over the available system list; non-super-administrators do not see `system` or `skel` categories and Port templates are authority-dependent | No public Notification Template entity exists. A future projection must use GridPBX public UUIDs and a server-owned allowlist of supported semantic types; raw Couch IDs, internal keys, and unreviewed categories never enter the UI |
+| ownership and roles | Top-level reads are authenticated and top-level mutations require super-administrator authority. Account-path mutations receive no Notification-specific role check beyond general Account authorization | Require distinct platform template, reseller template, and account template permissions. Account access alone must never authorize sender, destination, body, preview, delivery-log, reset, or force-system operations |
+| metadata schema | `from`, `subject`, and `to` are required. The schema also exposes `enabled`, `friendly_name`, `category`, `reply_to`, `template_charset`, `macros`, and `cc`/`bcc`; subject is 1–200 characters and addresses use email format | A future form may expose only proven allowlisted metadata. Category, system macro definitions, charset, and immutable template type are server-owned. Unknown fields are preserved privately by authoritative read/merge/write and never round-trip through hidden browser inputs |
+| sender identity | `from` and optional `reply_to` are template email addresses. SMTP transport is globally configured and does not prove that an Account controls the sender domain | Hard-gated by verified sending-domain ownership, fixed allowed From identities, DKIM/SPF/DMARC alignment, return-path/bounce/complaint handling, abuse policy, and immutable audit. Arbitrary account-supplied From addresses are prohibited |
+| To/CC/BCC modes | Each destination can be `original`, `specified`, or `admins`; specified mode accepts address arrays. Teletype may derive `admins` from the Account or reseller hierarchy and `original` from event data | Show resolved destination class and safe counts before activation. Explicit addresses require bounded unique lists and privacy policy; dynamic modes need event-specific recipient rules, reseller-boundary tests, and no cross-account expansion or recipient disclosure |
+| macros | System templates publish macro definitions, including Account/User identity, realm, parent identifiers, Port, billing, voicemail, Fax, and other event data. Account updates discard submitted `macros` and restore the system definitions | Operators cannot create tokens or supply macro values. A future editor uses an event-specific allowlist with friendly descriptions, rejects unknown expressions, keeps raw Account/Switch identifiers private, and previews only synthetic or explicitly authorized data |
+| HTML and plain bodies | `text/html` and `text/plain` are independent attachments. Upload compiles ErlyDTL; master rendering explicitly disables auto-escape, and effective rendering may use account or ancestor attachments | Raw HTML is unavailable. Prefer structured content with escaped components. Any future HTML mode requires sanitizer and URL policy, no script/forms/active content, remote-image/tracking policy, bounded template size/complexity/render time, safe link handling, and a sandboxed non-DOM preview |
+| inheritance and effective source | Detail first checks the Account, then parent Accounts up to the reseller, then system. Metadata can be locally overridden while missing body attachments are sourced from an ancestor; the response marks an account override | A future UI must show the effective source and version separately for metadata, HTML, and text. Editing creates an explicit local version; inherited content remains immutable. Reset must preview the exact fallback source and resulting values |
+| update and migration | Updating an inherited template can migrate the system document and attachments into the Account, then save metadata or a body attachment in separate operations. A successful metadata update can also set the Account notification preference to `teletype` | Treat as a versioned multi-step command with optimistic concurrency, idempotency, compensation/recovery, preference-change disclosure, authoritative reread, and audit. A generic POST form cannot safely represent this lifecycle |
+| deletion and bulk reset | System templates cannot be deleted. Account DELETE hard-deletes a customization and falls back to an ancestor. Collection actions can remove all Account customizations or delete them and copy every system template | No bulk mutation until exact Account confirmation, complete diff/impact preview, recoverable snapshots, partial-failure reporting, idempotency, and independent effective-state reconciliation exist. Per-template reset must be the first supported rollback operation |
+| render preview | Preview publishes an AMQP notification request, waits for Teletype, and returns 202 rather than returning a rendered document. It can therefore invoke the delivery pipeline and recipient resolution | “Preview” must first mean server-side render only with synthetic/redacted macro data and no SMTP call. Test delivery is a separate explicitly confirmed command to a verified current operator address with rate limiting, audit, and status reconciliation |
+| customer-update message | Crossbar accepts subject, From/Reply-To, To/CC/BCC, arbitrary HTML/plain content, optional template ID, and a raw 32-byte descendant recipient ID, then publishes a notification | Separate broadcast/messaging capability, not template CRUD. Keep unavailable pending public recipient Account UUID mapping, descendant authorization, recipient-count preview, verified sender, HTML/content policy, rate/spam controls, confirmation, idempotency, audit, and delivery results |
+| SMTP configuration | Installed defaults permit relay `localhost`, port 25, authentication `never`, one retry, optional TLS, and SSL disabled; username/password live in system configuration | Deployment-only secret configuration. Credentials stay in a vault and never enter projections or browser state. Production readiness requires approved relay allowlist, certificate-verified mandatory TLS, rotation, bounded timeouts/retries, health checks, and secret-safe logging |
+| SMTP log summary | The Account monthly-database view exposes template type, From, first To, subject, timestamp, receipt, and error | No general Account-user access. A future delivery summary uses a public UUID, redacted/hashes or policy-approved recipient display, bounded retention, least-privilege support access, pagination, export controls, and immutable access audit |
+| SMTP log detail | Detail can contain every email address, rendered HTML/text, macro values, template source Account, receipt/error, and payload call ID; private Port comments receive only a narrow special-case reduction | Treat as sensitive message content. Never passthrough raw detail. Define per-template allowlists, privacy/legal retention, encryption, support break-glass access, redaction, safe HTML handling, and deletion/legal-hold policy first |
+| failed-delivery persistence and retry | Notification publishing is persisted by default for retry except configured types. The pending document stores the full event payload and failure metadata; the task retries in batches and can leave max-retried records. Voicemail has a multi-hour/day schedule | Unavailable as public operations. Retry payloads require encryption, minimized per-event fields, retention/expiry, account isolation, stable idempotency keys, duplicate-delivery handling, dead-letter status, operator-safe retry/cancel commands, and reconciliation with SMTP logs |
+| attachments and outbound fetch | Some notification types attach Fax/voicemail content. System Alert can fetch an event-provided `attachment_url` with an unbounded-looking `kz_http:get` path and use returned type/name/body | Hard-gated egress. Prohibit operator URLs by default; otherwise require fixed trusted origins, DNS/IP rebinding defense, redirect denial or revalidation, strict size/type/time limits, malware policy, generated safe filenames, and no credentials in URLs/logs |
+| current GridPBX boundary | GridPBX exposes typed resource-specific notification settings for Fax, Voicemail, and Device behavior, but has no Notification Template SDK client, Laravel domain, API route, MySQL projection, Vue store, or editor | Preserve the separation. Resource destinations remain governed by their installed resource schemas; they do not grant template, sender, HTML, SMTP-log, or retry administration capability |
+
+Monster in this installed checkout exposes Notification and SMTP-log calls in
+its generic SDK but contains no Notification Template administration workflow.
+It therefore provides no authoritative Basic/Advanced grouping or safe editor
+behavior to copy.
+
+This audit intentionally made no live Notification list/detail, body,
+SMTP-log, preview, customer-update, reset, or mutation request. Even read
+responses can contain sender and recipient addresses, macro definitions, raw
+Account identifiers, rendered message bodies, and delivery errors, and
+GridPBX has no strict public reduction for them. Notification administration
+remains Conditional, not Complete.
+
+Focused verification passed three exact Laravel resource-notification tests
+with 24 assertions, two Vue files with 12 tests, the isolated E2E TypeScript
+check, and one authenticated headless Account-settings scenario in 2.8
+seconds. These checks confirm the current resource-specific validation and
+private unknown-channel preservation boundary while the Account editor remains
+limited to its reviewed settings contract. No Notification Template, SMTP-log,
+preview, customer-update, or delivery request was emitted.
+
+## 36. Security Controls and authentication trust matrix
+
+The installed security surface is not one editable Account entity. Frontier
+Access Lists govern SIP registration and request admission, `ip_auth` grants a
+Crossbar login based on network source, auth-module configuration controls token
+creation and MFA inheritance, token restrictions authorize API paths, and user
+recovery can mint a new authenticated token. Each boundary needs a separate
+threat model, role, recovery plan, and audit trail.
+
+| Field or workflow | Installed schema/runtime and Monster workflow evidence | GridPBX treatment |
+| --- | --- | --- |
+| Account and Device Access Lists | `access_lists.json` requires `cidrs` and an `allow,deny` or `deny,allow` order, optionally accepts a `user_agent` regular expression, and permits unknown fields. Crossbar embeds the value in the Account or Device document and asynchronously flushes Frontier's cache | No generic JSON editor. A future command accepts bounded normalized CIDRs plus a safe, bounded expression language, maps a public Account or Device UUID server-side, preserves unknown private fields from an authoritative reread, and reports cache/reconciliation state |
+| SIP lockout and bypass semantics | Frontier combines Device and realm lists; the Device key is the raw SIP username. An unknown realm receives a deny-all ACL. Order and list changes can deny every endpoint or broaden admission | Dedicated security-admin permission, step-up authentication, current/effective diff, affected-registration preview, explicit lockout acknowledgement, canary Device, timed rollback, break-glass path, immutable audit, and live registration reconciliation are required before writes |
+| system and network ACLs | `acls.json` models `authoritative` or `trusted` network entries. `cb_acls` reads the raw ecallmgr configuration, while ecallmgr also builds ACLs from IP-auth Devices and local/global Resources. Trusted networks can participate in call authorization | Never expose the raw system ACL document or Resource relationships. Platform-only policy must use public references, fixed semantic roles, conflict/overlap detection, emergency-call review, deployment staging, rollback, and independent FreeSWITCH verification |
+| hostname-backed ACL entries | ecallmgr can resolve configured Resource hosts into ACL IPs at runtime | Hard-gated by fixed trusted host ownership, resolver policy, DNSSEC where applicable, TTL/refresh behavior, IPv4/IPv6 normalization, private/link-local/metadata denial, rebinding defense, result pinning, drift alerts, and failure-safe behavior |
+| source-IP authentication | `PUT /ip_auth` authenticates and authorizes without an existing token, looks up the exact Crossbar client IP in a global Account view, and creates an Account/User token when exactly one Account `ips` entry matches. The view includes a raw `owner_id`, while `ips` is not modeled by the installed public Account schema | Treat each IP grant as a credential, not an Account Advanced field. No form may be invented from this private field. Enable only with an authoritative trusted-proxy chain, canonical IPv4/IPv6 matching, global uniqueness, public Account/User UUID mapping, owner eligibility, bounded lifetime, reason/ticket, step-up, revocation, and audit |
+| IP-auth collision and proxy failure | Zero or multiple matches fail, but a misreported proxy address or shared NAT can authenticate the wrong trust boundary; the installed auth config enables `cb_ip_auth` by default | GridPBX must fail closed, never infer from `X-Forwarded-For` without a fixed proxy allowlist, prohibit broad/shared-network grants by policy, continuously detect collisions, and provide a tested recovery path before activation |
+| auth-module configuration | Per-module settings include `enabled`, successful/failed attempt logging, token expiry, and an optional MFA block containing raw Account and provider configuration IDs plus descendant inheritance. System config also contains authentication secrets and legacy MD5/SHA choices | Deployment/platform control only. Public forms use semantic capabilities and public UUIDs; raw IDs, signing keys, system keys, API keys, hash material, and provider settings never enter projections or browser state. Prevent disabling the final recovery-capable method and enforce bounded token expiry |
+| MFA provider document | `multi_factor_provider.json` requires enabled/name/provider name but allows arbitrary `settings`; Duo settings include integration, secret, and application secret keys plus a provider hostname. Account summaries can merge Account and system providers | Provider credentials stay in a vault and write-only secret inputs. A future public provider has a GridPBX UUID, fixed supported provider type, hostname allowlist, rotation state, health status, inheritance/effective-source display, optimistic concurrency, and no raw settings passthrough |
+| MFA enforcement failure behavior | The runtime applies MFA by auth method and Account hierarchy. Critically, if MFA is enabled but no provider resolves, the installed token-creation path logs the failure and still creates a token | Capability remains unavailable until the deployed runtime is proven fail-closed. Missing, disabled, invalid, unreachable, or ambiguous provider state must deny authentication except through a separately audited break-glass procedure |
+| Duo challenge and callback | The installed integration signs a five-minute provider request and verifies signed provider/application responses for the raw owner ID. It accepts a configured hostname and logs the complete MFA response at debug level. Monster embeds the legacy Duo iframe and posts its signature back with the original login data | Do not copy the legacy iframe flow. Use a supported hosted/provider protocol with exact origin and callback allowlists, TLS validation, state/nonce/session and intended-user binding, replay prevention, bounded clock skew, CSP, secret-safe logging, provider-outage policy, and tested recovery |
+| enrollment and recovery | The installed API manages provider configuration, not a per-user enrollment, recovery-code, trusted-device, or factor-reset lifecycle | MFA is not Complete until enrollment, factor verification, backup codes or approved recovery, lost-device replacement, administrator reset with step-up/two-person policy, notification, session revocation, and immutable audit are explicitly modeled |
+| login-attempt collection | MFA attempts are stored in Account monthly databases and exposed through list/detail endpoints. Auth logging persists status, reason, client IP, all request headers, and request-document metadata, which can include credentials, MFA responses, reset identifiers, and raw Account/User data | Never ingest or passthrough raw attempt documents. A future reduced event uses a public UUID and allowlisted metadata, redacts headers and secrets before persistence, encrypts sensitive values, limits access/export, defines retention/legal hold, and audits every detail read |
+| token restrictions document | The schema nests auth method, privilege, endpoint, Account matching, path-pattern rules, and HTTP verbs. Missing `allowed_accounts` means any Account, `_` is a catch-all, first matching Account/path rule wins, and a token with no effective restrictions is not restricted | Security-policy code, not a free-form form. Require a typed server-owned endpoint/action vocabulary, deny-by-default baseline, exact precedence, static validation, shadowing detection, representative request simulation, before/after privilege diff, versioning, rollback, and tests that policy cannot loosen platform invariants |
+| restriction evaluation and lifecycle | The runtime dynamically selects Account restrictions and falls back to system configuration on each request; super-administrator tokens bypass restrictions. The installed documentation says rules are copied into tokens, but current code performs the lookup during authorization | Follow runtime, not stale documentation. Changes require immediate-session impact preview, cache invalidation proof, explicit super-admin exception policy, actor/target separation, and authoritative request-level verification. No raw Account IDs are accepted in allowed-account rules |
+| impersonation | User-auth and token claims support Account/User impersonation and descendant Account context using raw identifiers; authorization and logs are distributed across auth modules | Separate audited support command only: public target UUIDs, short-lived actor-bound elevation, step-up and reason/ticket, descendant/role verification, visible impersonation banner, prohibited sensitive operations, easy exit, session revocation, and immutable actor plus target attribution |
+| session inventory and revocation | Token auth can delete the current database token and JWTs have configured expiry, but the inspected surface does not provide a safe GridPBX per-device session inventory or revoke-all lifecycle. GridPBX itself uses a Laravel/Sanctum cookie session independent of Switch user auth | Model GridPBX sessions separately from Switch tokens. Require public opaque session UUIDs, current-session marker, device/IP reduction, expiry/last-use, revoke-one/revoke-all, password/MFA-change invalidation, remember-session policy, CSRF and cookie hardening, and no token value exposure |
+| password recovery request | Recovery accepts username plus Account selector and an operator-supplied `ui_url`; distinct validation errors disclose missing/disabled Accounts or Users, and the success response includes the destination email. The reset link and ID are logged | Do not proxy this contract directly. Use a server-owned HTTPS origin and fixed route, uniform response and timing, per-IP/identity/Account throttles, abuse monitoring, verified destination policy, no address disclosure, no reset secret in logs/analytics/referrers, and user notification |
+| password recovery consumption | The reset ID encodes the raw Account ID and month, loads the User, marks password update required, saves the User, and creates a token. The inspected path does not delete the reset document or enforce an explicit expiry/single-use check | Unavailable until opaque random hashed tokens are short-lived, single-use, transactionally consumed, purpose/audience bound, invalidated on replacement/use/password change, protected from replay/races, and followed by session revocation. MFA reset remains a separate higher-risk workflow |
+| current GridPBX application boundary | GridPBX authenticates its own Users through Laravel's session guard and CSRF-protected Sanctum cookie flow, returns the User's public UUID, and authorizes Account resources through organization roles. Switch API-key/token authentication remains server-to-server with a private cache/provider. No Access List, IP-auth, MFA-provider, token-restriction, session-security, or Switch recovery entity, route, projection, store, or form exists | Preserve this separation. Switch security controls do not become GridPBX login controls by endpoint availability. GridPBX still needs a focused application-auth hardening phase for login throttling, email verification/recovery, MFA, step-up, session inventory, secure production cookie configuration, and security-event audit before advertising an operator Security workspace |
+| unknown-field preservation and public identity | Several installed security schemas accept arbitrary fields and relationships use raw Account, User, Device, provider, Resource, SIP username, or owner identifiers | Future writes must authoritatively read/merge/write private documents, preserve unknown fields outside the public allowlist, reject hidden-field round trips, resolve only account-scoped public UUIDs server-side, and prove raw identifiers never appear in API, browser state, logs, previews, or audit metadata |
+
+Monster makes Account Access Lists available only when deployment configuration
+explicitly enables `allowAccessList`; its editor validates unique IPv4 CIDRs but
+does not model IPv6, Device lists, user-agent matching, impact preview, canary,
+rollback, or recovery. Its authentication application handles only the legacy
+Duo challenge. These are workflow observations, not a safe GridPBX contract.
+
+This audit intentionally made no live ACL, IP-auth, MFA provider, login-attempt,
+token-restriction, token, impersonation, or recovery request. Even reads can
+return credentials, auth material, raw identifiers, network trust policy, full
+headers, and login metadata; mutations can lock out operators or bypass
+authentication. Security Controls remain Conditional, not Complete.
+
+Focused verification passed three Switch SDK token-provider tests with eight
+assertions, four Laravel session-boundary tests with 16 assertions, the
+isolated E2E TypeScript check, and one authenticated headless Account-settings
+scenario in 2.0 seconds. These checks confirm the existing private
+server-to-server token refresh, public User UUID session response,
+login/logout/unauthenticated behavior, and the reviewed Account form boundary.
+No Security Controls endpoint or mutation was exercised.
+
+## 37. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 

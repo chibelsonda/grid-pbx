@@ -140,7 +140,9 @@ class ExtensionSynchronizationServiceTest extends TestCase
                 yield new CallflowSnapshot([
                     'id' => 'switch-callflow-1',
                     'name' => 'Alice Callflow',
-                    'numbers' => ['1001'],
+                    // Switch may normalize a numeric extension while retaining the
+                    // authoritative owning user on the root callflow node.
+                    'numbers' => ['+1001'],
                     'patterns' => [],
                     'flow' => [
                         'module' => 'user',
@@ -211,6 +213,7 @@ class ExtensionSynchronizationServiceTest extends TestCase
         $this->assertDatabaseHas('switch_callflows', [
             'switch_resource_id' => 'switch-callflow-1',
             'owner_switch_resource_id' => 'switch-user-1',
+            'switch_extension_id' => $projectedExtension->getKey(),
         ]);
         $this->assertSame(['user', 'voicemail'], $projectedCallflow->modules);
         $this->assertSame('user', $projectedCallflow->root_module);

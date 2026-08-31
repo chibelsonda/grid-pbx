@@ -16,19 +16,15 @@ import FormListbox, {
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import CallflowMenuBranchesField from './CallflowMenuBranchesField.vue'
-import CallflowActionPalette from './CallflowActionPalette.vue'
+import CallflowCreateWorkspace from './CallflowCreateWorkspace.vue'
 import CallflowTemporalRuleRoutesField from './CallflowTemporalRuleRoutesField.vue'
 import CallflowTemporalRulesField from './CallflowTemporalRulesField.vue'
-import {
-  callflowActionDestinationType,
-  type CallflowAction,
-} from '../catalog/callflowActionCatalog'
 import { useCallflowForm } from '../composables/useCallflowForm'
 import type {
   Callflow,
+  CallflowCreateInput,
   CallflowDestinationType,
   CallflowEditor,
-  CallflowUpdate,
 } from '../types/callRouting'
 
 const props = withDefaults(
@@ -44,7 +40,7 @@ const props = withDefaults(
   }>(),
   { workspace: false },
 )
-const emit = defineEmits<{ close: []; save: [input: CallflowUpdate] }>()
+const emit = defineEmits<{ close: []; save: [input: CallflowCreateInput] }>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => props.record,
   () => props.editor,
@@ -131,7 +127,7 @@ function submit(): void {
   if (!props.canManage) return
   const result = validate()
 
-  if (result.success) emit('save', result.data)
+  if (result.success && result.data.destination_type !== null) emit('save', result.data)
 }
 
 function fieldError(field: string): string | null {
@@ -144,13 +140,6 @@ function setDestinationType(value: ListboxValue): void {
 
 function setDestination(value: ListboxValue): void {
   if (typeof value === 'string') form.destination_id = value
-}
-
-function selectRootAction(action: CallflowAction): void {
-  const destinationType = callflowActionDestinationType(action.module)
-  if (!destinationType) return
-
-  form.destination_type = destinationType
 }
 
 function setFallbackDestinationType(value: ListboxValue): void {
@@ -182,8 +171,8 @@ function humanizePhoneState(state: string | null): string {
 
 <template>
   <CrudSlideOver
-    :title="editor?.mode === 'create' ? 'Create call route' : 'Edit guided route'"
-    :eyebrow="`GridPBX / Call Routing / ${editor?.mode === 'create' ? 'Create' : 'Edit'}`"
+    :title="editor?.mode === 'create' ? 'Create callflow' : 'Edit callflow'"
+    :eyebrow="`GridPBX / Callflows / ${editor?.mode === 'create' ? 'Create' : 'Edit'}`"
     :description="
       editor?.mode === 'create'
         ? 'Create a phone-number route using safe public GridPBX references.'
@@ -228,17 +217,17 @@ function humanizePhoneState(state: string | null): string {
       {{ editor.blocked_reason }}
     </div>
 
-    <form
-      v-else-if="editor"
-      class="grid gap-5"
-      :class="
-        workspace &&
-        editor.mode === 'create' &&
-        'xl:grid-cols-[minmax(0,1fr)_11.5rem] xl:items-start'
-      "
-      novalidate
-      @submit.prevent="submit"
-    >
+    <CallflowCreateWorkspace
+      v-else-if="editor?.mode === 'create'"
+      :editor="editor"
+      :saving="saving"
+      :error="error"
+      :field-errors="fieldErrors"
+      @close="emit('close')"
+      @save="emit('save', $event)"
+    />
+
+    <form v-else-if="editor" class="grid gap-5" novalidate @submit.prevent="submit">
       <div class="grid min-w-0 gap-5">
         <div
           v-if="error && Object.keys(fieldErrors).length === 0"
@@ -600,14 +589,8 @@ function humanizePhoneState(state: string | null): string {
           <aside
             class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
           >
-            <template v-if="editor.mode === 'create'">
-              GridPBX creates the route in Switch first, then projects it into MySQL and assigns the
-              selected numbers.
-            </template>
-            <template v-else>
-              GridPBX fetches the latest route from Switch before saving. The root destination
-              changes, while every existing child and unsupported branch is preserved.
-            </template>
+            GridPBX fetches the latest route from Switch before saving. The root destination
+            changes, while every existing child and unsupported branch is preserved.
           </aside>
         </fieldset>
 
@@ -624,22 +607,10 @@ function humanizePhoneState(state: string | null): string {
             :disabled="saving"
             class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
           >
-            {{
-              saving ? 'Saving route…' : editor.mode === 'create' ? 'Create route' : 'Save route'
-            }}
+            {{ saving ? 'Saving route…' : 'Save route' }}
           </button>
         </div>
       </div>
-
-      <aside v-if="workspace && editor.mode === 'create'" class="grid gap-4 xl:sticky xl:top-3">
-        <CallflowActionPalette compact root-only enabled @choose="selectRootAction" />
-        <div
-          class="rounded-md border border-blue-100 bg-blue-50 p-4 text-[10px] leading-4 text-blue-800"
-        >
-          Choose a resource-backed root action here. After the route exists, select its node to add
-          schema-specific inline actions and branches.
-        </div>
-      </aside>
     </form>
   </CrudSlideOver>
 </template>

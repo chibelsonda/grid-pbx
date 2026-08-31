@@ -4,8 +4,10 @@ import { validateForm, type FormErrors, type FormValidationResult } from '@/shar
 import { createCallflowFormSchema } from '../schemas/callflowFormSchema'
 import type {
   Callflow,
+  CallflowCreateInput,
   CallflowDestinationType,
   CallflowEditor,
+  CallflowInlineRootAction,
   CallflowMenuBranchInput,
   CallflowTemporalRuleRouteInput,
   CallflowUpdate,
@@ -156,11 +158,13 @@ export function useCallflowForm(
   )
   watch(form, () => (validationErrors.value = {}), { deep: true })
 
-  function validate(): FormValidationResult<CallflowUpdate> {
+  function validate(
+    rootAction: CallflowInlineRootAction | null = null,
+  ): FormValidationResult<CallflowCreateInput> {
     const editor = toValue(editorSource)
 
     if (!editor) {
-      const result: FormValidationResult<CallflowUpdate> = {
+      const result: FormValidationResult<CallflowCreateInput> = {
         success: false,
         data: null,
         errors: { _form: ['Routing options are not available yet.'] },
@@ -174,6 +178,7 @@ export function useCallflowForm(
       ...form,
       name: form.name.trim(),
       destination_type: form.destination_type as CallflowDestinationType,
+      root_action: rootAction,
       phone_number_ids: [...form.phone_number_ids],
     })
     validationErrors.value = result.errors

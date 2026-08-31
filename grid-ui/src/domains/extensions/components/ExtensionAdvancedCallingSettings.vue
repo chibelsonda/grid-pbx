@@ -17,6 +17,7 @@ const props = defineProps<{
   phoneNumbers: ExtensionCallerIdNumberOption[]
   restrictions: ExtensionRestrictionOption[]
   unresolvedNumbers: { external: string | null; emergency: string | null }
+  section?: 'all' | 'caller-id' | 'call-forward' | 'restrictions'
 }>()
 const settings = defineModel<Model>({ required: true })
 
@@ -53,13 +54,16 @@ function setRestrictionAction(key: string, value: unknown): void {
 </script>
 
 <template>
-  <article class="card-surface overflow-hidden">
+  <article
+    v-if="!section || section === 'all' || section === 'caller-id'"
+    class="card-surface overflow-hidden"
+  >
     <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
       <span class="grid size-9 place-items-center rounded-md bg-indigo-50 text-indigo-600">
         <PhoneArrowUpRightIcon class="size-5" />
       </span>
       <div>
-        <h2 class="text-sm font-semibold text-slate-700">Caller ID and forwarding</h2>
+        <h2 class="text-sm font-semibold text-slate-700">Caller ID</h2>
         <p class="text-[10px] leading-4 text-slate-500">
           Guided public Switch fields; asserted identity remains Switch-managed.
         </p>
@@ -116,7 +120,23 @@ function setRestrictionAction(key: string, value: unknown): void {
           </div>
         </div>
       </template>
+    </div>
+  </article>
 
+  <article
+    v-if="!section || section === 'all' || section === 'call-forward'"
+    class="card-surface overflow-hidden"
+  >
+    <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
+      <PhoneArrowUpRightIcon class="size-5 text-indigo-600" />
+      <div>
+        <h2 class="text-sm font-semibold text-slate-700">Call forwarding</h2>
+        <p class="text-[10px] leading-4 text-slate-500">
+          Route direct calls or use this destination as an unavailable endpoint.
+        </p>
+      </div>
+    </header>
+    <div class="grid gap-4 p-5 sm:grid-cols-2">
       <ToggleSwitch
         v-model="settings.call_forward.enabled"
         label="Enable call forwarding"
@@ -161,7 +181,10 @@ function setRestrictionAction(key: string, value: unknown): void {
     </div>
   </article>
 
-  <article class="card-surface overflow-hidden">
+  <article
+    v-if="!section || section === 'all' || section === 'restrictions'"
+    class="card-surface overflow-hidden"
+  >
     <header class="border-b border-slate-200 px-5 py-4">
       <h2 class="text-sm font-semibold text-slate-700">Call restrictions</h2>
       <p class="mt-1 text-[10px] leading-4 text-slate-500">

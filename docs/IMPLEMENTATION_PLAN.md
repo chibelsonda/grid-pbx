@@ -52,24 +52,27 @@ Implemented checkpoint:
   remains an information modal.
   Accessible subtree moves support empty public branches plus guarded
   insert-before and disjoint-subtree swap operations; typed mutation forms
-  remain in right-side panels
+  remain in right-side panels. Guided public child subtrees can be removed only
+  after explicit confirmation; roots, preserved branches, unsupported or
+  unresolved nodes, and no-op deletion targets remain protected
 - Palette-driven add forms for guided reference actions and selected-node
   target editing. These reuse the account-scoped destination catalog, Zod and
   API validation, public UUIDs, and lossless server-side node-data preservation
-- Schema-backed side-panel forms for Sleep, Text to Speech, Collect/Send/Flush
-  DTMF, Dead Air, Language, Record Call, Record Caller, Missed Call Alert, Set
-  Caller ID, Prepend Caller ID, Set Alert Info, and regex-mode Check Caller ID.
-  Only bounded public
-  properties are accepted; alert extension UUIDs are translated server-side,
-  CR/LF is rejected in Alert-Info, recording storage values remain
-  server-owned, and unknown node data plus complete children are preserved
+- The installed Monster palette is completely classified: 40 actions are
+  guided through account-scoped reference or schema-backed inline forms and
+  nine security- or deployment-sensitive variants are capability-gated. No
+  installed default-palette action remains merely planned. Only bounded public
+  properties are accepted; public UUIDs are translated server-side, unsafe
+  header values and regular expressions are rejected, server-owned fields stay
+  private, and unknown node data plus complete children are preserved
   losslessly
 - Check Caller ID uses safe-regex validation, stable `match` and `nomatch`
   paths, virtual identity fields, and server-only translation of a public
   Extension UUID into Kazoo's nested caller identity payload. Absolute
-  caller-number keys remain preserved and non-editable; Privacy and Caller-ID
-  List Match remain capability-gated until their route-capture and
-  projected-list dependencies are available
+  caller-number keys remain preserved and non-editable. Caller-ID List Match
+  uses an account-scoped public List UUID with private Switch-ID resolution;
+  standalone Lists and entries have their own typed projection and CRUD
+  boundary
 - Conflict-safe phone-number entry-point assignment within the routing editor
 - Guided Switch-first callflow creation and dependency-aware deletion
 - Shared Axios response-envelope unwrapping for clean domain API clients
@@ -725,6 +728,7 @@ PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree
 PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/order
 POST   /api/v1/accounts/{account}/callflows/{callflow}/tree/nodes
 PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/nodes
+DELETE /api/v1/accounts/{account}/callflows/{callflow}/tree/nodes
 POST   /api/v1/accounts/{account}/callflows/{callflow}/tree/inline-nodes
 PATCH  /api/v1/accounts/{account}/callflows/{callflow}/tree/inline-nodes
 DELETE /api/v1/accounts/{account}/callflows/{callflow}
@@ -949,11 +953,15 @@ Acceptance criteria:
   module-specific right-side forms, public-reference resolution, schema-aware
   validation, and lossless read-only preservation for unsupported nodes. The
   selectable recursive canvas, safe public branch-label contract,
-  selected-node modal, compact searchable 73-module schema reference palette,
-  guided reference-node add/edit forms, empty-branch moves, insert-before, and
-  disjoint-subtree swaps and the first bounded non-reference module forms are
-  delivered. Remaining module-specific forms and dynamic branch contracts
-  remain next.
+  selected-node modal, compact searchable installed 49-action palette, guided
+  reference and inline-node add/edit forms, empty-branch moves, insert-before,
+  disjoint-subtree swaps, and confirmed child-subtree deletion are delivered.
+  The 40 guided and nine capability-gated actions have no planned gaps, and the
+  installed default palette has no unhandled keyed branch contract. The next
+  Callflow acceptance item is externally blocked: Ring Group audible ringback
+  and internal/external `Alert-Info` require a representative disposable
+  FreeSWITCH/ecallmgr media environment and must not be claimed from the local
+  Crossbar-only topology.
 - SMS/MMS with carrier, consent, retention, and abuse-control gates.
 - Number purchasing, porting, releasing, CNAM, and E911 workflows after
   carrier and compliance approval. Read-only System Status probes now report

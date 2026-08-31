@@ -17,6 +17,7 @@ describe('FormTextarea', () => {
     })
     const textarea = wrapper.get('textarea')
 
+    expect(wrapper.classes()).toContain('content-start')
     expect(textarea.attributes('rows')).toBe('8')
     expect(textarea.attributes('placeholder')).toBe('+15550001000')
     expect(textarea.attributes('aria-invalid')).toBe('true')

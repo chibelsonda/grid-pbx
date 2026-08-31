@@ -214,6 +214,7 @@ class CallflowControllerTest extends TestCase
                 ?string $fallbackResourceId = null,
                 array $menuBranches = [],
                 array $destinationTemporalRuleIds = [],
+                ?array $destinationSettings = null,
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -271,6 +272,11 @@ class CallflowControllerTest extends TestCase
             }
 
             public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function deleteTreeNode(SwitchAccount $account, string $resourceId, array $path): array
             {
                 throw new \LogicException('Not used by this test.');
             }
@@ -2902,7 +2908,7 @@ class CallflowControllerTest extends TestCase
             ->assertJsonValidationErrors('data.caller_id_list_id');
     }
 
-    public function test_it_adds_and_retargets_guided_reference_nodes_without_exposing_switch_ids(): void
+    public function test_it_adds_retargets_and_removes_guided_reference_nodes_without_exposing_switch_ids(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $menu = SwitchMenu::factory()->for($account)->create([
@@ -3020,6 +3026,23 @@ class CallflowControllerTest extends TestCase
                     ],
                 ],
             ]);
+        $gateway->shouldReceive('deleteTreeNode')->once()->ordered()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            array $path,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-main'
+            && $path === ['1'])->andReturn([
+                'id' => 'switch-callflow-main',
+                'name' => 'Main route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-main'],
+                    'children' => [],
+                ],
+            ]);
 
         $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
@@ -3053,12 +3076,24 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.flow.children.1.children._.target.id', $voicemail->id)
             ->assertJsonMissing(['switch-user-support']);
 
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
+                'node_path' => ['1'],
+                'confirm_subtree' => true,
+            ])
+            ->assertOk()
+            ->assertJsonMissingPath('data.flow.children.1');
+
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'callflow.node_created',
             'outcome' => 'succeeded',
         ]);
         $this->assertDatabaseHas('audit_logs', [
             'action' => 'callflow.node_updated',
+            'outcome' => 'succeeded',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.node_deleted',
             'outcome' => 'succeeded',
         ]);
     }
@@ -3845,6 +3880,7 @@ class CallflowControllerTest extends TestCase
                 ?string $fallbackResourceId = null,
                 array $menuBranches = [],
                 array $destinationTemporalRuleIds = [],
+                ?array $destinationSettings = null,
             ): array {
                 throw new \LogicException('Not used by this test.');
             }
@@ -3937,6 +3973,7 @@ class CallflowControllerTest extends TestCase
                 ?string $fallbackResourceId = null,
                 array $menuBranches = [],
                 array $destinationTemporalRuleIds = [],
+                ?array $destinationSettings = null,
             ): array {
                 $this->received = compact(
                     'name',
@@ -4001,6 +4038,11 @@ class CallflowControllerTest extends TestCase
                 throw new \LogicException('Not used by this test.');
             }
 
+            public function deleteTreeNode(SwitchAccount $account, string $resourceId, array $path): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
             public function reorderTreeNodes(SwitchAccount $account, string $resourceId, string $mode, array $sourcePath, array $targetPath): array
             {
                 throw new \LogicException('Not used by this test.');
@@ -4049,6 +4091,105 @@ class CallflowControllerTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'callflow.created', 'outcome' => 'succeeded']);
     }
 
+    public function test_it_creates_a_ring_group_root_using_public_device_ids(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-support',
+            'name' => 'Support desk',
+        ]);
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550000401',
+            'assigned_callflow_id' => null,
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')
+            ->once()
+            ->withArgs(function (
+                SwitchAccount $receivedAccount,
+                string $name,
+                string $module,
+                ?string $resourceId,
+                array $numbers,
+                ?string $fallbackModule,
+                ?string $fallbackResourceId,
+                array $branches,
+                array $temporalRuleIds,
+                ?array $settings,
+            ) use ($account): bool {
+                $this->assertTrue($receivedAccount->is($account));
+                $this->assertSame('Support ring group', $name);
+                $this->assertSame('ring_group', $module);
+                $this->assertNull($resourceId);
+                $this->assertSame(['+15550000401'], $numbers);
+                $this->assertNull($fallbackModule);
+                $this->assertNull($fallbackResourceId);
+                $this->assertSame([], $branches);
+                $this->assertSame([], $temporalRuleIds);
+                $this->assertSame('switch-device-support', $settings['endpoints'][0]['id'] ?? null);
+                $this->assertSame(20, $settings['timeout'] ?? null);
+
+                return true;
+            })
+            ->andReturn([
+                'id' => 'switch-callflow-ring-group',
+                'name' => 'Support ring group',
+                'numbers' => ['+15550000401'],
+                'flow' => [
+                    'module' => 'ring_group',
+                    'data' => [
+                        'strategy' => 'simultaneous',
+                        'endpoints' => [[
+                            'endpoint_type' => 'device',
+                            'id' => 'switch-device-support',
+                            'delay' => 0,
+                            'timeout' => 20,
+                        ]],
+                        'repeats' => 1,
+                        'timeout' => 20,
+                        'ignore_forward' => true,
+                        'fail_on_single_reject' => false,
+                        'skip_module' => false,
+                    ],
+                    'children' => [],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Support ring group',
+                'destination_type' => null,
+                'destination_id' => null,
+                'root_action' => [
+                    'module' => 'ring_group',
+                    'data' => [
+                        'strategy' => 'simultaneous',
+                        'endpoints' => [[
+                            'device_id' => $device->id,
+                            'delay' => 0,
+                            'timeout' => 20,
+                            'weight' => null,
+                        ]],
+                        'repeats' => 1,
+                        'ignore_forward' => true,
+                        'fail_on_single_reject' => false,
+                        'ringback_media_id' => null,
+                        'ringtone_internal' => null,
+                        'ringtone_external' => null,
+                        'skip_module' => false,
+                    ],
+                ],
+                'phone_number_ids' => [$phoneNumber->id],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.root_module', 'ring_group')
+            ->assertJsonPath('data.flow.module', 'ring_group')
+            ->assertJsonPath('data.flow.reference_status', 'resolved')
+            ->assertJsonMissing(['switch-device-support']);
+
+        $this->assertNotNull($phoneNumber->fresh()->assigned_callflow_id);
+    }
+
     public function test_it_deletes_an_unreferenced_route_and_blocks_a_referenced_route(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -4076,7 +4217,7 @@ class CallflowControllerTest extends TestCase
         {
             public ?string $deletedResourceId = null;
 
-            public function create(SwitchAccount $account, string $name, string $destinationModule, ?string $destinationResourceId, array $phoneNumbers, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranches = [], array $destinationTemporalRuleIds = []): array
+            public function create(SwitchAccount $account, string $name, string $destinationModule, ?string $destinationResourceId, array $phoneNumbers, ?string $fallbackModule = null, ?string $fallbackResourceId = null, array $menuBranches = [], array $destinationTemporalRuleIds = [], ?array $destinationSettings = null): array
             {
                 throw new \LogicException('Not used by this test.');
             }

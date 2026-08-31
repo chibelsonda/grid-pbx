@@ -49,7 +49,7 @@ function nodeAtDefaultDepth(
 
 async function deleteDisposableRoute(page: Page, routeName: string): Promise<void> {
   await page.goto('/call-routing')
-  const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+  const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
   await routeSearch.fill(routeName)
   await page.getByRole('button', { name: 'Apply filters' }).click()
   const viewRoute = page.getByRole('button', { name: `View ${routeName}` })
@@ -60,8 +60,8 @@ async function deleteDisposableRoute(page: Page, routeName: string): Promise<voi
   const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
 
   if (await deleteRoute.isDisabled()) {
-    await workspace.getByRole('button', { name: 'Edit guided route' }).click()
-    const editRoute = page.getByRole('dialog', { name: 'Edit guided route' })
+    await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+    const editRoute = page.getByRole('dialog', { name: 'Edit callflow' })
     const selectedNumbers = editRoute.getByRole('checkbox', { checked: true })
 
     for (let index = (await selectedNumbers.count()) - 1; index >= 0; index -= 1) {

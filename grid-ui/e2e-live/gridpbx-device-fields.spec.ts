@@ -6,6 +6,12 @@ type DeviceMutationBody = {
     configuration: {
       music_on_hold: { media_id: string | null; media_name: string | null }
       outbound_flags: { static: string[]; dynamic: string[] }
+      sip: {
+        custom_sip_headers: {
+          in: Array<{ name: string; value: string }>
+          out: Array<{ name: string; value: string }>
+        }
+      }
     }
   }
 }
@@ -250,6 +256,109 @@ test('creates, edits, and clears Device outbound flags and music on hold', async
 
     if (mediaCreated) {
       await deleteMediaByName(page, mediaName).catch(() => undefined)
+    }
+  }
+})
+
+test('creates, replaces, and clears directional Device SIP headers', async ({ page }) => {
+  const suffix = Date.now().toString()
+  const deviceName = `E2E SIP headers ${suffix}`
+  let deviceId: string | null = null
+
+  async function openHeaderEditor(): Promise<void> {
+    await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
+    await page.getByRole('button', { name: 'Custom SIP headers' }).click()
+  }
+
+  async function addHeader(direction: 'in' | 'out', name: string, value: string): Promise<void> {
+    const section = page
+      .getByRole('heading', {
+        name: direction === 'in' ? 'Inbound to Switch' : 'Outbound to endpoint',
+      })
+      .locator('xpath=ancestor::section[1]')
+
+    await section.getByRole('button', { name: 'Add header' }).click()
+    await section
+      .getByRole('textbox', { name: `${direction} SIP header name` })
+      .last()
+      .fill(name)
+    await section
+      .getByRole('textbox', { name: `${direction} SIP header value` })
+      .last()
+      .fill(value)
+  }
+
+  try {
+    await page.goto('/devices')
+    await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
+    await page.getByRole('link', { name: 'Add device' }).click()
+    await page.getByLabel('Device name').fill(deviceName)
+
+    await openAdvancedTab(page, 'SIP')
+    await page.getByLabel('SIP username').fill(`headers${suffix.slice(-9)}`)
+    await page.getByLabel('SIP password').fill('E2E-device-pass-123')
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
+    await page.getByRole('button', { name: 'Custom SIP headers' }).click()
+    await addHeader('in', 'X-GridPBX-In', 'ingress-one')
+    await addHeader('out', 'X-GridPBX-Out', 'endpoint-one')
+
+    const createDevice = deviceMutation(page, 'POST')
+    await page.getByRole('button', { name: 'Create device' }).click()
+    await expectNoClientValidationErrors(page)
+    const createResponse = await createDevice
+    expect(createResponse.status()).toBe(201)
+    const created = (await createResponse.json()) as DeviceMutationBody
+    deviceId = created.data.id
+    expect(created.data.configuration.sip.custom_sip_headers).toEqual({
+      in: [{ name: 'X-GridPBX-In', value: 'ingress-one' }],
+      out: [{ name: 'X-GridPBX-Out', value: 'endpoint-one' }],
+    })
+
+    await expect(page.getByRole('heading', { name: deviceName, level: 1 })).toBeVisible()
+    await page.getByRole('link', { name: 'Edit' }).click()
+    await openHeaderEditor()
+    await expect(page.getByRole('textbox', { name: 'in SIP header name' })).toHaveValue(
+      'X-GridPBX-In',
+    )
+    await expect(page.getByRole('textbox', { name: 'out SIP header name' })).toHaveValue(
+      'X-GridPBX-Out',
+    )
+    await page.getByRole('textbox', { name: 'in SIP header value' }).fill('ingress-two')
+    await page.getByRole('button', { name: 'Remove out SIP header' }).click()
+    await addHeader('out', 'X-GridPBX-Trace', 'trace-two')
+
+    const updateDevice = deviceMutation(page, 'PUT')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expectNoClientValidationErrors(page)
+    const updateResponse = await updateDevice
+    expect(updateResponse.status()).toBe(200)
+    const updated = (await updateResponse.json()) as DeviceMutationBody
+    expect(updated.data.configuration.sip.custom_sip_headers).toEqual({
+      in: [{ name: 'X-GridPBX-In', value: 'ingress-two' }],
+      out: [{ name: 'X-GridPBX-Trace', value: 'trace-two' }],
+    })
+
+    await expect(page.getByRole('heading', { name: deviceName, level: 1 })).toBeVisible()
+    await page.getByRole('link', { name: 'Edit' }).click()
+    await openHeaderEditor()
+    await page.getByRole('button', { name: 'Remove in SIP header' }).click()
+    await page.getByRole('button', { name: 'Remove out SIP header' }).click()
+
+    const clearDevice = deviceMutation(page, 'PUT')
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    await expectNoClientValidationErrors(page)
+    const clearResponse = await clearDevice
+    expect(clearResponse.status()).toBe(200)
+    const cleared = (await clearResponse.json()) as DeviceMutationBody
+    expect(cleared.data.configuration.sip.custom_sip_headers).toEqual({ in: [], out: [] })
+
+    await expect(page.getByRole('heading', { name: deviceName, level: 1 })).toBeVisible()
+    await deleteDeviceFromDetail(page)
+    deviceId = null
+  } finally {
+    if (deviceId) {
+      await deleteDeviceById(page, deviceId).catch(() => undefined)
     }
   }
 })

@@ -5,6 +5,7 @@ namespace App\Domains\CallRouting\Controllers;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\CallRouting\Requests\CreateCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\CreateInlineCallflowNodeRequest;
+use App\Domains\CallRouting\Requests\DeleteCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\ListCallflowsRequest;
 use App\Domains\CallRouting\Requests\MoveCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\ReorderCallflowNodesRequest;
@@ -243,6 +244,28 @@ class CallflowController extends Controller
         Gate::authorize('update', [$switchCallflow, $switchAccount]);
 
         return new CallflowResource(app(CallflowMutationService::class)->updateTreeNode(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function deleteNode(
+        DeleteCallflowNodeRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->deleteTreeNode(
             $switchAccount,
             $switchCallflow,
             $user,

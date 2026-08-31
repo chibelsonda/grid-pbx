@@ -25,7 +25,7 @@ export const globalSearchTypeOptions: ReadonlyArray<{
   { value: 'extension', label: 'People' },
   { value: 'device', label: 'Devices' },
   { value: 'phone_number', label: 'Phone numbers' },
-  { value: 'callflow', label: 'Call routing' },
+  { value: 'callflow', label: 'Callflows' },
   { value: 'voicemail_box', label: 'Voicemail' },
   { value: 'queue', label: 'Queues' },
   { value: 'menu', label: 'Menus' },

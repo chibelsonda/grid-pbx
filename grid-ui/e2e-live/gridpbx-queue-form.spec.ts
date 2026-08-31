@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectControlRowAligned } from './support/formAlignment.js'
 
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
@@ -85,6 +86,10 @@ test('shows schema-backed Queue announcements with inline validation and bounded
   const formSections = page.getByRole('tablist', { name: 'Form sections' })
   await expect(formSections.getByRole('tab')).toHaveText(['Basic', 'Advanced'])
   await formSections.getByRole('tab', { name: 'Advanced' }).click()
+  await expectControlRowAligned(
+    page.getByLabel('Connection timeout'),
+    page.getByLabel('Maximum callers'),
+  )
   await page.getByRole('switch', { name: 'Periodic announcements' }).click()
   await expect(page.getByLabel('Announcement interval (seconds)')).toBeVisible()
   await expect(page.getByRole('button', { name: 'You are at position' })).toBeVisible()

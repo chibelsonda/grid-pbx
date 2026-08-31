@@ -181,6 +181,29 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
         self::assertSame(['directories'], array_keys($body['data']));
     }
 
+    public function test_user_client_encodes_cleared_directory_mappings_as_an_object(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'id' => 'user-1',
+                'first_name' => 'Ada',
+                'last_name' => 'Lovelace',
+                'directories' => [],
+            ]]),
+        ]);
+        $client = new UserResourceClient($switch);
+
+        $client->updateDirectoryMappings(
+            'account-1',
+            'user-1',
+            new UserDirectoryMappingsWriteData([]),
+        );
+        $body = json_decode((string) $this->history[0]['request']->getBody(), flags: JSON_THROW_ON_ERROR);
+
+        self::assertIsObject($body->data->directories);
+        self::assertSame([], get_object_vars($body->data->directories));
+    }
+
     /** @param list<Response> $responses */
     private function switchWithResponses(array $responses): SwitchClient
     {

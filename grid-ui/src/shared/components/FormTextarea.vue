@@ -85,7 +85,7 @@ function change(event: Event): void {
 </script>
 
 <template>
-  <div class="grid gap-2" :class="rootClass">
+  <div class="grid content-start gap-2" :class="rootClass">
     <label :for="controlId" class="text-xs font-semibold text-slate-600">
       {{ label }}
       <span v-if="required" aria-hidden="true" class="text-danger">*</span>

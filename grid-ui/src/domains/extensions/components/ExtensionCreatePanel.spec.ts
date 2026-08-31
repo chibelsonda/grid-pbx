@@ -4,6 +4,7 @@ import FormSelect from '@/shared/components/FormSelect.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import ExtensionCreatePanel from './ExtensionCreatePanel.vue'
 import ExtensionAdvancedCallingSettings from './ExtensionAdvancedCallingSettings.vue'
+import ExtensionAdvancedTabSelector from './ExtensionAdvancedTabSelector.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
 import DeviceDraftForm from '@/domains/devices/components/DeviceDraftForm.vue'
 import { defaultExtensionFormOptions } from '../extensionForm'
@@ -82,14 +83,26 @@ describe('ExtensionCreatePanel', () => {
     ).not.toContain('display: none')
     expect(wrapper.findComponent(ExtensionUserOptions).exists()).toBe(true)
     expect(wrapper.findComponent(ExtensionAdvancedCallingSettings).exists()).toBe(true)
+    expect(wrapper.findComponent(ExtensionAdvancedTabSelector).exists()).toBe(true)
+    expect(
+      wrapper.get('[data-testid="extension-advanced-options"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
+    expect(
+      wrapper.get('[data-testid="extension-advanced-call-forward"]').attributes('style'),
+    ).toContain('display: none')
   })
 
-  it('opens Advanced when the API returns an advanced-field validation error', () => {
+  it.each([
+    ['call_forward.number', 'extension-advanced-call-forward'],
+    ['password', 'extension-advanced-password'],
+    ['hotdesk.id', 'extension-advanced-hot-desking'],
+    ['call_restriction.international.action', 'extension-advanced-restrictions'],
+  ])('opens the matching Advanced tab for the server field %s', (field, testId) => {
     const wrapper = mount(ExtensionCreatePanel, {
       props: {
         saving: false,
         error: null,
-        fieldErrors: { 'call_forward.number': ['Enter a forwarding destination.'] },
+        fieldErrors: { [field]: ['Invalid value.'] },
         options: defaultExtensionFormOptions(),
       },
       global: {
@@ -103,6 +116,51 @@ describe('ExtensionCreatePanel', () => {
     expect(
       wrapper.get('[data-testid="extension-advanced-section"]').attributes('style') ?? '',
     ).not.toContain('display: none')
+    expect(wrapper.get(`[data-testid="${testId}"]`).attributes('style') ?? '').not.toContain(
+      'display: none',
+    )
+    if (testId !== 'extension-advanced-options') {
+      expect(
+        wrapper.get('[data-testid="extension-advanced-options"]').attributes('style'),
+      ).toContain('display: none')
+    }
+  })
+
+  it('keeps nested call-forward switches reactive inside the focused tab', async () => {
+    const wrapper = mount(ExtensionCreatePanel, {
+      props: {
+        saving: false,
+        error: null,
+        fieldErrors: {},
+        options: defaultExtensionFormOptions(),
+      },
+      global: {
+        components: { FormSelect, ToggleSwitch },
+        stubs: {
+          CrudSlideOver: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+
+    const formSections = wrapper.get('[aria-label="Extension form sections"]')
+    await formSections.findAll('[role="tab"]')[1]!.trigger('click')
+    const advancedSections = wrapper.get('[aria-label="Extension advanced sections"]')
+    const callForwardTab = advancedSections
+      .findAll('[role="tab"]')
+      .find((tab) => tab.text().includes('Call Forward'))
+    await callForwardTab!.trigger('click')
+    const behavior = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Forwarding behavior'))
+    await behavior!.trigger('click')
+    const requireKeypress = wrapper
+      .findAllComponents(ToggleSwitch)
+      .find((toggle) => toggle.props('label') === 'Require keypress')
+
+    expect(requireKeypress).toBeDefined()
+    expect(requireKeypress!.props('modelValue')).toBe(true)
+    await requireKeypress!.get('button[role="switch"]').trigger('click')
+    expect(requireKeypress!.props('modelValue')).toBe(false)
   })
 
   it('opens the shared Device-domain editor as a subview of the existing slide-over', async () => {

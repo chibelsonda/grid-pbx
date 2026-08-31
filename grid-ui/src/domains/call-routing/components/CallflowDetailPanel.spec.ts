@@ -51,6 +51,42 @@ const record: Callflow = {
 }
 
 describe('CallflowDetailPanel', () => {
+  it('confirms subtree removal before emitting the public node path', async () => {
+    const wrapper = mount(CallflowDetailPanel, {
+      props: {
+        record,
+        loading: false,
+        error: null,
+        canManage: true,
+        deleting: false,
+        mutationError: null,
+      },
+      global: {
+        stubs: {
+          CallflowActionPalette: { template: '<div>Action catalog</div>' },
+          CallflowNodeInfoDialog: { template: '<div><slot /></div>' },
+          ConfirmDialog: {
+            props: ['open', 'title', 'description'],
+            emits: ['confirm'],
+            template:
+              '<section v-if="open"><h2>{{ title }}</h2><p>{{ description }}</p><button @click="$emit(\'confirm\')">Confirm subtree removal</button></section>',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('[aria-label="Remove User"]').trigger('click')
+    expect(wrapper.text()).toContain('Remove this callflow action?')
+    expect(wrapper.text()).toContain('selected action')
+    const confirm = wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Confirm subtree removal')
+    expect(confirm).toBeDefined()
+    await confirm!.trigger('click')
+
+    expect(wrapper.emitted('delete-node')).toEqual([[['rule_set']]])
+  })
+
   it('renders the route map as an inline main-page workspace', async () => {
     const wrapper = mount(CallflowDetailPanel, {
       props: {
@@ -75,7 +111,7 @@ describe('CallflowDetailPanel', () => {
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('The full-width route map stays on the main page')
 
-    await wrapper.get('[aria-label="Back to call routes"]').trigger('click')
+    await wrapper.get('[aria-label="Back to callflows"]').trigger('click')
     expect(wrapper.emitted('close')).toHaveLength(1)
 
     await wrapper.get('[aria-label="Refresh callflow nodes"]').trigger('click')

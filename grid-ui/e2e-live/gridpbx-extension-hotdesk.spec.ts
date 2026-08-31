@@ -18,6 +18,149 @@ type DisposableExtension = {
   number: string
 }
 
+type LiveExtensionConfiguration = {
+  credentials: { password_configured: boolean }
+  caller_id: { internal: { name: string | null; number: string | null } }
+  call_forward: {
+    enabled: boolean
+    number: string | null
+    keep_caller_id: boolean
+    require_keypress: boolean
+  }
+  call_restriction: Record<string, { action: 'deny' | 'inherit' }>
+  call_recording: {
+    outbound: { offnet: { enabled: boolean; format: 'mp3' | 'wav' } }
+  }
+  hotdesk: {
+    enabled: boolean
+    id: string | null
+    require_pin: boolean
+    pin_configured: boolean
+  }
+}
+
+type LiveExtensionDetail = {
+  id: string
+  username: string | null
+  configuration: LiveExtensionConfiguration
+}
+
+type LiveVoicemailBox = {
+  id: string
+  name: string | null
+  mailbox: string | null
+  timezone: string | null
+  notification_emails: string[]
+  transcribe: boolean
+  require_pin: boolean
+  pin_configured: boolean
+  configuration: {
+    check_if_owner: boolean
+    delete_after_notify: boolean
+    include_message_on_notify: boolean
+    include_transcription_on_notify: boolean
+    media_extension: 'mp3' | 'mp4' | 'wav'
+    not_configurable: boolean
+    oldest_message_first: boolean
+    save_after_notify: boolean
+    skip_envelope: boolean
+    skip_greeting: boolean
+    skip_instructions: boolean
+    is_voicemail_ff_rw_enabled: boolean
+    seek_duration_ms: number
+    notify_callback: {
+      disabled: boolean
+      number: string | null
+      attempts: number | null
+      interval_s: number | null
+      timeout_s: number | null
+      schedule: number[]
+    } | null
+  }
+}
+
+async function authenticatedJson<T>(
+  page: Page,
+  url: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<{ status: number; data: T }> {
+  return page.evaluate(
+    async ({ requestUrl, method, body }) => {
+      const token = decodeURIComponent(
+        document.cookie
+          .split('; ')
+          .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+          ?.split('=')[1] ?? '',
+      )
+      const response = await fetch(requestUrl, {
+        method,
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'X-XSRF-TOKEN': token,
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      })
+
+      return { status: response.status, data: (await response.json()) as T }
+    },
+    { requestUrl: url, method: init.method ?? 'GET', body: init.body },
+  )
+}
+
+async function synchronizeExtensions(
+  page: Page,
+  apiOrigin: string,
+  accountId: string,
+): Promise<void> {
+  const started = await authenticatedJson<{ data: { id: string; status: string } }>(
+    page,
+    `${apiOrigin}/api/v1/accounts/${accountId}/sync/extensions`,
+    { method: 'POST' },
+  )
+  if (started.status !== 202) {
+    throw new Error(`Extension synchronization could not start: ${JSON.stringify(started.data)}`)
+  }
+
+  await expect
+    .poll(
+      async () => {
+        const run = await authenticatedJson<{
+          data: { status: string; error_message: string | null }
+        }>(
+          page,
+          `${apiOrigin}/api/v1/accounts/${accountId}/sync/extensions/${started.data.data.id}`,
+        )
+        if (run.data.data.status === 'failed') {
+          throw new Error(run.data.data.error_message ?? 'Extension synchronization failed.')
+        }
+
+        return run.data.data.status
+      },
+      { timeout: 30_000 },
+    )
+    .toBe('succeeded')
+}
+
+async function extensionDetail(page: Page, detailUrl: string): Promise<LiveExtensionDetail> {
+  const response = await authenticatedJson<{ data: LiveExtensionDetail }>(page, detailUrl)
+  if (response.status !== 200) {
+    throw new Error(`Extension detail request failed: ${JSON.stringify(response.data)}`)
+  }
+
+  return response.data.data
+}
+
+async function voicemailDetail(page: Page, detailUrl: string): Promise<LiveVoicemailBox> {
+  const response = await authenticatedJson<{ data: LiveVoicemailBox }>(page, detailUrl)
+  if (response.status !== 200) {
+    throw new Error(`Voicemail detail request failed: ${JSON.stringify(response.data)}`)
+  }
+
+  return response.data.data
+}
+
 async function deleteDisposableExtension(
   page: Page,
   extension: DisposableExtension,
@@ -107,17 +250,30 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   const credentials = page.locator('article').filter({ hasText: 'Switch portal login' })
   const username = credentials.getByRole('textbox', { name: 'Login username' })
   await username.fill('alice.operator')
-  const password = credentials.getByLabel('Password', { exact: true })
-  const confirmation = credentials.getByLabel('Confirm password')
-  await password.fill('short')
-  await confirmation.fill('different-password')
 
   const extensionTabs = page.getByRole('tablist', { name: 'Extension form sections' })
   await extensionTabs.getByRole('tab', { name: 'Advanced' }).click()
-  await expect(page.getByRole('heading', { name: 'Caller ID and forwarding' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Call restrictions' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Call recording' })).toBeVisible()
+  const advancedTabs = page.getByRole('tablist', { name: 'Extension advanced sections' })
+  for (const tab of [
+    'Caller ID',
+    'Options',
+    'Call Forward',
+    'Password',
+    'Recording',
+    'Hot Desking',
+    'Restrictions',
+  ]) {
+    await expect(advancedTabs.getByRole('tab', { name: tab, exact: true })).toBeVisible()
+  }
 
+  await advancedTabs.getByRole('tab', { name: 'Password' }).click()
+  const passwordManagement = page.locator('article').filter({ hasText: 'Password management' })
+  const password = passwordManagement.getByLabel('Password', { exact: true })
+  const confirmation = passwordManagement.getByLabel('Confirm password')
+  await password.fill('short')
+  await confirmation.fill('different-password')
+
+  await advancedTabs.getByRole('tab', { name: 'Hot Desking' }).click()
   const hotdesk = page.locator('article').filter({ hasText: 'Hotdesk profile' })
   await expect(hotdesk).toBeVisible()
   await hotdesk.getByRole('switch', { name: 'Enabled' }).click()
@@ -133,17 +289,228 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   const firstName = page.getByLabel('First name')
   await expect(firstName).toHaveAttribute('aria-invalid', 'true')
   await expect(firstName).toHaveClass(/border-red-400/)
-  await expect(credentials.getByText('Use at least 6 characters.')).toBeVisible()
-  await expect(credentials.getByText('Passwords do not match.')).toBeVisible()
-  await expect(credentials.locator('input[type="password"]').first()).toHaveClass(/border-red-400/)
   await extensionTabs.getByRole('tab', { name: 'Advanced' }).click()
   await expect(hotdesk.getByText('Use 4–15 dial-pad characters.')).toBeVisible()
   await expect(hotdeskId).toHaveClass(/border-red-400/)
   await expect(
     hotdesk.getByText('Enter a hotdesk PIN when PIN protection is enabled.'),
   ).toBeVisible()
+  await advancedTabs.getByRole('tab', { name: 'Password' }).click()
+  await expect(passwordManagement.getByText('Use at least 6 characters.')).toBeVisible()
+  await expect(passwordManagement.getByText('Passwords do not match.')).toBeVisible()
+  await expect(passwordManagement.locator('input[type="password"]').first()).toHaveClass(
+    /border-red-400/,
+  )
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
   expect(issues).toEqual([])
+})
+
+test('persists, edits, synchronizes, and clears Extension advanced fields in Switch', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const number = Date.now().toString().slice(-8)
+  const username = `live.${number}`
+  const password = `GridPBX-${number}!`
+  const originalForwardingNumber = `+1555${number}`
+  const updatedForwardingNumber = `+1666${number}`
+  let created: DisposableExtension | null = null
+
+  try {
+    await page.goto('/extensions')
+    await expect(page.getByRole('heading', { name: 'People & Extensions' })).toBeVisible()
+    await page.getByRole('button', { name: 'Create extension' }).click()
+    await page.getByLabel('First name').fill('GridPBX')
+    await page.getByLabel('Last name').fill('Advanced Live')
+    await page.getByLabel('Extension number').fill(number)
+    await page.getByLabel('Login username').fill(username)
+
+    const voicemail = page.locator('article').filter({ hasText: 'Voicemail fallback' })
+    await voicemail.getByRole('switch', { name: 'Create' }).click()
+
+    const outerTabs = page.getByRole('tablist', { name: 'Extension form sections' })
+    await outerTabs.getByRole('tab', { name: 'Advanced' }).click()
+    const advancedTabs = page.getByRole('tablist', { name: 'Extension advanced sections' })
+
+    await advancedTabs.getByRole('tab', { name: 'Caller ID' }).click()
+    await page.getByLabel('Internal caller-ID name').fill('GridPBX Live Create')
+    await page.getByLabel('Internal caller-ID number').fill(number)
+
+    await advancedTabs.getByRole('tab', { name: 'Call Forward' }).click()
+    const forwarding = page.getByRole('switch', { name: 'Enable call forwarding' })
+    await forwarding.click()
+    await page.getByLabel('Forwarding destination').fill(originalForwardingNumber)
+    await page.getByRole('button', { name: 'Forwarding behavior' }).click()
+    const requireKeypress = page.getByRole('switch', { name: 'Require keypress' })
+    await expect(requireKeypress).toBeChecked()
+
+    await advancedTabs.getByRole('tab', { name: 'Password' }).click()
+    await page.getByLabel('Password', { exact: true }).fill(password)
+    await page.getByLabel('Confirm password').fill(password)
+
+    await advancedTabs.getByRole('tab', { name: 'Recording' }).click()
+    const recording = page.locator('article').filter({ hasText: 'User call recording' })
+    const outbound = recording.locator('section').filter({ hasText: /^Outbound/ })
+    await outbound.getByRole('switch', { name: 'Off-net' }).click()
+
+    await advancedTabs.getByRole('tab', { name: 'Hot Desking' }).click()
+    const hotdesk = page.locator('article').filter({ hasText: 'Hotdesk profile' })
+    await hotdesk.getByRole('switch', { name: 'Enabled' }).click()
+    await hotdesk.getByRole('textbox', { name: 'Hotdesk ID' }).fill(number)
+    await hotdesk.getByRole('switch', { name: 'Require a PIN' }).click()
+    await hotdesk.getByLabel('Hotdesk PIN').fill(number.slice(-6))
+
+    await advancedTabs.getByRole('tab', { name: 'Restrictions' }).click()
+    const restrictions = page.locator('article').filter({ hasText: 'Call restrictions' })
+    const international = restrictions
+      .getByText('International', { exact: true })
+      .locator('..')
+      .locator('..')
+    await international.getByRole('button').click()
+    await page.getByRole('option', { name: 'Deny', exact: true }).click()
+
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions$/.test(new URL(response.url()).pathname),
+    )
+    await page.getByRole('button', { name: 'Create extension', exact: true }).last().click()
+    const response = await createResponse
+    if (response.status() !== 201) {
+      throw new Error(`Disposable advanced Extension creation failed: ${await response.text()}`)
+    }
+
+    const responseUrl = new URL(response.url())
+    const submittedCreate = response.request().postDataJSON() as {
+      call_forward: { require_keypress: boolean }
+    }
+    expect(submittedCreate.call_forward.require_keypress).toBe(true)
+    const accountId = responseUrl.pathname.match(/\/accounts\/([^/]+)\//)?.[1]
+    const result = (await response.json()) as { data: LiveExtensionDetail }
+    if (!accountId)
+      throw new Error('Unable to derive the account identifier from the API response.')
+    const detailUrl = `${responseUrl.origin}${responseUrl.pathname}/${result.data.id}`
+    created = { deleteUrl: detailUrl, number }
+
+    expect(result.data.username).toBe(username)
+    expect(result.data.configuration.credentials.password_configured).toBe(true)
+    expect(result.data.configuration.caller_id.internal).toEqual({
+      name: 'GridPBX Live Create',
+      number,
+    })
+    expect(result.data.configuration.call_forward).toMatchObject({
+      enabled: true,
+      number: originalForwardingNumber,
+      require_keypress: true,
+    })
+    expect(result.data.configuration.call_restriction.international?.action).toBe('deny')
+    expect(result.data.configuration.call_recording.outbound.offnet.enabled).toBe(true)
+    expect(result.data.configuration.hotdesk).toMatchObject({
+      enabled: true,
+      id: number,
+      require_pin: true,
+      pin_configured: true,
+    })
+
+    await synchronizeExtensions(page, responseUrl.origin, accountId)
+    const synchronizedCreate = await extensionDetail(page, detailUrl)
+    expect(synchronizedCreate.configuration.caller_id.internal.name).toBe('GridPBX Live Create')
+    expect(synchronizedCreate.configuration.call_forward.number).toBe(originalForwardingNumber)
+    expect(synchronizedCreate.configuration.call_recording.outbound.offnet.enabled).toBe(true)
+    expect(synchronizedCreate.configuration.hotdesk.pin_configured).toBe(true)
+
+    await page.goto(`/extensions/${result.data.id}`)
+    await page.getByRole('button', { name: 'Edit' }).click()
+    await page
+      .getByRole('tablist', { name: 'Extension form sections' })
+      .getByRole('tab', { name: 'Advanced' })
+      .click()
+    const editTabs = page.getByRole('tablist', { name: 'Extension advanced sections' })
+    await editTabs.getByRole('tab', { name: 'Caller ID' }).click()
+    await page.getByLabel('Internal caller-ID name').fill('GridPBX Live Edit')
+    await editTabs.getByRole('tab', { name: 'Call Forward' }).click()
+    await page.getByLabel('Forwarding destination').fill(updatedForwardingNumber)
+    await editTabs.getByRole('tab', { name: 'Hot Desking' }).click()
+    await page.getByRole('textbox', { name: 'Hotdesk ID' }).fill(`${number.slice(0, -1)}7`)
+
+    const updateResponse = page.waitForResponse(
+      (candidate) => candidate.request().method() === 'PUT' && candidate.url() === detailUrl,
+    )
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    expect((await updateResponse).status()).toBe(200)
+    await synchronizeExtensions(page, responseUrl.origin, accountId)
+    const synchronizedEdit = await extensionDetail(page, detailUrl)
+    expect(synchronizedEdit.configuration.caller_id.internal.name).toBe('GridPBX Live Edit')
+    expect(synchronizedEdit.configuration.call_forward.number).toBe(updatedForwardingNumber)
+    expect(synchronizedEdit.configuration.hotdesk.id).toBe(`${number.slice(0, -1)}7`)
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Edit' }).click()
+    const login = page.locator('article').filter({ hasText: 'Switch portal login' })
+    await login.getByRole('button', { name: 'Remove login credentials' }).click()
+    await page
+      .getByRole('tablist', { name: 'Extension form sections' })
+      .getByRole('tab', { name: 'Advanced' })
+      .click()
+    const clearTabs = page.getByRole('tablist', { name: 'Extension advanced sections' })
+
+    await clearTabs.getByRole('tab', { name: 'Caller ID' }).click()
+    await page.getByLabel('Internal caller-ID name').fill('')
+    await page.getByLabel('Internal caller-ID number').fill('')
+
+    await clearTabs.getByRole('tab', { name: 'Call Forward' }).click()
+    await page.getByLabel('Forwarding destination').fill('')
+    await page.getByRole('switch', { name: 'Enable call forwarding' }).click()
+
+    await clearTabs.getByRole('tab', { name: 'Recording' }).click()
+    await page
+      .locator('article')
+      .filter({ hasText: 'User call recording' })
+      .locator('section')
+      .filter({ hasText: /^Outbound/ })
+      .getByRole('switch', { name: 'Off-net' })
+      .click()
+
+    await clearTabs.getByRole('tab', { name: 'Hot Desking' }).click()
+    const clearHotdesk = page.locator('article').filter({ hasText: 'Hotdesk profile' })
+    await clearHotdesk.getByRole('switch', { name: 'Require a PIN' }).click()
+    await clearHotdesk.getByRole('button', { name: 'Remove configured PIN' }).click()
+    await clearHotdesk.getByRole('switch', { name: 'Enabled' }).click()
+
+    await clearTabs.getByRole('tab', { name: 'Restrictions' }).click()
+    const clearRestrictions = page.locator('article').filter({ hasText: 'Call restrictions' })
+    const clearInternational = clearRestrictions
+      .getByText('International', { exact: true })
+      .locator('..')
+      .locator('..')
+    await clearInternational.getByRole('button').click()
+    await page.getByRole('option', { name: 'Inherit account policy', exact: true }).click()
+
+    const clearResponse = page.waitForResponse(
+      (candidate) => candidate.request().method() === 'PUT' && candidate.url() === detailUrl,
+    )
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    expect((await clearResponse).status()).toBe(200)
+    await synchronizeExtensions(page, responseUrl.origin, accountId)
+    const synchronizedClear = await extensionDetail(page, detailUrl)
+    expect(synchronizedClear.username).toBeNull()
+    expect(synchronizedClear.configuration.credentials.password_configured).toBe(false)
+    expect(synchronizedClear.configuration.caller_id.internal).toEqual({ name: null, number: null })
+    expect(synchronizedClear.configuration.call_forward.enabled).toBe(false)
+    expect(synchronizedClear.configuration.call_forward.number).toBeNull()
+    expect(
+      synchronizedClear.configuration.call_restriction.international?.action ?? 'inherit',
+    ).toBe('inherit')
+    expect(synchronizedClear.configuration.call_recording.outbound.offnet.enabled).toBe(false)
+    expect(synchronizedClear.configuration.hotdesk).toMatchObject({
+      enabled: false,
+      require_pin: false,
+      pin_configured: false,
+    })
+    expect(issues).toEqual([])
+  } finally {
+    if (created) await deleteDisposableExtension(page, created)
+  }
 })
 
 test('creates an Extension with a Device, clears a Device option, and removes the aggregate', async ({
@@ -240,11 +607,13 @@ test('creates an Extension with a Device, clears a Device option, and removes th
   }
 })
 
-test('configures a full managed Voicemail subview and removes the disposable aggregate', async ({
+test('persists, edits, synchronizes, and clears the managed Extension Voicemail aggregate', async ({
   page,
 }) => {
   const issues = collectPageIssues(page)
   const number = Date.now().toString().slice(-8)
+  const callbackNumber = `+1555${number}`
+  const updatedCallbackNumber = `+1666${number}`
   let created: DisposableExtension | null = null
 
   try {
@@ -274,9 +643,30 @@ test('configures a full managed Voicemail subview and removes the disposable agg
     await expect(
       voicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }),
     ).toBeVisible()
+    await voicemailDrawer.getByRole('switch', { name: 'Save after notification' }).click()
     await voicemailDrawer.getByRole('button', { name: 'Callback notification' }).click()
     await voicemailDrawer.getByRole('switch', { name: 'Configure callback notification' }).click()
     await voicemailDrawer.getByRole('switch', { name: 'Pause callback attempts' }).click()
+    await voicemailDrawer.getByLabel('Callback number').fill(callbackNumber)
+    await voicemailDrawer.getByRole('spinbutton', { name: 'Attempts' }).fill('4')
+    await voicemailDrawer.getByRole('spinbutton', { name: 'Retry interval' }).fill('120')
+    await voicemailDrawer.getByRole('spinbutton', { name: 'Answer timeout' }).fill('25')
+    await voicemailDrawer.getByLabel('Callback schedule').fill('60, 180')
+    await voicemailDrawer
+      .getByText('Voicemail audio format')
+      .locator('..')
+      .getByRole('button')
+      .click()
+    await page.getByRole('option', { name: 'WAV', exact: true }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Require PIN' }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Lock mailbox configuration' }).click()
+    await voicemailDrawer.getByRole('button', { name: 'Playback behavior' }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Play oldest messages first' }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Skip message envelope' }).click()
+    await voicemailDrawer.getByRole('switch', { name: 'Enable fast-forward and rewind' }).click()
+    await voicemailDrawer.getByLabel('Seek duration').fill('15000')
+    await selectVoicemailSection(voicemailDrawer, 'Basic')
+    await voicemailDrawer.getByLabel('PIN', { exact: true }).fill(number.slice(-4))
     await voicemailDrawer.getByRole('button', { name: 'Use this mailbox' }).click()
     await expect(page.getByRole('heading', { name: 'Configure voicemail' })).toHaveCount(0)
     await expect(voicemailCard.getByText('Mailbox settings configured')).toBeVisible()
@@ -296,12 +686,43 @@ test('configures a full managed Voicemail subview and removes the disposable agg
     const result = (await response.json()) as {
       data: { id: string; voicemail_boxes: Array<{ id: string; mailbox: string | null }> }
     }
+    const accountId = responseUrl.pathname.match(/\/accounts\/([^/]+)\//)?.[1]
+    const mailboxId = result.data.voicemail_boxes.find((mailbox) => mailbox.mailbox === number)?.id
+    if (!accountId || !mailboxId) {
+      throw new Error('Unable to derive the account and managed mailbox identifiers.')
+    }
+    const voicemailDetailUrl = `${responseUrl.origin}/api/v1/accounts/${accountId}/voicemail-boxes/${mailboxId}`
     created = {
       deleteUrl: `${responseUrl.origin}${responseUrl.pathname}/${result.data.id}`,
       number,
     }
 
-    expect(result.data.voicemail_boxes.some((mailbox) => mailbox.mailbox === number)).toBe(true)
+    await synchronizeExtensions(page, responseUrl.origin, accountId)
+    const synchronizedCreate = await voicemailDetail(page, voicemailDetailUrl)
+    expect(synchronizedCreate).toMatchObject({
+      mailbox: number,
+      notification_emails: ['voicemail-audit@example.test'],
+      require_pin: true,
+      pin_configured: true,
+      configuration: {
+        media_extension: 'wav',
+        not_configurable: true,
+        oldest_message_first: true,
+        save_after_notify: true,
+        delete_after_notify: false,
+        skip_envelope: true,
+        is_voicemail_ff_rw_enabled: true,
+        seek_duration_ms: 15000,
+        notify_callback: {
+          disabled: true,
+          number: callbackNumber,
+          attempts: 4,
+          interval_s: 120,
+          timeout_s: 25,
+          schedule: [60, 180],
+        },
+      },
+    })
     await expect(
       page.getByRole('heading', { level: 1, name: 'GridPBX Voicemail Aggregate' }),
     ).toBeVisible()
@@ -322,18 +743,34 @@ test('configures a full managed Voicemail subview and removes the disposable agg
       'voicemail-audit@example.test',
     )
     await editVoicemailDrawer
+      .getByLabel('Notification email addresses')
+      .fill('voicemail-updated@example.test')
+    await editVoicemailDrawer
       .getByRole('button', { name: 'Advanced notification delivery' })
       .click()
     await expect(
       editVoicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }),
     ).toBeChecked()
     await editVoicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }).click()
+    await editVoicemailDrawer.getByRole('switch', { name: 'Save after notification' }).click()
+    await editVoicemailDrawer.getByRole('switch', { name: 'Delete after notification' }).click()
     await editVoicemailDrawer.getByRole('button', { name: 'Callback notification' }).click()
     await expect(
       editVoicemailDrawer.getByRole('switch', { name: 'Configure callback notification' }),
     ).toBeChecked()
+    await editVoicemailDrawer.getByRole('switch', { name: 'Pause callback attempts' }).click()
+    await editVoicemailDrawer.getByLabel('Callback number').fill(updatedCallbackNumber)
     await editVoicemailDrawer
-      .getByRole('switch', { name: 'Configure callback notification' })
+      .getByText('Voicemail audio format')
+      .locator('..')
+      .getByRole('button')
+      .click()
+    await page.getByRole('option', { name: 'MP4', exact: true }).click()
+    await editVoicemailDrawer.getByRole('button', { name: 'Playback behavior' }).click()
+    await editVoicemailDrawer.getByRole('switch', { name: 'Play oldest messages first' }).click()
+    await editVoicemailDrawer.getByRole('switch', { name: 'Skip message envelope' }).click()
+    await editVoicemailDrawer
+      .getByRole('switch', { name: 'Enable fast-forward and rewind' })
       .click()
     await editVoicemailDrawer.getByRole('button', { name: 'Use this mailbox' }).click()
 
@@ -345,6 +782,32 @@ test('configures a full managed Voicemail subview and removes the disposable agg
     await page.getByRole('button', { name: 'Save changes' }).click()
     expect((await updateResponse).status()).toBe(200)
 
+    await synchronizeExtensions(page, responseUrl.origin, accountId)
+    const synchronizedEdit = await voicemailDetail(page, voicemailDetailUrl)
+    expect(synchronizedEdit).toMatchObject({
+      notification_emails: ['voicemail-updated@example.test'],
+      require_pin: true,
+      pin_configured: true,
+      configuration: {
+        include_message_on_notify: false,
+        media_extension: 'mp4',
+        oldest_message_first: false,
+        save_after_notify: false,
+        delete_after_notify: true,
+        skip_envelope: false,
+        is_voicemail_ff_rw_enabled: false,
+        notify_callback: {
+          disabled: false,
+          number: updatedCallbackNumber,
+          attempts: 4,
+          interval_s: 120,
+          timeout_s: 25,
+          schedule: [60, 180],
+        },
+      },
+    })
+
+    await page.reload()
     await page.getByRole('button', { name: 'Edit' }).click()
     await page
       .locator('article')
@@ -353,16 +816,56 @@ test('configures a full managed Voicemail subview and removes the disposable agg
       .click()
     const verifyVoicemailDrawer = page.getByRole('dialog', { name: 'Configure voicemail' })
     await selectVoicemailSection(verifyVoicemailDrawer, 'Options')
+    await verifyVoicemailDrawer.getByLabel('Notification email addresses').fill('')
     await verifyVoicemailDrawer
       .getByRole('button', { name: 'Advanced notification delivery' })
       .click()
     await expect(
       verifyVoicemailDrawer.getByRole('switch', { name: 'Attach voicemail audio' }),
     ).not.toBeChecked()
+    await verifyVoicemailDrawer.getByRole('switch', { name: 'Delete after notification' }).click()
+    await verifyVoicemailDrawer.getByRole('switch', { name: 'Include transcription' }).click()
     await verifyVoicemailDrawer.getByRole('button', { name: 'Callback notification' }).click()
     await expect(
       verifyVoicemailDrawer.getByRole('switch', { name: 'Configure callback notification' }),
-    ).not.toBeChecked()
+    ).toBeChecked()
+    await verifyVoicemailDrawer
+      .getByRole('switch', { name: 'Configure callback notification' })
+      .click()
+    await verifyVoicemailDrawer
+      .getByText('Voicemail audio format')
+      .locator('..')
+      .getByRole('button')
+      .click()
+    await page.getByRole('option', { name: 'MP3', exact: true }).click()
+    await verifyVoicemailDrawer.getByRole('switch', { name: 'Require PIN' }).click()
+    await verifyVoicemailDrawer.getByRole('switch', { name: 'Lock mailbox configuration' }).click()
+    await verifyVoicemailDrawer.getByRole('button', { name: 'Use this mailbox' }).click()
+
+    const clearResponse = page.waitForResponse(
+      (candidate) =>
+        candidate.request().method() === 'PUT' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions\/[^/]+$/.test(new URL(candidate.url()).pathname),
+    )
+    await page.getByRole('button', { name: 'Save changes' }).click()
+    expect((await clearResponse).status()).toBe(200)
+
+    await synchronizeExtensions(page, responseUrl.origin, accountId)
+    const synchronizedClear = await voicemailDetail(page, voicemailDetailUrl)
+    expect(synchronizedClear).toMatchObject({
+      notification_emails: [],
+      require_pin: false,
+      pin_configured: false,
+      configuration: {
+        include_message_on_notify: false,
+        include_transcription_on_notify: false,
+        media_extension: 'mp3',
+        not_configurable: false,
+        save_after_notify: false,
+        delete_after_notify: false,
+        notify_callback: null,
+      },
+    })
     expect(issues).toEqual([])
   } finally {
     if (created) await deleteDisposableExtension(page, created)
@@ -420,18 +923,16 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible()
     await page.getByRole('button', { name: 'Edit' }).click()
     await page.waitForTimeout(300)
-    if ((await page.getByRole('heading', { name: 'Caller ID and forwarding' }).count()) === 0) {
+    const formSections = page.getByRole('tablist', { name: 'Extension form sections' })
+    await formSections.getByRole('tab', { name: 'Advanced' }).click()
+    const advancedSections = page.getByRole('tablist', { name: 'Extension advanced sections' })
+    if ((await advancedSections.count()) === 0) {
       throw new Error(`Extension editor did not mount: ${issues.join(' | ')}`)
     }
 
-    await expect(page.getByRole('heading', { name: 'Caller ID and forwarding' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Call restrictions' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'User call recording' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Media and endpoint audio' })).toBeVisible()
-    await expect(page.getByRole('heading', { name: 'Routing and directory profile' })).toBeVisible()
+    await advancedSections.getByRole('tab', { name: 'Caller ID' }).click()
+    await expect(page.getByRole('heading', { name: 'Caller ID', exact: true })).toBeVisible()
     await expect(page.getByText('asserted identity remains Switch-managed')).toBeVisible()
-    await expect(page.getByText(/recording.*url/i)).toBeVisible()
-    await expect(page.getByText('https://', { exact: false })).toHaveCount(0)
 
     const externalCallerId = page.getByText('External caller-ID number').locator('..')
     await externalCallerId.getByRole('button').click()
@@ -447,6 +948,7 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
     await page.getByRole('option', { name: 'Use account caller ID' }).click()
 
+    await advancedSections.getByRole('tab', { name: 'Call Forward' }).click()
     const forwarding = page.getByRole('switch', { name: 'Enable call forwarding' })
     if (!(await forwarding.isChecked())) await forwarding.click()
     const destination = page.getByText('Forwarding destination').locator('..').locator('input')
@@ -464,6 +966,13 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
 
     await forwarding.click()
+    await advancedSections.getByRole('tab', { name: 'Recording' }).click()
+    await expect(page.getByRole('heading', { name: 'User call recording' })).toBeVisible()
+    await expect(page.getByText(/recording.*url/i)).toBeVisible()
+    await expect(page.getByText('https://', { exact: false })).toHaveCount(0)
+
+    await advancedSections.getByRole('tab', { name: 'Media' }).click()
+    await expect(page.getByRole('heading', { name: 'Media and endpoint audio' })).toBeVisible()
     await page.getByRole('button', { name: 'Select extension music on hold' }).click()
     const musicListbox = page.getByRole('listbox')
     await expect(musicListbox).toBeVisible()
@@ -484,6 +993,8 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     await expect(progressTimeout).toHaveClass(/border-red-400/)
 
     await progressTimeout.fill('30')
+    await advancedSections.getByRole('tab', { name: 'Routing & Profile' }).click()
+    await expect(page.getByRole('heading', { name: 'Routing and directory profile' })).toBeVisible()
     await page.getByRole('button', { name: 'Dial plan', exact: true }).click()
     await page.getByRole('button', { name: 'Add rule' }).click()
     const dialPlanPattern = page.getByText('Regex pattern').locator('..').locator('input').last()

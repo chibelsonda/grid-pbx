@@ -9,6 +9,7 @@ use GridPbx\Switch\Domains\Callflows\Dto\CallflowBranchWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeDeleteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
@@ -63,6 +64,79 @@ final class CallflowResourceClientTest extends TestCase
                 ],
             ],
         ], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public function test_it_creates_a_validated_ring_group_root(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-ring-group',
+            'name' => 'Support line',
+            'numbers' => ['+15550000101'],
+            'flow' => ['module' => 'ring_group', 'data' => [], 'children' => []],
+        ]);
+
+        $client->create('account-1', new CallflowCreateData(
+            name: 'Support line',
+            destinationModule: 'ring_group',
+            destinationResourceId: null,
+            phoneNumbers: ['+15550000101'],
+            destinationSettings: [
+                'strategy' => 'simultaneous',
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'device-1',
+                    'delay' => 0,
+                    'timeout' => 20,
+                ]],
+                'repeats' => 1,
+                'timeout' => 20,
+                'ignore_forward' => true,
+                'fail_on_single_reject' => false,
+                'ringback' => null,
+                'ringtones' => ['internal' => null, 'external' => null],
+                'skip_module' => false,
+            ],
+        ));
+
+        $body = json_decode(
+            (string) $this->history[0]['request']->getBody(),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        );
+
+        self::assertSame('ring_group', $body['data']['flow']['module']);
+        self::assertSame('device-1', $body['data']['flow']['data']['endpoints'][0]['id']);
+        self::assertSame(20, $body['data']['flow']['data']['timeout']);
+        self::assertArrayNotHasKey('id', $body['data']['flow']['data']);
+    }
+
+    public function test_it_rejects_an_invalid_ring_group_root(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('timeout does not match');
+
+        new CallflowCreateData(
+            name: 'Invalid support line',
+            destinationModule: 'ring_group',
+            destinationResourceId: null,
+            phoneNumbers: ['+15550000101'],
+            destinationSettings: [
+                'strategy' => 'simultaneous',
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'device-1',
+                    'delay' => 0,
+                    'timeout' => 20,
+                ]],
+                'repeats' => 1,
+                'timeout' => 30,
+                'ignore_forward' => true,
+                'fail_on_single_reject' => false,
+                'ringback' => null,
+                'ringtones' => ['internal' => null, 'external' => null],
+                'skip_module' => false,
+            ],
+        );
     }
 
     public function test_it_projects_the_authoritative_callflow_returned_after_a_write(): void
@@ -717,6 +791,84 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('user-2', $node['data']['id']);
         self::assertSame(25, $node['data']['timeout']);
         self::assertSame('mailbox-1', $node['children']['_']['data']['id']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_removes_only_the_selected_public_subtree(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->deleteTreeNode(
+            'account-1',
+            'callflow-1',
+            new CallflowTreeNodeDeleteData([
+                'id' => 'callflow-1',
+                '_rev' => '4-revision',
+                'ui_metadata' => ['preserve' => true],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'menu-1', 'vendor_option' => ['enabled' => true]],
+                    'children' => [
+                        '1' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'user-1'],
+                            'children' => [
+                                '_' => [
+                                    'module' => 'voicemail',
+                                    'data' => ['id' => 'mailbox-1'],
+                                    'children' => [],
+                                ],
+                            ],
+                        ],
+                        '2' => [
+                            'module' => 'user',
+                            'data' => ['id' => 'user-2', 'vendor_timeout' => 17],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ], ['1']),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('POST', $this->history[0]['request']->getMethod());
+        self::assertArrayNotHasKey('1', $body['data']['flow']['children']);
+        self::assertSame('user', $body['data']['flow']['children']['2']['module']);
+        self::assertSame('user-2', $body['data']['flow']['children']['2']['data']['id']);
+        self::assertSame(17, $body['data']['flow']['children']['2']['data']['vendor_timeout']);
+        self::assertTrue($body['data']['flow']['data']['vendor_option']['enabled']);
+        self::assertTrue($body['data']['ui_metadata']['preserve']);
+        self::assertArrayNotHasKey('_rev', $body['data']);
+    }
+
+    public function test_it_rejects_root_and_preserved_node_deletions(): void
+    {
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => [
+                    'vendor_branch' => [
+                        'module' => 'custom',
+                        'data' => [],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ];
+
+        foreach ([[], ['preserved_1']] as $path) {
+            try {
+                new CallflowTreeNodeDeleteData($current, $path);
+                self::fail('Unsafe callflow tree deletion was accepted.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
+            }
+        }
     }
 
     /** @throws JsonException */

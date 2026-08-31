@@ -3,11 +3,13 @@ import { defineStore } from 'pinia'
 import { callflowApi } from '../api/callflowApi'
 import type {
   Callflow,
+  CallflowCreateInput,
   CallflowEditor,
   CallflowFilters,
   CallflowTreeMoveInput,
   CallflowTreeReorderInput,
   CallflowTreeNodeCreateInput,
+  CallflowTreeNodeDeleteInput,
   CallflowTreeNodeUpdateInput,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
@@ -34,6 +36,7 @@ export const useCallflowStore = defineStore('call-routing', {
     saving: false,
     deleting: false,
     treeMoving: false,
+    treeDeleting: false,
     treeEditor: null as CallflowEditor | null,
     treeEditorLoading: false,
     treeNodeSaving: false,
@@ -63,6 +66,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.fieldErrors = {}
       this.mutationError = null
       this.treeMutationError = null
+      this.treeDeleting = false
       this.treeEditor = null
       this.treeEditorLoading = false
       this.treeNodeError = null
@@ -81,8 +85,8 @@ export const useCallflowStore = defineStore('call-routing', {
         this.total = response.meta.total
       } catch (error) {
         this.error = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load call routes.')
-          : 'Unable to load call routes.'
+          ? (error.response?.data?.message ?? 'Unable to load callflows.')
+          : 'Unable to load callflows.'
       } finally {
         this.loading = false
       }
@@ -104,8 +108,8 @@ export const useCallflowStore = defineStore('call-routing', {
         return true
       } catch (error) {
         this.detailError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load the call route.')
-          : 'Unable to load the call route.'
+          ? (error.response?.data?.message ?? 'Unable to load the callflow.')
+          : 'Unable to load the callflow.'
 
         return false
       } finally {
@@ -180,15 +184,15 @@ export const useCallflowStore = defineStore('call-routing', {
           Object.keys(this.fieldErrors).length > 0
             ? null
             : axios.isAxiosError(error)
-              ? (error.response?.data?.message ?? 'Unable to update the call route.')
-              : 'Unable to update the call route.'
+              ? (error.response?.data?.message ?? 'Unable to update the callflow.')
+              : 'Unable to update the callflow.'
 
         return null
       } finally {
         this.saving = false
       }
     },
-    async create(accountId: string, input: CallflowUpdate): Promise<Callflow | null> {
+    async create(accountId: string, input: CallflowCreateInput): Promise<Callflow | null> {
       this.saving = true
       this.editorError = null
       this.fieldErrors = {}
@@ -207,8 +211,8 @@ export const useCallflowStore = defineStore('call-routing', {
           Object.keys(this.fieldErrors).length > 0
             ? null
             : axios.isAxiosError(error)
-              ? (error.response?.data?.message ?? 'Unable to create the call route.')
-              : 'Unable to create the call route.'
+              ? (error.response?.data?.message ?? 'Unable to create the callflow.')
+              : 'Unable to create the callflow.'
 
         return null
       } finally {
@@ -230,8 +234,8 @@ export const useCallflowStore = defineStore('call-routing', {
         this.mutationError = axios.isAxiosError(error)
           ? (error.response?.data?.errors?.callflow?.[0] ??
             error.response?.data?.message ??
-            'Unable to delete the call route.')
-          : 'Unable to delete the call route.'
+            'Unable to delete the callflow.')
+          : 'Unable to delete the callflow.'
 
         return false
       } finally {
@@ -335,6 +339,33 @@ export const useCallflowStore = defineStore('call-routing', {
     ): Promise<Callflow | null> {
       return this.saveTreeNode(() => callflowApi.updateTreeNode(accountId, callflowId, input))
     },
+    async deleteTreeNode(
+      accountId: string,
+      callflowId: string,
+      input: CallflowTreeNodeDeleteInput,
+    ): Promise<Callflow | null> {
+      this.treeDeleting = true
+      this.treeMutationError = null
+
+      try {
+        const updated = await callflowApi.deleteTreeNode(accountId, callflowId, input)
+        this.detail = updated
+        const index = this.records.findIndex((record) => record.id === updated.id)
+        if (index >= 0) this.records[index] = updated
+
+        return updated
+      } catch (error) {
+        this.treeMutationError = axios.isAxiosError(error)
+          ? (error.response?.data?.errors?.node_path?.[0] ??
+            error.response?.data?.message ??
+            'Unable to remove the callflow action.')
+          : 'Unable to remove the callflow action.'
+
+        return null
+      } finally {
+        this.treeDeleting = false
+      }
+    },
     async createInlineTreeNode(
       accountId: string,
       callflowId: string,
@@ -403,10 +434,10 @@ export const useCallflowStore = defineStore('call-routing', {
         if (activeCallflowId) await this.refreshDetail(accountId, activeCallflowId)
       } catch (error) {
         this.error = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to synchronize call routes.')
+          ? (error.response?.data?.message ?? 'Unable to synchronize callflows.')
           : error instanceof Error
             ? error.message
-            : 'Unable to synchronize call routes.'
+            : 'Unable to synchronize callflows.'
       } finally {
         this.synchronizing = false
       }

@@ -42,6 +42,7 @@ defineEmits<{
     action: CallflowAction,
     placement: CallflowNodePlacement,
   ]
+  remove: [selection: CallflowNodeSelection]
 }>()
 const entryPoints = computed(() => [
   ...props.numbers.map((value) => ({ value, kind: 'Number' })),
@@ -189,6 +190,7 @@ const { zoom, zoomPercent, canZoomIn, canZoomOut, zoomIn, zoomOut, resetZoom, ha
           @add-action="
             (selection, action, placement) => $emit('add-action', selection, action, placement)
           "
+          @remove="$emit('remove', $event)"
         />
       </div>
     </div>

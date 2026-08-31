@@ -100,7 +100,7 @@ function clearCallerIdListQuery(): void {
   <section class="border-b border-slate-200/80 bg-white py-5">
     <div class="page-container flex items-center gap-4">
       <div>
-        <p class="mb-1 text-[11px] text-slate-500">GridPBX / Call routing</p>
+        <p class="mb-1 text-[11px] text-slate-500">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold text-slate-800">Caller-ID Lists</h1>
         <p class="mt-1 text-xs text-slate-500">
           Reusable caller-number and pattern matches for visual Callflow branches.

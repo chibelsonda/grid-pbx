@@ -15,10 +15,15 @@ class StoreCallflowRequest extends FormRequest
     /** @return array<string, mixed> */
     public function rules(): array
     {
+        $usesInlineRoot = fn (): bool => is_array($this->input('root_action'));
+
         return [
             'name' => ['required', 'string', 'max:128'],
-            'destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set', 'temporal_rules'])],
-            'destination_id' => ['nullable', 'required_unless:destination_type,temporal_rules', 'uuid'],
+            'destination_type' => [Rule::requiredIf(fn (): bool => ! $usesInlineRoot()), Rule::prohibitedIf($usesInlineRoot), 'nullable', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set', 'temporal_rules'])],
+            'destination_id' => [Rule::requiredIf(fn (): bool => ! $usesInlineRoot() && $this->input('destination_type') !== 'temporal_rules'), Rule::prohibitedIf($usesInlineRoot), 'nullable', 'uuid'],
+            'root_action' => ['nullable', 'array:module,data'],
+            'root_action.module' => ['required_with:root_action', 'string', Rule::in(['ring_group'])],
+            'root_action.data' => ['required_with:root_action', 'array'],
             'temporal_rule_ids' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],
             'temporal_rule_ids.*' => ['required', 'uuid', 'distinct'],
             'temporal_rule_routes' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],

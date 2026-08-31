@@ -9,7 +9,7 @@ test('renders decorative icons without badge containers', async ({ page }) => {
   page.on('pageerror', (error) => browserErrors.push(error.message))
 
   await page.goto('/call-routing')
-  await expect(page.getByRole('heading', { name: 'Call routing' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Callflows' })).toBeVisible()
 
   const decorativeIcons = page.locator(
     "span.grid[class*='place-items-center'][class*='bg-']:has(> svg:only-child):not([class*='absolute']):not(.sidebar-accent-bg)",

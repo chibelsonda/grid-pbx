@@ -77,7 +77,7 @@ function submit(): void {
     eyebrow="GridPBX / Directories"
     description="Directory settings live on the Switch directory; member routes are coordinated through user mappings."
     width="medium"
-    @close="emit('close')"
+    @close="confirmDelete ? undefined : emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">

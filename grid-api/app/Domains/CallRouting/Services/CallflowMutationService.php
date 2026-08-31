@@ -36,7 +36,11 @@ class CallflowMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchCallflow {
-        [$module, $resourceId, $temporalRuleIds] = $this->destination($account, null, $data);
+        [$module, $resourceId, $temporalRuleIds, $destinationSettings] = $this->destination(
+            $account,
+            null,
+            $data,
+        );
         [$fallbackModule, $fallbackResourceId] = $this->optionalDestination(
             $account,
             null,
@@ -71,6 +75,7 @@ class CallflowMutationService
                     ...$directTemporalBranchOperations,
                 ],
                 $temporalRuleIds,
+                $destinationSettings,
             ));
 
             return DB::transaction(function () use ($account, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
@@ -382,6 +387,57 @@ class CallflowMutationService
             'append',
             $ipAddress,
         );
+    }
+
+    /** @param array<string, mixed> $data */
+    public function deleteTreeNode(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        $this->editor->assertEditable($callflow);
+        $this->treeNodeWriteValidator->assertCanDelete($callflow, $data['node_path']);
+
+        try {
+            $snapshot = new CallflowSnapshot($this->gateway->deleteTreeNode(
+                $account,
+                $callflow->switch_resource_id,
+                $data['node_path'],
+            ));
+
+            return DB::transaction(function () use ($account, $callflow, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
+                $projected = $this->project($account, $callflow, $snapshot);
+                $this->audit->record(
+                    $actor,
+                    $account,
+                    'callflow.node_deleted',
+                    'succeeded',
+                    $projected->switch_resource_id,
+                    [
+                        'callflow_id' => $projected->id,
+                        'path' => $data['node_path'],
+                    ],
+                    $ipAddress,
+                    'callflow',
+                );
+
+                return $this->load($projected);
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure(
+                $actor,
+                $account,
+                $callflow,
+                'callflow.node_delete_failed',
+                ['node_path' => $data['node_path']],
+                $exception,
+                $ipAddress,
+            );
+
+            throw $exception;
+        }
     }
 
     /**
@@ -1024,10 +1080,32 @@ class CallflowMutationService
 
     /**
      * @param  array<string, mixed>  $data
-     * @return array{string, ?string, list<string>}
+     * @return array{string, ?string, list<string>, ?array<string, mixed>}
      */
     private function destination(SwitchAccount $account, ?SwitchCallflow $callflow, array $data): array
     {
+        if (is_array($data['root_action'] ?? null)) {
+            $module = $data['root_action']['module'] ?? null;
+            $settings = $data['root_action']['data'] ?? null;
+
+            if ($callflow !== null || $module !== 'ring_group' || ! is_array($settings)) {
+                throw ValidationException::withMessages([
+                    'root_action' => ['Select a supported inline root action.'],
+                ]);
+            }
+
+            return [
+                $module,
+                null,
+                [],
+                $this->inlineSettingsForSwitch(
+                    $account,
+                    $module,
+                    $this->inlineNodeDataValidator->validate($module, $settings),
+                ),
+            ];
+        }
+
         if (($data['destination_type'] ?? null) === 'temporal_rules') {
             $ruleIds = is_array($data['temporal_rule_ids'] ?? null)
                 ? array_values($data['temporal_rule_ids'])
@@ -1047,6 +1125,7 @@ class CallflowMutationService
                     fn (string $id): string => $rules->get($id)->switch_resource_id,
                     $ruleIds,
                 ),
+                null,
             ];
         }
 
@@ -1057,7 +1136,7 @@ class CallflowMutationService
             $data['destination_id'],
         );
 
-        return [$module, $resourceId, []];
+        return [$module, $resourceId, [], null];
     }
 
     /** @return array{?string, ?string} */

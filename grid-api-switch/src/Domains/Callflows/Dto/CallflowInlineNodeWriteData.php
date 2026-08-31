@@ -239,6 +239,42 @@ final readonly class CallflowInlineNodeWriteData
         return new self($current, 'update', $nodePath, null, 'append', $module, $settings);
     }
 
+    /**
+     * Builds one validated inline action for use as a new callflow root.
+     *
+     * The temporary parent intentionally uses the ordinary continuation branch so root actions
+     * receive the exact same schema validation and Switch normalization as actions inserted into
+     * an existing callflow tree.
+     *
+     * @param  array<string, mixed>  $settings
+     * @return array{module: string, data: array<string, mixed>, children: object}
+     */
+    public static function rootNode(string $module, array $settings): array
+    {
+        $write = self::create(
+            current: [
+                'flow' => [
+                    'module' => 'callflow',
+                    'data' => [],
+                    'children' => (object) [],
+                ],
+            ],
+            parentPath: [],
+            branch: '_',
+            module: $module,
+            settings: $settings,
+        );
+        $document = $write->toSwitchData();
+        $children = $document['flow']['children'] ?? null;
+        $node = is_object($children) ? get_object_vars($children)['_'] ?? null : null;
+
+        if (! is_array($node)) {
+            throw new InvalidArgumentException('The inline Switch callflow root could not be built.');
+        }
+
+        return $node;
+    }
+
     /** @return array<string, mixed> */
     public function toSwitchData(): array
     {

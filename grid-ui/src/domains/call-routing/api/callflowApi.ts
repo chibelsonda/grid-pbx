@@ -1,12 +1,14 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
 import type {
   Callflow,
+  CallflowCreateInput,
   CallflowEditor,
   CallflowFilters,
   CallflowUpdate,
   CallflowTreeMoveInput,
   CallflowTreeReorderInput,
   CallflowTreeNodeCreateInput,
+  CallflowTreeNodeDeleteInput,
   CallflowTreeNodeUpdateInput,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
@@ -61,7 +63,7 @@ export const callflowApi = {
 
     return unwrapApiData(response)
   },
-  async create(accountId: string, input: CallflowUpdate): Promise<Callflow> {
+  async create(accountId: string, input: CallflowCreateInput): Promise<Callflow> {
     const response = await http.post<ApiResponse<Callflow>>(
       `/api/v1/accounts/${accountId}/callflows`,
       input,
@@ -121,6 +123,18 @@ export const callflowApi = {
     const response = await http.patch<ApiResponse<Callflow>>(
       `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/nodes`,
       input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async deleteTreeNode(
+    accountId: string,
+    callflowId: string,
+    input: CallflowTreeNodeDeleteInput,
+  ): Promise<Callflow> {
+    const response = await http.delete<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/nodes`,
+      { data: input },
     )
 
     return unwrapApiData(response)

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Domains\Users\Dto;
 
 use InvalidArgumentException;
+use stdClass;
 
 final readonly class UserDirectoryMappingsWriteData
 {
@@ -18,9 +19,9 @@ final readonly class UserDirectoryMappingsWriteData
         }
     }
 
-    /** @return array{directories: array<string, string>} */
+    /** @return array{directories: array<string, string>|stdClass} */
     public function toSwitchData(): array
     {
-        return ['directories' => $this->mappings];
+        return ['directories' => $this->mappings === [] ? new stdClass : $this->mappings];
     }
 }

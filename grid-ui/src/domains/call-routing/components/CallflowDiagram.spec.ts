@@ -30,6 +30,48 @@ function dispatchWheelEvent(
 }
 
 describe('CallflowDiagram', () => {
+  it('offers a compact remove control only for editable public child nodes', async () => {
+    const child: CallflowNode = {
+      module: 'voicemail',
+      target: { type: 'voicemail', id: 'voicemail-public', label: 'Reception mailbox' },
+      reference_status: 'resolved',
+      branch: { key: '_', label: 'Default branch', kind: 'default' },
+      children: {},
+    }
+    const node: CallflowNode = {
+      module: 'device',
+      target: { type: 'device', id: 'device-public', label: 'Reception phone' },
+      reference_status: 'resolved',
+      children: { _: child },
+    }
+    const wrapper = mount(CallflowDiagram, { props: { node, editable: true } })
+
+    expect(wrapper.find('[aria-label="Remove Device"]').exists()).toBe(false)
+    await wrapper.get('[aria-label="Remove Voicemail"]').trigger('click')
+
+    expect(wrapper.emitted('remove')).toEqual([[{ node: child, path: ['_'] }]])
+  })
+
+  it('does not offer removal for preserved Switch branches', () => {
+    const node: CallflowNode = {
+      module: 'menu',
+      target: null,
+      reference_status: 'not_applicable',
+      children: {
+        preserved_1: {
+          module: 'custom_vendor',
+          target: null,
+          reference_status: 'not_applicable',
+          branch: { key: 'preserved_1', label: 'Preserved branch 1', kind: 'preserved' },
+          children: {},
+        },
+      },
+    }
+    const wrapper = mount(CallflowDiagram, { props: { node, editable: true } })
+
+    expect(wrapper.find('[aria-label^="Remove "]').exists()).toBe(false)
+  })
+
   it('uses SVG connectors without generic path-count or default-branch labels', () => {
     const node: CallflowNode = {
       module: 'device',

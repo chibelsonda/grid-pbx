@@ -15,6 +15,7 @@ describe('FormInput', () => {
     const input = wrapper.get('input')
     const label = wrapper.get('label')
 
+    expect(wrapper.classes()).toContain('content-start')
     expect(label.attributes('for')).toBe(input.attributes('id'))
     expect(input.attributes('aria-invalid')).toBe('true')
     expect(input.attributes('aria-describedby')).toContain(`${input.attributes('id')}-description`)

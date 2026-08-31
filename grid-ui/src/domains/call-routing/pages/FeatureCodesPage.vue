@@ -62,7 +62,7 @@ watch(
   <section class="border-b border-slate-200/80 bg-white py-5">
     <div class="page-container flex flex-col gap-4 sm:flex-row sm:items-center">
       <div>
-        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Call Routing</p>
+        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Feature Codes</h1>
         <p class="mt-1 text-xs text-slate-500">
           Active account star codes projected from Switch callflows.
@@ -87,7 +87,7 @@ watch(
       <LockClosedIcon class="mt-0.5 size-4 shrink-0" />
       <p>
         <strong>Read-only inventory.</strong> Enable, disable, and renumber operations remain
-        capability-gated because they replace or delete whole live callflows. Use Call Routing to
+        capability-gated because they replace or delete whole live callflows. Use Callflows to
         inspect the projected route structure.
       </p>
     </div>

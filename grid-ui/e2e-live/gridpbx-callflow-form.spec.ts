@@ -25,6 +25,94 @@ async function replaceInputValue(inputLocator: Locator, value: string): Promise<
   await expect(inputLocator).toHaveValue(value)
 }
 
+type MockedCallflowEditorOptions = {
+  id: string
+  name: string
+  rootModule: string
+  target: { type: string; id: string; label: string } | null
+  temporalRules?: Array<{ id: string | null; label: string; position: number; resolved: boolean }>
+  editor: Record<string, unknown>
+}
+
+async function openMockedCallflowEditor(
+  page: Page,
+  { id, name, rootModule, target, temporalRules = [], editor }: MockedCallflowEditorOptions,
+): Promise<Locator> {
+  const callflow = {
+    id,
+    name,
+    route_type: 'phone_number',
+    numbers: ['+15550001234'],
+    patterns: [],
+    flags: [],
+    modules: [rootModule],
+    root_module: rootModule,
+    node_count: 1,
+    max_depth: 1,
+    feature_code: null,
+    flow: {
+      module: rootModule,
+      target,
+      temporal_rules: temporalRules,
+      reference_status: target === null ? 'not_applicable' : 'resolved',
+      branch: null,
+      children: {},
+    },
+    linked_extension: null,
+    phone_numbers: [
+      {
+        id: '1078f5f7-a8c4-4296-abf8-610612cac312',
+        number: '+15550001234',
+        state: 'in_service',
+      },
+    ],
+    sync_status: 'healthy',
+    last_synced_at: '2026-08-29T18:00:00+08:00',
+  }
+
+  await page.route('**/api/v1/accounts/*/callflows?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [callflow],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: 1,
+          sync: { status: 'healthy', last_successful_at: null, error_message: null },
+        },
+      }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${id}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: callflow }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${id}/editor`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: editor }),
+    })
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: `View ${name}` }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+
+  const dialog = page.getByRole('dialog', { name: 'Edit callflow' })
+  await expect(dialog.getByRole('heading', { name: 'Edit callflow', exact: true })).toBeVisible()
+
+  return dialog
+}
+
 type PublicCallflowNode = {
   module?: string
   settings?: Record<string, unknown>
@@ -66,7 +154,7 @@ function defaultBranchPath(depth: number): string[] {
 
 async function deleteCallflowRoute(page: Page, routeName: string): Promise<void> {
   await page.goto('/call-routing')
-  const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+  const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
   await routeSearch.fill(routeName)
   await expect(routeSearch).toHaveValue(routeName)
   await page.getByRole('button', { name: 'Apply filters' }).click()
@@ -78,8 +166,8 @@ async function deleteCallflowRoute(page: Page, routeName: string): Promise<void>
   const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
 
   if (await deleteRoute.isDisabled()) {
-    await workspace.getByRole('button', { name: 'Edit guided route' }).click()
-    const editRoute = page.getByRole('dialog', { name: 'Edit guided route' })
+    await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+    const editRoute = page.getByRole('dialog', { name: 'Edit callflow' })
     const selectedNumbers = editRoute.getByRole('checkbox', { checked: true })
 
     for (let index = (await selectedNumbers.count()) - 1; index >= 0; index--) {
@@ -104,206 +192,9 @@ async function deleteCallflowRoute(page: Page, routeName: string): Promise<void>
   )
   await confirmation.getByRole('button', { name: 'Delete route' }).click()
   expect((await deleteResponse).status()).toBe(204)
-  await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
   await expect(page.getByText(routeName, { exact: true })).toHaveCount(0)
 }
-
-test('opens a deep UI-only callflow demo without mutating Switch', async ({ page }) => {
-  const issues = collectPageIssues(page)
-  const mutations: string[] = []
-  page.on('request', (request) => {
-    if (
-      request.url().includes('/callflows') &&
-      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
-    ) {
-      mutations.push(`${request.method()} ${request.url()}`)
-    }
-  })
-
-  await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Open complex demo' }).click()
-  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-
-  await expect(
-    workspace.getByRole('heading', { name: 'Complex callflow demo · UI only' }),
-  ).toBeVisible()
-  await expect(page.getByText('UI-only demonstration.')).toBeVisible()
-  await expect(workspace.getByText('20', { exact: true }).first()).toBeVisible()
-  await expect(workspace.getByText('6', { exact: true }).first()).toBeVisible()
-  await expect(workspace.getByText('14', { exact: true }).first()).toBeVisible()
-  await expect(
-    workspace.getByRole('treeitem', { name: 'Time of Day: Office hours and holidays' }),
-  ).toBeVisible()
-  await expect(workspace.getByRole('treeitem', { name: 'Menu: Main IVR' })).toBeVisible()
-  await expect(
-    workspace.getByRole('treeitem', { name: 'Voicemail: Support overflow mailbox' }),
-  ).toBeVisible()
-  await expect(workspace.getByRole('treeitem', { name: 'Response' })).toHaveCount(3)
-
-  await workspace.getByRole('treeitem', { name: 'Menu: Main IVR' }).click()
-  const nodeInfo = page.getByRole('dialog', { name: 'Menu' })
-  await expect(nodeInfo).toContainText('Main IVR')
-  await expect(nodeInfo).toContainText('Business hours match')
-  await expect(nodeInfo).toContainText('Child paths')
-  await expect(nodeInfo.getByRole('button', { name: 'Edit action target' })).toHaveCount(0)
-  await nodeInfo.getByRole('button', { name: 'Close node information' }).click()
-
-  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
-  await expect(palette.getByRole('button', { name: 'Move action palette' })).toBeVisible()
-  const compactAction = palette.getByRole('button', { name: 'User unavailable in read-only mode' })
-  await expect(compactAction).toBeDisabled()
-
-  const panCanvas = workspace.locator('[data-callflow-pan-canvas]')
-  const panBox = await panCanvas.boundingBox()
-  const panDimensions = await panCanvas.evaluate((element) => ({
-    clientHeight: element.clientHeight,
-    scrollHeight: element.scrollHeight,
-  }))
-  expect(panBox).not.toBeNull()
-  expect(panDimensions.scrollHeight).toBeGreaterThan(panDimensions.clientHeight)
-  await expect(panCanvas).toHaveCSS('cursor', 'grab')
-  await panCanvas.evaluate((element) => {
-    element.scrollTop = 0
-    element.scrollLeft = 0
-  })
-  await panCanvas.dispatchEvent('pointerdown', {
-    button: 0,
-    pointerId: 41,
-    pointerType: 'mouse',
-    clientX: 100,
-    clientY: 180,
-  })
-  await expect(panCanvas).toHaveCSS('cursor', 'grabbing')
-  await panCanvas.dispatchEvent('pointermove', {
-    pointerId: 41,
-    pointerType: 'mouse',
-    clientX: 100,
-    clientY: 60,
-  })
-  await panCanvas.dispatchEvent('pointerup', { pointerId: 41, pointerType: 'mouse' })
-  expect(await panCanvas.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
-  await expect(panCanvas).toHaveCSS('cursor', 'grab')
-  await panCanvas.evaluate((element) => {
-    element.scrollTop = 0
-    element.scrollLeft = 0
-  })
-
-  const paletteBox = await palette.boundingBox()
-  const actionBox = await compactAction.boundingBox()
-  const compactActionAppearance = await compactAction.locator(':scope > div').evaluate((card) => ({
-    background: getComputedStyle(card).backgroundColor,
-    border: getComputedStyle(card).borderColor,
-  }))
-  const nodeBoxes = await workspace.locator('button[role="treeitem"]').evaluateAll((nodes) =>
-    nodes.map((node) => {
-      const box = node.getBoundingClientRect()
-      return { width: box.width, height: box.height }
-    }),
-  )
-  const nodeAppearance = await workspace
-    .locator('button[role="treeitem"] > div')
-    .evaluateAll((cards) =>
-      cards.map((card) => {
-        const icon = card.querySelector('div.absolute > svg')
-        return {
-          background: getComputedStyle(card).backgroundColor,
-          border: getComputedStyle(card).borderColor,
-          icon: icon ? getComputedStyle(icon).color : null,
-        }
-      }),
-    )
-  expect(paletteBox).not.toBeNull()
-  expect(actionBox).not.toBeNull()
-  expect(paletteBox!.width).toBeGreaterThanOrEqual(183)
-  expect(paletteBox!.width).toBeLessThanOrEqual(185)
-  expect(actionBox!.height).toBeGreaterThanOrEqual(55)
-  expect(actionBox!.height).toBeLessThanOrEqual(57)
-  expect(nodeBoxes.length).toBeGreaterThan(10)
-  expect(Math.max(...nodeBoxes.map(({ width }) => width))).toBeLessThanOrEqual(145)
-  expect(Math.max(...nodeBoxes.map(({ height }) => height))).toBeLessThanOrEqual(85)
-  const nodeBackgrounds = new Set(nodeAppearance.map(({ background }) => background))
-  expect(nodeBackgrounds.size).toBe(1)
-  expect([...nodeBackgrounds][0]).not.toBe('rgba(0, 0, 0, 0)')
-  expect(await palette.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
-    [...nodeBackgrounds][0],
-  )
-  expect(compactActionAppearance.background).toBe([...nodeBackgrounds][0])
-  expect(compactActionAppearance.border).not.toBe([...nodeBackgrounds][0])
-  expect(compactActionAppearance.border).not.toBe('rgba(0, 0, 0, 0)')
-  expect(new Set(nodeAppearance.map(({ border }) => border)).size).toBeGreaterThanOrEqual(4)
-  expect(new Set(nodeAppearance.map(({ icon }) => icon)).size).toBeGreaterThanOrEqual(4)
-  const connectorAppearance = await workspace.locator('svg.h-10.w-5').evaluateAll((arrows) =>
-    arrows.map((arrow) => ({
-      height: arrow.getBoundingClientRect().height,
-      color: getComputedStyle(arrow).color,
-      shaftWidth: arrow.querySelector('line')?.getAttribute('stroke-width'),
-    })),
-  )
-  expect(connectorAppearance.length).toBeGreaterThan(10)
-  expect(Math.min(...connectorAppearance.map(({ height }) => height))).toBeGreaterThanOrEqual(39)
-  const connectorColors = new Set(connectorAppearance.map(({ color }) => color))
-  expect(connectorColors.size).toBe(1)
-  expect([...connectorColors][0]).toBe([...nodeBackgrounds][0])
-  expect(new Set(connectorAppearance.map(({ shaftWidth }) => shaftWidth))).toEqual(new Set(['8']))
-  const branchBusAppearance = await workspace
-    .locator('[data-callflow-branch-bus]')
-    .evaluateAll((segments) =>
-      segments.map((segment) => ({
-        width: segment.getBoundingClientRect().width,
-        height: segment.getBoundingClientRect().height,
-        color: getComputedStyle(segment).color,
-        tagName: segment.tagName.toLowerCase(),
-        shaftWidth: segment.querySelector('line')?.getAttribute('stroke-width'),
-      })),
-    )
-  expect(branchBusAppearance.length).toBeGreaterThanOrEqual(3)
-  expect(Math.max(...branchBusAppearance.map(({ width }) => width))).toBeGreaterThan(70)
-  expect(Math.min(...branchBusAppearance.map(({ height }) => height))).toBeGreaterThanOrEqual(7)
-  expect(new Set(branchBusAppearance.map(({ tagName }) => tagName))).toEqual(new Set(['svg']))
-  expect(new Set(branchBusAppearance.map(({ color }) => color))).toEqual(nodeBackgrounds)
-  expect(new Set(branchBusAppearance.map(({ shaftWidth }) => shaftWidth))).toEqual(new Set(['8']))
-  const categoryContainer = palette.locator('[data-callflow-palette-categories]')
-  await expect(categoryContainer).toHaveCSS('overflow-y', 'visible')
-  let categoryToggles = palette.locator('button[aria-expanded="true"]')
-  await expect(categoryToggles).toHaveCount(1)
-  await palette.locator('button[aria-expanded]').nth(1).click()
-  categoryToggles = palette.locator('button[aria-expanded="true"]')
-  await expect(categoryToggles).toHaveCount(1)
-  const advancedTitles = await palette
-    .locator('button[title*=" · "]')
-    .evaluateAll((actions) =>
-      actions.map((action) => action.getAttribute('title')?.split(' · ')[0] ?? ''),
-    )
-  expect(advancedTitles).toEqual([
-    'Device',
-    'Distinctive Ring',
-    'Callflow',
-    'Page Group',
-    'Set CAV',
-    'Missed Call Alert',
-    'Manual Presence',
-    'TTS',
-    'Sleep',
-    'Language',
-    'Group Pickup',
-    'Receive Fax',
-    'Pivot',
-    'Collect DTMF',
-    'DISA',
-    'Response',
-    'Conference Service',
-    'Check Voicemail',
-    'Fax Boxes',
-    'Global Carrier',
-    'Account Carrier',
-    'Directory',
-    'Webhook',
-  ])
-  await expect(workspace.getByText('1 path', { exact: true })).toHaveCount(0)
-  await expect(workspace.getByText('Default branch', { exact: true })).toHaveCount(0)
-  expect(mutations).toEqual([])
-  expect(issues).toEqual([])
-})
 
 test('keeps Call Forwarding capability gated without mutating Switch', async ({ page }) => {
   const issues = collectPageIssues(page)
@@ -318,8 +209,8 @@ test('keeps Call Forwarding capability gated without mutating Switch', async ({ 
   })
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Open complex demo' }).click()
-  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('button', { name: /^Call Forwarding/ }).click()
 
@@ -333,12 +224,6 @@ test('keeps Call Forwarding capability gated without mutating Switch', async ({ 
     await expect(action).toBeDisabled()
     await expect(action).toHaveAttribute('title', title)
   }
-
-  await workspace.getByRole('treeitem', { name: 'Enable call forwarding' }).click()
-  const nodeInformation = page.getByRole('dialog', { name: 'Call Forward' })
-  await expect(nodeInformation).toContainText('Capability required')
-  await expect(nodeInformation).toContainText('unauthenticated arbitrary destination')
-  await expect(nodeInformation.getByRole('button', { name: 'Edit action target' })).toHaveCount(0)
 
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
@@ -359,8 +244,8 @@ test('keeps ACDC Agent search-only and capability gated without mutating Switch'
   })
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Open complex demo' }).click()
-  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('searchbox', { name: 'Search callflow actions' }).fill('agent')
 
@@ -390,8 +275,8 @@ test('keeps Eavesdrop search-only and capability gated without mutating Switch',
   })
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Open complex demo' }).click()
-  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('searchbox', { name: 'Search callflow actions' }).fill('eavesdrop')
 
@@ -421,7 +306,7 @@ test('creates and reopens live ACDC Queue feature actions', async ({ page }) => 
 
   try {
     await page.goto('/call-routing')
-    const routeSearch = page.getByRole('searchbox', { name: 'Search call routes' })
+    const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
     await routeSearch.fill(routeName!)
     await page.getByRole('button', { name: 'Apply filters' }).click()
     await page.getByRole('button', { name: `View ${routeName}` }).click()
@@ -608,8 +493,8 @@ test('classifies every installed palette action without planned gaps', async ({ 
   })
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Open complex demo' }).click()
-  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   const categories = palette.locator('button[aria-expanded]')
   const actionTitles: string[] = []
@@ -651,7 +536,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
 
   try {
     await page.goto('/call-routing')
-    await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
     if (seededRouteName) {
       await page.getByRole('button', { name: `View ${routeName}` }).click()
       created = true
@@ -661,7 +546,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
           response.request().method() === 'GET' &&
           /\/api\/v1\/accounts\/[^/]+\/callflows\/editor$/.test(new URL(response.url()).pathname),
       )
-      await page.getByRole('button', { name: 'Create route' }).click()
+      await page.getByRole('button', { name: 'Create callflow' }).click()
       const editor = (await (await editorResponse).json()) as {
         data: {
           phone_numbers: Array<{ id: string; number: string; available: boolean }>
@@ -670,8 +555,24 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         }
       }
       const availableNumber = editor.data.phone_numbers.find(({ available }) => available)
+      const rootActionLabels: Record<string, string> = {
+        extension: 'User',
+        device: 'Device',
+        voicemail: 'Voicemail',
+        callflow: 'Callflow',
+        media: 'Media',
+        directory: 'Directory',
+        group: 'Group',
+        queue: 'Queue Member',
+        menu: 'Menu',
+        conference: 'Conference',
+        fax_box: 'Fax Boxes',
+        temporal_rule_set: 'Time of Day',
+      }
       const availableDestination = editor.data.destination_types.find(
-        ({ value }) => (editor.data.destinations[value]?.length ?? 0) > 0,
+        ({ value }) =>
+          rootActionLabels[value] !== undefined &&
+          (editor.data.destinations[value]?.length ?? 0) > 0,
       )
 
       test.skip(
@@ -679,15 +580,29 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         'The connected account needs one unassigned phone number and one projected destination.',
       )
 
-      const createPanel = page.getByRole('region', { name: 'Create call route' })
-      await createPanel.getByLabel('Route name').fill(routeName)
-      await createPanel.getByRole('checkbox', { name: availableNumber!.number }).check()
+      const createPanel = page.getByRole('region', { name: 'Create callflow' })
+      await createPanel.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+      const metadataDialog = page.getByRole('dialog', { name: 'Callflow' })
+      await metadataDialog.getByLabel('Callflow name').fill(routeName)
+      await metadataDialog.getByRole('checkbox', { name: availableNumber!.number }).check()
+      await metadataDialog.getByRole('button', { name: 'Done' }).click()
+
+      const actionLabel = rootActionLabels[availableDestination!.value]!
+      const rootPalette = createPanel.getByRole('region', { name: 'Callflow action catalog' })
+      await rootPalette
+        .getByRole('searchbox', { name: 'Search callflow actions' })
+        .fill(actionLabel)
+      await rootPalette.getByRole('button', { name: `Use ${actionLabel} as root action` }).click()
+      await page
+        .getByRole('dialog', { name: `Configure ${actionLabel}` })
+        .getByRole('button', { name: 'Use action' })
+        .click()
       const createResponse = page.waitForResponse(
         (response) =>
           response.request().method() === 'POST' &&
           /\/api\/v1\/accounts\/[^/]+\/callflows$/.test(new URL(response.url()).pathname),
       )
-      await createPanel.getByRole('button', { name: 'Create route' }).click()
+      await createPanel.getByRole('button', { name: 'Create callflow' }).click()
       expect((await createResponse).status()).toBe(201)
       created = true
     }
@@ -2180,22 +2095,34 @@ test('creates, edits, branches, and removes live guided inline actions', async (
   }
 })
 
-test('keeps Callflow validation inline and its destination listbox inside the viewport', async ({
+test('opens the Switch-style blank callflow root and keeps creation validation inline', async ({
   page,
 }) => {
   const issues = collectPageIssues(page)
   await page.goto('/call-routing')
-  await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Create route' }).click()
-  await expect(page.getByRole('heading', { name: 'Create call route' })).toBeVisible()
-  const dialog = page.getByRole('region', { name: 'Create call route' })
-  await expect(page.getByRole('dialog', { name: 'Create call route' })).toHaveCount(0)
-  const rootPalette = dialog.getByRole('region', { name: 'Callflow action catalog' })
-  await expect(rootPalette).toBeVisible()
-  await rootPalette.getByRole('button', { name: 'Use Voicemail as root action' }).click()
-  await expect(dialog.getByRole('button', { name: 'Destination type' })).toContainText('Voicemail')
+  await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  await expect(page.getByRole('heading', { name: 'Create callflow' })).toBeVisible()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
+  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+  await expect(canvas).toContainText('Click to add number')
+  await expect(workspace.getByText('Route identity')).toHaveCount(0)
+  await expect(workspace.getByText('Root destination')).toHaveCount(0)
 
-  await dialog.getByRole('button', { name: 'Destination type' }).click()
+  const rootPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await expect(rootPalette).toBeVisible()
+  const rootAction = rootPalette.getByRole('button', { name: 'Use User as root action' })
+  await expect(rootAction).toHaveAttribute('draggable', 'true')
+  const dataTransfer = await page.evaluateHandle(() => new DataTransfer())
+  await rootAction.dispatchEvent('dragstart', { dataTransfer })
+  await canvas.dispatchEvent('dragenter', { dataTransfer })
+  await canvas.dispatchEvent('dragover', { dataTransfer })
+  await expect(canvas).toContainText('Drop to use this as the root action.')
+  await canvas.dispatchEvent('drop', { dataTransfer })
+  const actionDialog = page.getByRole('dialog', { name: 'Configure User' })
+  await expect(actionDialog.getByRole('button', { name: 'Root action destination' })).toBeVisible()
+  await actionDialog.getByRole('button', { name: 'Root action destination' }).click()
   const options = page.getByRole('listbox')
   await expect(options).toBeVisible()
   const box = await options.boundingBox()
@@ -2206,100 +2133,133 @@ test('keeps Callflow validation inline and its destination listbox inside the vi
   expect(box!.y).toBeGreaterThanOrEqual(0)
   expect(box!.x + box!.width).toBeLessThanOrEqual(viewport!.width)
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
-  await page.getByRole('option', { name: 'Extension', exact: true }).click()
+  await page.getByRole('option').first().click()
+  await actionDialog.getByRole('button', { name: 'Use action' }).click()
 
-  const fallbackToggle = dialog.getByRole('switch', { name: 'Use a fallback destination' })
-  await expect(fallbackToggle).toBeVisible()
-  await fallbackToggle.click()
-  await expect(fallbackToggle).toHaveAttribute('aria-checked', 'true')
-  await expect(dialog.getByRole('button', { name: 'Fallback type' })).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Fallback destination' })).toBeVisible()
-
-  await page.locator('button[type="submit"]').click()
-  const name = page.getByLabel('Route name')
+  await workspace.getByRole('button', { name: 'Create callflow' }).click()
+  const metadataDialog = page.getByRole('dialog', { name: 'Callflow' })
+  const name = metadataDialog.getByLabel('Callflow name')
   await expect(name).toHaveAttribute('aria-invalid', 'true')
   await expect(name).toHaveClass(/border-red-400/)
-  await expect(page.getByText('Enter a route name.')).toBeVisible()
-  await expect(page.getByText('Select at least one phone number.')).toBeVisible()
+  await expect(metadataDialog.getByText('Enter a route name.')).toBeVisible()
+  await expect(metadataDialog.getByText('Select at least one phone number.')).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
+  expect(issues).toEqual([])
+})
+
+test('removes one live guided subtree without exposing Switch identifiers', async ({ page }) => {
+  const routeName = process.env.GRID_E2E_NODE_DELETE_ROUTE_NAME?.trim()
+  const rawCallflowId = process.env.GRID_E2E_NODE_DELETE_SWITCH_ID?.trim()
+  test.skip(!routeName, 'GRID_E2E_NODE_DELETE_ROUTE_NAME must identify a disposable route.')
+
+  const issues = collectPageIssues(page)
+  await page.goto('/call-routing')
+  const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
+  await routeSearch.fill(routeName!)
+  await page.getByRole('button', { name: 'Apply filters' }).click()
+  await page.getByRole('button', { name: `View ${routeName}` }).click()
+
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await expect(workspace.getByRole('button', { name: 'Remove User' })).toHaveCount(0)
+  const removeVoicemail = workspace.getByRole('button', { name: 'Remove Voicemail' })
+  await expect(removeVoicemail).toBeVisible()
+  await removeVoicemail.click()
+
+  const confirmation = page.getByRole('dialog', { name: 'Remove this callflow action?' })
+  await expect(confirmation).toContainText('selected action')
+  const deleteResponse = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'DELETE' &&
+      /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/nodes$/.test(
+        new URL(response.url()).pathname,
+      ),
+  )
+  await confirmation.getByRole('button', { name: 'Remove action' }).click()
+  const deleted = await deleteResponse
+  expect(deleted.status()).toBe(200)
+  expect(deleted.request().postDataJSON()).toEqual({
+    node_path: ['_'],
+    confirm_subtree: true,
+  })
+  const publicBody = JSON.stringify(await deleted.json())
+  if (rawCallflowId) expect(publicBody).not.toContain(rawCallflowId)
+
+  await expect(workspace.getByRole('treeitem', { name: /^Voicemail:/ })).toHaveCount(0)
+  await expect(workspace.getByRole('treeitem', { name: /^User:/ })).toBeVisible()
+
+  await workspace.getByRole('button', { name: 'Back to callflows' }).click()
+  await page.getByRole('button', { name: `View ${routeName}` }).click()
+  const reopened = page.getByRole('region', { name: 'Callflow workspace' })
+  await expect(reopened.getByRole('treeitem', { name: /^Voicemail:/ })).toHaveCount(0)
+  await expect(reopened.getByRole('treeitem', { name: /^User:/ })).toBeVisible()
   expect(issues).toEqual([])
 })
 
 test('shows safe Menu key routes without offering the legacy hash branch', async ({ page }) => {
   const issues = collectPageIssues(page)
-  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
-    const branchKeys = ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*']
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        data: {
-          mode: 'create',
+  const menuId = 'c48df137-8660-405d-bb64-eec23c394129'
+  const branchKeys = ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*']
+  const dialog = await openMockedCallflowEditor(page, {
+    id: '84377053-2217-49f3-a8bd-6c81f8276a11',
+    name: 'Menu route',
+    rootModule: 'menu',
+    target: { type: 'menu', id: menuId, label: 'Main IVR' },
+    editor: {
+      mode: 'update',
+      editable: true,
+      blocked_reason: null,
+      fallback: { editable: true, blocked_reason: null, target: null },
+      menu_branches: {
+        editable: true,
+        blocked_reason: null,
+        branches: branchKeys.map((key) => ({
+          key,
+          label: key === 'timeout' ? 'Timeout' : key === '*' ? 'Star' : key,
           editable: true,
           blocked_reason: null,
-          fallback: { editable: true, blocked_reason: null, target: null },
-          menu_branches: {
-            editable: true,
-            blocked_reason: null,
-            branches: branchKeys.map((key) => ({
-              key,
-              label: key === 'timeout' ? 'Timeout' : key === '*' ? 'Star' : key,
-              editable: true,
-              blocked_reason: null,
-              target: null,
-            })),
-            legacy_hash_present: false,
-            unknown_branch_keys: [],
+          target: null,
+        })),
+        legacy_hash_present: false,
+        unknown_branch_keys: [],
+      },
+      temporal_match: {
+        editable: true,
+        blocked_reason: null,
+        target: null,
+        preserved_branch_count: 0,
+      },
+      direct_temporal_routes: [],
+      temporal_rule_sets: {},
+      temporal_rules: [],
+      caller_id_lists: [],
+      destination_types: [
+        { value: 'extension', label: 'Extension' },
+        { value: 'menu', label: 'Menu / IVR' },
+      ],
+      destinations: {
+        extension: [
+          {
+            id: '16f95ac5-243c-476a-b238-9f51108f82e1',
+            label: 'Operator',
+            detail: '1000',
           },
-          temporal_match: {
-            editable: true,
-            blocked_reason: null,
-            target: null,
-            preserved_branch_count: 0,
-          },
-          direct_temporal_routes: [],
-          temporal_rule_sets: {},
-          temporal_rules: [],
-          caller_id_lists: [
-            {
-              id: 'dded4533-55cb-4b40-acb6-b02248532c09',
-              label: 'VIP callers',
-              detail: '2 entries',
-            },
-          ],
-          destination_types: [
-            { value: 'extension', label: 'Extension' },
-            { value: 'menu', label: 'Menu / IVR' },
-          ],
-          destinations: {
-            extension: [
-              {
-                id: '16f95ac5-243c-476a-b238-9f51108f82e1',
-                label: 'Operator',
-                detail: '1000',
-              },
-            ],
-            menu: [
-              {
-                id: 'c48df137-8660-405d-bb64-eec23c394129',
-                label: 'Main IVR',
-                detail: 'Interactive voice menu',
-              },
-            ],
-          },
-          phone_numbers: [],
-        },
-      }),
-    })
+        ],
+        device: [],
+        voicemail: [],
+        callflow: [],
+        media: [],
+        directory: [],
+        group: [],
+        queue: [],
+        menu: [{ id: menuId, label: 'Main IVR', detail: 'Interactive voice menu' }],
+        conference: [],
+        fax_box: [],
+        temporal_rule_set: [],
+        temporal_rules: [],
+      },
+      phone_numbers: [],
+    },
   })
-  await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Create route' }).click()
-  const dialog = page.getByRole('region', { name: 'Create call route' })
-  await expect(page.getByRole('heading', { name: 'Create call route' })).toBeVisible()
-
-  await dialog.getByRole('button', { name: 'Destination type' }).click()
-  const menuOption = page.getByRole('option', { name: 'Menu / IVR', exact: true })
-  await menuOption.click()
 
   await expect(dialog.getByRole('heading', { name: 'Menu key routes' })).toBeVisible()
   await dialog.getByRole('button', { name: 'Add key route' }).click()
@@ -2326,68 +2286,65 @@ test('shows safe Menu key routes without offering the legacy hash branch', async
 test('shows the ordered Rule Set and one schema-correct temporal match route', async ({ page }) => {
   const issues = collectPageIssues(page)
   const ruleSetId = 'd5149b3a-a4f9-4b68-b970-d1657886e92e'
-  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        data: {
-          mode: 'create',
-          editable: true,
-          blocked_reason: null,
-          fallback: { editable: true, blocked_reason: null, target: null },
-          menu_branches: {
-            editable: true,
-            blocked_reason: null,
-            branches: [],
-            legacy_hash_present: false,
-            unknown_branch_keys: [],
+  const extensionId = '16f95ac5-243c-476a-b238-9f51108f82e1'
+  const dialog = await openMockedCallflowEditor(page, {
+    id: '0e6ec53a-8e66-4be0-8450-9486438ad12c',
+    name: 'Office hours route',
+    rootModule: 'temporal_route',
+    target: { type: 'temporal_rule_set', id: ruleSetId, label: 'Office hours' },
+    editor: {
+      mode: 'update',
+      editable: true,
+      blocked_reason: null,
+      fallback: { editable: true, blocked_reason: null, target: null },
+      menu_branches: {
+        editable: true,
+        blocked_reason: null,
+        branches: [],
+        legacy_hash_present: false,
+        unknown_branch_keys: [],
+      },
+      temporal_match: {
+        editable: true,
+        blocked_reason: null,
+        target: { type: 'extension', id: extensionId, label: 'Reception' },
+        preserved_branch_count: 0,
+      },
+      direct_temporal_routes: [],
+      temporal_rule_sets: {
+        [ruleSetId]: [
+          {
+            id: '24af1546-200c-4431-8f96-e05aadd75569',
+            label: 'Weekdays 09:00–17:00',
+            position: 0,
+            resolved: true,
           },
-          temporal_match: {
-            editable: true,
-            blocked_reason: null,
-            target: null,
-            preserved_branch_count: 0,
-          },
-          direct_temporal_routes: [],
-          temporal_rule_sets: {
-            [ruleSetId]: [
-              {
-                id: '24af1546-200c-4431-8f96-e05aadd75569',
-                label: 'Weekdays 09:00–17:00',
-                position: 0,
-                resolved: true,
-              },
-            ],
-          },
-          temporal_rules: [],
-          destination_types: [
-            { value: 'extension', label: 'Extension' },
-            { value: 'temporal_rule_set', label: 'Business Hours / Schedule' },
-          ],
-          destinations: {
-            extension: [
-              {
-                id: '16f95ac5-243c-476a-b238-9f51108f82e1',
-                label: 'Reception',
-                detail: '1000',
-              },
-            ],
-            temporal_rule_set: [
-              { id: ruleSetId, label: 'Office hours', detail: '1 schedule rule' },
-            ],
-          },
-          phone_numbers: [],
-        },
-      }),
-    })
+        ],
+      },
+      temporal_rules: [],
+      caller_id_lists: [],
+      destination_types: [
+        { value: 'extension', label: 'Extension' },
+        { value: 'temporal_rule_set', label: 'Business Hours / Schedule' },
+      ],
+      destinations: {
+        extension: [{ id: extensionId, label: 'Reception', detail: '1000' }],
+        device: [],
+        voicemail: [],
+        callflow: [],
+        media: [],
+        directory: [],
+        group: [],
+        queue: [],
+        menu: [],
+        conference: [],
+        fax_box: [],
+        temporal_rule_set: [{ id: ruleSetId, label: 'Office hours', detail: '1 schedule rule' }],
+        temporal_rules: [],
+      },
+      phone_numbers: [],
+    },
   })
-
-  await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Create route' }).click()
-  const dialog = page.getByRole('region', { name: 'Create call route' })
-  await dialog.getByRole('button', { name: 'Destination type' }).click()
-  await page.getByRole('option', { name: 'Business Hours / Schedule', exact: true }).click()
 
   await expect(dialog.getByRole('heading', { name: 'Schedule routes' })).toBeVisible()
   await expect(dialog.getByText('Weekdays 09:00–17:00')).toBeVisible()
@@ -2410,63 +2367,82 @@ test('orders direct Temporal Rules and configures one public match destination p
   const issues = collectPageIssues(page)
   const weekdayId = '24af1546-200c-4431-8f96-e05aadd75569'
   const holidayId = 'c927fca2-86d3-4fe8-b1e7-e575c492ad0b'
-  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        data: {
-          mode: 'create',
+  const extensionId = '16f95ac5-243c-476a-b238-9f51108f82e1'
+  const dialog = await openMockedCallflowEditor(page, {
+    id: '6a8bed46-4b7a-4c54-84e2-72f842799a51',
+    name: 'Direct temporal route',
+    rootModule: 'temporal_route',
+    target: null,
+    temporalRules: [{ id: weekdayId, label: 'Weekdays', position: 0, resolved: true }],
+    editor: {
+      mode: 'update',
+      editable: true,
+      blocked_reason: null,
+      fallback: { editable: true, blocked_reason: null, target: null },
+      menu_branches: {
+        editable: true,
+        blocked_reason: null,
+        branches: [],
+        legacy_hash_present: false,
+        unknown_branch_keys: [],
+      },
+      temporal_match: {
+        editable: true,
+        blocked_reason: null,
+        target: null,
+        preserved_branch_count: 0,
+      },
+      direct_temporal_routes: [
+        {
+          rule_id: weekdayId,
+          label: 'Weekdays',
+          position: 0,
+          resolved: true,
           editable: true,
           blocked_reason: null,
-          fallback: { editable: true, blocked_reason: null, target: null },
-          menu_branches: {
-            editable: true,
-            blocked_reason: null,
-            branches: [],
-            legacy_hash_present: false,
-            unknown_branch_keys: [],
-          },
-          temporal_match: {
-            editable: true,
-            blocked_reason: null,
-            target: null,
-            preserved_branch_count: 0,
-          },
-          direct_temporal_routes: [],
-          temporal_rule_sets: {},
-          temporal_rules: [
-            { id: weekdayId, label: 'Weekdays', detail: 'Weekly recurrence' },
-            { id: holidayId, label: 'Holidays', detail: 'Yearly recurrence' },
-          ],
-          destination_types: [
-            { value: 'extension', label: 'Extension' },
-            { value: 'temporal_rules', label: 'Direct Temporal Rules' },
-          ],
-          destinations: {
-            extension: [
-              {
-                id: '16f95ac5-243c-476a-b238-9f51108f82e1',
-                label: 'Reception',
-                detail: '1000',
-              },
-            ],
-            temporal_rules: [],
-          },
-          phone_numbers: [],
+          target: { type: 'extension', id: extensionId, label: 'Reception' },
         },
-      }),
-    })
+        {
+          rule_id: holidayId,
+          label: 'Holidays',
+          position: 1,
+          resolved: true,
+          editable: true,
+          blocked_reason: null,
+          target: null,
+        },
+      ],
+      temporal_rule_sets: {},
+      temporal_rules: [
+        { id: weekdayId, label: 'Weekdays', detail: 'Weekly recurrence' },
+        { id: holidayId, label: 'Holidays', detail: 'Yearly recurrence' },
+      ],
+      caller_id_lists: [],
+      destination_types: [
+        { value: 'extension', label: 'Extension' },
+        { value: 'temporal_rules', label: 'Direct Temporal Rules' },
+      ],
+      destinations: {
+        extension: [{ id: extensionId, label: 'Reception', detail: '1000' }],
+        device: [],
+        voicemail: [],
+        callflow: [],
+        media: [],
+        directory: [],
+        group: [],
+        queue: [],
+        menu: [],
+        conference: [],
+        fax_box: [],
+        temporal_rule_set: [],
+        temporal_rules: [],
+      },
+      phone_numbers: [],
+    },
   })
 
-  await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'Create route' }).click()
-  const dialog = page.getByRole('region', { name: 'Create call route' })
-  await dialog.getByRole('button', { name: 'Destination type' }).click()
-  await page.getByRole('option', { name: 'Direct Temporal Rules', exact: true }).click()
-
   await expect(dialog.getByLabel('Route name')).toBeVisible()
-  await dialog.getByRole('checkbox', { name: 'Use Temporal Rule Weekdays' }).check()
+  await expect(dialog.getByRole('checkbox', { name: 'Use Temporal Rule Weekdays' })).toBeChecked()
   await dialog.getByRole('checkbox', { name: 'Use Temporal Rule Holidays' }).check()
   await expect(dialog.getByRole('heading', { name: 'Temporal Rule match routes' })).toBeVisible()
   await expect(dialog.getByRole('button', { name: 'Weekdays destination type' })).toBeVisible()
@@ -2492,6 +2468,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   let movePayload: unknown = null
   let createNodePayload: unknown = null
   let updateNodePayload: unknown = null
+  let deleteNodePayload: unknown = null
   let inlineCreatePayload: unknown = null
   const callflowId = '8224c7ce-e17a-4ff5-abf6-54a502705a19'
   const callflow = {
@@ -2670,9 +2647,32 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     })
   })
   await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/tree/nodes`, async (route) => {
-    const isCreate = route.request().method() === 'POST'
+    const method = route.request().method()
+    const isCreate = method === 'POST'
+    const isDelete = method === 'DELETE'
     if (isCreate) createNodePayload = route.request().postDataJSON()
+    else if (isDelete) deleteNodePayload = route.request().postDataJSON()
     else updateNodePayload = route.request().postDataJSON()
+
+    if (isDelete) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            ...callflow,
+            node_count: 2,
+            max_depth: 1,
+            flow: {
+              ...callflow.flow,
+              children: { preserved_1: callflow.flow.children.preserved_1 },
+            },
+          },
+        }),
+      })
+
+      return
+    }
 
     const extensionTarget = isCreate
       ? callflow.flow.children.rule_set.target
@@ -2793,6 +2793,9 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await expect(workspace.getByRole('treeitem', { name: 'Custom Vendor' })).toBeVisible()
   await expect(workspace.getByText('Reception', { exact: true })).toBeVisible()
   await expect(workspace.getByText('switch-rule-secret')).toHaveCount(0)
+  await expect(workspace.getByRole('button', { name: 'Remove User' })).toBeVisible()
+  await expect(workspace.getByRole('button', { name: 'Remove Time of Day' })).toHaveCount(0)
+  await expect(workspace.getByRole('button', { name: 'Remove Custom Vendor' })).toHaveCount(0)
 
   await workspace.getByRole('treeitem', { name: 'User: Reception' }).click()
   const nodeInfo = page.getByRole('dialog', { name: 'User: Reception' })
@@ -3071,5 +3074,18 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   expect(workspaceBox!.x + workspaceBox!.width).toBeLessThanOrEqual(
     mainBox!.x + mainBox!.width - 16,
   )
+
+  await workspace.getByRole('button', { name: 'Remove User' }).click()
+  const removeDialog = page.getByRole('dialog', { name: 'Remove this callflow action?' })
+  await expect(removeDialog).toContainText('all 2 actions below it')
+  await removeDialog.getByRole('button', { name: 'Remove action' }).click()
+  await expect
+    .poll(() => deleteNodePayload)
+    .toEqual({
+      node_path: ['_'],
+      confirm_subtree: true,
+    })
+  await expect(workspace.getByRole('treeitem', { name: /User:/ })).toHaveCount(0)
+  await expect(workspace.getByRole('treeitem', { name: 'Custom Vendor' })).toBeVisible()
   expect(issues).toEqual([])
 })

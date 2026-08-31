@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectControlRowAligned } from './support/formAlignment.js'
 
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
@@ -36,6 +37,11 @@ test('shows schema-aware Temporal fields, bounded listboxes, and inline validati
   await expect(page.getByRole('heading', { name: 'Business Hours & Schedules' })).toBeVisible()
   await page.getByRole('button', { name: 'New rule' }).click()
   await expect(page.getByRole('heading', { name: 'Create temporal rule' })).toBeVisible()
+
+  await expectControlRowAligned(
+    page.getByRole('button', { name: 'Cycle' }),
+    page.getByLabel('Every'),
+  )
 
   await page.getByRole('button', { name: 'Cycle' }).click()
   const options = page.getByRole('listbox')

@@ -136,7 +136,8 @@ function isActionEnabled(action: CallflowAction): boolean {
   return (
     action.status === 'guided' &&
     (!props.rootOnly ||
-      (action.action === undefined && callflowActionDestinationType(action.module) !== null))
+      (action.action === undefined &&
+        (callflowActionDestinationType(action.module) !== null || action.module === 'ring_group')))
   )
 }
 
