@@ -336,6 +336,21 @@ test('walks through provisioning and line-key create, edit, and clear in isolati
     await expect(choices).toHaveCount(0)
     await mainUnit.getByLabel('Label').fill('E2E monitored extension')
 
+    const [categoryBox, positionBox, typeBox, extensionBox] = await Promise.all([
+      mainUnit.getByRole('button', { name: 'Select category for position 0' }).boundingBox(),
+      mainUnit.getByRole('spinbutton', { name: 'Position', exact: true }).boundingBox(),
+      mainUnit.getByRole('button', { name: 'Select type for position 0' }).boundingBox(),
+      mainUnit.getByRole('button', { name: 'Select value for position 0' }).boundingBox(),
+    ])
+
+    expect(categoryBox).not.toBeNull()
+    expect(positionBox).not.toBeNull()
+    expect(typeBox).not.toBeNull()
+    expect(extensionBox).not.toBeNull()
+
+    const controlTops = [categoryBox, positionBox, typeBox, extensionBox].map((box) => box!.y)
+    expect(Math.max(...controlTops) - Math.min(...controlTops)).toBeLessThanOrEqual(2)
+
     const [panelOverflow, formOverflow, clippedControls] = await Promise.all([
       panel.evaluate((element) => element.scrollWidth - element.clientWidth),
       panel.locator('form').evaluate((element) => element.scrollWidth - element.clientWidth),

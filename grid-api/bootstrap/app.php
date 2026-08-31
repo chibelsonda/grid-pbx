@@ -1,5 +1,6 @@
 <?php
 
+use App\Domains\SwitchSynchronization\Commands\PollExtensionProjectionsCommand;
 use App\Support\Http\ApiResponse;
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Application;
@@ -16,6 +17,9 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    ->withCommands([
+        PollExtensionProjectionsCommand::class,
+    ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
         $middleware->redirectGuestsTo(

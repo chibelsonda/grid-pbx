@@ -5,6 +5,7 @@ namespace App\Domains\CallDetailRecords\Services;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Carbon\CarbonImmutable;
+use DateTimeInterface;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -68,6 +69,16 @@ class CallDetailRecordService
                 'started_at',
                 '<',
                 CarbonImmutable::createFromFormat('!Y-m-d', $to, 'UTC')->addDay(),
+            ))
+            ->when($filters['started_after'] ?? null, fn ($query, string $after) => $query->where(
+                'started_at',
+                '>=',
+                CarbonImmutable::createFromFormat(DateTimeInterface::ATOM, $after)->utc(),
+            ))
+            ->when($filters['started_before'] ?? null, fn ($query, string $before) => $query->where(
+                'started_at',
+                '<',
+                CarbonImmutable::createFromFormat(DateTimeInterface::ATOM, $before)->utc(),
             ))
             ->when(
                 isset($filters['duration_min']),

@@ -82,6 +82,9 @@ test('shows schema-backed Queue announcements with inline validation and bounded
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
   await page.getByRole('option', { name: 'Round robin' }).click()
 
+  const formSections = page.getByRole('tablist', { name: 'Form sections' })
+  await expect(formSections.getByRole('tab')).toHaveText(['Basic', 'Advanced'])
+  await formSections.getByRole('tab', { name: 'Advanced' }).click()
   await page.getByRole('switch', { name: 'Periodic announcements' }).click()
   await expect(page.getByLabel('Announcement interval (seconds)')).toBeVisible()
   await expect(page.getByRole('button', { name: 'You are at position' })).toBeVisible()
@@ -104,6 +107,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     await page.goto('/queues')
     await page.getByRole('button', { name: 'New queue' }).click()
     await page.getByLabel('Name', { exact: true }).fill(name)
+    await page.getByRole('tab', { name: 'Advanced' }).click()
     await page.getByLabel('Maximum priority').fill('12')
     await page.getByRole('switch', { name: 'Periodic announcements' }).click()
     await page.getByRole('switch', { name: 'Announce queue position' }).click()
@@ -130,6 +134,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     await expect(page.getByRole('heading', { name: 'Create queue' })).toHaveCount(0)
     await page.getByRole('cell', { name, exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Edit queue' })).toBeVisible()
+    await page.getByRole('tab', { name: 'Advanced' }).click()
     await expect(page.getByLabel('Maximum priority')).toBeDisabled()
     await page.getByLabel('Announcement interval (seconds)').fill('45')
     const update = page.waitForResponse(
@@ -146,6 +151,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     ).toBe(45)
 
     await page.getByRole('cell', { name, exact: true }).click()
+    await page.getByRole('tab', { name: 'Advanced' }).click()
     await page.getByRole('switch', { name: 'Periodic announcements' }).click()
     const clearing = page.waitForResponse(
       (response) =>

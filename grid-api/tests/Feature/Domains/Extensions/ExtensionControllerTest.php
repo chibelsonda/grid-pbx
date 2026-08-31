@@ -324,6 +324,94 @@ class ExtensionControllerTest extends TestCase
         }
     }
 
+    public function test_create_resolves_safe_advanced_user_fields_before_writing_to_switch(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $externalNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550001001',
+        ]);
+        $emergencyNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550001911',
+            'features' => ['e911'],
+        ]);
+        $gateway = $this->mock(SwitchExtensionProvisioningGateway::class);
+        $gateway->shouldReceive('createUser')->once()->withArgs(
+            fn ($providedAccount, array $data): bool => $providedAccount->is($account)
+                && $data['caller_id']['internal']['number'] === '1001'
+                && $data['caller_id']['external']['number'] === '+15550001001'
+                && $data['caller_id']['emergency']['number'] === '+15550001911'
+                && ! array_key_exists('phone_number_id', $data['caller_id']['external'])
+                && ! array_key_exists('preserve_number', $data['caller_id']['external'])
+                && $data['call_forward']['number'] === '+15550001002'
+                && $data['call_restriction']['international']['action'] === 'deny'
+                && $data['call_recording']['outbound']['offnet']['format'] === 'mp3',
+        )->andReturn([
+            'id' => 'switch-user-1001',
+            'first_name' => 'Alice',
+            'last_name' => 'Operator',
+            'email' => 'alice@example.test',
+            'timezone' => 'Asia/Manila',
+            'enabled' => true,
+            'caller_id' => [
+                'internal' => ['name' => 'Alice Operator', 'number' => '1001'],
+                'external' => ['name' => 'Alice', 'number' => '+15550001001'],
+                'emergency' => ['name' => 'Alice', 'number' => '+15550001911'],
+            ],
+            'call_forward' => ['enabled' => true, 'number' => '+15550001002'],
+            'call_restriction' => ['international' => ['action' => 'deny']],
+            'call_recording' => $this->recordingPayload(),
+        ]);
+        $gateway->shouldReceive('createManagedCallflow')->once()->andReturn([
+            'id' => 'switch-callflow-1001',
+            'name' => 'Alice Operator',
+            'numbers' => ['1001'],
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'switch-user-1001'],
+                'children' => [],
+            ],
+        ]);
+
+        $payload = $this->extensionPayload();
+        $payload['voicemail'] = ['enabled' => false, 'input' => null];
+        $payload['device'] = ['enabled' => false, 'input' => null];
+        $payload['caller_id'] = [
+            'internal' => ['name' => 'Alice Operator', 'number' => '1001'],
+            'external' => [
+                'name' => 'Alice',
+                'phone_number_id' => $externalNumber->id,
+                'preserve_number' => false,
+            ],
+            'emergency' => [
+                'name' => 'Alice',
+                'phone_number_id' => $emergencyNumber->id,
+                'preserve_number' => false,
+            ],
+        ];
+        $payload['call_forward'] = [
+            'enabled' => true,
+            'number' => '+15550001002',
+            'direct_calls_only' => false,
+            'failover' => false,
+            'ignore_early_media' => true,
+            'keep_caller_id' => true,
+            'require_keypress' => false,
+            'substitute' => true,
+        ];
+        $payload['call_restriction'] = ['international' => ['action' => 'deny']];
+        $payload['call_recording'] = $this->recordingPayload();
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)
+            ->assertCreated()
+            ->assertJsonPath(
+                'data.configuration.caller_id.external.phone_number_id',
+                $externalNumber->id,
+            )
+            ->assertJsonPath('data.configuration.call_forward.number', '+15550001002')
+            ->assertJsonPath('data.configuration.call_restriction.international.action', 'deny');
+    }
+
     public function test_read_only_users_cannot_provision_extensions(): void
     {
         $user = User::factory()->create();

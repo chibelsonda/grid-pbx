@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\CallerIdLists\Dto;
 
+use GridPbx\Switch\Shared\Support\SafeSwitchDocumentFields;
 use InvalidArgumentException;
 
 final readonly class CallerIdListEntryWriteData
@@ -30,13 +31,23 @@ final readonly class CallerIdListEntryWriteData
         }
     }
 
-    /** @return array<string, string> */
-    public function toSwitchData(): array
+    /**
+     * @param  array<string, mixed>  $preservedOptions
+     * @return array<string, mixed>
+     */
+    public function toSwitchData(array $preservedOptions = []): array
     {
-        return array_filter([
+        $preserved = SafeSwitchDocumentFields::from(array_diff_key(
+            $preservedOptions,
+            array_flip([
+                'id', 'created', 'modified', 'list_id', 'displayname', 'number', 'pattern',
+            ]),
+        ));
+
+        return array_merge($preserved, array_filter([
             'displayname' => $this->displayName === null ? null : trim($this->displayName),
             'number' => $this->number,
             'pattern' => $this->pattern,
-        ], static fn (?string $value): bool => $value !== null);
+        ], static fn (?string $value): bool => $value !== null));
     }
 }

@@ -19,10 +19,10 @@ defineEmits<{ select: [] }>()
     :to="item.to"
     :title="collapsed ? item.label : undefined"
     :aria-label="collapsed ? item.label : undefined"
-    class="mb-1 flex h-10 items-center rounded-md text-[13px] font-medium transition-colors"
+    class="sidebar-nav-item mb-1 flex h-10 items-center rounded-md text-[13px] font-medium transition-colors"
     :class="[
       collapsed ? 'justify-center px-2' : child ? 'px-2.5' : 'px-3',
-      active ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:bg-slate-50',
+      active ? 'sidebar-nav-item-active' : 'sidebar-nav-item-idle',
     ]"
     @click="$emit('select')"
   >

@@ -9,6 +9,7 @@ import {
   UsersIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import AgentStatusPanel from '../components/AgentStatusPanel.vue'
 import QueueFormPanel from '../components/QueueFormPanel.vue'
@@ -17,6 +18,7 @@ import type { Agent, AgentStatusInput, QueueInput } from '../types/queue'
 
 const accounts = useAccountStore()
 const queues = useQueueStore()
+const globalSearchQuery = useGlobalSearchListQuery()
 const tab = ref<'queues' | 'agents'>('queues')
 const queuePanel = ref(false)
 const agentPanel = ref(false)
@@ -27,11 +29,12 @@ const liveAgentControlsAvailable = computed(
 )
 
 watch(
-  () => accounts.selectedId,
-  (id) => {
+  [() => accounts.selectedId, globalSearchQuery],
+  ([id, searchQuery]) => {
     queuePanel.value = false
     agentPanel.value = false
     queues.reset()
+    queues.search = searchQuery
     if (id) void queues.load(id)
   },
   { immediate: true },

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
@@ -46,6 +46,21 @@ async function deleteDisposableExtension(
   if (cleanup.status !== 204) {
     throw new Error(`Disposable Extension cleanup failed: ${cleanup.body}`)
   }
+}
+
+async function selectVoicemailSection(scope: Page | Locator, section: 'Basic' | 'Options') {
+  const views = scope.getByRole('tablist', { name: 'Form sections' })
+  if (section === 'Basic') {
+    await views.getByRole('tab', { name: 'Basic' }).click()
+
+    return
+  }
+
+  await views.getByRole('tab', { name: 'Advanced' }).click()
+  await scope
+    .getByRole('tablist', { name: 'Voicemail advanced sections' })
+    .getByRole('tab', { name: 'Options' })
+    .click()
 }
 
 test('shows and validates login credentials and hotdesk in the Extension slide-over', async ({
@@ -97,6 +112,12 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   await password.fill('short')
   await confirmation.fill('different-password')
 
+  const extensionTabs = page.getByRole('tablist', { name: 'Extension form sections' })
+  await extensionTabs.getByRole('tab', { name: 'Advanced' }).click()
+  await expect(page.getByRole('heading', { name: 'Caller ID and forwarding' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Call restrictions' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Call recording' })).toBeVisible()
+
   const hotdesk = page.locator('article').filter({ hasText: 'Hotdesk profile' })
   await expect(hotdesk).toBeVisible()
   await hotdesk.getByRole('switch', { name: 'Enabled' }).click()
@@ -115,6 +136,7 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   await expect(credentials.getByText('Use at least 6 characters.')).toBeVisible()
   await expect(credentials.getByText('Passwords do not match.')).toBeVisible()
   await expect(credentials.locator('input[type="password"]').first()).toHaveClass(/border-red-400/)
+  await extensionTabs.getByRole('tab', { name: 'Advanced' }).click()
   await expect(hotdesk.getByText('Use 4–15 dial-pad characters.')).toBeVisible()
   await expect(hotdeskId).toHaveClass(/border-red-400/)
   await expect(
@@ -244,6 +266,7 @@ test('configures a full managed Voicemail subview and removes the disposable agg
 
     await expect(voicemailDrawer.getByLabel('Mailbox name')).toHaveAttribute('readonly', '')
     await expect(voicemailDrawer.getByLabel('Mailbox number')).toHaveValue(number)
+    await selectVoicemailSection(voicemailDrawer, 'Options')
     await voicemailDrawer
       .getByLabel('Notification email addresses')
       .fill('voicemail-audit@example.test')
@@ -294,6 +317,7 @@ test('configures a full managed Voicemail subview and removes the disposable agg
     await expect
       .poll(() => page.getByTestId('slide-over-content').evaluate((element) => element.scrollTop))
       .toBe(0)
+    await selectVoicemailSection(editVoicemailDrawer, 'Options')
     await expect(editVoicemailDrawer.getByLabel('Notification email addresses')).toHaveValue(
       'voicemail-audit@example.test',
     )
@@ -328,6 +352,7 @@ test('configures a full managed Voicemail subview and removes the disposable agg
       .getByRole('button', { name: 'Configure' })
       .click()
     const verifyVoicemailDrawer = page.getByRole('dialog', { name: 'Configure voicemail' })
+    await selectVoicemailSection(verifyVoicemailDrawer, 'Options')
     await verifyVoicemailDrawer
       .getByRole('button', { name: 'Advanced notification delivery' })
       .click()
@@ -508,11 +533,15 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
   await page.getByRole('option', { name: 'Unassigned', exact: true }).click()
 
+  const formSections = page.getByRole('tablist', { name: 'Form sections' })
+  const advancedSections = page.getByRole('tablist', { name: 'Voicemail advanced sections' })
+  await expect(formSections.getByRole('tab')).toHaveText(['Basic', 'Advanced'])
+  await selectVoicemailSection(page, 'Options')
+  await expect(advancedSections.getByRole('tab')).toHaveText(['Basic', 'Options'])
   await page.getByRole('button', { name: 'Timezone' }).click()
   await expect(page.getByRole('option', { name: /Account default/ })).toBeVisible()
   await page.getByRole('option', { name: /Account default/ }).click()
 
-  await page.getByRole('tab', { name: 'Advanced' }).click()
   const features = page.locator('article').filter({ hasText: 'Features' })
   await features.getByRole('switch', { name: 'Require PIN' }).click()
 
@@ -528,7 +557,7 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   await expect(pin).toHaveAttribute('aria-invalid', 'true')
   await expect(pin).toHaveClass(/border-red-400/)
   await expect(page.getByText('Enter a mailbox PIN when PIN protection is enabled.')).toBeVisible()
-  await page.getByRole('tab', { name: 'Advanced' }).click()
+  await selectVoicemailSection(page, 'Options')
   const callbackNumber = page.getByRole('textbox', { name: 'Callback number' })
   await expect(callbackNumber).toHaveAttribute('aria-invalid', 'true')
   await expect(callbackNumber).toHaveClass(/border-red-400/)
@@ -536,6 +565,40 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
     page.getByText('Enter a callback number when callback notifications are enabled.'),
   ).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
+  expect(issues).toEqual([])
+})
+
+test('uses the same Voicemail tab hierarchy in the embedded Extension form', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/v1\/accounts\/[^/]+\/(?:extensions|voicemail-boxes)(?:\/|$)/.test(request.url())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  await page.goto('/extensions')
+  await page.getByRole('button', { name: 'Create extension' }).click()
+  const voicemailCard = page.locator('article').filter({ hasText: 'Voicemail fallback' })
+  await voicemailCard.getByRole('button', { name: /Configure/ }).click()
+  const drawer = page.getByRole('dialog', { name: 'Configure voicemail' })
+
+  await expect(drawer.getByRole('tablist', { name: 'Form sections' }).getByRole('tab')).toHaveText([
+    'Basic',
+    'Advanced',
+  ])
+  await selectVoicemailSection(drawer, 'Options')
+  await expect(
+    drawer.getByRole('tablist', { name: 'Voicemail advanced sections' }).getByRole('tab'),
+  ).toHaveText(['Basic', 'Options'])
+  await expect(drawer.getByRole('button', { name: 'Timezone' })).toBeVisible()
+  await expect(drawer.getByLabel('Notification email addresses')).toBeVisible()
+  await drawer.getByRole('button', { name: 'Back to extension' }).click()
+
+  expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
 
@@ -558,6 +621,7 @@ test('reports unavailable voicemail transcription without allowing a mutation', 
   await page.getByRole('link', { name: 'Add mailbox' }).click()
   await expect(page.getByRole('heading', { name: 'Add voicemail box' })).toBeVisible()
 
+  await selectVoicemailSection(page, 'Options')
   const features = page.locator('article').filter({ hasText: 'Features' })
   await expect(features.getByRole('switch', { name: 'Transcribe messages' })).toBeDisabled()
   await expect(
@@ -580,8 +644,11 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
     await page.getByRole('link', { name: 'Add mailbox' }).click()
     await page.getByLabel('Mailbox name').fill(name)
     await page.getByLabel('Mailbox number').fill(mailbox)
+    await selectVoicemailSection(page, 'Options')
     await page.getByRole('switch', { name: 'Require PIN' }).click()
+    await selectVoicemailSection(page, 'Basic')
     await page.getByLabel('PIN', { exact: true }).fill('246810')
+    await selectVoicemailSection(page, 'Options')
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await page.getByRole('switch', { name: 'Configure callback notification' }).click()
     await page.getByRole('switch', { name: 'Pause callback attempts' }).click()
@@ -600,9 +667,12 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
 
     await page.getByRole('link', { name: 'Edit' }).click()
     await expect(page.getByLabel('Mailbox name')).toHaveValue(name)
+    await selectVoicemailSection(page, 'Options')
     await expect(page.getByRole('switch', { name: 'Require PIN' })).toBeChecked()
+    await selectVoicemailSection(page, 'Basic')
     await expect(page.getByLabel('New PIN')).toHaveValue('')
     await expect(page.getByText('Leave blank to keep the existing PIN.')).toBeVisible()
+    await selectVoicemailSection(page, 'Options')
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await expect(
       page.getByRole('switch', { name: 'Configure callback notification' }),
@@ -626,9 +696,12 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
 
     await page.getByRole('link', { name: 'Edit' }).click()
     await expect(page.getByLabel('Mailbox name')).toHaveValue(name)
+    await selectVoicemailSection(page, 'Options')
     await expect(page.getByRole('switch', { name: 'Require PIN' })).toBeChecked()
+    await selectVoicemailSection(page, 'Basic')
     await expect(page.getByLabel('New PIN')).toHaveValue('')
     await expect(page.getByText('Leave blank to keep the existing PIN.')).toBeVisible()
+    await selectVoicemailSection(page, 'Options')
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await page.getByRole('switch', { name: 'Configure callback notification' }).click()
 
@@ -647,8 +720,11 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
 
     await page.getByRole('link', { name: 'Edit' }).click()
     await expect(page.getByLabel('Mailbox name')).toHaveValue(name)
+    await selectVoicemailSection(page, 'Options')
     await expect(page.getByRole('switch', { name: 'Require PIN' })).toBeChecked()
+    await selectVoicemailSection(page, 'Basic')
     await expect(page.getByLabel('New PIN')).toHaveValue('')
+    await selectVoicemailSection(page, 'Options')
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await expect(
       page.getByRole('switch', { name: 'Configure callback notification' }),

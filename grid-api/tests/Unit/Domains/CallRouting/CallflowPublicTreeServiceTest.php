@@ -162,6 +162,54 @@ class CallflowPublicTreeServiceTest extends TestCase
     }
 
     #[Test]
+    public function it_locks_high_risk_terminal_nodes_and_preserves_their_subtrees(): void
+    {
+        foreach (['pivot', 'disa', 'offnet', 'resources'] as $module) {
+            $tree = app(CallflowPublicTreeService::class)->transform([
+                'module' => $module,
+                'settings' => null,
+                'children' => [
+                    '_' => ['module' => 'user', 'children' => []],
+                ],
+            ]);
+
+            $this->assertSame('terminal', $tree['drop_capability']['branch_mode']);
+            $this->assertFalse($tree['drop_capability']['accepts_children']);
+            $this->assertSame(
+                'This action is not supported by the guided callflow editor.',
+                $tree['drop_capability']['reason'],
+            );
+            $this->assertNull($tree['settings']);
+            $this->assertArrayHasKey('preserved_1', (array) $tree['children']);
+            $this->assertSame('user', ((array) $tree['children'])['preserved_1']['module']);
+        }
+    }
+
+    #[Test]
+    public function it_locks_high_risk_continuation_nodes_and_preserves_their_subtrees(): void
+    {
+        foreach (['webhook', 'dynamic_cid'] as $module) {
+            $tree = app(CallflowPublicTreeService::class)->transform([
+                'module' => $module,
+                'settings' => null,
+                'children' => [
+                    '_' => ['module' => 'user', 'children' => []],
+                ],
+            ]);
+
+            $this->assertSame('locked', $tree['drop_capability']['branch_mode']);
+            $this->assertFalse($tree['drop_capability']['accepts_children']);
+            $this->assertSame(
+                'This action is not supported by the guided callflow editor.',
+                $tree['drop_capability']['reason'],
+            );
+            $this->assertNull($tree['settings']);
+            $this->assertArrayHasKey('preserved_1', (array) $tree['children']);
+            $this->assertSame('user', ((array) $tree['children'])['preserved_1']['module']);
+        }
+    }
+
+    #[Test]
     public function it_locks_acdc_agent_nodes_and_preserves_their_subtrees(): void
     {
         $tree = app(CallflowPublicTreeService::class)->transform([

@@ -86,8 +86,22 @@ final class CallerIdListResourceClientTest extends TestCase
         $history = [];
         $stack = HandlerStack::create(new MockHandler([
             $this->response(['data' => ['id' => 'list-1', 'name' => 'VIP callers']]),
+            $this->response(['data' => [
+                'id' => 'list-1',
+                'name' => 'VIP callers',
+                'description' => 'Old description',
+                'future_option' => ['nested' => 'preserve'],
+                'pvt_secret' => 'drop',
+            ]]),
             $this->response(['data' => ['id' => 'list-1', 'name' => 'Priority callers']]),
             $this->response(['data' => ['id' => 'entry-1', 'list_id' => 'list-1', 'number' => '+1555']]),
+            $this->response(['data' => [
+                'id' => 'entry-1',
+                'list_id' => 'list-1',
+                'number' => '+1555',
+                'profile' => ['title' => 'Priority', 'secret' => '[REDACTED]'],
+                'future_option' => true,
+            ]]),
             $this->response(['data' => ['id' => 'entry-1', 'list_id' => 'list-1', 'pattern' => '^\\+632']]),
             $this->response(['data' => []]),
             $this->response(['data' => []]),
@@ -114,13 +128,20 @@ final class CallerIdListResourceClientTest extends TestCase
         $client->deleteEntry('account-1', 'list-1', 'entry-1');
         $client->delete('account-1', 'list-1');
 
-        self::assertSame(['PUT', 'POST', 'PUT', 'POST', 'DELETE', 'DELETE'], array_map(
+        self::assertSame(['PUT', 'GET', 'POST', 'PUT', 'GET', 'POST', 'DELETE', 'DELETE'], array_map(
             fn (array $item): string => $item['request']->getMethod(),
             $history,
         ));
-        self::assertSame('/v2/accounts/account-1/lists/list-1/entries/entry-1', $history[3]['request']->getUri()->getPath());
-        $entryBody = json_decode((string) $history[3]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $listBody = json_decode((string) $history[2]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
         self::assertSame([
+            'future_option' => ['nested' => 'preserve'],
+            'name' => 'Priority callers',
+        ], $listBody['data']);
+        self::assertSame('/v2/accounts/account-1/lists/list-1/entries/entry-1', $history[5]['request']->getUri()->getPath());
+        $entryBody = json_decode((string) $history[5]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame([
+            'profile' => ['title' => 'Priority'],
+            'future_option' => true,
             'displayname' => 'Manila',
             'pattern' => '^\\+632',
             'list_id' => 'list-1',

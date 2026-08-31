@@ -120,7 +120,7 @@ const descriptions: Record<string, string> = {
   ring_group:
     'Ring up to 20 synchronized devices simultaneously, in order, or in a bounded weighted random order.',
   offnet:
-    'Global carrier routing; gated pending outbound-context, call-restriction, and toll-fraud controls.',
+    'Global carrier routing; gated pending outbound-only authorization, final-destination, emergency, and toll-fraud controls.',
   pivot: 'External call control; gated pending allowlisted egress and authenticated callbacks.',
   play: 'Play projected media to the caller.',
   record_call: 'Change recording state for the active call.',
@@ -131,7 +131,7 @@ const descriptions: Record<string, string> = {
   set_variables: 'Set custom application variables for the current call.',
   set_variable: 'Set the supported call-priority variable on one or both call legs.',
   resources:
-    'Account carrier routing; gated pending public account mapping, emergency, and toll-fraud controls.',
+    'Account carrier routing; gated pending public account mapping, reseller entitlement, emergency, and toll-fraud controls.',
   temporal_route: 'Route by a time-of-day rule or change its operational state.',
   language: 'Change the call language for subsequent prompts.',
   manual_presence: 'Publish an idle, ringing, or busy state for a presence ID.',

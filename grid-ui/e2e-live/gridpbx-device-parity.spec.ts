@@ -15,7 +15,7 @@ test('matches the expected Advanced tab matrix without using the desktop pointer
     await page.getByRole('button', { name: new RegExp(`^${device.gridLabel}`) }).click()
 
     const advancedTabs = page.getByRole('tablist').nth(1).getByRole('tab')
-    await expect(advancedTabs).toHaveText(device.tabs)
+    await expect(advancedTabs).toHaveText(device.gridTabs ?? device.tabs)
     await expect(
       page.getByRole('button', { name: new RegExp(`^${device.gridLabel}`) }),
     ).toHaveAttribute('aria-pressed', 'true')
@@ -215,11 +215,36 @@ test('matches Cellphone and Landline forwarding workflows', async ({ page }) => 
 
 test('matches registered-endpoint T.38 and completed-elsewhere capabilities', async ({ page }) => {
   const endpoints = [
-    { label: 'VoIP phone', faxOption: true, completedElsewhere: true },
-    { label: 'Smartphone', faxOption: false, completedElsewhere: false },
-    { label: 'Softphone', faxOption: true, completedElsewhere: true },
-    { label: 'Fax', faxOption: true, completedElsewhere: false },
-    { label: 'ATA', faxOption: true, completedElsewhere: false },
+    {
+      label: 'VoIP phone',
+      faxOption: true,
+      completedElsewhere: true,
+      tabs: ['Caller ID', 'Audio', 'Video'],
+    },
+    {
+      label: 'Smartphone',
+      faxOption: false,
+      completedElsewhere: false,
+      tabs: ['Caller ID', 'Audio', 'Video'],
+    },
+    {
+      label: 'Softphone',
+      faxOption: true,
+      completedElsewhere: true,
+      tabs: ['Caller ID', 'Audio', 'Video'],
+    },
+    {
+      label: 'Fax',
+      faxOption: true,
+      completedElsewhere: false,
+      tabs: ['Caller ID', 'Audio'],
+    },
+    {
+      label: 'ATA',
+      faxOption: true,
+      completedElsewhere: false,
+      tabs: ['Caller ID', 'Audio'],
+    },
   ]
 
   for (const endpoint of endpoints) {
@@ -227,6 +252,9 @@ test('matches registered-endpoint T.38 and completed-elsewhere capabilities', as
     await page.getByRole('link', { name: 'Add device' }).click()
     await page.getByRole('button', { name: new RegExp(`^${endpoint.label}`) }).click()
     await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
+    for (const tab of endpoint.tabs) {
+      await expect(page.getByRole('tab', { name: tab, exact: true })).toBeVisible()
+    }
     await page.getByRole('tab', { name: 'Options', exact: true }).click()
 
     await expect(page.getByRole('switch', { name: 'Enable T.38 fax' })).toHaveCount(

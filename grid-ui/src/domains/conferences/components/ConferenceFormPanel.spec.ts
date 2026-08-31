@@ -34,7 +34,7 @@ describe('ConferenceFormPanel', () => {
     expect(wrapper.text()).not.toContain('Check the highlighted fields and try again.')
   })
 
-  it('separates safe Switch references into the Advanced tab', async () => {
+  it('matches the Basic, Options, and Conference Server workflow', async () => {
     const wrapper = mount(ConferenceFormPanel, {
       props: {
         record: null,
@@ -52,14 +52,78 @@ describe('ConferenceFormPanel', () => {
       },
     })
 
-    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
+    const viewTabs = wrapper.find('[aria-label="Form sections"]').findAll('[role="tab"]')
+    const advancedTabList = wrapper.find('[aria-label="Conference advanced sections"]')
+    const advancedTabs = advancedTabList.findAll('[role="tab"]')
+
+    expect(viewTabs.map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
+    expect(advancedTabs.map((tab) => tab.text())).toEqual(['Basic', 'Options', 'Conference Server'])
+    expect(advancedTabList.classes()).toContain('hidden')
     expect(wrapper.find('input[aria-label="Profile name"]').isVisible()).toBe(false)
     expect(wrapper.find('input[aria-label="General conference numbers"]').isVisible()).toBe(false)
 
-    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    await viewTabs[1]!.trigger('click')
 
-    expect(wrapper.get('input[aria-label="Profile name"]')).toBeTruthy()
-    expect(wrapper.get('input[aria-label="General conference numbers"]')).toBeTruthy()
+    expect(advancedTabList.classes()).not.toContain('hidden')
+    expect(wrapper.find('input[aria-label="Name"]').isVisible()).toBe(true)
+    expect(wrapper.find('input[aria-label="Profile name"]').isVisible()).toBe(false)
+
+    await wrapper
+      .find('[aria-label="Conference advanced sections"]')
+      .findAll('[role="tab"]')[1]!
+      .trigger('click')
+
+    expect(wrapper.find('[aria-label="Participant entry tone"]').isVisible()).toBe(true)
+
+    await wrapper
+      .find('[aria-label="Conference advanced sections"]')
+      .findAll('[role="tab"]')[2]!
+      .trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper
+        .find('[aria-label="Conference advanced sections"]')
+        .findAll('[role="tab"]')[2]!
+        .attributes('aria-selected'),
+    ).toBe('true')
+    expect(wrapper.findAll('[role="tabpanel"]')[2]!.attributes('style')).toBe('')
+    expect(
+      wrapper.get('input[aria-label="Profile name"]').element.closest('[style*="display: none"]'),
+    ).toBeNull()
+    expect(
+      wrapper
+        .get('input[aria-label="General conference numbers"]')
+        .element.closest('[style*="display: none"]'),
+    ).toBeNull()
     expect(wrapper.text()).toContain('Named conference profiles and control sets')
+  })
+
+  it('routes server validation errors to the matching Advanced section', async () => {
+    const wrapper = mount(ConferenceFormPanel, {
+      props: {
+        record: null,
+        options: { owners: [], media: [] },
+        saving: false,
+        error: null,
+        fieldErrors: { profile_name: ['Choose an installed profile.'] },
+        canManage: true,
+      },
+      global: {
+        stubs: {
+          CrudSlideOver: { template: '<div><slot /></div>' },
+          ConfirmDialog: true,
+        },
+      },
+    })
+
+    const viewTabs = wrapper.find('[aria-label="Form sections"]').findAll('[role="tab"]')
+    const advancedTabs = wrapper
+      .find('[aria-label="Conference advanced sections"]')
+      .findAll('[role="tab"]')
+
+    expect(viewTabs[1]!.attributes('aria-selected')).toBe('true')
+    expect(advancedTabs[2]!.attributes('aria-selected')).toBe('true')
+    expect(wrapper.get('input[aria-label="Profile name"]').attributes('aria-invalid')).toBe('true')
   })
 })

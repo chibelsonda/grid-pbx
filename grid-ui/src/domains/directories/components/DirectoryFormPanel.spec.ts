@@ -23,6 +23,12 @@ describe('DirectoryFormPanel', () => {
       },
     })
 
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
+    expect(wrapper.find('input[aria-label="Minimum digits"]').isVisible()).toBe(false)
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+    expect(wrapper.findAll('[role="tab"]')[1]!.attributes('aria-selected')).toBe('true')
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click')
+
     await wrapper.get('form').trigger('submit')
 
     const name = wrapper.get('input[required]')

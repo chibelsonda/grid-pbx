@@ -64,20 +64,20 @@ function itemKey(item: SidebarItem): string {
 </script>
 
 <template>
-  <div class="flex h-[60px] items-center border-b border-slate-100 px-5">
-    <span class="grid size-9 shrink-0 place-items-center rounded-md bg-brand-500 text-white">
+  <div class="sidebar-border flex h-[60px] items-center border-b px-5">
+    <span class="sidebar-accent-bg grid size-9 shrink-0 place-items-center rounded-md text-white">
       <Squares2X2Icon class="size-5" />
     </span>
     <div v-if="!collapsed" class="ml-3 min-w-0 flex-1">
-      <div class="text-[15px] font-bold text-slate-800">GridPBX</div>
-      <div class="text-[10px] font-semibold tracking-widest text-slate-500 uppercase">
+      <div class="sidebar-foreground text-[15px] font-bold">GridPBX</div>
+      <div class="sidebar-muted text-[10px] font-semibold tracking-widest uppercase">
         Phone system
       </div>
     </div>
     <button
       v-if="!mobile"
       type="button"
-      class="hidden size-8 place-items-center text-slate-500 lg:grid"
+      class="sidebar-action hidden size-8 place-items-center rounded-md lg:grid"
       aria-label="Toggle navigation width"
       @click="emit('collapse')"
     >
@@ -87,7 +87,7 @@ function itemKey(item: SidebarItem): string {
     <button
       v-else
       type="button"
-      class="ml-auto grid size-8 place-items-center text-slate-500"
+      class="sidebar-action ml-auto grid size-8 place-items-center rounded-md"
       aria-label="Close navigation"
       @click="emit('close')"
     >
@@ -99,7 +99,7 @@ function itemKey(item: SidebarItem): string {
     <section class="mb-4" :aria-label="sectionLabel('Overview')">
       <h2
         v-if="!collapsed"
-        class="mb-2 px-3 text-[10px] font-bold tracking-wider text-brand-500 uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
       >
         Overview
       </h2>
@@ -116,7 +116,7 @@ function itemKey(item: SidebarItem): string {
     <section class="mb-4" :aria-label="sectionLabel('Cloud phone system')">
       <h2
         v-if="!collapsed"
-        class="mb-2 px-3 text-[10px] font-bold tracking-wider text-brand-500 uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
       >
         Cloud phone system
       </h2>
@@ -128,10 +128,8 @@ function itemKey(item: SidebarItem): string {
           type="button"
           :title="group.label"
           :aria-label="`${group.label}. Expand navigation to view links.`"
-          class="mb-1 flex h-10 w-full items-center justify-center rounded-md px-2 transition-colors"
-          :class="
-            groupActive(group) ? 'bg-brand-50 text-brand-600' : 'text-slate-600 hover:bg-slate-50'
-          "
+          class="sidebar-nav-item mb-1 flex h-10 w-full items-center justify-center rounded-md px-2 transition-colors"
+          :class="groupActive(group) ? 'sidebar-nav-item-active' : 'sidebar-nav-item-idle'"
           @click="expandGroup(group)"
         >
           <component :is="group.icon" class="size-[19px]" />
@@ -141,12 +139,8 @@ function itemKey(item: SidebarItem): string {
       <div v-for="group in cloudPhoneGroups" v-else :key="group.id" class="mb-1">
         <button
           type="button"
-          class="flex h-10 w-full items-center rounded-md px-3 text-left text-[12px] font-semibold transition-colors"
-          :class="
-            groupActive(group)
-              ? 'bg-brand-50/70 text-brand-700'
-              : 'text-slate-700 hover:bg-slate-50'
-          "
+          class="sidebar-nav-item flex h-10 w-full items-center rounded-md px-3 text-left text-[12px] font-semibold transition-colors"
+          :class="groupActive(group) ? 'sidebar-nav-item-active' : 'sidebar-nav-item-idle'"
           :aria-expanded="openGroupId === group.id"
           :aria-controls="`sidebar-group-${group.id}`"
           @click="toggleGroup(group)"
@@ -154,8 +148,8 @@ function itemKey(item: SidebarItem): string {
           <component :is="group.icon" class="mr-3 size-[18px] shrink-0" />
           <span class="min-w-0 flex-1 truncate">{{ group.label }}</span>
           <ChevronDownIcon
-            class="size-4 shrink-0 text-slate-400 transition-transform duration-200"
-            :class="openGroupId === group.id && 'rotate-180 text-brand-500'"
+            class="sidebar-muted size-4 shrink-0 transition-transform duration-200"
+            :class="openGroupId === group.id && 'rotate-180'"
           />
         </button>
         <TransitionRoot
@@ -168,7 +162,7 @@ function itemKey(item: SidebarItem): string {
           leave-from="translate-y-0 opacity-100"
           leave-to="-translate-y-1 opacity-0"
         >
-          <div :id="`sidebar-group-${group.id}`" class="ml-5 border-l border-slate-200 py-1 pl-2">
+          <div :id="`sidebar-group-${group.id}`" class="sidebar-border ml-5 border-l py-1 pl-2">
             <SidebarNavLink
               v-for="item in group.items"
               :key="itemKey(item)"
@@ -185,7 +179,7 @@ function itemKey(item: SidebarItem): string {
     <section class="mb-4" :aria-label="sectionLabel('Business')">
       <h2
         v-if="!collapsed"
-        class="mb-2 px-3 text-[10px] font-bold tracking-wider text-brand-500 uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
       >
         Business
       </h2>
@@ -202,7 +196,7 @@ function itemKey(item: SidebarItem): string {
     <section :aria-label="sectionLabel('Workspace')">
       <h2
         v-if="!collapsed"
-        class="mb-2 px-3 text-[10px] font-bold tracking-wider text-brand-500 uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
       >
         Workspace
       </h2>
@@ -217,7 +211,7 @@ function itemKey(item: SidebarItem): string {
     </section>
   </nav>
 
-  <div class="border-t border-slate-100 p-4 text-center text-[10px] font-semibold text-slate-500">
+  <div class="sidebar-border sidebar-muted border-t p-4 text-center text-[10px] font-semibold">
     {{ collapsed ? 'PBX' : 'SWITCH PROJECTION CONSOLE' }}
   </div>
 </template>

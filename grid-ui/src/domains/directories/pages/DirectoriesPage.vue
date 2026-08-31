@@ -8,6 +8,7 @@ import {
   UsersIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import DirectoryFormPanel from '../components/DirectoryFormPanel.vue'
 import { useDirectoryStore } from '../stores/directoryStore'
@@ -15,13 +16,15 @@ import type { DirectoryInput } from '../types/directory'
 
 const accounts = useAccountStore()
 const directories = useDirectoryStore()
+const globalSearchQuery = useGlobalSearchListQuery()
 const panel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 watch(
-  () => accounts.selectedId,
-  (id) => {
+  [() => accounts.selectedId, globalSearchQuery],
+  ([id, searchQuery]) => {
     panel.value = false
     directories.reset()
+    directories.search = searchQuery
     if (id) void directories.load(id)
   },
   { immediate: true },
@@ -102,7 +105,13 @@ async function remove(): Promise<void> {
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && directories.load(accounts.selectedId)"
     >
-      <SearchInput v-model="directories.search" label="Search directories" class="min-w-0 flex-1" placeholder="Search directories…" input-class="h-10 bg-white text-xs shadow-sm" /><button
+      <SearchInput
+        v-model="directories.search"
+        label="Search directories"
+        class="min-w-0 flex-1"
+        placeholder="Search directories…"
+        input-class="h-10 bg-white text-xs shadow-sm"
+      /><button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
       >
         Search

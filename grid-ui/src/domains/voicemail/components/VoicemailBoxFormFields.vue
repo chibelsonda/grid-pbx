@@ -5,12 +5,15 @@ import {
   KeyIcon,
   LinkIcon,
   MicrophoneIcon,
+  Squares2X2Icon,
   SparklesIcon,
+  WrenchScrewdriverIcon,
 } from '@heroicons/vue/24/outline'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelector.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import FormTabBar from '@/shared/components/FormTabBar.vue'
 import FormTextarea from '@/shared/components/FormTextarea.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import { useVoicemailFormOptions } from '../composables/useVoicemailFormOptions'
@@ -45,7 +48,12 @@ const callbackSchedule = defineModel<string>('callbackSchedule', { required: tru
 const notificationCallback = defineModel<VoicemailNotificationCallback>('notificationCallback', {
   required: true,
 })
-const selectedTab = ref(0)
+const selectedView = ref(0)
+const selectedSection = ref(0)
+const advancedSections = [
+  { key: 'basic', label: 'Basic', icon: Squares2X2Icon },
+  { key: 'options', label: 'Options', icon: WrenchScrewdriverIcon },
+] as const
 
 const { timezoneOptions, extensionOptions } = useVoicemailFormOptions(
   () => props.options,
@@ -56,16 +64,29 @@ const { timezoneOptions, extensionOptions } = useVoicemailFormOptions(
 const transcriptionUnavailable = computed(
   () => props.options.capabilities.voicemail_transcription.runtime_available === false,
 )
-const basicFields = ['name', 'mailbox', 'timezone', 'assigned_extension_id', 'pin'] as const
+const basicFields = new Set(['name', 'mailbox', 'assigned_extension_id', 'pin'])
+
+function routeToError(errors: Record<string, string[]>): void {
+  const hasBasicError = Object.entries(errors).some(
+    ([field, messages]) => Boolean(messages[0]) && basicFields.has(field.split('.')[0] ?? field),
+  )
+
+  selectedView.value = hasBasicError ? 0 : 1
+  selectedSection.value = hasBasicError ? 0 : 1
+}
 
 watch(
   () => props.fieldErrors,
   (errors) => {
     if (Object.keys(errors).length === 0) return
-    selectedTab.value = basicFields.some((field) => errors[field]?.length) ? 0 : 1
+    routeToError(errors)
   },
-  { deep: true },
+  { deep: true, immediate: true },
 )
+
+watch(selectedView, (view) => {
+  if (view === 0) selectedSection.value = 0
+})
 
 watch(
   () => configuration.value.save_after_notify,
@@ -87,10 +108,17 @@ function fieldError(field: string): string | null {
 </script>
 
 <template>
-  <BasicAdvancedTabSelector v-model="selectedTab" />
+  <BasicAdvancedTabSelector v-model="selectedView" class="mb-5" />
+  <FormTabBar
+    v-model="selectedSection"
+    :tabs="advancedSections"
+    aria-label="Voicemail advanced sections"
+    class="mb-5"
+    :class="{ hidden: selectedView === 0 }"
+  />
   <div class="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
     <div class="grid content-start gap-5">
-      <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
+      <article v-show="selectedSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
             <MicrophoneIcon class="size-5" />
@@ -128,22 +156,10 @@ function fieldError(field: string): string | null {
             :readonly="lockIdentity"
             :error="fieldError('mailbox')"
           />
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Timezone</span>
-            <FormListbox
-              v-model="form.timezone"
-              :options="timezoneOptions"
-              :invalid="Boolean(fieldError('timezone'))"
-              aria-label="Timezone"
-            />
-            <span v-if="fieldError('timezone')" class="text-[11px] text-danger">{{
-              fieldError('timezone')
-            }}</span>
-          </label>
         </div>
       </article>
 
-      <article v-show="selectedTab === 1" class="card-surface overflow-hidden">
+      <article v-show="selectedSection === 1" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <EnvelopeIcon class="size-5 text-emerald-500" />
           <div>
@@ -162,20 +178,8 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <DisclosureCard v-show="selectedTab === 1" title="Advanced notification delivery">
+      <DisclosureCard v-show="selectedSection === 1" title="Advanced notification delivery">
         <div class="grid gap-4 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Voicemail audio format</span>
-            <FormListbox
-              v-model="configuration.media_extension"
-              :invalid="Boolean(fieldError('media_extension'))"
-              :options="[
-                { value: 'mp3', label: 'MP3' },
-                { value: 'mp4', label: 'MP4' },
-                { value: 'wav', label: 'WAV' },
-              ]"
-            />
-          </label>
           <ToggleSwitch
             v-model="configuration.include_message_on_notify"
             label="Attach voicemail audio"
@@ -212,7 +216,7 @@ function fieldError(field: string): string | null {
         </div>
       </DisclosureCard>
 
-      <DisclosureCard v-show="selectedTab === 1" title="Callback notification">
+      <DisclosureCard v-show="selectedSection === 1" title="Callback notification">
         <div class="grid gap-4">
           <ToggleSwitch
             v-model="callbackConfigured"
@@ -270,7 +274,7 @@ function fieldError(field: string): string | null {
     <div class="grid content-start gap-5">
       <article
         v-if="showAssignment"
-        v-show="selectedTab === 0"
+        v-show="selectedSection === 0"
         class="card-surface overflow-hidden"
       >
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
@@ -290,7 +294,40 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <article v-show="selectedTab === 1" class="card-surface overflow-hidden">
+      <article v-show="selectedSection === 1" class="card-surface overflow-hidden">
+        <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+          <WrenchScrewdriverIcon class="size-5 text-brand-500" />
+          <h2 class="text-sm font-semibold text-slate-700">Mailbox options</h2>
+        </header>
+        <div class="grid gap-4 p-5">
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Timezone</span>
+            <FormListbox
+              v-model="form.timezone"
+              :options="timezoneOptions"
+              :invalid="Boolean(fieldError('timezone'))"
+              aria-label="Timezone"
+            />
+            <span v-if="fieldError('timezone')" class="text-[11px] text-danger">{{
+              fieldError('timezone')
+            }}</span>
+          </label>
+          <label class="grid gap-2">
+            <span class="text-xs font-semibold text-slate-600">Voicemail audio format</span>
+            <FormListbox
+              v-model="configuration.media_extension"
+              :invalid="Boolean(fieldError('media_extension'))"
+              :options="[
+                { value: 'mp3', label: 'MP3' },
+                { value: 'mp4', label: 'MP4' },
+                { value: 'wav', label: 'WAV' },
+              ]"
+            />
+          </label>
+        </div>
+      </article>
+
+      <article v-show="selectedSection === 1" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <SparklesIcon class="size-5 text-violet-500" />
           <h2 class="text-sm font-semibold text-slate-700">Features</h2>
@@ -346,7 +383,7 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <DisclosureCard v-show="selectedTab === 1" title="Playback behavior">
+      <DisclosureCard v-show="selectedSection === 1" title="Playback behavior">
         <div class="grid gap-3">
           <ToggleSwitch
             v-for="control in [
@@ -376,7 +413,7 @@ function fieldError(field: string): string | null {
         </div>
       </DisclosureCard>
 
-      <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
+      <article v-show="selectedSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <KeyIcon class="size-5 text-amber-500" />
           <div>

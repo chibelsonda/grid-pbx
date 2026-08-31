@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -34,6 +35,7 @@ import type {
 } from '../types/callRouting'
 
 const accounts = useAccountStore()
+const route = useRoute()
 const callflows = useCallflowStore()
 const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
 
@@ -61,13 +63,15 @@ const featureCodesOnPage = computed(
 const availableModules = computed(() =>
   [...new Set(callflows.records.flatMap((route) => route.modules))].sort(),
 )
+const creatingRoute = computed(() => callflows.editorOpen && callflows.editor?.mode === 'create')
 const workspaceOpen = computed(
   () =>
-    !callflows.editorOpen &&
-    (demoOpen.value ||
-      callflows.detailLoading ||
-      callflows.detail !== null ||
-      callflows.detailError !== null),
+    creatingRoute.value ||
+    (!callflows.editorOpen &&
+      (demoOpen.value ||
+        callflows.detailLoading ||
+        callflows.detail !== null ||
+        callflows.detailError !== null)),
 )
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const freshnessLabel = computed(() =>
@@ -77,12 +81,15 @@ const freshnessLabel = computed(() =>
 )
 
 watch(
-  () => accounts.selectedId,
-  (accountId) => {
+  [() => accounts.selectedId, () => route.query.callflow],
+  ([accountId, callflowId]) => {
     nodeEditorContext.value = null
     demoOpen.value = false
     callflows.reset()
-    if (accountId) void callflows.load(accountId, 1)
+    if (accountId) {
+      void callflows.load(accountId, 1)
+      if (typeof callflowId === 'string') void callflows.loadDetail(accountId, callflowId)
+    }
   },
   { immediate: true },
 )
@@ -113,7 +120,8 @@ function openComplexDemo(): void {
 }
 
 function closeWorkspace(): void {
-  if (demoOpen.value) demoOpen.value = false
+  if (creatingRoute.value) callflows.closeEditor()
+  else if (demoOpen.value) demoOpen.value = false
   else callflows.closeDetail()
 }
 
@@ -258,38 +266,53 @@ function routeTitle(route: {
     "
   >
     <template v-if="workspaceOpen">
-      <div
-        v-if="demoOpen"
-        class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900"
-      >
-        <SquaresPlusIcon class="size-5 shrink-0" />
-        <p>
-          <strong>UI-only demonstration.</strong> Select nodes and move the action palette freely.
-          Editing and drag-to-mutate controls are disabled, and nothing is written to Switch or
-          MySQL.
-        </p>
-      </div>
-      <CallflowDetailPanel
-        :record="activeRecord"
-        :loading="demoOpen ? false : callflows.detailLoading"
-        :error="demoOpen ? null : callflows.detailError"
-        :can-manage="demoOpen ? false : canManage"
-        :deleting="demoOpen ? false : callflows.deleting"
-        :mutation-error="demoOpen ? null : callflows.mutationError"
-        :tree-moving="demoOpen ? false : callflows.treeMoving"
-        :tree-mutation-error="demoOpen ? null : callflows.treeMutationError"
-        :can-refresh="!demoOpen"
-        :refreshing="demoOpen ? false : callflows.detailLoading"
-        :synchronizing="demoOpen ? false : callflows.synchronizing"
+      <CallflowEditorPanel
+        v-if="creatingRoute"
+        workspace
+        :record="null"
+        :editor="callflows.editor"
+        :loading="callflows.editorLoading"
+        :saving="callflows.saving"
+        :error="callflows.editorError"
+        :field-errors="callflows.fieldErrors"
+        :can-manage="canManage"
         @close="closeWorkspace"
-        @refresh="refreshCallflowNodes"
-        @edit="openEditor"
-        @delete="deleteRoute"
-        @move-node="moveTreeNode"
-        @reorder-nodes="reorderTreeNodes"
-        @create-node="openNodeEditor"
-        @edit-node="openNodeEditor"
+        @save="saveRoute"
       />
+      <template v-else>
+        <div
+          v-if="demoOpen"
+          class="mb-4 flex flex-wrap items-center gap-3 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-xs text-blue-900"
+        >
+          <SquaresPlusIcon class="size-5 shrink-0" />
+          <p>
+            <strong>UI-only demonstration.</strong> Select nodes and move the action palette freely.
+            Editing and drag-to-mutate controls are disabled, and nothing is written to Switch or
+            MySQL.
+          </p>
+        </div>
+        <CallflowDetailPanel
+          :record="activeRecord"
+          :loading="demoOpen ? false : callflows.detailLoading"
+          :error="demoOpen ? null : callflows.detailError"
+          :can-manage="demoOpen ? false : canManage"
+          :deleting="demoOpen ? false : callflows.deleting"
+          :mutation-error="demoOpen ? null : callflows.mutationError"
+          :tree-moving="demoOpen ? false : callflows.treeMoving"
+          :tree-mutation-error="demoOpen ? null : callflows.treeMutationError"
+          :can-refresh="!demoOpen"
+          :refreshing="demoOpen ? false : callflows.detailLoading"
+          :synchronizing="demoOpen ? false : callflows.synchronizing"
+          @close="closeWorkspace"
+          @refresh="refreshCallflowNodes"
+          @edit="openEditor"
+          @delete="deleteRoute"
+          @move-node="moveTreeNode"
+          @reorder-nodes="reorderTreeNodes"
+          @create-node="openNodeEditor"
+          @edit-node="openNodeEditor"
+        />
+      </template>
     </template>
 
     <template v-else>
@@ -499,7 +522,7 @@ function routeTitle(route: {
     </template>
   </div>
   <CallflowEditorPanel
-    v-if="callflows.editorOpen"
+    v-if="callflows.editorOpen && callflows.editor?.mode === 'update'"
     :record="callflows.detail"
     :editor="callflows.editor"
     :loading="callflows.editorLoading"

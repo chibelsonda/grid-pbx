@@ -65,6 +65,66 @@ class CallflowReferenceResolverTest extends TestCase
     }
 
     #[Test]
+    public function it_exposes_no_high_risk_private_configuration(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $privateData = [
+            'pivot' => [
+                'voice_url' => 'https://example.test/voice',
+                'cdr_url' => 'https://example.test/cdr',
+                'req_format' => 'twiml',
+                'debug' => true,
+                'server_owned' => ['preserve' => true],
+            ],
+            'disa' => [
+                'pin' => 'private-pin',
+                'retries' => 99,
+                'enforce_call_restriction' => false,
+                'use_account_caller_id' => false,
+                'server_owned' => ['preserve' => true],
+            ],
+            'offnet' => [
+                'to_did' => '+15551234567',
+                'caller_id_type' => 'emergency',
+                'custom_sip_headers' => ['X-Private' => 'secret'],
+                'server_owned' => ['preserve' => true],
+            ],
+            'resources' => [
+                'hunt_account_id' => 'raw-switch-account-id',
+                'outbound_flags' => ['private-carrier'],
+                'resource_type' => 'private-resource-type',
+                'server_owned' => ['preserve' => true],
+            ],
+            'webhook' => [
+                'uri' => 'https://callback.example.test/private',
+                'custom_data' => ['private_token' => 'secret'],
+                'retries' => 5,
+                'server_owned' => ['preserve' => true],
+            ],
+            'dynamic_cid' => [
+                'action' => 'list',
+                'id' => 'raw-switch-list-id',
+                'caller_id' => ['name' => 'Private', 'number' => '5555550100'],
+                'enforce_call_restriction' => false,
+                'permit_custom_callflow' => true,
+                'server_owned' => ['preserve' => true],
+            ],
+        ];
+
+        foreach ($privateData as $module => $data) {
+            $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+                'module' => $module,
+                'data' => $data,
+                'children' => [],
+            ]);
+
+            $this->assertNull($flow['settings']);
+            $this->assertSame('not_applicable', $flow['reference_status']);
+            $this->assertNull($flow['target']);
+        }
+    }
+
+    #[Test]
     public function it_exposes_only_skip_state_for_eavesdrop_nodes(): void
     {
         $account = SwitchAccount::factory()->create();

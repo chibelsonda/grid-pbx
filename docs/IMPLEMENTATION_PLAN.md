@@ -8,8 +8,15 @@ Implemented checkpoint:
 - Laravel and Vue domain-oriented application structures
 - Sanctum first-party SPA login and protected routing
 - Organization-scoped Switch account selection
+- Account hierarchy and reseller read projection with public UUID relationships,
+  safe coverage diagnostics, and confirmed onboarding of existing Switch
+  descendants into the current organization; account creation, movement, and
+  reseller-role mutations remain gated
 - MySQL projections for extensions, devices, voicemail, phone numbers, and call routing
 - Queued, idempotent synchronization with per-resource run/checkpoint status
+- Default-off, interval- and batch-bounded Extension projection polling through
+  the existing idempotent synchronization pipeline; broader polling/event
+  coverage awaits an approved per-domain freshness policy
 - Full Switch list/detail hydration with safe, redacted `switch_json` snapshots
 - Public UUID API contracts with entity-named `BIGINT UNSIGNED AUTO_INCREMENT`
   internal primary keys and numeric foreign-key relationships
@@ -565,6 +572,55 @@ mobile layouts.
 - Call History
 - Settings
 - Administration
+
+### Dashboard delivery scope
+
+The dashboard is an account-scoped operational cockpit, not a generic chart
+wall. Its first delivery reads MySQL projections and presents:
+
+- Account and projection freshness, checkpoint health, active synchronization
+  work, and safe resource-level recovery indicators.
+- Extension, Device, Phone Number, Callflow, Voicemail, and Queue inventory with
+  meaningful enabled, assignment, registration, and attention states.
+- Current-day inbound, outbound, answered, missed, answer-rate, and average
+  answered-duration measures in the account timezone.
+- Actionable warnings for failed or stale projections, confirmed unregistered
+  Devices, unassigned Phone Numbers, and unhealthy Callflow projections.
+- Role-aware links to the affected workspace and safe quick-create actions.
+
+The overview is exposed through one bounded account endpoint and does not fan
+out into live Switch requests during ordinary page loads. Every response
+includes generation and source-freshness timestamps. A later analytics endpoint
+owns configurable call-volume trends so chart loading and failure remain
+independent of the operational overview.
+
+The legacy geographic call map is retained only as a lower-priority,
+capability-controlled analytics option. It may display aggregated, estimated
+numbering-plan distribution after the client confirms the reporting need,
+privacy policy, geocoding source, tile-provider terms, retention period, and
+role permissions. It must state that a phone number's assigned geography is not
+the caller's live location, provide a non-map table fallback, cache aggregates,
+and debounce and cancel viewport requests. It is not part of the initial
+dashboard release.
+
+The capability-controlled foundation was added on 2026-08-31. GridPBX now has
+an account-scoped aggregate projection, bounded `today`, `7d`, and `30d` API
+queries, an accessible non-map summary, and a dependency-free local SVG map.
+It is disabled by default and returns a safe unavailable state until an
+approved enrichment source and privacy policy are configured through
+`DASHBOARD_CALL_GEOGRAPHY_ENABLED` and `DASHBOARD_CALL_GEOGRAPHY_SOURCE`.
+No runtime geocoding or third-party tile request is performed by the dashboard.
+An approved adapter must populate only cached aggregate counts; raw phone
+numbers and provider responses must not be exposed through the map contract.
+That adapter must estimate the remote party only: normalized inbound caller
+numbers and outbound destination numbers. It must skip anonymous, internal,
+short-code, malformed, or unsupported numbers instead of assigning a guessed
+location. Coverage therefore remains an explicit metric rather than implying
+that every call can be located. The read capability also fails closed unless
+the bound provider reports availability and its source exactly matches the
+configured approved source; setting environment values alone cannot make the
+map appear available. Coverage counts only the inbound and outbound calls that
+the enrichment path scans.
 
 ### UX rules
 

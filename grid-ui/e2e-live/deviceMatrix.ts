@@ -2,6 +2,7 @@ export interface DeviceParityCase {
   gridLabel: string
   switchType: string
   tabs: string[]
+  gridTabs?: string[]
 }
 
 export const deviceParityMatrix: DeviceParityCase[] = [
@@ -15,6 +16,7 @@ export const deviceParityMatrix: DeviceParityCase[] = [
     gridLabel: 'Smartphone',
     switchType: 'smartphone',
     tabs: ['Basic', 'Wi-Fi calling', 'Options', 'Restrictions'],
+    gridTabs: ['Basic', 'Caller ID', 'Wi-Fi calling', 'Audio', 'Video', 'Options', 'Restrictions'],
   },
   { gridLabel: 'Landline', switchType: 'landline', tabs: ['Basic', 'Options'] },
   {
@@ -26,11 +28,13 @@ export const deviceParityMatrix: DeviceParityCase[] = [
     gridLabel: 'Fax',
     switchType: 'fax',
     tabs: ['Basic', 'Caller ID', 'SIP', 'Options', 'Restrictions'],
+    gridTabs: ['Basic', 'Caller ID', 'SIP', 'Audio', 'Options', 'Restrictions'],
   },
   {
     gridLabel: 'ATA',
     switchType: 'ata',
     tabs: ['Basic', 'Caller ID', 'SIP', 'Options', 'Restrictions'],
+    gridTabs: ['Basic', 'Caller ID', 'SIP', 'Audio', 'Options', 'Restrictions'],
   },
   { gridLabel: 'SIP URI', switchType: 'sip_uri', tabs: ['Basic', 'Options'] },
 ]

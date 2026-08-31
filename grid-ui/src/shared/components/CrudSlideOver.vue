@@ -10,8 +10,9 @@ const props = withDefaults(
     description?: string
     width?: 'medium' | 'wide'
     scrollKey?: string | number
+    embedded?: boolean
   }>(),
-  { eyebrow: 'GridPBX', description: '', width: 'wide', scrollKey: '' },
+  { eyebrow: 'GridPBX', description: '', width: 'wide', scrollKey: '', embedded: false },
 )
 
 const emit = defineEmits<{ close: [] }>()
@@ -27,7 +28,30 @@ watch(
 </script>
 
 <template>
-  <TransitionRoot appear :show="true" as="template">
+  <section v-if="embedded" data-testid="embedded-crud-panel" :aria-label="title" class="grid gap-5">
+    <header class="card-surface flex items-start gap-4 px-5 py-5 sm:px-7">
+      <div class="min-w-0">
+        <p class="mb-1 text-[11px] font-medium text-slate-400">{{ eyebrow }}</p>
+        <h2 class="text-xl font-semibold tracking-tight text-slate-800">{{ title }}</h2>
+        <p v-if="description" class="mt-1 text-xs leading-5 text-slate-500">
+          {{ description }}
+        </p>
+      </div>
+      <button
+        type="button"
+        class="ml-auto grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
+        aria-label="Close panel"
+        @click="emit('close')"
+      >
+        <XMarkIcon class="size-5" />
+      </button>
+    </header>
+    <div data-testid="embedded-crud-content">
+      <slot />
+    </div>
+  </section>
+
+  <TransitionRoot v-else appear :show="true" as="template">
     <Dialog class="relative z-50" @close="emit('close')">
       <TransitionChild
         as="template"

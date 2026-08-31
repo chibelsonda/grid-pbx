@@ -9,6 +9,7 @@ import {
 import VoicemailDraftForm from '@/domains/voicemail/components/VoicemailDraftForm.vue'
 import type { VoicemailBox, VoicemailFormOptions } from '@/domains/voicemail/types/voicemail'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelector.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
@@ -64,6 +65,7 @@ const credentials = reactive(
   ),
 )
 const hotdesk = reactive(hydrateExtensionHotdeskInput(props.extension.configuration.hotdesk))
+const selectedFormSection = ref(0)
 const panelView = ref<'extension' | 'voicemail'>('extension')
 const voicemailDraft = ref<InstanceType<typeof VoicemailDraftForm> | null>(null)
 const metaflows = reactive<
@@ -184,6 +186,50 @@ function updateHotdesk(value: ExtensionHotdeskInput): void {
   Object.assign(hotdesk, value)
 }
 
+function updateAdvancedCalling(
+  value: Pick<ExtensionUpdate, 'caller_id' | 'call_forward' | 'call_restriction'>,
+): void {
+  Object.assign(advancedCalling, value)
+}
+
+function isAdvancedField(field: string): boolean {
+  return [
+    'language',
+    'presence_id',
+    'call_waiting',
+    'do_not_disturb',
+    'contact_list',
+    'caller_id_options',
+    'caller_id',
+    'call_forward',
+    'call_restriction',
+    'call_recording',
+    'media',
+    'music_on_hold',
+    'ringtones',
+    'dial_plan',
+    'formatters',
+    'profile',
+    'pronounced_name',
+    'metaflows',
+    'hotdesk',
+  ].some((prefix) => field === prefix || field.startsWith(`${prefix}.`))
+}
+
+function revealValidationSection(errors: FormErrors): void {
+  const fields = Object.keys(errors)
+
+  selectedFormSection.value = fields.length > 0 && fields.every(isAdvancedField) ? 1 : 0
+}
+
+watch(
+  () => props.fieldErrors,
+  (errors) => {
+    if (Object.keys(errors).length > 0) revealValidationSection(errors)
+  },
+  { deep: true, immediate: true },
+)
+
 function submit(): void {
   const currentVoicemail = form.voicemailEnabled
     ? (voicemailDraft.value?.currentInput() ?? null)
@@ -265,6 +311,7 @@ function submit(): void {
 
   if (!validation.success) {
     clientErrors.value = validation.errors
+    revealValidationSection(validation.errors)
 
     return
   }
@@ -304,7 +351,12 @@ function submit(): void {
         {{ error }}
       </div>
 
-      <article class="card-surface overflow-hidden">
+      <BasicAdvancedTabSelector
+        v-model="selectedFormSection"
+        aria-label="Extension form sections"
+      />
+
+      <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600"
             ><UserIcon class="size-5"
@@ -364,68 +416,77 @@ function submit(): void {
         </div>
       </article>
 
-      <ExtensionCredentialsProfile
-        :model-value="credentials"
-        :field-errors="displayErrors"
-        :original-username="extension.username"
-        :password-configured="extension.configuration.credentials.password_configured"
-        editing
-        @update:model-value="updateCredentials"
-      />
+      <div v-show="selectedFormSection === 0" class="contents">
+        <ExtensionCredentialsProfile
+          :model-value="credentials"
+          :field-errors="displayErrors"
+          :original-username="extension.username"
+          :password-configured="extension.configuration.credentials.password_configured"
+          editing
+          @update:model-value="updateCredentials"
+        />
+      </div>
 
-      <ExtensionUserOptions
-        :model-value="userConfiguration"
-        :field-errors="displayErrors"
-        :language-options="languageOptions"
-        :presence-options="presenceOptions"
-        @update:model-value="updateUserConfiguration"
-      />
+      <div
+        v-show="selectedFormSection === 1"
+        data-testid="extension-advanced-section"
+        class="contents"
+      >
+        <ExtensionUserOptions
+          :model-value="userConfiguration"
+          :field-errors="displayErrors"
+          :language-options="languageOptions"
+          :presence-options="presenceOptions"
+          @update:model-value="updateUserConfiguration"
+        />
 
-      <ExtensionAdvancedCallingSettings
-        v-model="advancedCalling"
-        :field-errors="displayErrors"
-        :phone-numbers="options.caller_id_numbers"
-        :restrictions="restrictionOptions"
-        :unresolved-numbers="{
-          external: extension.configuration.caller_id.external.number,
-          emergency: extension.configuration.caller_id.emergency.number,
-        }"
-      />
+        <ExtensionAdvancedCallingSettings
+          :model-value="advancedCalling"
+          :field-errors="displayErrors"
+          :phone-numbers="options.caller_id_numbers"
+          :restrictions="restrictionOptions"
+          :unresolved-numbers="{
+            external: extension.configuration.caller_id.external.number,
+            emergency: extension.configuration.caller_id.emergency.number,
+          }"
+          @update:model-value="updateAdvancedCalling"
+        />
 
-      <ExtensionCallRecordingSettings
-        v-model="advancedCalling.call_recording"
-        :field-errors="displayErrors"
-      />
+        <ExtensionCallRecordingSettings
+          v-model="advancedCalling.call_recording"
+          :field-errors="displayErrors"
+        />
 
-      <ExtensionMediaSettings
-        v-model="advancedCalling"
-        :field-errors="displayErrors"
-        :media-options="options.media"
-      />
+        <ExtensionMediaSettings
+          v-model="advancedCalling"
+          :field-errors="displayErrors"
+          :media-options="options.media"
+        />
 
-      <ExtensionRoutingProfileSettings
-        v-model="advancedCalling"
-        :field-errors="displayErrors"
-        :media-options="options.media"
-        :policy="extension.configuration.policy"
-      />
+        <ExtensionRoutingProfileSettings
+          v-model="advancedCalling"
+          :field-errors="displayErrors"
+          :media-options="options.media"
+          :policy="extension.configuration.policy"
+        />
 
-      <ExtensionMetaflowSettings
-        v-model="metaflows"
-        :current="extension.configuration.metaflows"
-        :resources="options.metaflow_resources"
-        :field-errors="displayErrors"
-      />
+        <ExtensionMetaflowSettings
+          v-model="metaflows"
+          :current="extension.configuration.metaflows"
+          :resources="options.metaflow_resources"
+          :field-errors="displayErrors"
+        />
 
-      <ExtensionHotdeskProfile
-        :model-value="hotdesk"
-        :field-errors="displayErrors"
-        :pin-configured="extension.configuration.hotdesk.pin_configured"
-        editing
-        @update:model-value="updateHotdesk"
-      />
+        <ExtensionHotdeskProfile
+          :model-value="hotdesk"
+          :field-errors="displayErrors"
+          :pin-configured="extension.configuration.hotdesk.pin_configured"
+          editing
+          @update:model-value="updateHotdesk"
+        />
+      </div>
 
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-purple-50 text-purple-600"
             ><MicrophoneIcon class="size-5"

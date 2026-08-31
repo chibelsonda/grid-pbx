@@ -401,11 +401,11 @@ export function supportsDeviceFieldGroup(
 export const deviceFormTabs: Record<DeviceType, DeviceFormTab[]> = {
   sip_device: ['basic', 'caller-id', 'sip', 'audio', 'video', 'options', 'restrictions'],
   cellphone: ['basic', 'options'],
-  smartphone: ['basic', 'sip', 'options', 'restrictions'],
+  smartphone: ['basic', 'caller-id', 'sip', 'audio', 'video', 'options', 'restrictions'],
   softphone: ['basic', 'caller-id', 'sip', 'audio', 'video', 'options', 'restrictions'],
   landline: ['basic', 'options'],
-  fax: ['basic', 'caller-id', 'sip', 'options', 'restrictions'],
-  ata: ['basic', 'caller-id', 'sip', 'options', 'restrictions'],
+  fax: ['basic', 'caller-id', 'sip', 'audio', 'options', 'restrictions'],
+  ata: ['basic', 'caller-id', 'sip', 'audio', 'options', 'restrictions'],
   sip_uri: ['basic', 'options'],
 }
 

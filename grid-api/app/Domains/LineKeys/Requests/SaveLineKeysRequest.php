@@ -38,10 +38,10 @@ class SaveLineKeysRequest extends FormRequest
                     continue;
                 }
 
-                $identity = ($key['category'] ?? '').':'.($key['position'] ?? '');
+                $identity = (string) ($key['position'] ?? '');
 
                 if (isset($seen[$identity])) {
-                    $validator->errors()->add("line_keys.{$index}.position", 'Each category and position combination must be unique.');
+                    $validator->errors()->add("line_keys.{$index}.position", 'Each physical model position may be assigned only once.');
                 }
 
                 $seen[$identity] = true;

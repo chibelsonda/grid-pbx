@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { BookOpenIcon, TrashIcon } from '@heroicons/vue/24/outline'
+import BasicAdvancedFormTabs from '@/shared/components/BasicAdvancedFormTabs.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
@@ -23,6 +24,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; save: [input: DirectoryInput]; remove: [] }>()
 const confirmDelete = ref(false)
+const selectedTab = ref(0)
 const sortOptions: ListboxOptionValue[] = [
   { value: 'last_name', label: 'Last name' },
   { value: 'first_name', label: 'First name' },
@@ -41,6 +43,15 @@ function fieldError(field: string): string | null {
   )
 }
 
+watch(
+  () => props.fieldErrors,
+  (fieldErrors) => {
+    if (Object.keys(fieldErrors).length === 0) return
+    selectedTab.value = fieldErrors.name?.length || fieldErrors.member_ids?.length ? 0 : 1
+  },
+  { deep: true },
+)
+
 function setSortBy(value: ListboxValue): void {
   if (value === 'first_name' || value === 'last_name') form.sort_by = value
 }
@@ -51,7 +62,12 @@ function submit(): void {
 
   if (result.success) {
     emit('save', result.data)
+
+    return
   }
+
+  selectedTab.value =
+    validationErrors.value.name?.length || validationErrors.value.member_ids?.length ? 0 : 1
 }
 </script>
 
@@ -67,70 +83,84 @@ function submit(): void {
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
-      <article class="card-surface overflow-hidden">
-        <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-          <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"
-            ><BookOpenIcon class="size-5"
-          /></span>
-          <div>
-            <h2 class="text-sm font-semibold text-slate-700">Dial-by-name settings</h2>
-            <p class="text-[10px] text-slate-400">
-              Search and confirmation behavior presented to callers.
-            </p>
-          </div>
-        </header>
-        <div class="grid gap-4 p-5 sm:grid-cols-2">
-          <FormInput
-            v-model="form.name"
-            label="Name"
-            class="sm:col-span-2"
-            required
-            maxlength="128"
-            :error="fieldError('name')"
-          />
-          <label class="grid gap-2"
-            ><span class="text-xs font-semibold text-slate-600">Sort names by</span
-            ><FormListbox
-              :model-value="form.sort_by"
-              :options="sortOptions"
-              aria-label="Sort names by"
-              :invalid="Boolean(fieldError('sort_by'))"
-              @update:model-value="setSortBy"
-            />
-            ><span v-if="fieldError('sort_by')" class="text-[10px] text-danger">{{
-              fieldError('sort_by')
-            }}</span></label
-          >
-          <ToggleSwitch
-            v-model="form.confirm_match"
-            label="Confirm a single match"
-            class="self-end rounded-md border border-slate-200 p-3"
-            :class="validationControlClass(fieldError('confirm_match'))"
-            :invalid="Boolean(fieldError('confirm_match'))"
-          />
-          <FormInput
-            v-model.number="form.min_dtmf"
-            label="Minimum digits"
-            type="number"
-            min="1"
-            max="20"
-            required
-            :error="fieldError('min_dtmf')"
-          />
-          <FormInput
-            v-model.number="form.max_dtmf"
-            label="Maximum digits"
-            description="0 = unlimited"
-            type="number"
-            min="0"
-            max="20"
-            required
-            :error="fieldError('max_dtmf')"
-          />
-        </div>
-      </article>
+      <BasicAdvancedFormTabs v-model="selectedTab">
+        <template #basic>
+          <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
+            <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+              <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"
+                ><BookOpenIcon class="size-5"
+              /></span>
+              <div>
+                <h2 class="text-sm font-semibold text-slate-700">Directory identity</h2>
+                <p class="text-[10px] text-slate-400">Name shown to account operators.</p>
+              </div>
+            </header>
+            <div class="grid gap-4 p-5 sm:grid-cols-2">
+              <FormInput
+                v-model="form.name"
+                label="Name"
+                class="sm:col-span-2"
+                required
+                maxlength="128"
+                :error="fieldError('name')"
+              />
+            </div>
+          </article>
+        </template>
+        <template #advanced>
+          <article class="card-surface overflow-hidden">
+            <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+              <BookOpenIcon class="size-5 text-brand-500" />
+              <div>
+                <h2 class="text-sm font-semibold text-slate-700">Dial-by-name options</h2>
+                <p class="text-[10px] text-slate-400">Caller search and confirmation behavior.</p>
+              </div>
+            </header>
+            <div class="grid gap-4 p-5 sm:grid-cols-2">
+              <label class="grid gap-2"
+                ><span class="text-xs font-semibold text-slate-600">Sort names by</span
+                ><FormListbox
+                  :model-value="form.sort_by"
+                  :options="sortOptions"
+                  aria-label="Sort names by"
+                  :invalid="Boolean(fieldError('sort_by'))"
+                  @update:model-value="setSortBy"
+                /><span v-if="fieldError('sort_by')" class="text-[10px] text-danger">{{
+                  fieldError('sort_by')
+                }}</span></label
+              >
+              <ToggleSwitch
+                v-model="form.confirm_match"
+                label="Confirm a single match"
+                class="self-end rounded-md border border-slate-200 p-3"
+                :class="validationControlClass(fieldError('confirm_match'))"
+                :invalid="Boolean(fieldError('confirm_match'))"
+              />
+              <FormInput
+                v-model.number="form.min_dtmf"
+                label="Minimum digits"
+                type="number"
+                min="1"
+                max="20"
+                required
+                :error="fieldError('min_dtmf')"
+              />
+              <FormInput
+                v-model.number="form.max_dtmf"
+                label="Maximum digits"
+                description="0 = unlimited"
+                type="number"
+                min="0"
+                max="20"
+                required
+                :error="fieldError('max_dtmf')"
+              />
+            </div>
+          </article>
+        </template>
+      </BasicAdvancedFormTabs>
 
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
         <header class="border-b border-slate-100 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Directory members</h2>
           <p class="mt-1 text-[10px] text-slate-400">

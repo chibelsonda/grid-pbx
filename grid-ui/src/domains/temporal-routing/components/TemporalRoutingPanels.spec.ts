@@ -23,6 +23,7 @@ describe('temporal routing panels', () => {
       global: { stubs },
     })
 
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
     await wrapper.get('form').trigger('submit')
 
     const name = wrapper.get('input[aria-label="Name"]')
@@ -38,6 +39,7 @@ describe('temporal routing panels', () => {
       global: { stubs },
     })
 
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
     await wrapper.get('form').trigger('submit')
 
     const name = wrapper.get('input[aria-label="Name"]')

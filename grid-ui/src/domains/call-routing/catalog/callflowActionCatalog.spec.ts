@@ -104,8 +104,14 @@ describe('callflowActionCatalog', () => {
   })
 
   it('keeps audited high-risk actions gated and exposes resource-free actions', () => {
-    expect(findCallflowAction('pivot')).toMatchObject({ status: 'restricted' })
-    expect(findCallflowAction('disa')).toMatchObject({ status: 'restricted' })
+    expect(findCallflowAction('pivot')).toMatchObject({
+      status: 'restricted',
+      description: expect.stringContaining('allowlisted egress'),
+    })
+    expect(findCallflowAction('disa')).toMatchObject({
+      status: 'restricted',
+      description: expect.stringContaining('mandatory PIN'),
+    })
     expect(findCallflowAction('dynamic_cid')).toMatchObject({
       status: 'restricted',
       description: expect.stringContaining('anti-spoofing'),
@@ -114,9 +120,10 @@ describe('callflowActionCatalog', () => {
       status: 'restricted',
       description: expect.stringContaining('toll-fraud'),
     })
+    expect(findCallflowAction('offnet')?.description).toContain('final-destination')
     expect(findCallflowAction('resources')).toMatchObject({
       status: 'restricted',
-      description: expect.stringContaining('public account mapping'),
+      description: expect.stringContaining('reseller entitlement'),
     })
     expect(findCallflowAction('webhook')).toMatchObject({
       status: 'restricted',

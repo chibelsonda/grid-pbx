@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
@@ -16,6 +17,8 @@ import type { CallerIdListInput } from '../types/callerIdList'
 
 const accounts = useAccountStore()
 const lists = useCallerIdListStore()
+const route = useRoute()
+const router = useRouter()
 const panel = ref(false)
 const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
@@ -24,34 +27,72 @@ const visibleEntryCount = computed(() =>
 )
 
 watch(
-  () => accounts.selectedId,
-  (id) => {
-    panel.value = false
-    confirmDelete.value = false
-    lists.reset()
-    if (id) void lists.load(id)
+  [() => accounts.selectedId, () => route.query.caller_id_list],
+  ([accountId, callerIdListId], previous) => {
+    const accountChanged = accountId !== previous?.[0]
+
+    if (accountChanged) {
+      panel.value = false
+      confirmDelete.value = false
+      lists.reset()
+      if (accountId) void lists.load(accountId)
+    }
+
+    if (accountId && typeof callerIdListId === 'string' && callerIdListId !== lists.detail?.id) {
+      void loadDetail(accountId, callerIdListId)
+    }
   },
   { immediate: true },
 )
 
+async function loadDetail(accountId: string, id: string): Promise<void> {
+  await lists.prepare(accountId, id)
+  panel.value = true
+}
+
 async function open(id?: string): Promise<void> {
   if (!accounts.selectedId) return
-  await lists.prepare(accounts.selectedId, id)
+  if (id) {
+    await router.replace({ query: { ...route.query, caller_id_list: id } })
+
+    return
+  }
+
+  await lists.prepare(accounts.selectedId)
   panel.value = true
 }
 
 async function save(input: CallerIdListInput): Promise<void> {
-  if (accounts.selectedId && (await lists.save(accounts.selectedId, input))) panel.value = false
+  if (accounts.selectedId && (await lists.save(accounts.selectedId, input))) {
+    panel.value = false
+    clearCallerIdListQuery()
+  }
 }
 
 async function remove(): Promise<void> {
-  if (accounts.selectedId && (await lists.remove(accounts.selectedId))) confirmDelete.value = false
+  if (accounts.selectedId && (await lists.remove(accounts.selectedId))) {
+    confirmDelete.value = false
+    clearCallerIdListQuery()
+  }
 }
 
 async function requestRemove(): Promise<void> {
   panel.value = false
   await nextTick()
   confirmDelete.value = true
+}
+
+function closePanel(): void {
+  panel.value = false
+  clearCallerIdListQuery()
+}
+
+function clearCallerIdListQuery(): void {
+  if (!('caller_id_list' in route.query)) return
+
+  const query = { ...route.query }
+  delete query.caller_id_list
+  void router.replace({ query })
 }
 </script>
 
@@ -196,7 +237,7 @@ async function requestRemove(): Promise<void> {
     :error="lists.mutationError"
     :field-errors="lists.fieldErrors"
     :can-manage="canManage"
-    @close="panel = false"
+    @close="closePanel"
     @save="save"
     @request-remove="requestRemove"
   />

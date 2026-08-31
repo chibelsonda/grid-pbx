@@ -25,6 +25,8 @@ export type LineKeyCapability = {
   apply_available: boolean
   reason: string | null
   model: {
+    catalog_available: boolean
+    catalog_reason: string | null
     matched: boolean
     max_keys: number | null
     max_expansion_modules: number | null
@@ -63,4 +65,23 @@ export type LineKeyInput = {
   type: LineKeyType
   label: string | null
   value: string | number | null
+}
+
+export type LineKeySyncRun = {
+  id: string
+  resource_type: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  processed_count: number
+  upserted_count: number
+  deleted_count: number
+  error_message: string | null
+  started_at: string | null
+  finished_at: string | null
+  created_at: string | null
+}
+
+export type LineKeySyncState = {
+  status: 'healthy' | 'syncing' | 'stale' | 'error'
+  last_successful_at: string | null
+  error_message: string | null
 }

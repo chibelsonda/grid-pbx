@@ -142,6 +142,7 @@ describe('ServiceDetailPanel', () => {
     expect(wrapper.text()).not.toContain('Billing documents')
     expect(wrapper.text()).not.toContain('INV-100')
     expect(wrapper.text()).not.toContain('Charge confirmed')
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
   })
 
   it('links attention states to Billing without exposing diagnostic details', () => {

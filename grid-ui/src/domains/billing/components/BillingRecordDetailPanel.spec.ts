@@ -39,6 +39,7 @@ describe('BillingRecordDetailPanel', () => {
     expect(wrapper.text()).toContain('No authoritative invoice document is available')
     expect(wrapper.find('a[download]').exists()).toBe(false)
     expect(wrapper.find('button').exists()).toBe(false)
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
   })
 
   it('labels a successful payment operation as a non-authoritative confirmation', () => {

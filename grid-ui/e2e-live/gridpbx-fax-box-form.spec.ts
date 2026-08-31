@@ -91,9 +91,13 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
   await page.getByRole('option', { name: 'No owner' }).click()
 
+  await dialog.getByRole('tab', { name: 'Advanced' }).click()
+  await expect(dialog.getByLabel('Caller ID number')).toBeVisible()
   await dialog.getByLabel('Fax retries').fill('5')
+  await dialog.getByRole('tab', { name: 'Basic' }).click()
   await dialog.getByLabel('Inbound notification emails').fill('invalid')
   await dialog.getByRole('button', { name: 'Save fax box' }).click()
+  await expect(dialog.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
   for (const control of [
     dialog.getByLabel('Fax-box name'),
     dialog.getByLabel('Fax retries'),

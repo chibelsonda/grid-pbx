@@ -26,10 +26,15 @@ describe('FaxBoxFormPanel', () => {
       },
     })
 
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
+    expect(wrapper.find('input[aria-label="Fax retries"]').isVisible()).toBe(false)
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
     await wrapper.get('input[aria-label="Fax retries"]').setValue('5')
+    await wrapper.findAll('[role="tab"]')[0]!.trigger('click')
     await wrapper.get('input[aria-label="Inbound notification emails"]').setValue('invalid')
     await wrapper.get('form').trigger('submit')
 
+    expect(wrapper.findAll('[role="tab"]')[0]!.attributes('aria-selected')).toBe('true')
     const name = wrapper.get('input[aria-label="Fax-box name"]')
     const retries = wrapper.get('input[aria-label="Fax retries"]')
     const inbound = wrapper.get('input[aria-label="Inbound notification emails"]')

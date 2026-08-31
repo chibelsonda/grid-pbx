@@ -35,6 +35,8 @@ export const callDetailRecordApi = {
           hangup_cause: filters.hangup_cause || undefined,
           started_from: filters.started_from || undefined,
           started_to: filters.started_to || undefined,
+          started_after: filters.started_after || undefined,
+          started_before: filters.started_before || undefined,
           duration_min: filters.duration_min || undefined,
           duration_max: filters.duration_max || undefined,
           page,

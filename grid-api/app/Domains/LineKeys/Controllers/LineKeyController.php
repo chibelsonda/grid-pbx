@@ -10,6 +10,7 @@ use App\Domains\LineKeys\Resources\LineKeyDeviceResource;
 use App\Domains\LineKeys\Services\LineKeyMutationService;
 use App\Domains\LineKeys\Services\LineKeyService;
 use App\Domains\Organizations\Services\SwitchAccountService;
+use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use App\Http\Controllers\Controller;
 use App\Support\Http\ApiResponse;
 use Illuminate\Http\JsonResponse;
@@ -19,13 +20,33 @@ use Illuminate\Support\Facades\Gate;
 
 class LineKeyController extends Controller
 {
-    public function index(ListLineKeysRequest $request, string $account, SwitchAccountService $accounts, LineKeyService $lineKeys): AnonymousResourceCollection
-    {
+    public function index(
+        ListLineKeysRequest $request,
+        string $account,
+        SwitchAccountService $accounts,
+        LineKeyService $lineKeys,
+    ): AnonymousResourceCollection {
         /** @var User $user */
         $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
+        $checkpoint = SyncCheckpoint::query()
+            ->where('switch_account_id', $switchAccount->getKey())
+            ->where('resource_type', 'extensions')
+            ->first();
 
-        return LineKeyDeviceResource::collection($lineKeys->devices($switchAccount, $request->validated('search')));
+        return LineKeyDeviceResource::collection(
+            $lineKeys->devices($switchAccount, $request->validated('search')),
+        )->additional([
+            'meta' => [
+                'sync' => [
+                    'status' => $checkpoint?->status->value ?? 'stale',
+                    'last_successful_at' => $checkpoint?->last_successful_at?->toIso8601String(),
+                    'error_message' => $checkpoint?->status->value === 'error'
+                        ? 'Synchronization failed. Try again or contact an administrator.'
+                        : null,
+                ],
+            ],
+        ]);
     }
 
     public function preview(Request $request, string $account, string $device, SwitchAccountService $accounts, DeviceService $devices, LineKeyService $lineKeys): JsonResponse

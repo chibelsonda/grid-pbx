@@ -91,6 +91,46 @@ final class LineKeyResourceClientTest extends TestCase
         self::assertSame([], $body['data']['provision']['feature_keys']);
     }
 
+    public function test_it_serializes_every_kazoo_line_key_type(): void
+    {
+        $client = $this->clientWithPayloads([
+            ['data' => $this->deviceData()],
+            ['data' => $this->deviceData()],
+        ]);
+        $client->update('account-1', 'device-1', [
+            new LineKeyWriteData('combo', 0, 'line'),
+            new LineKeyWriteData('feature', 0, 'presence', 'user-1001', 'Alice'),
+            new LineKeyWriteData('feature', 1, 'personal_parking', 'user-1002', 'Park Bob'),
+            new LineKeyWriteData('feature', 2, 'speed_dial', '+15551234567', 'Support'),
+            new LineKeyWriteData('feature', 3, 'parking', 3, 'Park 3'),
+        ]);
+
+        $body = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $provision = $body['data']['provision'];
+
+        self::assertSame(['vendor_key' => ['color' => 'green'], 'type' => 'line'], $provision['combo_keys']['0']);
+        self::assertSame(
+            ['type' => 'presence', 'value' => ['label' => 'Alice', 'value' => 'user-1001']],
+            $provision['feature_keys']['0'],
+        );
+        self::assertSame(
+            ['type' => 'personal_parking', 'value' => ['label' => 'Park Bob', 'value' => 'user-1002']],
+            $provision['feature_keys']['1'],
+        );
+        self::assertSame(
+            [
+                'vendor_key' => ['color' => 'red'],
+                'type' => 'speed_dial',
+                'value' => ['vendor_value' => true, 'label' => 'Support', 'value' => '+15551234567'],
+            ],
+            $provision['feature_keys']['2'],
+        );
+        self::assertSame(
+            ['type' => 'parking', 'value' => ['label' => 'Park 3', 'value' => 3]],
+            $provision['feature_keys']['3'],
+        );
+    }
+
     public function test_it_rejects_values_that_do_not_match_the_selected_key_type(): void
     {
         $this->expectException(\InvalidArgumentException::class);

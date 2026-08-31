@@ -59,8 +59,31 @@ describe('device form schema', () => {
     expect(deviceFormTabs.cellphone).toEqual(['basic', 'options'])
     expect(deviceFormTabs.landline).toEqual(['basic', 'options'])
     expect(deviceFormTabs.sip_uri).toEqual(['basic', 'options'])
-    expect(deviceFormTabs.smartphone).toEqual(['basic', 'sip', 'options', 'restrictions'])
-    expect(deviceFormTabs.fax).toEqual(['basic', 'caller-id', 'sip', 'options', 'restrictions'])
+    expect(deviceFormTabs.smartphone).toEqual([
+      'basic',
+      'caller-id',
+      'sip',
+      'audio',
+      'video',
+      'options',
+      'restrictions',
+    ])
+    expect(deviceFormTabs.fax).toEqual([
+      'basic',
+      'caller-id',
+      'sip',
+      'audio',
+      'options',
+      'restrictions',
+    ])
+    expect(deviceFormTabs.ata).toEqual([
+      'basic',
+      'caller-id',
+      'sip',
+      'audio',
+      'options',
+      'restrictions',
+    ])
     expect(deviceFormTabs.sip_device).toEqual(
       expect.arrayContaining(['caller-id', 'sip', 'audio', 'video', 'options', 'restrictions']),
     )

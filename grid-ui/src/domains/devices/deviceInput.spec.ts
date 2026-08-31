@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { reactive } from 'vue'
 import {
   defaultDeviceConfiguration,
+  deviceSupportsTab,
   deviceTypes,
   legacyDeviceSchemaCompatibility,
   supportsDeviceFieldGroup,
@@ -66,6 +67,10 @@ describe('buildDeviceInput', () => {
       )
       expect('call_recording' in input).toBe(supportsDeviceRecording(deviceType))
       expect('dial_plan' in input).toBe(supportsDeviceFieldGroup(deviceType, 'advanced-routing'))
+      expect('media' in input).toBe(
+        deviceSupportsTab(deviceType, 'audio') || supportsDeviceOption(deviceType, 'fax'),
+      )
+      expect('caller_id' in input).toBe(deviceSupportsTab(deviceType, 'caller-id'))
       expect(
         Boolean(input.sip && 'method' in input.sip && 'ignore_completed_elsewhere' in input.sip),
       ).toBe(supportsIgnoreCompletedElsewhere(deviceType))

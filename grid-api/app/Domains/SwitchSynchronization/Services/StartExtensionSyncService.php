@@ -14,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 
 class StartExtensionSyncService
 {
-    public function handle(SwitchAccount $account, User $requestedBy): SyncRun
+    public function handle(SwitchAccount $account, ?User $requestedBy = null): SyncRun
     {
         [$run, $created] = Cache::lock("switch-sync-start:{$account->getKey()}:extensions", 10)
             ->block(3, function () use ($account, $requestedBy): array {
@@ -31,7 +31,7 @@ class StartExtensionSyncService
 
                 return DB::transaction(function () use ($account, $requestedBy): array {
                     $run = $account->syncRuns()->create([
-                        'requested_by_user_id' => $requestedBy->getKey(),
+                        'requested_by_user_id' => $requestedBy?->getKey(),
                         'resource_type' => 'extensions',
                         'status' => SyncRunStatus::Queued,
                     ]);

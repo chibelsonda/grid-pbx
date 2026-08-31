@@ -122,6 +122,61 @@ class CallDetailRecordControllerTest extends TestCase
             );
     }
 
+    public function test_filters_an_exact_start_inclusive_end_exclusive_dashboard_period(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $includedAtStart = SwitchCallDetailRecord::factory()->for($account)->create([
+            'direction' => 'inbound',
+            'started_at' => '2026-08-28 07:00:00',
+        ]);
+        SwitchCallDetailRecord::factory()->for($account)->create([
+            'direction' => 'outbound',
+            'started_at' => '2026-08-28 07:30:00',
+        ]);
+        SwitchCallDetailRecord::factory()->for($account)->create([
+            'direction' => 'inbound',
+            'started_at' => '2026-08-28 08:00:00',
+        ]);
+        $query = http_build_query([
+            'started_after' => '2026-08-28T00:00:00-07:00',
+            'started_before' => '2026-08-28T01:00:00-07:00',
+            'direction' => 'inbound',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/call-detail-records?{$query}")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $includedAtStart->id);
+    }
+
+    public function test_returns_422_for_invalid_or_reversed_precise_periods(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+
+        $this->actingAs($user)
+            ->getJson(
+                "/api/v1/accounts/{$account->id}/call-detail-records?"
+                .http_build_query([
+                    'started_after' => '2026-08-28T02:00:00+00:00',
+                    'started_before' => '2026-08-28T01:00:00+00:00',
+                ]),
+            )
+            ->assertUnprocessable()
+            ->assertJsonPath(
+                'errors.started_before.0',
+                'The precise end time must be after the precise start time.',
+            );
+
+        $this->actingAs($user)
+            ->getJson(
+                "/api/v1/accounts/{$account->id}/call-detail-records?"
+                .http_build_query(['started_after' => 'not-a-timestamp']),
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrorFor('started_after');
+    }
+
     public function test_read_only_user_can_view_but_cannot_start_a_cdr_sync(): void
     {
         [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);

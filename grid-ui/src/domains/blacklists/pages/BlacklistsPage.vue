@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
@@ -15,29 +16,67 @@ import type { BlacklistInput } from '../types/blacklist'
 
 const accounts = useAccountStore()
 const blacklists = useBlacklistStore()
+const route = useRoute()
+const router = useRouter()
 const panel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const activeCount = computed(() => blacklists.records.filter((record) => record.is_active).length)
 watch(
-  () => accounts.selectedId,
-  (id) => {
-    panel.value = false
-    blacklists.reset()
-    if (id) void blacklists.load(id)
+  [() => accounts.selectedId, () => route.query.blacklist],
+  ([accountId, blacklistId], previous) => {
+    const accountChanged = accountId !== previous?.[0]
+
+    if (accountChanged) {
+      panel.value = false
+      blacklists.reset()
+      if (accountId) void blacklists.load(accountId)
+    }
+
+    if (accountId && typeof blacklistId === 'string' && blacklistId !== blacklists.detail?.id) {
+      void loadDetail(accountId, blacklistId)
+    }
   },
   { immediate: true },
 )
+
+async function loadDetail(accountId: string, id: string): Promise<void> {
+  await blacklists.prepare(accountId, id)
+  panel.value = true
+}
+
 async function open(id?: string): Promise<void> {
   if (!accounts.selectedId) return
-  await blacklists.prepare(accounts.selectedId, id)
+  if (id) {
+    await router.replace({ query: { ...route.query, blacklist: id } })
+
+    return
+  }
+
+  await blacklists.prepare(accounts.selectedId)
   panel.value = true
 }
 async function save(input: BlacklistInput): Promise<void> {
-  if (accounts.selectedId && (await blacklists.save(accounts.selectedId, input)))
+  if (accounts.selectedId && (await blacklists.save(accounts.selectedId, input))) {
     panel.value = false
+    clearBlacklistQuery()
+  }
 }
 async function remove(): Promise<void> {
-  if (accounts.selectedId && (await blacklists.remove(accounts.selectedId))) panel.value = false
+  if (accounts.selectedId && (await blacklists.remove(accounts.selectedId))) {
+    panel.value = false
+    clearBlacklistQuery()
+  }
+}
+function closePanel(): void {
+  panel.value = false
+  clearBlacklistQuery()
+}
+function clearBlacklistQuery(): void {
+  if (!('blacklist' in route.query)) return
+
+  const query = { ...route.query }
+  delete query.blacklist
+  void router.replace({ query })
 }
 </script>
 
@@ -107,7 +146,13 @@ async function remove(): Promise<void> {
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && blacklists.load(accounts.selectedId)"
     >
-      <SearchInput v-model="blacklists.search" label="Search blacklists" class="min-w-0 flex-1" placeholder="Search blacklists…" input-class="h-10 bg-white text-xs shadow-sm" /><button
+      <SearchInput
+        v-model="blacklists.search"
+        label="Search blacklists"
+        class="min-w-0 flex-1"
+        placeholder="Search blacklists…"
+        input-class="h-10 bg-white text-xs shadow-sm"
+      /><button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
       >
         Search
@@ -171,7 +216,7 @@ async function remove(): Promise<void> {
     :error="blacklists.mutationError"
     :field-errors="blacklists.fieldErrors"
     :can-manage="canManage"
-    @close="panel = false"
+    @close="closePanel"
     @save="save"
     @remove="remove"
   />

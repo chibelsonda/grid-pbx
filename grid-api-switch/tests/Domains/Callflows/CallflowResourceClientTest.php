@@ -1881,6 +1881,133 @@ final class CallflowResourceClientTest extends TestCase
         );
     }
 
+    public function test_it_rejects_high_risk_writes_and_preserves_existing_private_data(): void
+    {
+        $restrictedActions = [
+            '1' => [
+                'module' => 'pivot',
+                'data' => [
+                    'voice_url' => 'https://example.test/voice',
+                    'cdr_url' => 'https://example.test/cdr',
+                    'req_format' => 'twiml',
+                    'future_option' => ['preserve' => true],
+                ],
+                'children' => [
+                    '_' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []],
+                ],
+            ],
+            '2' => [
+                'module' => 'disa',
+                'data' => [
+                    'pin' => 'private-pin',
+                    'enforce_call_restriction' => false,
+                    'future_option' => ['preserve' => true],
+                ],
+                'children' => [
+                    '_' => ['module' => 'device', 'data' => ['id' => 'device-1'], 'children' => []],
+                ],
+            ],
+            '3' => [
+                'module' => 'offnet',
+                'data' => [
+                    'to_did' => '+15551234567',
+                    'custom_sip_headers' => ['X-Private' => 'secret'],
+                    'future_option' => ['preserve' => true],
+                ],
+                'children' => [
+                    '_' => ['module' => 'user', 'data' => ['id' => 'user-2'], 'children' => []],
+                ],
+            ],
+            '4' => [
+                'module' => 'resources',
+                'data' => [
+                    'hunt_account_id' => 'raw-switch-account-id',
+                    'outbound_flags' => ['private-carrier'],
+                    'future_option' => ['preserve' => true],
+                ],
+                'children' => [
+                    '_' => ['module' => 'device', 'data' => ['id' => 'device-2'], 'children' => []],
+                ],
+            ],
+            '5' => [
+                'module' => 'webhook',
+                'data' => [
+                    'uri' => 'https://callback.example.test/private',
+                    'custom_data' => ['private_token' => 'secret'],
+                    'retries' => 5,
+                    'future_option' => ['preserve' => true],
+                ],
+                'children' => [
+                    '_' => ['module' => 'user', 'data' => ['id' => 'user-3'], 'children' => []],
+                ],
+            ],
+            '6' => [
+                'module' => 'dynamic_cid',
+                'data' => [
+                    'action' => 'list',
+                    'id' => 'raw-switch-list-id',
+                    'caller_id' => ['name' => 'Private', 'number' => '5555550100'],
+                    'enforce_call_restriction' => false,
+                    'permit_custom_callflow' => true,
+                    'future_option' => ['preserve' => true],
+                ],
+                'children' => [
+                    '_' => ['module' => 'device', 'data' => ['id' => 'device-3'], 'children' => []],
+                ],
+            ],
+        ];
+        $current = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-1'],
+                'children' => $restrictedActions + [
+                    '7' => ['module' => 'hangup', 'data' => ['skip_module' => false], 'children' => []],
+                ],
+            ],
+        ];
+
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['7'],
+            'hangup',
+            ['skip_module' => true],
+        )->toSwitchData();
+        $children = (array) $updated['flow']['children'];
+
+        foreach ($restrictedActions as $branch => $action) {
+            self::assertSame($action['data'], $children[$branch]['data']);
+            self::assertSame(
+                $action['children']['_']['module'],
+                ((array) $children[$branch]['children'])['_']['module'],
+            );
+        }
+        self::assertTrue($children['7']['data']['skip_module']);
+
+        foreach (['pivot', 'disa', 'offnet', 'resources', 'webhook', 'dynamic_cid'] as $module) {
+            try {
+                CallflowInlineNodeWriteData::create($current, [], '8', $module, []);
+                self::fail("Expected the {$module} action to be rejected.");
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame(
+                    'The inline Switch callflow action is not supported.',
+                    $exception->getMessage(),
+                );
+            }
+        }
+
+        foreach (['5' => 'Webhook', '6' => 'Dynamic CID'] as $branch => $label) {
+            try {
+                CallflowInlineNodeWriteData::create($current, [(string) $branch], '_', 'hangup', []);
+                self::fail("Expected the {$label} subtree to remain locked.");
+            } catch (InvalidArgumentException $exception) {
+                self::assertSame(
+                    'This conditional action has preserved branches that cannot be edited.',
+                    $exception->getMessage(),
+                );
+            }
+        }
+    }
+
     public function test_it_rejects_acdc_agent_writes(): void
     {
         $current = [

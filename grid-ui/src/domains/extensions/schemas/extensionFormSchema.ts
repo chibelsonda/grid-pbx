@@ -427,6 +427,10 @@ function validateHotdesk(
 export const extensionCreateSchema = z
   .object({
     ...userFields,
+    caller_id: advancedCallingFields.caller_id,
+    call_forward: advancedCallingFields.call_forward,
+    call_restriction: advancedCallingFields.call_restriction,
+    call_recording: advancedCallingFields.call_recording,
     voicemail: voicemailAggregateSchema(false),
     device: z
       .object({
@@ -439,6 +443,16 @@ export const extensionCreateSchema = z
   .superRefine((input, context) => {
     validateCredentials(input, context, null)
     validateHotdesk(input, context, true)
+
+    for (const scope of ['external', 'emergency'] as const) {
+      if (input.caller_id[scope].preserve_number) {
+        context.addIssue({
+          code: 'custom',
+          path: ['caller_id', scope, 'preserve_number'],
+          message: 'A new Switch user has no existing caller-ID number to preserve.',
+        })
+      }
+    }
 
     if (input.device.enabled && input.device.input === null) {
       context.addIssue({

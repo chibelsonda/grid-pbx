@@ -46,7 +46,9 @@ describe('SidebarNavigation', () => {
 
     expect(people.attributes('aria-expanded')).toBe('false')
     expect(routing.attributes('aria-expanded')).toBe('true')
-    expect(wrapper.findAll('button[aria-expanded="true"]')).toHaveLength(1)
+    expect(
+      wrapper.findAll('button[aria-controls^="sidebar-group-"][aria-expanded="true"]'),
+    ).toHaveLength(1)
     expect(wrapper.get('a[href="/phone-numbers"]')).toBeTruthy()
 
     await routing.trigger('click')

@@ -21,13 +21,16 @@ class ProvisioningModelCapabilitiesService
         private readonly SwitchProvisioningCatalogGateway $catalogGateway,
     ) {}
 
-    /** @return array{matched: bool, max_keys: int|null, max_expansion_modules: int|null, keys_per_expansion_module: int|null, total_keys: int|null, supported_key_types: list<string>, value_sources: list<string>, manufacturer_provider: string|null} */
+    /** @return array{catalog_available: bool, catalog_reason: string|null, matched: bool, max_keys: int|null, max_expansion_modules: int|null, keys_per_expansion_module: int|null, total_keys: int|null, supported_key_types: list<string>, value_sources: list<string>, manufacturer_provider: string|null} */
     public function forDevice(SwitchDevice $device): array
     {
-        $model = $this->findModel($device);
+        $catalog = $this->catalogGateway->catalog();
+        $catalogAvailable = (bool) ($catalog['available'] ?? false);
+        $catalogReason = is_string($catalog['reason'] ?? null) ? $catalog['reason'] : null;
+        $model = $catalogAvailable ? $this->findModel($device, $catalog) : null;
 
         if ($model === null) {
-            return $this->unknownCapabilities();
+            return $this->unknownCapabilities($catalogAvailable, $catalogReason);
         }
 
         $maxKeys = $this->nullableInteger($model['max_keys'] ?? null);
@@ -39,6 +42,8 @@ class ProvisioningModelCapabilitiesService
         ));
 
         return [
+            'catalog_available' => true,
+            'catalog_reason' => null,
             'matched' => true,
             'max_keys' => $maxKeys,
             'max_expansion_modules' => $maxExpansionModules,
@@ -67,20 +72,27 @@ class ProvisioningModelCapabilitiesService
     public function assertKeysFit(SwitchDevice $device, array $keys): void
     {
         $capabilities = $this->forDevice($device);
+        $errors = $this->physicalPositionErrors($keys);
+
+        if ($capabilities['catalog_available'] && ! $capabilities['matched']) {
+            throw ValidationException::withMessages([
+                'line_keys' => ['The device brand, family, and model must match the current provisioning catalog before line keys can be applied.'],
+            ]);
+        }
 
         if (! $capabilities['matched']) {
             if (count($keys) > 100) {
-                throw ValidationException::withMessages([
-                    'line_keys' => ['Devices without matched model metadata support at most 100 line-key assignments.'],
-                ]);
+                $errors['line_keys'][] = 'Devices without matched model metadata support at most 100 line-key assignments.';
+            }
+
+            if ($errors !== []) {
+                throw ValidationException::withMessages($errors);
             }
 
             return;
         }
 
-        $errors = [];
         $totalKeys = $capabilities['total_keys'];
-        $positions = [];
 
         if ($totalKeys !== null && count($keys) > $totalKeys) {
             $errors['line_keys'][] = "The selected model supports at most {$totalKeys} line-key assignments.";
@@ -93,12 +105,6 @@ class ProvisioningModelCapabilitiesService
                     : 'Use a position from 0 to '.($totalKeys - 1).'.';
             }
 
-            if (isset($positions[$key['position']])) {
-                $errors["line_keys.{$index}.position"][] = 'Each physical model position may be assigned only once.';
-            }
-
-            $positions[$key['position']] = true;
-
             if (! in_array($key['type'], $capabilities['supported_key_types'], true)) {
                 $errors["line_keys.{$index}.type"][] = 'This line-key type is not supported by the selected model.';
             }
@@ -109,16 +115,33 @@ class ProvisioningModelCapabilitiesService
         }
     }
 
-    /** @return array<string, mixed>|null */
-    private function findModel(SwitchDevice $device): ?array
+    /**
+     * @param  list<array{category: string, position: int, type: string, value: string|int|null, label: string|null}>  $keys
+     * @return array<string, list<string>>
+     */
+    private function physicalPositionErrors(array $keys): array
     {
-        if ($device->make === null || $device->model === null) {
-            return null;
+        $errors = [];
+        $positions = [];
+
+        foreach ($keys as $index => $key) {
+            if (isset($positions[$key['position']])) {
+                $errors["line_keys.{$index}.position"][] = 'Each physical model position may be assigned only once.';
+            }
+
+            $positions[$key['position']] = true;
         }
 
-        $catalog = $this->catalogGateway->catalog();
+        return $errors;
+    }
 
-        if (! ($catalog['available'] ?? false)) {
+    /**
+     * @param  array<string, mixed>  $catalog
+     * @return array<string, mixed>|null
+     */
+    private function findModel(SwitchDevice $device, array $catalog): ?array
+    {
+        if ($device->make === null || $device->endpoint_family === null || $device->model === null) {
             return null;
         }
 
@@ -128,8 +151,7 @@ class ProvisioningModelCapabilitiesService
             }
 
             foreach ($brand['families'] as $family) {
-                if ($device->endpoint_family !== null
-                    && ! $this->matches($device->endpoint_family, $family['id'] ?? null, $family['name'] ?? null)) {
+                if (! $this->matches($device->endpoint_family, $family['id'] ?? null, $family['name'] ?? null)) {
                     continue;
                 }
 
@@ -165,10 +187,12 @@ class ProvisioningModelCapabilitiesService
         return is_int($value) && $value >= 0 ? $value : null;
     }
 
-    /** @return array{matched: false, max_keys: null, max_expansion_modules: null, keys_per_expansion_module: null, total_keys: null, supported_key_types: list<string>, value_sources: list<string>, manufacturer_provider: null} */
-    private function unknownCapabilities(): array
+    /** @return array{catalog_available: bool, catalog_reason: string|null, matched: false, max_keys: null, max_expansion_modules: null, keys_per_expansion_module: null, total_keys: null, supported_key_types: list<string>, value_sources: list<string>, manufacturer_provider: null} */
+    private function unknownCapabilities(bool $catalogAvailable, ?string $catalogReason): array
     {
         return [
+            'catalog_available' => $catalogAvailable,
+            'catalog_reason' => $catalogReason,
             'matched' => false,
             'max_keys' => null,
             'max_expansion_modules' => null,

@@ -84,6 +84,9 @@ services:
       SWITCH_PROVISIONER_HEADER_NAME: ${SWITCH_PROVISIONER_HEADER_NAME:-X-Auth-Token}
       SWITCH_PROVISIONER_TIMEOUT: ${SWITCH_PROVISIONER_TIMEOUT:-10}
       SWITCH_PROVISIONER_VERIFY_TLS: ${SWITCH_PROVISIONER_VERIFY_TLS:-true}
+      SWITCH_EXTENSION_POLLING_ENABLED: ${SWITCH_EXTENSION_POLLING_ENABLED:-false}
+      SWITCH_EXTENSION_POLL_INTERVAL_MINUTES: ${SWITCH_EXTENSION_POLL_INTERVAL_MINUTES:-15}
+      SWITCH_EXTENSION_POLL_BATCH_SIZE: ${SWITCH_EXTENSION_POLL_BATCH_SIZE:-10}
       SWITCH_LINE_KEY_MUTATIONS_ENABLED: ${SWITCH_LINE_KEY_MUTATIONS_ENABLED:-false}
       SWITCH_API_KEY: ${SWITCH_API_KEY:-}
       SWITCH_ACCOUNT_ID: ${SWITCH_ACCOUNT_ID:-}
@@ -211,6 +214,9 @@ services:
       SWITCH_PROVISIONER_HEADER_NAME: ${SWITCH_PROVISIONER_HEADER_NAME:-X-Auth-Token}
       SWITCH_PROVISIONER_TIMEOUT: ${SWITCH_PROVISIONER_TIMEOUT:-10}
       SWITCH_PROVISIONER_VERIFY_TLS: ${SWITCH_PROVISIONER_VERIFY_TLS:-true}
+      SWITCH_EXTENSION_POLLING_ENABLED: ${SWITCH_EXTENSION_POLLING_ENABLED:-false}
+      SWITCH_EXTENSION_POLL_INTERVAL_MINUTES: ${SWITCH_EXTENSION_POLL_INTERVAL_MINUTES:-15}
+      SWITCH_EXTENSION_POLL_BATCH_SIZE: ${SWITCH_EXTENSION_POLL_BATCH_SIZE:-10}
       SWITCH_LINE_KEY_MUTATIONS_ENABLED: ${SWITCH_LINE_KEY_MUTATIONS_ENABLED:-false}
       SWITCH_API_KEY: ${SWITCH_API_KEY:-}
       SWITCH_ACCOUNT_ID: ${SWITCH_ACCOUNT_ID:-}
@@ -229,6 +235,46 @@ services:
       - |
         if [ -z "$$APP_KEY" ]; then export APP_KEY="$$(php artisan key:generate --show)"; fi
         php artisan queue:work redis --queue=sync,default --tries=3 --timeout=120 --sleep=2
+
+  grid-scheduler:
+    build:
+      context: .
+      dockerfile: docker/grid-api/Dockerfile
+    restart: unless-stopped
+    environment:
+      APP_NAME: GridPBX
+      APP_ENV: local
+      APP_KEY: ${GRID_API_APP_KEY:-}
+      APP_DEBUG: "true"
+      LOG_CHANNEL: stderr
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: ${GRID_DB_DATABASE:-gridpbx}
+      DB_USERNAME: ${GRID_DB_USERNAME:-gridpbx}
+      DB_PASSWORD: ${GRID_DB_PASSWORD:-gridpbx-local-change-me}
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      SWITCH_EXTENSION_POLLING_ENABLED: ${SWITCH_EXTENSION_POLLING_ENABLED:-false}
+      SWITCH_EXTENSION_POLL_INTERVAL_MINUTES: ${SWITCH_EXTENSION_POLL_INTERVAL_MINUTES:-15}
+      SWITCH_EXTENSION_POLL_BATCH_SIZE: ${SWITCH_EXTENSION_POLL_BATCH_SIZE:-10}
+    volumes:
+      - ./grid-api:/app
+      - ./grid-api-switch:/grid-api-switch
+      - grid-api-vendor:/app/vendor
+    depends_on:
+      grid-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - |
+        if [ -z "$$APP_KEY" ]; then export APP_KEY="$$(php artisan key:generate --show)"; fi
+        php artisan schedule:work
 
 volumes:
   mysql-data:

@@ -25,6 +25,25 @@
 }
 
 @layer base {
+  :root {
+    --app-header-background: #ffffff;
+    --app-header-border: #e2e8f0;
+    --app-header-foreground: #334155;
+    --app-header-muted: #64748b;
+    --app-header-hover: #f8fafc;
+    --app-header-active-background: #eef2ff;
+    --app-header-active-foreground: #3255ad;
+    --app-header-accent: #3f6ad8;
+    --app-sidebar-background: #ffffff;
+    --app-sidebar-border: #e2e8f0;
+    --app-sidebar-foreground: #334155;
+    --app-sidebar-muted: #64748b;
+    --app-sidebar-hover: #f8fafc;
+    --app-sidebar-active-background: #eef2ff;
+    --app-sidebar-active-foreground: #3255ad;
+    --app-sidebar-accent: #3f6ad8;
+  }
+
   * {
     box-sizing: border-box;
   }
@@ -76,6 +95,81 @@
 }
 
 @layer components {
+  .app-header {
+    border-color: var(--app-header-border);
+    background: var(--app-header-background);
+    color: var(--app-header-foreground);
+  }
+
+  .app-header-foreground {
+    color: var(--app-header-foreground);
+  }
+
+  .app-header-muted {
+    color: var(--app-header-muted);
+  }
+
+  .app-header-action {
+    color: var(--app-header-foreground);
+  }
+
+  .app-header-action:hover {
+    background: var(--app-header-hover);
+  }
+
+  .app-header-avatar {
+    background: var(--app-header-accent);
+  }
+
+  .app-sidebar {
+    background: var(--app-sidebar-background);
+    color: var(--app-sidebar-foreground);
+  }
+
+  .sidebar-border {
+    border-color: var(--app-sidebar-border);
+  }
+
+  .sidebar-foreground {
+    color: var(--app-sidebar-foreground);
+  }
+
+  .sidebar-muted {
+    color: var(--app-sidebar-muted);
+  }
+
+  .sidebar-accent-bg {
+    background: var(--app-sidebar-accent);
+  }
+
+  .sidebar-section-label {
+    color: var(--app-sidebar-accent);
+  }
+
+  .sidebar-action {
+    border-color: transparent;
+    color: var(--app-sidebar-muted);
+  }
+
+  .sidebar-action:hover {
+    border-color: var(--app-sidebar-border);
+    color: var(--app-sidebar-accent);
+  }
+
+  .sidebar-action:hover,
+  .sidebar-nav-item-idle:hover {
+    background: var(--app-sidebar-hover);
+  }
+
+  .sidebar-nav-item-idle {
+    color: var(--app-sidebar-foreground);
+  }
+
+  .sidebar-nav-item-active {
+    background: var(--app-sidebar-active-background);
+    color: var(--app-sidebar-active-foreground);
+  }
+
   /* Keep standard page headers and bodies on the same width and responsive gutter contract. */
   .page-container {
     width: 100%;
@@ -146,6 +240,20 @@
     border-radius: 0.375rem;
     background: white;
     box-shadow: var(--shadow-card);
+  }
+
+  /* Decorative icons use color alone; the surrounding card already provides visual grouping. */
+  span.grid[class*='place-items-center'][class*='bg-']:has(> svg:only-child):not(
+      [class*='absolute']
+    ):not(.sidebar-accent-bg) {
+    display: contents !important;
+  }
+
+  span.grid[class*='place-items-center'][class*='bg-']:has(> svg:only-child):not(
+      [class*='absolute']
+    ):not(.sidebar-accent-bg)
+    > svg {
+    flex: none;
   }
 
   .eyebrow {

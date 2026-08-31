@@ -73,5 +73,6 @@ describe('PhoneNumberDetailPanel', () => {
     expect(wrapper.text()).toContain('does not confirm carrier completion')
     expect(wrapper.text()).toContain('has not confirmed provider readiness')
     expect(wrapper.text()).not.toContain('private-provider-id')
+    expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
   })
 })

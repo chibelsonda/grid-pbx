@@ -20,5 +20,10 @@ return [
     'recording_import_window_days' => (int) env('SWITCH_RECORDING_IMPORT_WINDOW_DAYS', 31),
     'fax_page_size' => (int) env('SWITCH_FAX_PAGE_SIZE', 200),
     'fax_import_window_days' => (int) env('SWITCH_FAX_IMPORT_WINDOW_DAYS', 31),
+    'extension_polling' => [
+        'enabled' => filter_var(env('SWITCH_EXTENSION_POLLING_ENABLED', false), FILTER_VALIDATE_BOOL),
+        'interval_minutes' => (int) env('SWITCH_EXTENSION_POLL_INTERVAL_MINUTES', 15),
+        'batch_size' => (int) env('SWITCH_EXTENSION_POLL_BATCH_SIZE', 10),
+    ],
     'line_key_mutations_enabled' => (bool) env('SWITCH_LINE_KEY_MUTATIONS_ENABLED', false),
 ];

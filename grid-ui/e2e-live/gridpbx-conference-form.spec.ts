@@ -40,6 +40,15 @@ test('shows schema-backed Conference sounds with inline validation and bounded l
   await page.getByRole('button', { name: 'New conference' }).click()
   await expect(page.getByRole('heading', { name: 'Create conference' })).toBeVisible()
 
+  await expect(page.getByRole('tablist', { name: 'Form sections' }).getByRole('tab')).toHaveText([
+    'Basic',
+    'Advanced',
+  ])
+  await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
+  await expect(
+    page.getByRole('tablist', { name: 'Conference advanced sections' }).getByRole('tab'),
+  ).toHaveText(['Basic', 'Options', 'Conference Server'])
+  await page.getByRole('tab', { name: 'Options', exact: true }).click()
   await page.getByRole('button', { name: 'Participant entry tone' }).click()
   const options = page.getByRole('listbox')
   await expect(options).toBeVisible()
@@ -54,6 +63,10 @@ test('shows schema-backed Conference sounds with inline validation and bounded l
   await page.getByRole('option', { name: 'Play selected media' }).click()
   await expect(page.getByRole('button', { name: 'Entry tone media' })).toBeVisible()
 
+  await page
+    .getByRole('tablist', { name: 'Form sections' })
+    .getByRole('tab', { name: 'Basic' })
+    .click()
   await page.getByLabel('Member numbers').fill('not-a-number')
   await page.getByRole('button', { name: 'Save conference' }).click()
   const name = page.getByLabel('Name', { exact: true })
@@ -89,12 +102,14 @@ test('round-trips Conference access, advanced profiles, and tone configuration',
     expect(await ownerOptions.count()).toBeGreaterThan(1)
     const ownerLabel = (await ownerOptions.nth(1).innerText()).trim()
     await ownerOptions.nth(1).click()
-    await page.getByRole('tab', { name: 'Advanced' }).click()
-    await page.getByLabel('General conference numbers').fill(`8${suffix}`)
+    await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
     await page.getByRole('textbox', { name: 'Moderator PINs', exact: true }).fill('9876 8765')
+    await page.getByRole('tab', { name: 'Conference Server', exact: true }).click()
+    await page.getByLabel('General conference numbers').fill(`8${suffix}`)
     await page.getByLabel('Profile name').fill('default')
     await page.getByLabel('Caller controls').fill('default')
     await page.getByLabel('Moderator controls').fill('default')
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
     await page.getByRole('button', { name: 'Participant entry tone' }).click()
     await page.getByRole('option', { name: 'Do not play a tone' }).click()
 
@@ -161,7 +176,8 @@ test('round-trips Conference access, advanced profiles, and tone configuration',
     await expect(memberPins).toHaveValue('')
     await expect(memberPins).toHaveAttribute('placeholder', 'Configured — enter PINs to replace')
     await memberPins.fill('2468, 1357')
-    await page.getByRole('tab', { name: 'Advanced' }).click()
+    await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
     await page.getByRole('switch', { name: 'Join deaf', exact: true }).click()
     await page.getByRole('button', { name: 'Participant entry tone' }).click()
     await page.getByRole('option', { name: 'Play the standard tone' }).click()
@@ -201,8 +217,10 @@ test('round-trips Conference access, advanced profiles, and tone configuration',
 
     await page.getByText(name, { exact: true }).click()
     await expect(page.getByLabel('Owner')).toContainText(ownerLabel)
-    await page.getByRole('tab', { name: 'Advanced' }).click()
+    await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
     await expect(page.getByRole('switch', { name: 'Join deaf', exact: true })).toBeChecked()
+    await page.getByRole('tab', { name: 'Conference Server', exact: true }).click()
     await expect(page.getByLabel('Profile name')).toHaveValue('default')
     await expect(page.getByLabel('Caller controls')).toHaveValue('default')
     await expect(page.getByLabel('Moderator controls')).toHaveValue('default')

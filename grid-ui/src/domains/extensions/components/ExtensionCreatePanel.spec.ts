@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import FormSelect from '@/shared/components/FormSelect.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import ExtensionCreatePanel from './ExtensionCreatePanel.vue'
+import ExtensionAdvancedCallingSettings from './ExtensionAdvancedCallingSettings.vue'
+import ExtensionUserOptions from './ExtensionUserOptions.vue'
 import DeviceDraftForm from '@/domains/devices/components/DeviceDraftForm.vue'
 import { defaultExtensionFormOptions } from '../extensionForm'
 
@@ -50,6 +52,57 @@ describe('ExtensionCreatePanel', () => {
     })
 
     expect(wrapper.text()).toContain('Switch is temporarily unavailable.')
+  })
+
+  it('shows the verified advanced User controls under the shared Advanced tab', async () => {
+    const wrapper = mount(ExtensionCreatePanel, {
+      props: {
+        saving: false,
+        error: null,
+        fieldErrors: {},
+        options: defaultExtensionFormOptions(),
+      },
+      global: {
+        components: { FormSelect, ToggleSwitch },
+        stubs: {
+          CrudSlideOver: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+
+    expect(wrapper.get('[data-testid="extension-advanced-section"]').attributes('style')).toContain(
+      'display: none',
+    )
+    const tabs = wrapper.get('[aria-label="Extension form sections"]')
+    await tabs.findAll('[role="tab"]')[1]!.trigger('click')
+    await wrapper.vm.$nextTick()
+
+    expect(
+      wrapper.get('[data-testid="extension-advanced-section"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
+    expect(wrapper.findComponent(ExtensionUserOptions).exists()).toBe(true)
+    expect(wrapper.findComponent(ExtensionAdvancedCallingSettings).exists()).toBe(true)
+  })
+
+  it('opens Advanced when the API returns an advanced-field validation error', () => {
+    const wrapper = mount(ExtensionCreatePanel, {
+      props: {
+        saving: false,
+        error: null,
+        fieldErrors: { 'call_forward.number': ['Enter a forwarding destination.'] },
+        options: defaultExtensionFormOptions(),
+      },
+      global: {
+        components: { FormSelect, ToggleSwitch },
+        stubs: {
+          CrudSlideOver: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+
+    expect(
+      wrapper.get('[data-testid="extension-advanced-section"]').attributes('style') ?? '',
+    ).not.toContain('display: none')
   })
 
   it('opens the shared Device-domain editor as a subview of the existing slide-over', async () => {

@@ -9,12 +9,14 @@ import {
   MapPinIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import PhoneNumberDetailPanel from '../components/PhoneNumberDetailPanel.vue'
 import { usePhoneNumberStore } from '../stores/phoneNumberStore'
 
 const accounts = useAccountStore()
 const phoneNumbers = usePhoneNumberStore()
+const globalSearchQuery = useGlobalSearchListQuery()
 const inServiceOnPage = computed(
   () => phoneNumbers.records.filter((record) => record.state === 'in_service').length,
 )
@@ -34,9 +36,10 @@ const freshnessLabel = computed(() => {
 })
 
 watch(
-  () => accounts.selectedId,
-  (accountId) => {
+  [() => accounts.selectedId, globalSearchQuery],
+  ([accountId, searchQuery]) => {
     phoneNumbers.reset()
+    phoneNumbers.filters.search = searchQuery
     if (accountId) void phoneNumbers.load(accountId, 1)
   },
   { immediate: true },
@@ -136,7 +139,12 @@ function humanize(value: string | null): string {
       class="mb-4 grid gap-3 lg:grid-cols-[minmax(240px,1fr)_180px_180px_auto]"
       @submit.prevent="search"
     >
-      <SearchInput v-model="phoneNumbers.filters.search" label="Search phone numbers" placeholder="Search number, carrier, CNAM, route…" input-class="h-10 bg-white text-xs shadow-sm" />
+      <SearchInput
+        v-model="phoneNumbers.filters.search"
+        label="Search phone numbers"
+        placeholder="Search number, carrier, CNAM, route…"
+        input-class="h-10 bg-white text-xs shadow-sm"
+      />
       <FormSelect
         v-model="phoneNumbers.filters.state"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs text-slate-600 shadow-sm outline-none"

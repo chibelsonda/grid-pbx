@@ -219,6 +219,17 @@ export type ExtensionHotdeskInput = Omit<ExtensionHotdeskProfile, 'pin_configure
   clear_pin: boolean
 }
 
+export type ExtensionCoreAdvancedInput = {
+  caller_id: {
+    internal: { name: string | null; number: string | null }
+    external: ExtensionCallerIdSelection
+    emergency: ExtensionCallerIdSelection
+  }
+  call_forward: ExtensionCallForward
+  call_restriction: Record<string, ExtensionCallRestriction>
+  call_recording: ExtensionCallRecording
+}
+
 export type ExtensionDevice = {
   id: string
   name: string | null
@@ -275,28 +286,29 @@ export type ExtensionDetail = Extension & {
   callflows: ExtensionCallflow[]
 }
 
-export type ExtensionCreate = ExtensionUserConfiguration & {
-  first_name: string
-  last_name: string
-  extension: string
-  username: string | null
-  password: string | null
-  password_confirmation: string | null
-  require_password_update: boolean
-  clear_credentials: boolean
-  email: string | null
-  timezone: string | null
-  is_enabled: boolean
-  hotdesk: ExtensionHotdeskInput
-  voicemail: {
-    enabled: boolean
-    input: VoicemailBoxInput | null
+export type ExtensionCreate = ExtensionUserConfiguration &
+  ExtensionCoreAdvancedInput & {
+    first_name: string
+    last_name: string
+    extension: string
+    username: string | null
+    password: string | null
+    password_confirmation: string | null
+    require_password_update: boolean
+    clear_credentials: boolean
+    email: string | null
+    timezone: string | null
+    is_enabled: boolean
+    hotdesk: ExtensionHotdeskInput
+    voicemail: {
+      enabled: boolean
+      input: VoicemailBoxInput | null
+    }
+    device: {
+      enabled: boolean
+      input: DeviceInput | null
+    }
   }
-  device: {
-    enabled: boolean
-    input: DeviceInput | null
-  }
-}
 
 export type ExtensionUpdate = Omit<ExtensionCreate, 'device' | 'voicemail'> & {
   voicemail: {
@@ -304,14 +316,6 @@ export type ExtensionUpdate = Omit<ExtensionCreate, 'device' | 'voicemail'> & {
     input: VoicemailBoxInput | null
   }
   metaflows: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
-  caller_id: {
-    internal: { name: string | null; number: string | null }
-    external: ExtensionCallerIdSelection
-    emergency: ExtensionCallerIdSelection
-  }
-  call_forward: ExtensionCallForward
-  call_restriction: Record<string, ExtensionCallRestriction>
-  call_recording: ExtensionCallRecording
   media: ExtensionEndpointMedia
   music_on_hold: ExtensionMusicOnHoldInput
   ringtones: ExtensionRingtones

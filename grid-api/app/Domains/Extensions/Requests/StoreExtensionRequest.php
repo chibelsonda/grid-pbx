@@ -4,6 +4,7 @@ namespace App\Domains\Extensions\Requests;
 
 use App\Domains\Devices\Requests\SaveDeviceRequest;
 use App\Domains\Devices\Support\MacAddress;
+use App\Domains\Extensions\Validation\ExtensionCoreAdvancedRules;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Requests\SaveVoicemailBoxRequest;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,7 +24,7 @@ class StoreExtensionRequest extends FormRequest
     {
         $accountId = $this->accountInternalId();
 
-        return [
+        $rules = [
             'first_name' => ['required', 'string', 'max:128'],
             'last_name' => ['required', 'string', 'max:128'],
             'extension' => [
@@ -105,6 +106,8 @@ class StoreExtensionRequest extends FormRequest
                 'array',
             ],
         ];
+
+        return array_merge($rules, ExtensionCoreAdvancedRules::rules());
     }
 
     protected function prepareForValidation(): void
@@ -129,6 +132,16 @@ class StoreExtensionRequest extends FormRequest
         return [function (Validator $validator): void {
             $this->validateVoicemailInput($validator);
             $this->validateDeviceInput($validator);
+            ExtensionCoreAdvancedRules::validate($validator, $this->all());
+
+            foreach (['external', 'emergency'] as $scope) {
+                if ($this->boolean("caller_id.{$scope}.preserve_number")) {
+                    $validator->errors()->add(
+                        "caller_id.{$scope}.preserve_number",
+                        'A new Switch user has no existing caller-ID number to preserve.',
+                    );
+                }
+            }
 
             $username = $this->input('username');
             $password = $this->input('password');

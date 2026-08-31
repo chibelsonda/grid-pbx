@@ -13,6 +13,11 @@ import {
 import { defaultVoicemailBoxConfiguration } from '@/domains/voicemail/voicemailForm'
 
 function validInput() {
+  const advanced = hydrateExtensionAdvancedCalling(
+    defaultExtensionAdvancedCallingConfiguration(),
+    [],
+  )
+
   return {
     first_name: 'Alice',
     last_name: 'Operator',
@@ -26,6 +31,10 @@ function validInput() {
     timezone: 'Asia/Manila',
     is_enabled: true,
     ...defaultExtensionUserConfiguration(),
+    caller_id: advanced.caller_id,
+    call_forward: advanced.call_forward,
+    call_restriction: advanced.call_restriction,
+    call_recording: advanced.call_recording,
     hotdesk: defaultExtensionHotdeskInput(),
     voicemail: {
       enabled: true,

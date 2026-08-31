@@ -101,5 +101,6 @@ test('shows allowlisted Phone Number feature details and explicit operation gate
   await expect(dialog.getByText(/has not confirmed provider readiness/)).toBeVisible()
   await expect(dialog.getByText('Policy gated', { exact: true })).toHaveCount(3)
   await expect(dialog.getByRole('button', { name: /purchase|release|port/i })).toHaveCount(0)
+  await expect(dialog.getByRole('tab', { name: /basic|advanced/i })).toHaveCount(0)
   expect(issues).toEqual([])
 })

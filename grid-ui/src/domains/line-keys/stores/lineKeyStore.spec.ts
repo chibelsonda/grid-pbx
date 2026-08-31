@@ -8,6 +8,8 @@ vi.mock('../api/lineKeyApi', () => ({
   lineKeyApi: {
     list: vi.fn(),
     preview: vi.fn(),
+    startSync: vi.fn(),
+    syncStatus: vi.fn(),
     update: vi.fn(),
   },
 }))
@@ -31,6 +33,30 @@ const device: LineKeyDevice = {
   ],
 }
 
+const listResponse = {
+  data: [device],
+  meta: {
+    sync: {
+      status: 'healthy' as const,
+      last_successful_at: '2026-08-31T07:00:00Z',
+      error_message: null,
+    },
+  },
+}
+
+const succeededRun = {
+  id: 'sync-run-public-id',
+  resource_type: 'extensions',
+  status: 'succeeded' as const,
+  processed_count: 5,
+  upserted_count: 4,
+  deleted_count: 1,
+  error_message: null,
+  started_at: '2026-08-31T07:00:00Z',
+  finished_at: '2026-08-31T07:00:01Z',
+  created_at: '2026-08-31T07:00:00Z',
+}
+
 describe('line key store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -38,13 +64,14 @@ describe('line key store', () => {
   })
 
   it('loads the device-owned line-key inventory', async () => {
-    vi.mocked(lineKeyApi.list).mockResolvedValue([device])
+    vi.mocked(lineKeyApi.list).mockResolvedValue(listResponse)
     const store = useLineKeyStore()
     store.search = 'Reception'
     await store.load('account-public-id')
 
     expect(lineKeyApi.list).toHaveBeenCalledWith('account-public-id', 'Reception')
     expect(store.records).toEqual([device])
+    expect(store.sync).toEqual(listResponse.meta.sync)
   })
 
   it('loads a capability-aware preview before opening the editor', async () => {
@@ -55,6 +82,8 @@ describe('line key store', () => {
         apply_available: false,
         reason: 'Disabled locally.',
         model: {
+          catalog_available: false,
+          catalog_reason: 'Provisioning catalog discovery is not configured.',
           matched: false,
           max_keys: null,
           max_expansion_modules: null,
@@ -76,6 +105,65 @@ describe('line key store', () => {
     expect(store.preview?.capability.apply_available).toBe(false)
   })
 
+  it('reuses the extension and device synchronization before refreshing line keys', async () => {
+    vi.mocked(lineKeyApi.startSync).mockResolvedValue(succeededRun)
+    vi.mocked(lineKeyApi.list).mockResolvedValue(listResponse)
+    const store = useLineKeyStore()
+
+    await store.synchronize('account-public-id')
+
+    expect(lineKeyApi.startSync).toHaveBeenCalledWith('account-public-id')
+    expect(lineKeyApi.syncStatus).not.toHaveBeenCalled()
+    expect(lineKeyApi.list).toHaveBeenCalledWith('account-public-id', '')
+    expect(store.records).toEqual([device])
+    expect(store.syncRun).toEqual(succeededRun)
+    expect(store.sync).toEqual(listResponse.meta.sync)
+    expect(store.synchronizing).toBe(false)
+  })
+
+  it('polls a queued synchronization and retains safe completion counts', async () => {
+    vi.spyOn(window, 'setTimeout').mockImplementation((callback: TimerHandler) => {
+      if (typeof callback === 'function') callback()
+      return 1
+    })
+    vi.mocked(lineKeyApi.startSync).mockResolvedValue({
+      ...succeededRun,
+      status: 'queued',
+      processed_count: 0,
+      upserted_count: 0,
+      deleted_count: 0,
+      finished_at: null,
+    })
+    vi.mocked(lineKeyApi.syncStatus)
+      .mockResolvedValueOnce({ ...succeededRun, status: 'running', finished_at: null })
+      .mockResolvedValueOnce(succeededRun)
+    vi.mocked(lineKeyApi.list).mockResolvedValue(listResponse)
+    const store = useLineKeyStore()
+
+    await store.synchronize('account-public-id')
+
+    expect(lineKeyApi.syncStatus).toHaveBeenCalledTimes(2)
+    expect(store.syncRun).toEqual(succeededRun)
+    expect(store.error).toBeNull()
+  })
+
+  it('shows the API-safe message when synchronization fails', async () => {
+    vi.mocked(lineKeyApi.startSync).mockRejectedValue({
+      isAxiosError: true,
+      response: { data: { message: 'Synchronization could not be started.' } },
+    })
+    const store = useLineKeyStore()
+
+    await store.synchronize('account-public-id')
+
+    expect(store.error).toBe('Synchronization could not be started.')
+    expect(store.sync).toMatchObject({
+      status: 'error',
+      error_message: 'Synchronization could not be started.',
+    })
+    expect(store.synchronizing).toBe(false)
+  })
+
   it('keeps API validation errors inline without a duplicate mutation alert', async () => {
     const preview: LineKeyPreview = {
       device,
@@ -84,6 +172,8 @@ describe('line key store', () => {
         apply_available: true,
         reason: null,
         model: {
+          catalog_available: false,
+          catalog_reason: 'Provisioning catalog discovery is not configured.',
           matched: false,
           max_keys: null,
           max_expansion_modules: null,

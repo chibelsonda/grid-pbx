@@ -63,6 +63,7 @@ class ExtensionProvisioningService
         ]);
 
         try {
+            $data = $this->prepareAdvancedSwitchCreateData($account, $data);
             $created['user'] = $this->gateway->createUser($account, $data);
             $this->recordCreatedResource($operation, $created, 'user');
             $userResourceId = $this->resourceId($created['user'], 'user');
@@ -374,6 +375,14 @@ class ExtensionProvisioningService
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
+    private function prepareAdvancedSwitchCreateData(
+        SwitchAccount $account,
+        array $data,
+    ): array {
+        return $this->resolveCallerIdNumbers($account, null, $data);
+    }
+
+    /** @param array<string, mixed> $data @return array<string, mixed> */
     private function prepareAdvancedSwitchData(
         SwitchAccount $account,
         SwitchExtension $extension,
@@ -456,7 +465,7 @@ class ExtensionProvisioningService
     /** @param array<string, mixed> $data @return array<string, mixed> */
     private function resolveCallerIdNumbers(
         SwitchAccount $account,
-        SwitchExtension $extension,
+        ?SwitchExtension $extension,
         array $data,
     ): array {
         if (! isset($data['caller_id']) || ! is_array($data['caller_id'])) {
@@ -469,6 +478,12 @@ class ExtensionProvisioningService
                 : [];
 
             if (($selection['preserve_number'] ?? false) === true) {
+                if ($extension === null) {
+                    throw ValidationException::withMessages([
+                        "caller_id.{$scope}.preserve_number" => 'A new Switch user has no existing caller-ID number to preserve.',
+                    ]);
+                }
+
                 $data['caller_id'][$scope]['number'] = data_get(
                     $extension->switch_json,
                     "caller_id.{$scope}.number",

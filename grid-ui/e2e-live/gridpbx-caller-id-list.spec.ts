@@ -52,6 +52,9 @@ test('manages Caller-ID List entries in a right-side panel with inline validatio
   const panel = page.getByTestId('slide-over-panel')
   await expect(page.getByRole('heading', { name: 'Create Caller-ID List' })).toBeVisible()
   await expect(panel).toBeVisible()
+  await expect(dialog.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
+  await expect(dialog.getByLabel('Name', { exact: true })).toBeVisible()
+  await expect(dialog.getByLabel('Description')).toBeHidden()
   const viewport = page.viewportSize()
   expect(viewport).not.toBeNull()
   await expect
@@ -73,6 +76,13 @@ test('manages Caller-ID List entries in a right-side panel with inline validatio
   await expect(pattern).toHaveClass(/border-red-400/)
   await expect(dialog.getByText('Enter a Caller-ID List name.')).toBeVisible()
   await expect(dialog.getByText('Enter a supported regular expression.')).toBeVisible()
+  await expect(dialog.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
+
+  await dialog.getByRole('tab', { name: 'Advanced' }).click()
+  await expect(dialog.getByLabel('Description')).toBeVisible()
+  await expect(dialog.getByLabel('Organization')).toBeVisible()
+  await expect(dialog.getByLabel('Name', { exact: true })).toBeHidden()
+  await dialog.getByRole('tab', { name: 'Basic' }).click()
 
   await dialog.getByRole('button', { name: 'Match type' }).click()
   const listbox = page.getByRole('listbox')
@@ -115,7 +125,9 @@ test('round-trips a Caller-ID List through the live GridPBX and Switch APIs', as
 
     let dialog = page.getByRole('dialog', { name: 'Create Caller-ID List' })
     await dialog.getByLabel('Name', { exact: true }).fill(listName)
+    await dialog.getByRole('tab', { name: 'Advanced' }).click()
     await dialog.getByLabel('Description').fill('Isolated lifecycle verification')
+    await dialog.getByRole('tab', { name: 'Basic' }).click()
     await dialog.getByRole('button', { name: 'Number' }).click()
     await dialog.getByLabel('Number or prefix').fill(`+1555${suffix}`)
     await dialog.getByLabel('Display name').fill('Initial prefix')

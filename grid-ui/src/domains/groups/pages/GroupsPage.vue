@@ -8,6 +8,7 @@ import {
   UsersIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import GroupFormPanel from '../components/GroupFormPanel.vue'
 import { useGroupStore } from '../stores/groupStore'
@@ -15,13 +16,15 @@ import type { GroupInput } from '../types/group'
 
 const accounts = useAccountStore()
 const groups = useGroupStore()
+const globalSearchQuery = useGlobalSearchListQuery()
 const panel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 watch(
-  () => accounts.selectedId,
-  (id) => {
+  [() => accounts.selectedId, globalSearchQuery],
+  ([id, searchQuery]) => {
     panel.value = false
     groups.reset()
+    groups.search = searchQuery
     if (id) void groups.load(id)
   },
   { immediate: true },
@@ -101,7 +104,13 @@ async function remove(): Promise<void> {
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && groups.load(accounts.selectedId)"
     >
-      <SearchInput v-model="groups.search" label="Search groups" class="min-w-0 flex-1" placeholder="Search groups…" input-class="h-10 bg-white text-xs shadow-sm" /><button
+      <SearchInput
+        v-model="groups.search"
+        label="Search groups"
+        class="min-w-0 flex-1"
+        placeholder="Search groups…"
+        input-class="h-10 bg-white text-xs shadow-sm"
+      /><button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
       >
         Search

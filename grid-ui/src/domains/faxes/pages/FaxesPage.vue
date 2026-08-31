@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
@@ -16,6 +17,8 @@ import { useFaxStore } from '../stores/faxStore'
 import type { FaxBoxInput, FaxOperationCapabilities } from '../types/fax'
 const accounts = useAccountStore()
 const faxes = useFaxStore()
+const route = useRoute()
+const router = useRouter()
 const boxPanel = ref(false)
 const messagePanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
@@ -38,18 +41,38 @@ const operationEntries = computed(() => {
   }))
 })
 watch(
-  () => accounts.selectedId,
-  (id) => {
-    boxPanel.value = false
-    messagePanel.value = false
-    faxes.reset()
-    if (id) void faxes.load(id)
+  [() => accounts.selectedId, () => route.query.fax_box],
+  ([accountId, faxBoxId], previous) => {
+    const accountChanged = accountId !== previous?.[0]
+
+    if (accountChanged) {
+      boxPanel.value = false
+      messagePanel.value = false
+      faxes.reset()
+      if (accountId) void faxes.load(accountId)
+    }
+
+    if (accountId && typeof faxBoxId === 'string' && faxBoxId !== faxes.boxDetail?.id) {
+      void loadBox(accountId, faxBoxId)
+    }
   },
   { immediate: true },
 )
+
+async function loadBox(accountId: string, id: string): Promise<void> {
+  await faxes.prepareBox(accountId, id)
+  boxPanel.value = true
+}
+
 async function openBox(id?: string): Promise<void> {
   if (!accounts.selectedId) return
-  await faxes.prepareBox(accounts.selectedId, id)
+  if (id) {
+    await router.replace({ query: { ...route.query, fax_box: id } })
+
+    return
+  }
+
+  await faxes.prepareBox(accounts.selectedId)
   boxPanel.value = true
 }
 async function openMessage(id: string): Promise<void> {
@@ -58,11 +81,27 @@ async function openMessage(id: string): Promise<void> {
   messagePanel.value = true
 }
 async function saveBox(input: FaxBoxInput): Promise<void> {
-  if (accounts.selectedId && (await faxes.saveBox(accounts.selectedId, input)))
+  if (accounts.selectedId && (await faxes.saveBox(accounts.selectedId, input))) {
     boxPanel.value = false
+    clearFaxBoxQuery()
+  }
 }
 async function removeBox(): Promise<void> {
-  if (accounts.selectedId && (await faxes.removeBox(accounts.selectedId))) boxPanel.value = false
+  if (accounts.selectedId && (await faxes.removeBox(accounts.selectedId))) {
+    boxPanel.value = false
+    clearFaxBoxQuery()
+  }
+}
+function closeBox(): void {
+  boxPanel.value = false
+  clearFaxBoxQuery()
+}
+function clearFaxBoxQuery(): void {
+  if (!('fax_box' in route.query)) return
+
+  const query = { ...route.query }
+  delete query.fax_box
+  void router.replace({ query })
 }
 </script>
 <template>
@@ -275,7 +314,7 @@ async function removeBox(): Promise<void> {
     :error="faxes.mutationError"
     :field-errors="faxes.fieldErrors"
     :can-manage="canManage"
-    @close="boxPanel = false"
+    @close="closeBox"
     @save="saveBox"
     @remove="removeBox"
   /><FaxDetailPanel

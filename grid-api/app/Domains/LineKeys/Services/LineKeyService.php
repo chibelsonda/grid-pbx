@@ -44,12 +44,14 @@ class LineKeyService
     {
         $device->load(['lineKeys' => fn ($query) => $query->orderBy('category')->orderBy('position')]);
         $synchronized = $device->switch_resource_id !== null;
-        $capable = $synchronized
-            && $device->make !== null
-            && $device->model !== null
-            && $device->mac_address !== null;
         $enabled = (bool) config('switch.line_key_mutations_enabled', false);
         $modelCapabilities = $this->modelCapabilities->forDevice($device);
+        $hasHardwareIdentity = $device->make !== null
+            && $device->model !== null
+            && $device->mac_address !== null
+            && (! $modelCapabilities['catalog_available'] || $device->endpoint_family !== null);
+        $catalogMismatch = $modelCapabilities['catalog_available'] && ! $modelCapabilities['matched'];
+        $capable = $synchronized && $hasHardwareIdentity && ! $catalogMismatch;
         $this->references->usePublicValues($device->switchAccount, $device->lineKeys);
 
         return [
@@ -58,11 +60,13 @@ class LineKeyService
             'capability' => [
                 'preview_available' => true,
                 'apply_available' => $capable && $enabled,
-                'reason' => ! $synchronized
-                    ? 'The device must be synchronized from Switch before line keys can be applied.'
-                    : (! $capable
-                        ? 'The device needs an endpoint brand, model, and MAC address before it can be provisioned.'
-                        : ($enabled ? null : 'Line-key mutations are disabled by server configuration.')),
+                'reason' => $this->capabilityReason(
+                    synchronized: $synchronized,
+                    hasHardwareIdentity: $hasHardwareIdentity,
+                    catalogAvailable: $modelCapabilities['catalog_available'],
+                    catalogMismatch: $catalogMismatch,
+                    enabled: $enabled,
+                ),
                 'model' => $modelCapabilities,
             ],
             'value_choices' => $this->references->choices($device->switchAccount),
@@ -73,6 +77,36 @@ class LineKeyService
                 ],
             ],
         ];
+    }
+
+    private function capabilityReason(
+        bool $synchronized,
+        bool $hasHardwareIdentity,
+        bool $catalogAvailable,
+        bool $catalogMismatch,
+        bool $enabled,
+    ): ?string {
+        if (! $synchronized) {
+            return 'The device must be synchronized from Switch before line keys can be applied.';
+        }
+
+        if (! $hasHardwareIdentity) {
+            return $catalogAvailable
+                ? 'The device needs an endpoint brand, family, model, and MAC address before it can be provisioned.'
+                : 'The device needs an endpoint brand, model, and MAC address before it can be provisioned.';
+        }
+
+        if ($catalogMismatch) {
+            return 'The device brand, family, and model do not match the current provisioning catalog.';
+        }
+
+        if (! $enabled) {
+            return 'Line-key mutations are disabled by server configuration.';
+        }
+
+        return $catalogAvailable
+            ? null
+            : 'Model-specific key limits are unavailable; the editor is using the current Kazoo line-key schema and conservative limits.';
     }
 
     /** @return array<string, mixed>|object */

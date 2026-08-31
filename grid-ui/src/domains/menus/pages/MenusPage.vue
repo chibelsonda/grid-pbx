@@ -7,6 +7,7 @@ import {
   PlusIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import MenuFormPanel from '../components/MenuFormPanel.vue'
 import { useMenuStore } from '../stores/menuStore'
@@ -14,14 +15,16 @@ import type { MenuInput } from '../types/menu'
 
 const accounts = useAccountStore()
 const menus = useMenuStore()
+const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 
 watch(
-  () => accounts.selectedId,
-  (id) => {
+  [() => accounts.selectedId, globalSearchQuery],
+  ([id, searchQuery]) => {
     panelOpen.value = false
     menus.reset()
+    menus.search = searchQuery
     if (id) void menus.load(id)
   },
   { immediate: true },
@@ -93,7 +96,13 @@ async function remove(): Promise<void> {
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && menus.load(accounts.selectedId)"
     >
-      <SearchInput v-model="menus.search" label="Search menus" class="min-w-0 flex-1" placeholder="Search menus…" input-class="h-10 bg-white text-xs shadow-sm" /><button
+      <SearchInput
+        v-model="menus.search"
+        label="Search menus"
+        class="min-w-0 flex-1"
+        placeholder="Search menus…"
+        input-class="h-10 bg-white text-xs shadow-sm"
+      /><button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
       >
         Search

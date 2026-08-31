@@ -49,6 +49,14 @@ The line-key editor uses matched capacity and type metadata on both the Vue and
 Laravel validation boundaries. Missing metadata falls back to the safe generic
 editor limit; it does not grant unrestricted model capabilities.
 
+Capacity is model-specific rather than a GridPBX-wide four-key limit. For
+example, the local SPA504G fixture intentionally reports four main-unit keys,
+while other fixture models report larger main units and optional expansion
+capacity. `max_expansion_modules` describes the hardware maximum supported by
+the model; it does not prove that those modules are physically attached. Every
+physical position remains single-assignment across combo and feature key maps,
+including when catalog discovery is unavailable.
+
 When discovery is available, Device create and update requests must select a
 brand, family, and model from the same catalog branch. A supplied template ID
 must belong to that selected model. This is enforced in both Zod and Laravel

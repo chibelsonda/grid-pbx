@@ -89,6 +89,14 @@ Field parity is verified using the workflow in
 [`SWITCH_FORM_AUDIT.md`](SWITCH_FORM_AUDIT.md). A field cannot be marked
 runtime-verified from template inspection or a mocked test alone.
 
+The 2026-08-31 cross-entity presentation pass also enforces one shared,
+Device-style horizontal tab implementation for writable multi-section forms.
+Conference, Menu, and Voicemail retain Monster's nested section hierarchy;
+Queue uses installed-schema/runtime semantic grouping because this Monster
+checkout has no Queue editor. Basic-only resources and read-only projections
+remain tabless. This presentation rule does not expand any public payload or
+change existing public-UUID/private-resource mapping.
+
 ## 4. All-entity registry
 
 `Detailed matrix` identifies the field-level audit status, not implementation
@@ -107,12 +115,12 @@ completion.
 | Group | `groups.json` | users, devices, ring groups, callflows | Foundation | Complete below | 3 |
 | LineKey | `devices.combo_key.json` embedded in `devices.provision` | device, provisioner brand/family/model | Foundation | Complete below | 2 |
 | Media | `media.json` plus upload/content endpoints | menus, music on hold, prompts | Foundation | Upload/audio/MOH matrix complete below; generated sources gated | 5 |
-| Menu | `menus.json` | media prompts and callflow DTMF branches | Foundation | CRUD form audited; root-level DTMF/timeout routing delivered | 3 |
+| Menu | `menus.json` | media prompts and callflow DTMF branches | Foundation | CRUD form audited; root and nested DTMF/timeout/continuation routing delivered for guided branches, with unknown shapes preserved read-only | 3 |
 | PhoneNumber | `phone_numbers.json` plus number-manager feature/action endpoints | callflows, CNAM, E911, porting, carriers, SMS/MMS | Foundation | Safe read/detail matrix complete below; mutations policy-gated | 4 |
 | Queue | `queues.json`, agent endpoints, and ACDc runtime | users, devices, callflows, agent state/statistics | Foundation | Detailed matrix complete below; live controls and statistics remain capability-gated | 3 |
 | Recording | MODB recording documents and content endpoints; no single Crossbar CRUD schema | CDRs, storage policy, retention | Foundation | Safe metadata/playback matrix complete below; deletion and retention remain policy-gated | 5 |
-| Services | services, limits, service-plan, ledger, and quote endpoints | accounts, reseller hierarchy, billing provider | Foundation/read-only | Pending | 6 |
-| SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Initial safe presence/parking capability matrix delivered below | 6 |
+| Services | services, limits, service-plan, ledger, and quote endpoints | accounts, reseller hierarchy, billing provider | Foundation/read-only | Detailed read/presentation matrix complete below; mutations policy-gated | 6 |
+| SystemStatus | Crossbar/system health and capability endpoints; no durable entity schema | applications, nodes, registrations, provider health | Foundation/read-only | Complete safe presentation/capability matrix below; mutations remain separately gated | 6 |
 | TemporalRule | `temporal_rules.json` plus enable/disable/reset actions | callflows, rule sets, account timezone | Foundation | Complete below | 3 |
 | TemporalRuleSet | `temporal_rules_sets.json` plus member rule actions | temporal rules and callflows | Foundation | Complete below | 3 |
 | User | `users.json` and user action endpoints | devices, voicemail, directories, groups, queues, callflows | Foundation | Complete below | 2 |
@@ -145,15 +153,24 @@ workflow:
 | --- | --- | --- |
 | `sip_device` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Audio, Video, Options, Restrictions; recording and notifications are grouped under Options |
 | `cellphone` | name, owner, enabled, forwarding number | legacy forwarding behavior and contact-list visibility; current-schema extensions are grouped under Advanced forwarding |
-| `smartphone` | name, owner, enabled, forwarding number | Basic, Wi-Fi calling, Options, Restrictions |
+| `smartphone` | name, owner, enabled, forwarding number | Basic, Caller ID, Wi-Fi calling, Audio, Video, Options, Restrictions |
 | `softphone` | name, owner, enabled | Basic, Caller ID, SIP, Audio, Video, Options, Restrictions; recording and notifications are grouped under Options |
 | `landline` | name, owner, enabled, forwarding number | legacy forwarding behavior and contact-list visibility; current-schema extensions are grouped under Advanced forwarding |
-| `fax` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Options, Restrictions; T.38 and notifications are grouped under Options |
-| `ata` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Options, Restrictions; optional T.38 and notifications are grouped under Options |
+| `fax` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Audio, Options, Restrictions; T.38 and notifications are grouped under Options |
+| `ata` | name, owner, enabled, MAC, provisioning | Basic, Caller ID, SIP, Audio, Options, Restrictions; optional T.38 and notifications are grouped under Options |
 | `sip_uri` | name, owner, enabled, SIP URI/route | Basic plus Options containing only contact-list visibility |
 
 Device-type selection controls visibility and defaults; it does not define a
 different database table.
+
+The 2026-08-31 presentation verification corrected three stale capability
+entries. Monster exposes Caller ID, Audio, and Video for Smartphone, and Audio
+for Fax and ATA. The installed Device schema treats `device_type` as an
+arbitrary UI/billing label while its generic Caller ID and endpoint-media
+schemas validate these values for the same Device document, and Crossbar has
+no per-type rejection for them. GridPBX now exposes those fields in the
+matching Advanced sub-tabs and includes them in the typed payload. Raw resource
+IDs and SIP secrets remain outside the public form contract.
 
 The form uses a device capability matrix rather than rendering every property
 accepted by the generic Device schema for every type. `contact_list.exclude` is
@@ -606,12 +623,17 @@ the paused callback lifecycle and disposable cleanup passed against the
 connected Switch. Unassigned mailbox writes omit `owner_id` because the
 connected schema rejects an explicit `null`.
 
-The reusable Voicemail fields now use the shared Basic/Advanced selector in
-both standalone and embedded Extension forms. Basic contains identity,
-timezone, account-scoped assignment, and write-only PIN; Advanced contains
-notifications, typed callback delivery, transcription/owner options, and
-playback behavior. Error routing selects the relevant tab while preserving one
-form model and validation contract.
+The reusable Voicemail fields now use the Device-style outer Basic/Advanced
+selector in both standalone and embedded Extension forms. Opening Advanced
+exposes Monster's inner Basic/Options tabs. Basic contains identity,
+account-scoped assignment, and write-only PIN. Options contains timezone,
+schema-backed audio format, notifications, typed callback delivery,
+transcription/owner options, and playback behavior. Greeting media remains a
+dedicated authenticated operation. Error routing selects the exact outer and
+inner tab while preserving one form model and validation contract. The latest
+focused rerun passed three component tests, Vue and isolated E2E TypeScript
+checks, and two non-mutating isolated headless Playwright checks covering the
+standalone and embedded surfaces.
 
 ## 9. Directory field-level matrix
 
@@ -641,6 +663,10 @@ prohibits operator flag input and the mutation service preserves existing
 values. The Vue slideover uses a domain composable, Zod, a non-clipping
 Headless UI sort listbox, shared invalid borders, and inline-only field errors
 before Laravel repeats validation at the trust boundary.
+
+Its shared Basic/Advanced tabs mirror Monster: name and public Extension
+members are Basic; sorting, DTMF limits, and match confirmation are Advanced.
+Focused component/type checks and an isolated non-mutating browser check pass.
 
 The 2026-08-31 form-drift re-audit confirmed that the visible Basic/Advanced
 fields match the complete installed schema and Monster workflow. It also
@@ -687,6 +713,11 @@ conditional value shapes directly from the installed
 `devices.combo_key.json`. The current Monster checkout has no separate Line
 Key editor, so its Device workflow does not override that schema; the legacy
 Grid workflow remains evidence only for model-sized main/expansion sections.
+Monster exposes Combo Keys and Feature Keys as conditional sections of the
+Device editor. Because GridPBX's standalone panel is already the dedicated
+advanced provisioning subworkflow and Line Keys are not independent Switch
+documents, it intentionally stays single-view instead of adding empty outer
+Basic/Advanced tabs.
 Installed Device updates use `POST` and `crossbar_doc:load_merge`, while PATCH
 recursively merges old key maps, so GridPBX intentionally performs a live
 read-modify-POST full map replacement. The SDK now merges safe unknown fields
@@ -741,6 +772,11 @@ isolated headless Group form check. The browser check was non-mutating and
 reconfirmed inline-only name validation plus a viewport-contained shared
 music-on-hold listbox; no new live Group mutation was performed or claimed.
 
+Group intentionally has no Basic/Advanced selector. Monster's generic buttons
+are hidden by its own runtime because the Group editor declares only one Basic
+tab, and the installed schema has no separate advanced settings. GridPBX keeps
+the complete modeled Group contract in that single workflow.
+
 ### Menu
 
 | Schema path | Treatment | Current status |
@@ -772,11 +808,14 @@ Media references are exposed only as booleans, remain preserved by default,
 and require an explicit clear or account-scoped public Media replacement.
 Empty media serializes as the schema-required object `{}`.
 
-The shared Basic/Advanced presentation now maps Monster's Basic screen to
-name, write-only recording PIN, direct-extension enablement, and greeting.
-Advanced combines Monster's Extension Dialing and Options screens with the
-schema-backed invalid/transfer/exit prompt superset. Client and server errors
-select the appropriate tab without duplicating validation rules.
+The Device-style outer Basic/Advanced presentation maps Monster's Basic view
+to name, write-only recording PIN, direct-extension enablement, and greeting.
+Opening Advanced exposes Monster's inner Basic, Extension Dialing, and Options
+sections as separate horizontal tabs. Allowed and denied patterns belong only
+to Extension Dialing; timeouts, retries, recording behavior, and the installed-
+schema invalid/transfer/exit prompt superset belong to Options. Client and
+server errors select the exact outer and inner tab without duplicating
+validation rules.
 
 Focused verification passed with four SDK tests / 19 assertions, four Laravel
 tests / 37 assertions, eight Vue tests across three files, Vue and E2E
@@ -787,9 +826,11 @@ authoritative values, removed the PIN, reopened again, deleted the Menu, and
 ran an independent Menu synchronization. MySQL remained soft-deleted after
 that sync, proving no matching active Switch Menu remained. Public responses
 contained only the Menu UUID and safe fields, never the PIN or raw Switch ID.
-The focused presentation rerun passed two component tests, Vue and isolated
-E2E typechecks, and both isolated headless Menu checks, including disposable
-live round-trip and cleanup.
+The latest semantic-grouping rerun passed three focused component tests, Vue
+and isolated E2E typechecks, and the isolated non-mutating headless Menu check.
+The earlier disposable live round-trip and cleanup evidence remains valid
+because this follow-through changed presentation and error routing only, not
+the verified payload.
 
 ## 12. Queue and Agent field-level matrix
 
@@ -824,6 +865,19 @@ of private/redacted values and raw roster IDs. The corrected path also passed
 the focused public API update checks and a disposable isolated browser Queue
 lifecycle. The installed Monster checkout has no Queue/Agent form, so no
 Monster-only assumptions were added.
+
+The Queue presentation now uses the shared Basic/Advanced control. Basic maps
+the schema's `name`, `strategy`, and public `moh` reference together with the
+separately managed public Extension roster. Advanced maps the runtime tuning,
+caller behavior, `max_priority`, `announce`, and nested `announcements`
+controls. This is an installed-schema/runtime semantic grouping, not a claimed
+Monster mapping; the reference checkout contains only a Queue icon. Existing
+hidden URL fields and safe unknown JSON remain preserved by the established
+merge path and never enter either tab or the public contract. The latest
+focused rerun passed two Queue component tests, Vue and E2E TypeScript checks,
+and an isolated non-mutating headless Playwright check. Client and API errors
+open the owning tab, including an Advanced error already present when the form
+opens.
 
 The 2026-08-31 runtime capability audit found `cb_queues` and `cb_agents`
 loaded, but the ACDc OTP application was not running and
@@ -933,11 +987,17 @@ owner input is an account-scoped Extension UUID that Laravel resolves to the
 raw 32-character Kazoo `owner_id`; responses return only the public UUID.
 Updates use installed Kazoo recursive `PATCH`, omit unchanged write-only PIN
 arrays, and send `null` only for explicit deletion of nullable managed fields.
-The shared form tabs keep Monster's workflow recognizable: identity, owner,
-and member access are Basic, while conference-server settings, participant and
-moderator behavior, sounds, and safe named profiles are Advanced. Opaque
-nested profile/control JSON remains hidden. The focused isolated lifecycle
-passed again after this presentation split.
+The shared Device-style form tabs now preserve Monster's progressive-disclosure
+workflow instead of flattening all non-Basic fields together. The outer Basic
+view contains identity plus member and moderator access. Advanced reveals the
+inner `Basic`, `Options`, and `Conference Server` sections: role access remains
+available in Basic, participant/moderator behavior and sounds live in Options,
+and access identifiers, capacity, language, and safe named profile references
+live in Conference Server. The latter fields extend Monster's older template
+only where the installed Kazoo schema supplies an explicit typed contract.
+Opaque nested profile/control JSON remains hidden. The established disposable
+lifecycle evidence remains the payload proof; this presentation-only change
+uses focused component, type, and non-mutating browser verification.
 The 2026-08-31 isolated authenticated lifecycle passed create, selective PIN
 replacement, advanced-field reopen, unknown/external field preservation, and
 cleanup. Its MySQL projection was independently confirmed soft-deleted and the
@@ -984,6 +1044,15 @@ lifecycle passed Rule and Rule Set create/edit/reopen, override force/reset,
 ordered membership, and cleanup. Independent checks confirmed both projections
 soft-deleted and zero exact-name active Switch matches.
 
+The presentation re-audit confirms both forms are intentionally Basic-only.
+Monster renders all Rule fields in its sole Basic panel and hides the generic
+Basic/Advanced buttons because only one tab exists. Its Rule Set editor has no
+tab control and contains only name plus ordered membership. This matches the
+installed schemas: override `enabled` behavior remains in separate operational
+controls, while external flags and unknown values stay hidden and preserved.
+The focused panel tests assert that neither compact form grows an empty
+Advanced tab.
+
 ## 15. Blacklist field-level matrix
 
 | Schema path or operation | Treatment | Current status |
@@ -999,6 +1068,12 @@ The Blacklist form uses a right-side slide-over, domain composable, Zod,
 shared red invalid controls, and inline-only field errors. Focused component,
 store, Laravel, Switch package, and isolated authenticated Playwright checks
 pass without creating a live Blacklist.
+
+Blacklist intentionally remains Basic-only: Monster defines one Basic view
+with no Advanced selector, and every operator-safe installed-schema field is
+already present. External flags remain hidden and preserved, while account
+activation is a separate coordinated setting rather than a Blacklist Advanced
+field.
 
 ## 16. Fax Box field-level matrix
 
@@ -1030,6 +1105,15 @@ The Fax Box slide-over uses a domain composable, Zod, Headless UI choices,
 shared invalid controls, and inline-only errors. No new MySQL fields were added
 for hidden JSON values. Focused component, Laravel, Switch package, and isolated
 authenticated Playwright checks pass without creating a live Fax Box.
+
+Its shared Basic/Advanced presentation follows Monster's actual view toggle:
+Basic contains name, public owner UUID, and inbound/outbound email recipients;
+Advanced contains caller/Fax identity, SMTP settings, retries, and timezone.
+The installed-schema-only T.38 boolean also belongs to Advanced. Callback and
+SMS objects, external flags, attempts, raw owner IDs, and unknown nested values
+remain absent from the UI and preserve their existing server-side merge
+behavior. Focused component, Vue, E2E TypeScript, and mocked non-mutating
+browser checks passed with error-aware tab selection.
 
 The live Fax-operation audit found empty available Fax Box, inbox, and outbox
 collections, while the active outgoing-job collection returned HTTP 503. The
@@ -1066,12 +1150,15 @@ The 2026-08-31 form-drift re-audit found no missing Advanced fields because a
 generic Phone Number edit form is deliberately absent. The installed schema
 and runtime continue to require dedicated workflows for CNAM, E911, porting,
 activation, reservation, purchase, and release. Callflow assignment remains
-owned by the Callflow domain. The public detail contract still exposes only
+owned by the Callflow domain. The read-only detail therefore has no artificial
+Basic/Advanced selector; those tabs remain reserved for writable field groups.
+The public detail contract still exposes only
 account-scoped GridPBX and Callflow UUIDs plus allowlisted operational values;
 provider IDs, billing data, raw number documents, and internal primary keys
 remain private. Five package tests / 26 assertions, three API tests / 37
 assertions, the one detail component test, isolated E2E TypeScript typecheck,
-and the one read-only headless detail test passed without a Switch write.
+and the one read-only headless detail test passed without a Switch write; the
+focused UI checks also lock the absence of Basic/Advanced tabs.
 
 For CNAM specifically, `_read_only.features.available` means Kazoo selected the
 feature as allowable for that number; it is not a provider acknowledgement.
@@ -1118,6 +1205,37 @@ verified upload, production metadata edit, public/raw UUID separation, nested
 unknown-field preservation, deletion, two soft-deleted audit projections, zero
 active MySQL projections, and zero matching active Switch Media documents.
 
+The Media editor now uses the shared Basic/Advanced presentation confirmed by
+Monster's Basic and Options views. Basic contains safe upload metadata and the
+audio file; Advanced contains `streamable`. TTS generation remains gated, and
+existing media source, TTS, prompt/source, content, raw-ID, and unknown values
+stay on the established private preservation path. Focused component, Vue,
+E2E TypeScript, and mocked non-mutating browser checks passed.
+
+### 18.1 Caller-ID List field-level matrix
+
+| Schema path | Treatment | Current status |
+| --- | --- | --- |
+| list `name` | Required bounded name in Basic | Implemented |
+| list `description` | Optional 1–128 character metadata in Advanced; blank removes the field | Implemented |
+| list `org` | Optional organization metadata in Advanced, represented publicly as `organization` | Implemented |
+| entry `number` / `pattern` | Mutually exclusive number/prefix or bounded safe Switch-regex input in Basic | Implemented |
+| entry `displayname` | Optional display label, represented publicly as `display_name` | Implemented |
+| entry `list_id` | Schema-required raw parent reference supplied privately by the Switch adapter | Implemented private mapping |
+| entry `firstname`, `lastname`, `type`, `profile`, and unknown safe fields | Not part of the number/pattern workflow; retained by an authoritative safe read-merge-write and never accepted as hidden preservation input | Implemented preservation boundary |
+| public identity | Account-scoped List and entry UUIDs only; raw Switch IDs and database keys are not returned | Implemented |
+
+The installed schemas provide the field authority. This Monster checkout has
+no standalone Caller-ID List editor, so GridPBX groups by resource semantics:
+Basic contains the name and matching entries; Advanced contains optional list
+metadata. The shared tab selector routes client and API errors to the owning
+tab, preferring Basic if both groups fail. Focused component and type checks
+plus one isolated mocked headless browser check passed without a live mutation.
+Installed List and entry updates use full-document `load_merge`; the SDK now
+reads the authoritative document and preserves safe unknown public fields while
+excluding private/read-only/redacted data and allowing modeled values to win.
+The focused SDK check passed two tests / 14 assertions.
+
 ## 19. Call activity field-level matrices
 
 ### 19.1 CallDetailRecord
@@ -1152,6 +1270,16 @@ Zod validation, and shared red invalid-control styling. Isolated authenticated
 Playwright verifies reversed ranges and reciprocal public-UUID navigation
 without console, page, or server errors.
 
+The 2026-08-31 presentation re-audit keeps both detail panels intentionally
+single-view and read-only. CDR runtime methods are GET-only. Although the
+installed Recording endpoint also exposes individual DELETE, that operation
+owns retention and storage-cleanup risk and remains separately policy-gated;
+it is not an Advanced form field. Monster's Call Logs reference workflow has
+filters, details, interaction legs, and export but no entity editor. The UI's
+“Advanced filters” disclosure therefore remains a query refinement control,
+not a Basic/Advanced entity selector. Focused isolated browser coverage asserts
+that neither detail panel exposes Basic/Advanced tabs or edit/delete actions.
+
 ## 20. Account field-level matrix
 
 | Schema path or operation | Treatment | Current status |
@@ -1159,6 +1287,10 @@ without console, page, or server errors.
 | public `id` | GridPBX UUID only; internal `account_id` and Switch account ID never cross the API | Implemented |
 | `name`, `realm`, `timezone`, `enabled` | Name and schema-bounded timezone are typed administrator settings; realm remains read-only; enabled uses a separate exact-name-confirmed administrator command | Implemented/gated by field |
 | organization relationship | Public organization UUID and display name, scoped through authenticated membership | Implemented |
+| Kazoo account `tree`, `parents`, `children`, and `descendants` | Raw Switch account IDs remain private reconciliation keys. Parent, ancestor, child, and descendant relationships are exposed only when projected into the same GridPBX organization and only through public Account UUIDs | Implemented read projection |
+| descendant coverage | The Kazoo `descendants_count` is compared with projected descendants; unresolved accounts are exposed only as a count until an authorized discovery request issues short-lived opaque references | Implemented |
+| onboard existing descendant | Reseller administrators select an opaque actor/scope-bound reference, type the exact account name, and acknowledge inherited organization access. GridPBX projects the existing Kazoo account, audits the operation, and queues service synchronization without exposing or accepting a raw Switch ID | Implemented confirmed operation |
+| create/move/delete account or promote/demote reseller | Separate high-risk Kazoo operations requiring platform/reseller policy, dependency and billing checks, confirmation, compensation, and audit | Capability/policy-gated |
 | projected resource counts | Tenant-scoped Extension, Device, Phone Number, Callflow, Voicemail, Queue, Media, and Recording counts | Implemented |
 | `org`, `language` | Typed nullable identity/default settings with explicit clear semantics | Implemented |
 | `music_on_hold.media_id` | Managed by the existing account Media workflow using a public Media UUID | Implemented in Media domain |
@@ -1190,6 +1322,15 @@ and the Switch account identifier never cross the public API. Enable/disable
 is a separate exact-name-confirmed operation; higher-risk configuration
 remains gated.
 
+Reseller administration is a separate read-oriented workspace rather than an
+Account Advanced tab. It shows the selected public Account relationship tree,
+projection coverage, safe billing-owner/service health, and mutation-preflight
+diagnostics. Existing descendant onboarding is a dedicated confirmed operation
+because it changes GridPBX organization access; it accepts no raw account ID.
+Promotion, demotion, account creation, deletion, and tree movement remain
+unavailable. Focused SDK, Laravel, Zod/component, and isolated authenticated
+browser checks passed; the browser exposed no raw Kazoo or database key.
+
 The 2026-08-31 form-drift re-audit compared the complete installed
 `accounts.json` schema and its `call_waiting`, `caller_id`, `call_recording`,
 `dialplans`, `formatters`, and `metaflows` references with `cb_accounts` and
@@ -1213,6 +1354,18 @@ state, billing/top-up, voicemail callback URLs, and zones remain explicitly
 gated. Focused SDK, Laravel, Zod, Vue, E2E TypeScript, and one isolated
 headless Account walkthrough passed; the re-audit made no live Account
 mutation.
+
+The Account drawer now adds a shared outer Basic/Advanced presentation without
+flattening its existing recording target sub-tabs. Basic groups identity,
+locale, general calling defaults, ringtones, privacy, and caller identity.
+Advanced groups restrictions, recording policy, dial plans, request
+formatters, preflow, and metaflow activation/action trees. Monster distributes
+these fields across its profile/account, Accounts-manager, and Callflows
+settings surfaces rather than one combined Account editor, so the grouping is
+based on installed-schema field ownership and those workflow boundaries.
+Client and API errors open the owning outer tab. Two focused component tests,
+both TypeScript checks, and one isolated mocked headless walkthrough passed;
+the public/raw mapping and server-side preservation contracts did not change.
 
 Externally routable numbers entered by future purchasing, porting, CNAM, or
 E911 forms must use a shared libphonenumber-grade parser in Vue and an
@@ -1446,7 +1599,7 @@ minimal `phone_numbers.json` porting summary already exposed by GridPBX.
 | account inventory | `cb_port_requests` is loaded. The live account endpoint responds successfully with zero records, but its active-state listing explicitly disables pagination | System Status uses `by_number=gridpbx-capability-probe` and exposes only `inventory_available = true` |
 | request data | Public Switch documents can include request ID, numbers, losing-carrier billing account/PIN/address, winning-carrier references, signee/dates, notification recipients, uploads, comments, state, and read-only account/port-authority identifiers | No detail/list contract or MySQL projection; strict public schemas reject raw request data |
 | creation and edit | Schema validation checks number conflicts and existing local ownership. Ordinary accounts may update only `unconfirmed` or `rejected`; super administrators have broader update power | Hard-disabled pending dedicated validation, public identity model, authority policy, audit, and safe recovery |
-| state transitions | Runtime supports `unconfirmed → submitted`, `submitted → pending`, `submitted|pending → scheduled`, `submitted|pending|scheduled → rejected`, and active/rejected → canceled. Completion is allowed from pending, scheduled, or rejected | Hard-disabled; never modeled as generic CRUD |
+| state transitions | Runtime supports `unconfirmed → submitted`, `submitted → pending`, `submitted | pending → scheduled`, `submitted | pending | scheduled → rejected`, and active/rejected → canceled. Completion is allowed from pending, scheduled, or rejected | Hard-disabled; never modeled as generic CRUD |
 | submission automation | Submission may forward the request and current auth token to the configured Phonebook URL. The live Phonebook configuration is unset/disabled | Hard-disabled pending fixed allowlisted HTTPS egress, scoped service authentication, timeouts, redaction, idempotency, and reconciliation |
 | completion | Completing a request creates the numbers locally, assigns them in service, marks them ported-in, clears the request numbers, and reconciles callflow/trunk usage | Hard-disabled pending carrier confirmation, billing, atomic orchestration, compensation, projection sync, and immutable audit |
 | submitted-request export | A configured account URL can receive the submitted request plus every attachment; the live audited account has no such URL | Hard-disabled pending the same SSRF, authentication, redaction, and delivery controls as other sensitive egress |
@@ -1534,7 +1687,54 @@ Showing those defaults as safely enableable would make an unsupported mutation
 claim. The normalized Callflow synchronization remains the single import,
 reconciliation, freshness, and soft-deletion path for this read-only view.
 
-## 29. Next matrices
+## 29. Services and Billing visibility matrix
+
+| Field or operation | Treatment | Current status |
+| --- | --- | --- |
+| standing, reseller/billing-owner summary, billing cycle | Account-scoped normalized read projection; raw Switch account and reseller IDs remain private | Implemented read-only |
+| assigned plans, service quantities, limits, recurring impact, due-today impact | Allowlisted read projection from installed services/limits contracts | Implemented read-only |
+| ledger source summaries, total, and Switch transactions | Immutable operational visibility with public UUIDs; bookkeeper/payment metadata and raw payloads remain private | Implemented read-only |
+| reconciliation checks and sync history | Sanitized status, count comparison, failure category, and recovery guidance | Implemented read-only |
+| invoice and receipt summaries/details | Provider-neutral, authority-labelled read models using account-scoped public UUIDs | Implemented when an approved source is configured |
+| invoice/receipt PDF | Separate authenticated download after authoritative detail confirms a safe `application/pdf` document | Implemented operation; not an editable field |
+| successful local payment confirmations | Explicitly non-authoritative confirmation records; never represented as invoices or provider receipts | Implemented read-only |
+| plan assignment/removal, overrides, manual quantities, top-up, quote acceptance | Distinct installed Service commands requiring reseller authority, billing semantics, confirmation, audit, and reconciliation | Capability/policy-gated |
+| ledger credit/debit and transaction sale/refund | Distinct privileged financial commands; never inferred from endpoint availability or exposed as Service fields | Capability/policy-gated |
+| Authorize.Net sandbox charge/void/refund/profile/recovery | Separate default-off hosted-tokenized command workspace with independent flags and public attempt/profile UUIDs | Sandbox foundation; not a Service/Billing-record Advanced tab |
+| production payment operations | Requires an approved authoritative billing/payment contract and production compliance controls | Unavailable |
+
+The Service detail and every Billing-record slide-over are intentionally
+single-view and read-only. Monster separates service-plan/item views, billing
+settings, and transaction history rather than presenting one editable Service
+document. Kazoo likewise exposes each mutation as its own endpoint. GridPBX
+therefore does not add artificial Basic/Advanced tabs: the Billing page is a
+read workspace, safe PDF retrieval is a document operation, and sandbox
+payments remain a separately gated command bounded context. Focused component
+and isolated-browser assertions lock the absence of entity tabs and financial
+mutation buttons from the read-only detail panels.
+
+## 30. System Status presentation matrix
+
+| Probe or operation | Public treatment | Current status |
+| --- | --- | --- |
+| Presence subscription diagnostics | Endpoint availability boolean only; no live User state, SIP subscriptions, contacts, or identifiers | Implemented read-only |
+| parked calls | Summary availability and nullable aggregate active-call count only; raw slots/calls discarded | Implemented read-only |
+| Webhook event/configuration inventory | Catalog/configuration availability and aggregate counts only; URLs, hook IDs, custom data, attempts, and payloads discarded | Implemented read-only |
+| SMS/MMS inventory | Independent endpoint-availability booleans only; numbers, participants, bodies, attachments, and messages discarded | Implemented read-only |
+| Port Requests | Filtered collection-availability boolean only; request details, documents, identities, comments, and transitions unavailable | Implemented read-only |
+| number management | Carrier-configuration endpoint-shape boolean only; providers, states, available numbers, quotes, and charges discarded | Implemented read-only |
+| caching/persistence | Ten-second account-scoped cache; no durable System Status entity or raw probe persistence | Implemented |
+| Refresh | Repeats the authorized read-only aggregate request | Implemented operation |
+| presence commands, park/retrieve, Webhook CRUD/history, messaging, Porting workflow, number search/purchase/reserve/release | Separate runtime, security, carrier, billing, or regulated workflows; never System Status Advanced fields | Capability/policy-gated |
+
+There is deliberately no Basic/Advanced selector. Monster separates Numbers,
+Porting, Messaging, and Webhooks into their own applications and supplies no
+combined editable System Status document. The strict Zod contract fixes all
+mutation flags to false and rejects unknown raw payload fields. Focused
+isolated-browser coverage asserts that the page emits no mutation, exposes no
+administrative action buttons, and remains a single read-only operational view.
+
+## 31. Next matrices
 
 After Device, matrices are produced and implemented in dependency order:
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domains\LineKeys;
 
 use App\Domains\Devices\Contracts\SwitchProvisioningCatalogGateway;
+use App\Domains\Devices\Gateways\UnavailableSwitchProvisioningCatalogGateway;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\IdentityAccess\Models\User;
@@ -17,6 +18,16 @@ use Tests\TestCase;
 class LineKeyControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->app->instance(
+            SwitchProvisioningCatalogGateway::class,
+            new UnavailableSwitchProvisioningCatalogGateway,
+        );
+    }
 
     public function test_it_lists_device_line_key_projections_without_internal_or_source_fields(): void
     {
@@ -48,6 +59,8 @@ class LineKeyControllerTest extends TestCase
             ->assertJsonPath('data.0.endpoint_family', 'T5')
             ->assertJsonPath('data.0.line_keys.0.label', 'Support')
             ->assertJsonPath('data.0.line_keys.0.value', $extension->id)
+            ->assertJsonPath('meta.sync.status', 'stale')
+            ->assertJsonPath('meta.sync.last_successful_at', null)
             ->assertJsonMissingPath('data.0.device_id')
             ->assertJsonMissingPath('data.0.line_keys.0.line_key_id')
             ->assertJsonMissingPath('data.0.line_keys.0.switch_json')
@@ -118,6 +131,29 @@ class LineKeyControllerTest extends TestCase
             );
     }
 
+    public function test_unavailable_catalog_uses_explicit_schema_only_fallback(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-reception',
+            'make' => 'Yealink',
+            'model' => 'T54W',
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys/preview")
+            ->assertOk()
+            ->assertJsonPath('data.capability.apply_available', true)
+            ->assertJsonPath('data.capability.model.catalog_available', false)
+            ->assertJsonPath('data.capability.model.matched', false)
+            ->assertJsonPath(
+                'data.capability.reason',
+                'Model-specific key limits are unavailable; the editor is using the current Kazoo line-key schema and conservative limits.',
+            );
+    }
+
     public function test_preview_returns_selected_model_line_key_capabilities(): void
     {
         config()->set('switch.line_key_mutations_enabled', true);
@@ -153,6 +189,8 @@ class LineKeyControllerTest extends TestCase
         $this->actingAs($user)
             ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys/preview")
             ->assertOk()
+            ->assertJsonPath('data.capability.model.catalog_available', true)
+            ->assertJsonPath('data.capability.model.catalog_reason', null)
             ->assertJsonPath('data.capability.model.matched', true)
             ->assertJsonPath('data.capability.model.max_keys', 10)
             ->assertJsonPath('data.capability.model.max_expansion_modules', 3)
@@ -175,6 +213,42 @@ class LineKeyControllerTest extends TestCase
             ->assertJsonPath('data.payload_preview.provision.feature_keys.1.value', $extension->id)
             ->assertDontSee('switch-user-1001')
             ->assertDontSee('foreign-switch-user');
+    }
+
+    public function test_available_catalog_rejects_an_unmatched_device_before_switch_mutation(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-reception',
+            'make' => 'yealink',
+            'endpoint_family' => 't4',
+            'model' => 't54w',
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+        $this->mock(SwitchProvisioningCatalogGateway::class)
+            ->shouldReceive('catalog')
+            ->twice()
+            ->andReturn($this->provisioningCatalog());
+        $this->mock(SwitchLineKeyGateway::class)->shouldNotReceive('update');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys/preview")
+            ->assertOk()
+            ->assertJsonPath('data.capability.apply_available', false)
+            ->assertJsonPath('data.capability.model.catalog_available', true)
+            ->assertJsonPath('data.capability.model.matched', false)
+            ->assertJsonPath(
+                'data.capability.reason',
+                'The device brand, family, and model do not match the current provisioning catalog.',
+            );
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['line_keys']);
     }
 
     public function test_enabled_mutation_patches_switch_and_reprojects_redacted_device_data(): void
@@ -232,6 +306,117 @@ class LineKeyControllerTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'line_keys.updated', 'outcome' => 'succeeded']);
     }
 
+    public function test_all_kazoo_key_types_can_be_created_edited_and_cleared(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-1',
+            'make' => 'Yealink',
+            'model' => 'T54W',
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+        $alice = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-alice',
+        ]);
+        $bob = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-bob',
+        ]);
+        $gateway = $this->mock(SwitchLineKeyGateway::class);
+
+        $gateway->shouldReceive('update')
+            ->once()
+            ->ordered()
+            ->withArgs(fn (SwitchAccount $receivedAccount, string $resourceId, array $keys): bool => $receivedAccount->is($account)
+                && $resourceId === 'switch-device-1'
+                && array_column($keys, 'type') === ['line', 'presence', 'personal_parking', 'speed_dial', 'parking']
+                && $keys[1]['value'] === 'switch-user-alice'
+                && $keys[2]['value'] === 'switch-user-bob'
+                && $keys[3]['value'] === '+15551234567'
+                && $keys[4]['value'] === 3)
+            ->andReturn($this->lineKeyDeviceSnapshot(
+                ['0' => ['type' => 'line']],
+                [
+                    '1' => ['type' => 'presence', 'value' => ['label' => 'Alice', 'value' => 'switch-user-alice']],
+                    '2' => ['type' => 'personal_parking', 'value' => ['label' => 'Park Bob', 'value' => 'switch-user-bob']],
+                    '3' => ['type' => 'speed_dial', 'value' => ['label' => 'Support', 'value' => '+15551234567']],
+                    '4' => ['type' => 'parking', 'value' => ['label' => 'Park 3', 'value' => 3]],
+                ],
+            ));
+
+        $create = $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [
+                    ['category' => 'combo', 'position' => 0, 'type' => 'line', 'value' => null, 'label' => null],
+                    ['category' => 'feature', 'position' => 1, 'type' => 'presence', 'value' => $alice->id, 'label' => 'Alice'],
+                    ['category' => 'feature', 'position' => 2, 'type' => 'personal_parking', 'value' => $bob->id, 'label' => 'Park Bob'],
+                    ['category' => 'feature', 'position' => 3, 'type' => 'speed_dial', 'value' => '+15551234567', 'label' => 'Support'],
+                    ['category' => 'feature', 'position' => 4, 'type' => 'parking', 'value' => 3, 'label' => 'Park 3'],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonCount(5, 'data.device.line_keys')
+            ->assertJsonPath('data.device.line_keys.1.value', $alice->id)
+            ->assertJsonPath('data.device.line_keys.2.value', $bob->id);
+
+        $this->assertSame(
+            ['line', 'presence', 'personal_parking', 'speed_dial', 'parking'],
+            array_column($create->json('data.device.line_keys'), 'type'),
+        );
+
+        $gateway->shouldReceive('update')
+            ->once()
+            ->ordered()
+            ->withArgs(fn (SwitchAccount $receivedAccount, string $resourceId, array $keys): bool => $receivedAccount->is($account)
+                && $resourceId === 'switch-device-1'
+                && $keys[1]['value'] === 'switch-user-bob'
+                && $keys[2]['value'] === 'switch-user-alice'
+                && $keys[3]['value'] === '1000'
+                && $keys[4]['value'] === 7)
+            ->andReturn($this->lineKeyDeviceSnapshot(
+                ['0' => ['type' => 'line']],
+                [
+                    '1' => ['type' => 'presence', 'value' => ['label' => 'Bob', 'value' => 'switch-user-bob']],
+                    '2' => ['type' => 'personal_parking', 'value' => ['label' => 'Park Alice', 'value' => 'switch-user-alice']],
+                    '3' => ['type' => 'speed_dial', 'value' => ['label' => 'Operator', 'value' => '1000']],
+                    '4' => ['type' => 'parking', 'value' => ['label' => 'Park 7', 'value' => 7]],
+                ],
+            ));
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [
+                    ['category' => 'combo', 'position' => 0, 'type' => 'line', 'value' => null, 'label' => null],
+                    ['category' => 'feature', 'position' => 1, 'type' => 'presence', 'value' => $bob->id, 'label' => 'Bob'],
+                    ['category' => 'feature', 'position' => 2, 'type' => 'personal_parking', 'value' => $alice->id, 'label' => 'Park Alice'],
+                    ['category' => 'feature', 'position' => 3, 'type' => 'speed_dial', 'value' => '1000', 'label' => 'Operator'],
+                    ['category' => 'feature', 'position' => 4, 'type' => 'parking', 'value' => 7, 'label' => 'Park 7'],
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.device.line_keys.1.value', $bob->id)
+            ->assertJsonPath('data.device.line_keys.2.value', $alice->id)
+            ->assertJsonPath('data.device.line_keys.3.value', '1000')
+            ->assertJsonPath('data.device.line_keys.4.value', '7');
+
+        $gateway->shouldReceive('update')
+            ->once()
+            ->ordered()
+            ->withArgs(fn (SwitchAccount $receivedAccount, string $resourceId, array $keys): bool => $receivedAccount->is($account)
+                && $resourceId === 'switch-device-1'
+                && $keys === [])
+            ->andReturn($this->lineKeyDeviceSnapshot([], []));
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [],
+            ])
+            ->assertOk()
+            ->assertJsonCount(0, 'data.device.line_keys');
+
+        $this->assertSame(0, $device->lineKeys()->count());
+    }
+
     public function test_invalid_key_shapes_are_rejected_before_switch_mutation(): void
     {
         config()->set('switch.line_key_mutations_enabled', true);
@@ -283,6 +468,39 @@ class LineKeyControllerTest extends TestCase
                 'line_keys.2.value',
                 'line_keys.3.value',
             ]);
+    }
+
+    public function test_duplicate_physical_positions_are_rejected_without_model_metadata(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'make' => 'Unknown',
+            'model' => 'Unknown',
+        ]);
+        $this->mock(SwitchLineKeyGateway::class)->shouldNotReceive('update');
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [
+                    [
+                        'category' => 'combo',
+                        'position' => 3,
+                        'type' => 'line',
+                        'value' => null,
+                        'label' => null,
+                    ],
+                    [
+                        'category' => 'feature',
+                        'position' => 3,
+                        'type' => 'speed_dial',
+                        'value' => '1001',
+                        'label' => 'Support',
+                    ],
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['line_keys.1.position']);
     }
 
     public function test_it_rejects_foreign_public_references_and_unknown_fields_before_switch_mutation(): void
@@ -409,6 +627,57 @@ class LineKeyControllerTest extends TestCase
             ->assertJsonPath('data.device.line_keys.0.value', '1001');
     }
 
+    public function test_personal_parking_resolves_an_account_extension_before_switch_mutation(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-1',
+            'make' => 'Yealink',
+            'model' => 'T54W',
+            'mac_address' => '00:11:22:33:44:55',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-1001',
+        ]);
+        $this->mock(SwitchLineKeyGateway::class)
+            ->shouldReceive('update')
+            ->once()
+            ->withArgs(fn (SwitchAccount $receivedAccount, string $resourceId, array $keys): bool => $receivedAccount->is($account)
+                && $resourceId === 'switch-device-1'
+                && $keys[0]['type'] === 'personal_parking'
+                && $keys[0]['value'] === 'switch-user-1001'
+                && $keys[0]['label'] === 'Park Alice')
+            ->andReturn([
+                'id' => 'switch-device-1',
+                'provision' => [
+                    'endpoint_brand' => 'Yealink',
+                    'endpoint_model' => 'T54W',
+                    'combo_keys' => [],
+                    'feature_keys' => ['3' => [
+                        'type' => 'personal_parking',
+                        'value' => ['label' => 'Park Alice', 'value' => 'switch-user-1001'],
+                    ]],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", [
+                'line_keys' => [[
+                    'category' => 'feature',
+                    'position' => 3,
+                    'type' => 'personal_parking',
+                    'value' => $extension->id,
+                    'label' => 'Park Alice',
+                ]],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.device.line_keys.0.type', 'personal_parking')
+            ->assertJsonPath('data.device.line_keys.0.value', $extension->id)
+            ->assertJsonPath('data.device.line_keys.0.label', 'Park Alice')
+            ->assertDontSee('switch-user-1001');
+    }
+
     public function test_line_appearances_require_combo_keys_and_no_value_or_label(): void
     {
         config()->set('switch.line_key_mutations_enabled', true);
@@ -462,6 +731,26 @@ class LineKeyControllerTest extends TestCase
                     ]],
                 ]],
             ]],
+        ];
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $comboKeys
+     * @param  array<string, array<string, mixed>>  $featureKeys
+     * @return array<string, mixed>
+     */
+    private function lineKeyDeviceSnapshot(array $comboKeys, array $featureKeys): array
+    {
+        return [
+            'id' => 'switch-device-1',
+            'name' => 'Reception phone',
+            'mac_address' => '00:11:22:33:44:55',
+            'provision' => [
+                'endpoint_brand' => 'Yealink',
+                'endpoint_model' => 'T54W',
+                'combo_keys' => $comboKeys,
+                'feature_keys' => $featureKeys,
+            ],
         ];
     }
 

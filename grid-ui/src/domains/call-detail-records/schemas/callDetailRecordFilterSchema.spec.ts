@@ -8,6 +8,8 @@ const filters = {
   hangup_cause: '',
   started_from: '',
   started_to: '',
+  started_after: '',
+  started_before: '',
   duration_min: '',
   duration_max: '',
 }

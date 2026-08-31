@@ -679,7 +679,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         'The connected account needs one unassigned phone number and one projected destination.',
       )
 
-      const createPanel = page.getByRole('dialog', { name: 'Create call route' })
+      const createPanel = page.getByRole('region', { name: 'Create call route' })
       await createPanel.getByLabel('Route name').fill(routeName)
       await createPanel.getByRole('checkbox', { name: availableNumber!.number }).check()
       const createResponse = page.waitForResponse(
@@ -2188,7 +2188,12 @@ test('keeps Callflow validation inline and its destination listbox inside the vi
   await expect(page.getByRole('heading', { name: 'Call Routing', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Create route' }).click()
   await expect(page.getByRole('heading', { name: 'Create call route' })).toBeVisible()
-  const dialog = page.getByRole('dialog', { name: 'Create call route' })
+  const dialog = page.getByRole('region', { name: 'Create call route' })
+  await expect(page.getByRole('dialog', { name: 'Create call route' })).toHaveCount(0)
+  const rootPalette = dialog.getByRole('region', { name: 'Callflow action catalog' })
+  await expect(rootPalette).toBeVisible()
+  await rootPalette.getByRole('button', { name: 'Use Voicemail as root action' }).click()
+  await expect(dialog.getByRole('button', { name: 'Destination type' })).toContainText('Voicemail')
 
   await dialog.getByRole('button', { name: 'Destination type' }).click()
   const options = page.getByRole('listbox')
@@ -2289,7 +2294,7 @@ test('shows safe Menu key routes without offering the legacy hash branch', async
   })
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create route' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create call route' })
+  const dialog = page.getByRole('region', { name: 'Create call route' })
   await expect(page.getByRole('heading', { name: 'Create call route' })).toBeVisible()
 
   await dialog.getByRole('button', { name: 'Destination type' }).click()
@@ -2380,7 +2385,7 @@ test('shows the ordered Rule Set and one schema-correct temporal match route', a
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create route' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create call route' })
+  const dialog = page.getByRole('region', { name: 'Create call route' })
   await dialog.getByRole('button', { name: 'Destination type' }).click()
   await page.getByRole('option', { name: 'Business Hours / Schedule', exact: true }).click()
 
@@ -2456,7 +2461,7 @@ test('orders direct Temporal Rules and configures one public match destination p
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create route' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Create call route' })
+  const dialog = page.getByRole('region', { name: 'Create call route' })
   await dialog.getByRole('button', { name: 'Destination type' }).click()
   await page.getByRole('option', { name: 'Direct Temporal Rules', exact: true }).click()
 
@@ -2784,7 +2789,8 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   ).toBeVisible()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(workspace.getByText('Schedule matches', { exact: true }).last()).toBeVisible()
-  await expect(workspace.getByText('Preserved branch 1', { exact: true }).last()).toBeVisible()
+  await expect(workspace.getByText('Preserved branch 1', { exact: true })).toHaveCount(0)
+  await expect(workspace.getByRole('treeitem', { name: 'Custom Vendor' })).toBeVisible()
   await expect(workspace.getByText('Reception', { exact: true })).toBeVisible()
   await expect(workspace.getByText('switch-rule-secret')).toHaveCount(0)
 
@@ -2846,7 +2852,9 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     name: 'Search callflow actions',
   })
   await actionSearchAfterMove.fill('voicemail')
-  await workspace.getByRole('button', { name: 'Add Voicemail' }).click()
+  await workspace
+    .getByRole('button', { name: 'Add Voicemail' })
+    .dragTo(workspace.getByRole('treeitem', { name: 'User: Reception' }))
   const addPanel = page.getByRole('dialog', { name: 'Add Voicemail' })
   await expect(page.getByRole('heading', { name: 'Add Voicemail' })).toBeVisible()
   await expect(addPanel.getByRole('button', { name: 'Action destination' })).toContainText(
@@ -2916,6 +2924,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     .toEqual({
       parent_path: ['_', '_'],
       branch: '_',
+      placement: 'append',
       module: 'tts',
       data: {
         text: 'Please hold for the next available representative.',
@@ -2932,7 +2941,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
 
   await inlineActionSearch.click()
   await inlineActionSearch.press('Control+A')
-  await inlineActionSearch.fill('check caller id')
+  await inlineActionSearch.fill('check cid')
   await workspace
     .getByRole('button', { name: 'Add Check CID' })
     .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
@@ -2960,6 +2969,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     .toEqual({
       parent_path: ['_', '_', '_'],
       branch: '_',
+      placement: 'append',
       module: 'cidlistmatch',
       data: {
         caller_id_list_id: 'dded4533-55cb-4b40-acb6-b02248532c09',
@@ -2987,6 +2997,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     .toEqual({
       parent_path: ['_', '_', '_'],
       branch: '_',
+      placement: 'append',
       module: 'response',
       data: { code: 603, message: 'Decline', skip_module: false },
     })
@@ -3006,6 +3017,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     .toEqual({
       parent_path: ['_', '_', '_'],
       branch: '_',
+      placement: 'append',
       module: 'hangup',
       data: { skip_module: false },
     })
@@ -3031,6 +3043,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     .toEqual({
       parent_path: ['_', '_', '_'],
       branch: '_',
+      placement: 'append',
       module: 'set_variable',
       data: {
         variable: 'call_priority',

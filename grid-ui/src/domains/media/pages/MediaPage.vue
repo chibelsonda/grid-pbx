@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
@@ -19,6 +20,8 @@ import type { MediaCreate, MediaUpdate } from '../types/media'
 
 const accounts = useAccountStore()
 const media = useMediaStore()
+const route = useRoute()
+const router = useRouter()
 const panel = ref<'create' | 'detail' | 'edit' | 'audio' | 'delete' | 'moh' | null>(null)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_media ?? false)
 const currentMoh = computed(() => media.records.find((record) => record.is_music_on_hold) ?? null)
@@ -32,20 +35,31 @@ const freshness = computed(() =>
 )
 
 watch(
-  () => accounts.selectedId,
-  (accountId) => {
-    panel.value = null
-    media.reset()
-    if (accountId) void media.load(accountId, 1)
+  [() => accounts.selectedId, () => route.query.media],
+  ([accountId, mediaId], previous) => {
+    const accountChanged = accountId !== previous?.[0]
+
+    if (accountChanged) {
+      panel.value = null
+      media.reset()
+      if (accountId) void media.load(accountId, 1)
+    }
+
+    if (accountId && typeof mediaId === 'string' && mediaId !== media.detail?.id) {
+      void loadDetail(accountId, mediaId)
+    }
   },
   { immediate: true },
 )
 
-async function openDetail(id: string): Promise<void> {
-  if (!accounts.selectedId) return
+async function loadDetail(accountId: string, id: string): Promise<void> {
   panel.value = 'detail'
-  await media.loadDetail(accounts.selectedId, id)
-  if (media.detail?.streamable) await media.loadAudio(accounts.selectedId, id)
+  await media.loadDetail(accountId, id)
+  if (media.detail?.streamable) await media.loadAudio(accountId, id)
+}
+
+function openDetail(id: string): void {
+  void router.replace({ query: { ...route.query, media: id } })
 }
 
 async function create(input: MediaCreate): Promise<void> {
@@ -76,8 +90,10 @@ async function remove(): Promise<void> {
     accounts.selectedId &&
     media.detail &&
     (await media.remove(accounts.selectedId, media.detail.id))
-  )
+  ) {
     panel.value = null
+    clearMediaQuery()
+  }
 }
 
 async function openMoh(): Promise<void> {
@@ -106,6 +122,15 @@ function closePanel(): void {
   panel.value = null
   media.releaseAudio()
   media.clearMutationError()
+  clearMediaQuery()
+}
+
+function clearMediaQuery(): void {
+  if (!('media' in route.query)) return
+
+  const query = { ...route.query }
+  delete query.media
+  void router.replace({ query })
 }
 
 function formatSize(bytes: number | null): string {

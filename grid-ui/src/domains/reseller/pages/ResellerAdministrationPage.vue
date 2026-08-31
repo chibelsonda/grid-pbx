@@ -13,6 +13,7 @@ import {
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import CircularCountBadge from '@/shared/components/CircularCountBadge.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import DescendantOnboardingPanel from '../components/DescendantOnboardingPanel.vue'
 import ResellerDiagnosticDetails from '../components/ResellerDiagnosticDetails.vue'
@@ -547,11 +548,11 @@ watch(
                 <div class="flex items-center gap-2">
                   <UserGroupIcon class="size-4 text-slate-500" />
                   <h3 class="text-xs font-semibold text-slate-800">Direct child accounts</h3>
-                  <span
-                    class="ml-auto rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600"
-                  >
-                    {{ hierarchy.children.length }}
-                  </span>
+                  <CircularCountBadge
+                    class="ml-auto border-slate-200 bg-slate-100 text-slate-600"
+                    :count="hierarchy.children.length"
+                    :label="`${hierarchy.children.length} direct child accounts`"
+                  />
                 </div>
                 <div v-if="hierarchy.children.length" class="mt-3 grid gap-2 sm:grid-cols-2">
                   <article

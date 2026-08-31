@@ -17,6 +17,8 @@ const preview: LineKeyPreview = {
     apply_available: true,
     reason: null,
     model: {
+      catalog_available: false,
+      catalog_reason: 'Provisioning catalog discovery is not configured.',
       matched: false,
       max_keys: null,
       max_expansion_modules: null,
@@ -45,6 +47,47 @@ describe('useLineKeyForm', () => {
     })
   })
 
+  it('builds valid Kazoo payloads for all five supported line-key types', () => {
+    const extensionId = '0199a271-62c6-72cd-b726-dfdfdcebf23d'
+    const { form, safePreview, validate } = useLineKeyForm(preview)
+    form.push(
+      { category: 'combo', position: 0, type: 'line', value: null, label: null },
+      { category: 'feature', position: 1, type: 'presence', value: extensionId, label: 'Alice' },
+      {
+        category: 'feature',
+        position: 2,
+        type: 'personal_parking',
+        value: extensionId,
+        label: 'Park Alice',
+      },
+      {
+        category: 'feature',
+        position: 3,
+        type: 'speed_dial',
+        value: '+15551234567',
+        label: 'Support',
+      },
+      { category: 'feature', position: 4, type: 'parking', value: 3, label: 'Park 3' },
+    )
+
+    expect(validate().success).toBe(true)
+    expect(safePreview.value.provision).toEqual({
+      combo_keys: { 0: { type: 'line' } },
+      feature_keys: {
+        1: { type: 'presence', value: { label: 'Alice', value: extensionId } },
+        2: {
+          type: 'personal_parking',
+          value: { label: 'Park Alice', value: extensionId },
+        },
+        3: {
+          type: 'speed_dial',
+          value: { label: 'Support', value: '+15551234567' },
+        },
+        4: { type: 'parking', value: { label: 'Park 3', value: 3 } },
+      },
+    })
+  })
+
   it('reports duplicate positions and values that do not match their key type', () => {
     const { form, validate, validationErrors } = useLineKeyForm(preview)
     form.push({ category: 'combo', position: 0, type: 'speed_dial', value: 1001, label: null })
@@ -56,6 +99,17 @@ describe('useLineKeyForm', () => {
     expect(Object.keys(validationErrors.value)).toEqual(
       expect.arrayContaining(['line_keys.0.value', 'line_keys.1.value', 'line_keys.1.position']),
     )
+  })
+
+  it('rejects duplicate physical positions when model metadata is unavailable', () => {
+    const { form, validate, validationErrors } = useLineKeyForm(preview)
+    form.push({ category: 'combo', position: 3, type: 'line', value: null, label: null })
+    form.push({ category: 'feature', position: 3, type: 'speed_dial', value: '1001', label: null })
+
+    expect(validate().success).toBe(false)
+    expect(validationErrors.value).toMatchObject({
+      'line_keys.1.position': ['Each physical model position may be assigned only once.'],
+    })
   })
 
   it('applies model position and key-type capabilities', () => {

@@ -11,6 +11,11 @@ class CallflowPolicy
 {
     public function __construct(private readonly OrganizationAccessService $access) {}
 
+    public function viewAny(User $user, SwitchAccount $account): bool
+    {
+        return $this->access->roleFor($user, $account) !== null;
+    }
+
     public function update(User $user, SwitchCallflow $callflow, SwitchAccount $account): bool
     {
         return $callflow->switch_account_id === $account->getKey()

@@ -1,20 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Menu, MenuButton, MenuItem, MenuItems, TransitionRoot } from '@headlessui/vue'
 import { Bars3Icon, ChevronDownIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useAuthStore } from '@/domains/auth/stores/authStore'
+import GlobalSearch from '@/domains/global-search/components/GlobalSearch.vue'
 import FormListbox, { type ListboxOptionValue } from '@/shared/components/FormListbox.vue'
-import SearchInput from '@/shared/components/SearchInput.vue'
 
-defineProps<{ sidebarCollapsed: boolean }>()
+defineProps<{ sidebarCollapsed: boolean; themeId: string }>()
 defineEmits<{ toggleMobile: [] }>()
 
 const router = useRouter()
 const auth = useAuthStore()
 const accounts = useAccountStore()
-const workspaceSearch = ref('')
 const initials = computed(() =>
   (auth.user?.name ?? 'Grid Admin')
     .split(' ')
@@ -42,26 +41,22 @@ async function signOut(): Promise<void> {
 
 <template>
   <header
-    class="fixed inset-x-0 top-0 z-30 h-[60px] bg-white shadow-shell transition-[left] duration-300"
+    class="app-header fixed inset-x-0 top-0 z-30 h-[60px] border-b shadow-shell transition-[left] duration-300"
     :class="sidebarCollapsed ? 'lg:left-20' : 'lg:left-[280px]'"
+    :data-theme="themeId"
   >
     <div class="flex h-full items-center gap-3 px-4 sm:px-6">
       <button
         type="button"
-        class="grid size-9 place-items-center rounded-full text-brand-500 hover:bg-brand-50 lg:hidden"
+        class="app-header-action grid size-9 place-items-center rounded-full lg:hidden"
         aria-label="Open navigation"
         @click="$emit('toggleMobile')"
       >
         <Bars3Icon class="size-5" />
       </button>
 
-      <div class="hidden w-full max-w-sm sm:block">
-        <SearchInput
-          v-model="workspaceSearch"
-          label="Search this workspace"
-          placeholder="Search this workspace..."
-          input-class="!h-9 !rounded-full !border-transparent !bg-slate-100 focus:!border-brand-400 focus:!bg-white"
-        />
+      <div class="w-9 sm:w-full sm:max-w-sm">
+        <GlobalSearch :account-id="accounts.selectedId" :user-id="auth.user?.id ?? null" />
       </div>
 
       <div class="ml-auto flex items-center gap-3">
@@ -76,16 +71,18 @@ async function signOut(): Promise<void> {
         </div>
 
         <Menu as="div" class="relative">
-          <MenuButton class="flex items-center gap-2 rounded-md p-1 text-left hover:bg-slate-50">
+          <MenuButton class="app-header-action flex items-center gap-2 rounded-md p-1 text-left">
             <span
-              class="grid size-8 place-items-center rounded-full bg-gradient-to-br from-brand-500 to-info text-xs font-bold text-white"
+              class="app-header-avatar grid size-8 place-items-center rounded-full text-xs font-bold text-white"
               >{{ initials }}</span
             >
             <span class="hidden sm:block">
-              <span class="block text-xs font-semibold text-slate-700">{{ auth.user?.name }}</span>
-              <span class="block text-[10px] text-slate-400">Account menu</span>
+              <span class="app-header-foreground block text-xs font-semibold">{{
+                auth.user?.name
+              }}</span>
+              <span class="app-header-muted block text-[10px]">Account menu</span>
             </span>
-            <ChevronDownIcon class="hidden size-3.5 text-slate-400 sm:block" />
+            <ChevronDownIcon class="app-header-muted hidden size-3.5 sm:block" />
           </MenuButton>
           <TransitionRoot
             leave="transition ease-in duration-100"

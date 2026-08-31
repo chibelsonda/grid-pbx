@@ -151,6 +151,12 @@ test('shows only safe read-only operational capabilities', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'SMS / MMS' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Number porting' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Number acquisition' })).toBeVisible()
+  await expect(page.getByRole('tab', { name: /basic|advanced/i })).toHaveCount(0)
+  await expect(
+    page.getByRole('button', {
+      name: /restart|enable|disable|create|edit|delete|send|purchase|release|reserve|submit|cancel|complete/i,
+    }),
+  ).toHaveCount(0)
   await expect(
     page.getByText('Live presence status and set/reset commands remain capability-gated.'),
   ).toBeVisible()

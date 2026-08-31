@@ -11,6 +11,12 @@ use App\Domains\CallerIdLists\Controllers\CallerIdListSyncController;
 use App\Domains\CallRouting\Controllers\CallflowController;
 use App\Domains\Conferences\Controllers\ConferenceController;
 use App\Domains\Conferences\Controllers\ConferenceSyncController;
+use App\Domains\Dashboard\Controllers\CallActivityTrendController;
+use App\Domains\Dashboard\Controllers\CallGeographyController;
+use App\Domains\Dashboard\Controllers\CallQualityController;
+use App\Domains\Dashboard\Controllers\DashboardController;
+use App\Domains\Dashboard\Controllers\RecentMissedCallsController;
+use App\Domains\Dashboard\Controllers\TopCallDestinationsController;
 use App\Domains\Devices\Controllers\DeviceController;
 use App\Domains\Devices\Controllers\DeviceHotdeskController;
 use App\Domains\Devices\Controllers\DeviceProvisioningController;
@@ -24,6 +30,7 @@ use App\Domains\Faxes\Controllers\FaxBoxController;
 use App\Domains\Faxes\Controllers\FaxController;
 use App\Domains\Faxes\Controllers\FaxDocumentController;
 use App\Domains\Faxes\Controllers\FaxSyncController;
+use App\Domains\GlobalSearch\Controllers\GlobalSearchController;
 use App\Domains\Groups\Controllers\GroupController;
 use App\Domains\Groups\Controllers\GroupSyncController;
 use App\Domains\IdentityAccess\Controllers\SessionController;
@@ -86,6 +93,14 @@ Route::prefix('v1')->group(function (): void {
 
         Route::prefix('accounts/{account}')->group(function (): void {
             Route::get('/', [AccountController::class, 'show']);
+            Route::get('/search', GlobalSearchController::class)
+                ->middleware('throttle:global-search');
+            Route::get('/dashboard', DashboardController::class);
+            Route::get('/dashboard/call-activity', CallActivityTrendController::class);
+            Route::get('/dashboard/call-geography', CallGeographyController::class);
+            Route::get('/dashboard/call-quality', CallQualityController::class);
+            Route::get('/dashboard/recent-missed-calls', RecentMissedCallsController::class);
+            Route::get('/dashboard/top-destinations', TopCallDestinationsController::class);
             Route::get('/settings-options', AccountSettingsOptionsController::class);
             Route::get('/operational-status', OperationalStatusController::class);
             Route::get('/hierarchy', [AccountHierarchyController::class, 'hierarchy']);

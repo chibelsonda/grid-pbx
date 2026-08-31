@@ -16,8 +16,13 @@ import FormListbox, {
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import CallflowMenuBranchesField from './CallflowMenuBranchesField.vue'
+import CallflowActionPalette from './CallflowActionPalette.vue'
 import CallflowTemporalRuleRoutesField from './CallflowTemporalRuleRoutesField.vue'
 import CallflowTemporalRulesField from './CallflowTemporalRulesField.vue'
+import {
+  callflowActionDestinationType,
+  type CallflowAction,
+} from '../catalog/callflowActionCatalog'
 import { useCallflowForm } from '../composables/useCallflowForm'
 import type {
   Callflow,
@@ -26,15 +31,19 @@ import type {
   CallflowUpdate,
 } from '../types/callRouting'
 
-const props = defineProps<{
-  record: Callflow | null
-  editor: CallflowEditor | null
-  loading: boolean
-  saving: boolean
-  error: string | null
-  fieldErrors: Record<string, string[]>
-  canManage: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    record: Callflow | null
+    editor: CallflowEditor | null
+    loading: boolean
+    saving: boolean
+    error: string | null
+    fieldErrors: Record<string, string[]>
+    canManage: boolean
+    workspace?: boolean
+  }>(),
+  { workspace: false },
+)
 const emit = defineEmits<{ close: []; save: [input: CallflowUpdate] }>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => props.record,
@@ -137,6 +146,13 @@ function setDestination(value: ListboxValue): void {
   if (typeof value === 'string') form.destination_id = value
 }
 
+function selectRootAction(action: CallflowAction): void {
+  const destinationType = callflowActionDestinationType(action.module)
+  if (!destinationType) return
+
+  form.destination_type = destinationType
+}
+
 function setFallbackDestinationType(value: ListboxValue): void {
   if (typeof value === 'string') {
     form.fallback_destination_type = value as CallflowDestinationType
@@ -174,6 +190,7 @@ function humanizePhoneState(state: string | null): string {
         : 'Choose one safe root destination using public GridPBX references.'
     "
     width="medium"
+    :embedded="workspace"
     @close="emit('close')"
   >
     <div
@@ -211,389 +228,418 @@ function humanizePhoneState(state: string | null): string {
       {{ editor.blocked_reason }}
     </div>
 
-    <form v-else-if="editor" class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error && Object.keys(fieldErrors).length === 0"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ error }}
-      </div>
-
-      <fieldset :disabled="saving" class="grid gap-5 disabled:opacity-75">
-        <article class="card-surface overflow-hidden">
-          <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
-            <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
-              <ArrowPathRoundedSquareIcon class="size-5" />
-            </span>
-            <div>
-              <h2 class="text-sm font-semibold text-slate-700">Route identity</h2>
-              <p class="text-[10px] text-slate-400">
-                {{ record ? 'Name and non-phone entry points' : 'Name shown throughout GridPBX' }}
-              </p>
-            </div>
-          </header>
-          <div class="grid gap-4 p-5">
-            <FormInput
-              v-model="form.name"
-              label="Route name"
-              maxlength="128"
-              required
-              :error="fieldError('name')"
-            />
-            <div v-if="record">
-              <p class="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
-                Entry points
-              </p>
-              <p class="mt-1 font-mono text-xs text-slate-600">
-                {{
-                  record.numbers.join(', ') || record.patterns.join(', ') || 'No direct entry point'
-                }}
-              </p>
-            </div>
-          </div>
-        </article>
-
-        <article
-          class="card-surface overflow-hidden"
-          :class="validationControlClass(fieldError('phone_number_ids'))"
-          :aria-invalid="Boolean(fieldError('phone_number_ids'))"
+    <form
+      v-else-if="editor"
+      class="grid gap-5"
+      :class="
+        workspace &&
+        editor.mode === 'create' &&
+        'xl:grid-cols-[minmax(0,1fr)_11.5rem] xl:items-start'
+      "
+      novalidate
+      @submit.prevent="submit"
+    >
+      <div class="grid min-w-0 gap-5">
+        <div
+          v-if="error && Object.keys(fieldErrors).length === 0"
+          class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
         >
-          <header class="border-b border-slate-100 px-5 py-4">
-            <h2 class="text-sm font-semibold text-slate-700">Phone-number entry points</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-400">
-              Select the inventory numbers that should enter this route. Extensions and patterns are
-              preserved.
-            </p>
-          </header>
-          <div v-if="editor.phone_numbers.length" class="divide-y divide-slate-100 px-5">
-            <FormCheckbox
-              v-for="phoneNumber in editor.phone_numbers"
-              :key="phoneNumber.id"
-              :model-value="form.phone_number_ids"
-              :value="phoneNumber.id"
-              :label="phoneNumber.number"
-              :description="
-                phoneNumber.available
-                  ? phoneNumber.selected
-                    ? 'Currently enters this route'
-                    : humanizePhoneState(phoneNumber.state)
-                  : `Assigned to ${phoneNumber.assigned_callflow?.name ?? 'another route'}`
-              "
-              :disabled="!phoneNumber.available"
-              variant="row"
-              @update:model-value="form.phone_number_ids = $event as string[]"
-            />
-          </div>
-          <p v-else class="p-5 text-xs text-slate-400">
-            No projected phone numbers are available for this account.
-          </p>
-          <p v-if="fieldError('phone_number_ids')" class="px-5 pb-4 text-[10px] text-danger">
-            {{ fieldError('phone_number_ids') }}
-          </p>
-        </article>
+          {{ error }}
+        </div>
 
-        <article class="card-surface overflow-hidden">
-          <header class="border-b border-slate-100 px-5 py-4">
-            <h2 class="text-sm font-semibold text-slate-700">Root destination</h2>
-            <p class="mt-1 text-[10px] text-slate-400">
-              Only projected, account-scoped targets are available.
-            </p>
-          </header>
-          <div class="grid gap-5 p-5">
-            <label class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Destination type</span>
-              <FormListbox
-                :model-value="form.destination_type"
-                :options="destinationTypeOptions"
-                aria-label="Destination type"
-                :invalid="Boolean(fieldError('destination_type'))"
-                @update:model-value="setDestinationType"
+        <fieldset :disabled="saving" class="grid gap-5 disabled:opacity-75">
+          <article class="card-surface overflow-hidden">
+            <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+              <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
+                <ArrowPathRoundedSquareIcon class="size-5" />
+              </span>
+              <div>
+                <h2 class="text-sm font-semibold text-slate-700">Route identity</h2>
+                <p class="text-[10px] text-slate-400">
+                  {{ record ? 'Name and non-phone entry points' : 'Name shown throughout GridPBX' }}
+                </p>
+              </div>
+            </header>
+            <div class="grid gap-4 p-5">
+              <FormInput
+                v-model="form.name"
+                label="Route name"
+                maxlength="128"
+                required
+                :error="fieldError('name')"
               />
-              <span v-if="fieldError('destination_type')" class="text-[10px] text-danger">{{
-                fieldError('destination_type')
-              }}</span>
-            </label>
-            <label v-if="form.destination_type !== 'temporal_rules'" class="grid gap-2">
-              <span class="text-xs font-semibold text-slate-600">Destination</span>
-              <FormListbox
-                :model-value="form.destination_id"
-                :options="destinationOptions"
-                aria-label="Destination"
-                :placeholder="
-                  options.length ? 'Select a destination' : 'No projected targets available'
+              <div v-if="record">
+                <p class="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
+                  Entry points
+                </p>
+                <p class="mt-1 font-mono text-xs text-slate-600">
+                  {{
+                    record.numbers.join(', ') ||
+                    record.patterns.join(', ') ||
+                    'No direct entry point'
+                  }}
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article
+            class="card-surface overflow-hidden"
+            :class="validationControlClass(fieldError('phone_number_ids'))"
+            :aria-invalid="Boolean(fieldError('phone_number_ids'))"
+          >
+            <header class="border-b border-slate-100 px-5 py-4">
+              <h2 class="text-sm font-semibold text-slate-700">Phone-number entry points</h2>
+              <p class="mt-1 text-[10px] leading-4 text-slate-400">
+                Select the inventory numbers that should enter this route. Extensions and patterns
+                are preserved.
+              </p>
+            </header>
+            <div v-if="editor.phone_numbers.length" class="divide-y divide-slate-100 px-5">
+              <FormCheckbox
+                v-for="phoneNumber in editor.phone_numbers"
+                :key="phoneNumber.id"
+                :model-value="form.phone_number_ids"
+                :value="phoneNumber.id"
+                :label="phoneNumber.number"
+                :description="
+                  phoneNumber.available
+                    ? phoneNumber.selected
+                      ? 'Currently enters this route'
+                      : humanizePhoneState(phoneNumber.state)
+                    : `Assigned to ${phoneNumber.assigned_callflow?.name ?? 'another route'}`
                 "
-                :invalid="Boolean(fieldError('destination_id'))"
-                @update:model-value="setDestination"
-              />
-              <span v-if="fieldError('destination_id')" class="text-[10px] text-danger">{{
-                fieldError('destination_id')
-              }}</span>
-            </label>
-            <div v-else class="grid gap-2">
-              <div>
-                <p class="text-xs font-semibold text-slate-600">Temporal Rules</p>
-                <p class="mt-1 text-[10px] text-slate-500">
-                  Select and order the rules written to the Switch temporal route.
-                </p>
-              </div>
-              <CallflowTemporalRulesField
-                v-model="form.temporal_rule_ids"
-                :options="editor.temporal_rules"
-                :error="fieldError('temporal_rule_ids')"
+                :disabled="!phoneNumber.available"
+                variant="row"
+                @update:model-value="form.phone_number_ids = $event as string[]"
               />
             </div>
-            <div
-              v-if="selectedOption"
-              class="flex items-start gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-4"
-            >
-              <CheckCircleIcon class="mt-0.5 size-5 shrink-0 text-emerald-600" />
-              <div>
-                <p class="text-xs font-semibold text-emerald-800">Resolved GridPBX target</p>
-                <p class="mt-1 text-[10px] text-emerald-700">
-                  {{ selectedOption.label }} is mapped server-side; its Switch identifier is never
-                  sent to the browser.
-                </p>
-              </div>
-            </div>
-          </div>
-        </article>
-
-        <article
-          v-if="form.destination_type === 'temporal_rules'"
-          class="card-surface overflow-hidden"
-          :class="validationControlClass(fieldError('temporal_rule_routes'))"
-          :aria-invalid="Boolean(fieldError('temporal_rule_routes'))"
-        >
-          <header class="border-b border-slate-100 px-5 py-4">
-            <h2 class="text-sm font-semibold text-slate-700">Temporal Rule match routes</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
-              Each direct rule uses its own Switch branch. A rule that does not match continues to
-              the next rule; if none match, the fallback destination runs.
+            <p v-else class="p-5 text-xs text-slate-400">
+              No projected phone numbers are available for this account.
             </p>
-          </header>
-          <div class="p-5">
-            <CallflowTemporalRuleRoutesField
-              :routes="form.temporal_rule_routes"
-              :editor="editor"
-              :errors="errors"
-              @update:routes="form.temporal_rule_routes = $event"
-            />
-          </div>
-        </article>
-
-        <article class="card-surface overflow-hidden">
-          <header class="border-b border-slate-100 px-5 py-4">
-            <h2 class="text-sm font-semibold text-slate-700">Fallback destination</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-400">
-              The wildcard branch runs when the root destination does not complete the call.
+            <p v-if="fieldError('phone_number_ids')" class="px-5 pb-4 text-[10px] text-danger">
+              {{ fieldError('phone_number_ids') }}
             </p>
-          </header>
-          <div v-if="editor.fallback.editable" class="grid gap-5 p-5">
-            <ToggleSwitch
-              v-model="form.fallback_enabled"
-              label="Use a fallback destination"
-              description="Create or replace the root node's wildcard branch."
-            />
-            <div v-if="form.fallback_enabled" class="grid gap-4 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Fallback type</span>
-                <FormListbox
-                  :model-value="form.fallback_destination_type"
-                  :options="branchDestinationTypeOptions"
-                  aria-label="Fallback type"
-                  :invalid="Boolean(fieldError('fallback_destination_type'))"
-                  @update:model-value="setFallbackDestinationType"
-                />
-                <span
-                  v-if="fieldError('fallback_destination_type')"
-                  class="text-[10px] text-danger"
-                  >{{ fieldError('fallback_destination_type') }}</span
-                >
-              </label>
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Fallback destination</span>
-                <FormListbox
-                  :model-value="form.fallback_destination_id"
-                  :options="fallbackDestinationOptions"
-                  aria-label="Fallback destination"
-                  :placeholder="
-                    fallbackOptions.length
-                      ? 'Select a fallback destination'
-                      : 'No projected targets available'
-                  "
-                  :invalid="Boolean(fieldError('fallback_destination_id'))"
-                  @update:model-value="setFallbackDestination"
-                />
-                <span
-                  v-if="fieldError('fallback_destination_id')"
-                  class="text-[10px] text-danger"
-                  >{{ fieldError('fallback_destination_id') }}</span
-                >
-              </label>
-            </div>
-          </div>
-          <div v-else class="flex gap-3 bg-amber-50 p-5 text-xs leading-5 text-amber-800">
-            <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
-            <p>{{ editor.fallback.blocked_reason }}</p>
-          </div>
-        </article>
+          </article>
 
-        <article
-          v-if="form.destination_type === 'menu'"
-          class="card-surface overflow-hidden"
-          :class="validationControlClass(fieldError('menu_branches'))"
-          :aria-invalid="Boolean(fieldError('menu_branches'))"
-        >
-          <header class="border-b border-slate-100 px-5 py-4">
-            <h2 class="text-sm font-semibold text-slate-700">Menu key routes</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-400">
-              Route digits, Star, or timeout. Configure the default action in the fallback section.
-            </p>
-          </header>
-          <div v-if="editor.menu_branches.editable" class="p-5">
-            <CallflowMenuBranchesField
-              :branches="form.menu_branches"
-              :editor="editor"
-              :errors="errors"
-              @update:branches="form.menu_branches = $event"
-            />
-          </div>
-          <div v-else class="flex gap-3 bg-amber-50 p-5 text-xs leading-5 text-amber-800">
-            <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
-            <p>{{ editor.menu_branches.blocked_reason }}</p>
-          </div>
-        </article>
-
-        <article
-          v-if="form.destination_type === 'temporal_rule_set'"
-          class="card-surface overflow-hidden"
-          :class="validationControlClass(fieldError('temporal_match_destination_id'))"
-          :aria-invalid="Boolean(fieldError('temporal_match_destination_id'))"
-        >
-          <header class="border-b border-slate-100 px-5 py-4">
-            <h2 class="text-sm font-semibold text-slate-700">Schedule routes</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
-              Switch evaluates the selected Rule Set in its configured order. A match follows the
-              route below; no match follows the fallback destination.
-            </p>
-          </header>
-          <div v-if="editor.temporal_match.editable" class="grid gap-5 p-5">
-            <div class="rounded-md border border-slate-200 bg-slate-50/60 p-4">
-              <p class="text-xs font-semibold text-slate-700">Rule evaluation order</p>
-              <ol v-if="selectedTemporalRules.length" class="mt-3 grid gap-2">
-                <li
-                  v-for="rule in selectedTemporalRules"
-                  :key="rule.id ?? `unresolved-${rule.position}`"
-                  class="flex items-center gap-3 text-xs"
-                >
-                  <span
-                    class="grid size-6 shrink-0 place-items-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-600"
-                  >
-                    {{ rule.position + 1 }}
-                  </span>
-                  <span :class="rule.resolved ? 'text-slate-700' : 'font-semibold text-amber-700'">
-                    {{ rule.label }}
-                  </span>
-                </li>
-              </ol>
-              <p v-else class="mt-2 text-[10px] text-amber-700">
-                This Rule Set has no projected member rules.
+          <article class="card-surface overflow-hidden">
+            <header class="border-b border-slate-100 px-5 py-4">
+              <h2 class="text-sm font-semibold text-slate-700">Root destination</h2>
+              <p class="mt-1 text-[10px] text-slate-400">
+                Only projected, account-scoped targets are available.
               </p>
-            </div>
-
-            <ToggleSwitch
-              v-model="form.temporal_match_enabled"
-              label="Route matching calls"
-              description="Use the literal rule_set branch required by the Switch temporal-route contract."
-            />
-
-            <div v-if="form.temporal_match_enabled" class="grid gap-4 sm:grid-cols-2">
+            </header>
+            <div class="grid gap-5 p-5">
               <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Match destination type</span>
+                <span class="text-xs font-semibold text-slate-600">Destination type</span>
                 <FormListbox
-                  :model-value="form.temporal_match_destination_type"
-                  :options="branchDestinationTypeOptions"
-                  aria-label="Schedule match destination type"
-                  :invalid="Boolean(fieldError('temporal_match_destination_type'))"
-                  @update:model-value="setTemporalMatchDestinationType"
+                  :model-value="form.destination_type"
+                  :options="destinationTypeOptions"
+                  aria-label="Destination type"
+                  :invalid="Boolean(fieldError('destination_type'))"
+                  @update:model-value="setDestinationType"
                 />
-                <span
-                  v-if="fieldError('temporal_match_destination_type')"
-                  class="text-[10px] text-danger"
-                >
-                  {{ fieldError('temporal_match_destination_type') }}
-                </span>
+                <span v-if="fieldError('destination_type')" class="text-[10px] text-danger">{{
+                  fieldError('destination_type')
+                }}</span>
               </label>
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Match destination</span>
+              <label v-if="form.destination_type !== 'temporal_rules'" class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-600">Destination</span>
                 <FormListbox
-                  :model-value="form.temporal_match_destination_id"
-                  :options="temporalMatchDestinationOptions"
-                  aria-label="Schedule match destination"
+                  :model-value="form.destination_id"
+                  :options="destinationOptions"
+                  aria-label="Destination"
                   :placeholder="
-                    temporalMatchOptions.length
-                      ? 'Select a match destination'
-                      : 'No projected targets available'
+                    options.length ? 'Select a destination' : 'No projected targets available'
                   "
-                  :invalid="Boolean(fieldError('temporal_match_destination_id'))"
-                  @update:model-value="setTemporalMatchDestination"
+                  :invalid="Boolean(fieldError('destination_id'))"
+                  @update:model-value="setDestination"
                 />
-                <span
-                  v-if="fieldError('temporal_match_destination_id')"
-                  class="text-[10px] text-danger"
-                >
-                  {{ fieldError('temporal_match_destination_id') }}
-                </span>
+                <span v-if="fieldError('destination_id')" class="text-[10px] text-danger">{{
+                  fieldError('destination_id')
+                }}</span>
               </label>
+              <div v-else class="grid gap-2">
+                <div>
+                  <p class="text-xs font-semibold text-slate-600">Temporal Rules</p>
+                  <p class="mt-1 text-[10px] text-slate-500">
+                    Select and order the rules written to the Switch temporal route.
+                  </p>
+                </div>
+                <CallflowTemporalRulesField
+                  v-model="form.temporal_rule_ids"
+                  :options="editor.temporal_rules"
+                  :error="fieldError('temporal_rule_ids')"
+                />
+              </div>
+              <div
+                v-if="selectedOption"
+                class="flex items-start gap-3 rounded-md border border-emerald-100 bg-emerald-50 p-4"
+              >
+                <CheckCircleIcon class="mt-0.5 size-5 shrink-0 text-emerald-600" />
+                <div>
+                  <p class="text-xs font-semibold text-emerald-800">Resolved GridPBX target</p>
+                  <p class="mt-1 text-[10px] text-emerald-700">
+                    {{ selectedOption.label }} is mapped server-side; its Switch identifier is never
+                    sent to the browser.
+                  </p>
+                </div>
+              </div>
             </div>
+          </article>
 
-            <div
-              v-if="editor.temporal_match.preserved_branch_count"
-              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-800"
-            >
-              {{ editor.temporal_match.preserved_branch_count }} additional legacy temporal
-              {{
-                editor.temporal_match.preserved_branch_count === 1 ? 'branch is' : 'branches are'
-              }}
-              preserved read-only.
+          <article
+            v-if="form.destination_type === 'temporal_rules'"
+            class="card-surface overflow-hidden"
+            :class="validationControlClass(fieldError('temporal_rule_routes'))"
+            :aria-invalid="Boolean(fieldError('temporal_rule_routes'))"
+          >
+            <header class="border-b border-slate-100 px-5 py-4">
+              <h2 class="text-sm font-semibold text-slate-700">Temporal Rule match routes</h2>
+              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                Each direct rule uses its own Switch branch. A rule that does not match continues to
+                the next rule; if none match, the fallback destination runs.
+              </p>
+            </header>
+            <div class="p-5">
+              <CallflowTemporalRuleRoutesField
+                :routes="form.temporal_rule_routes"
+                :editor="editor"
+                :errors="errors"
+                @update:routes="form.temporal_rule_routes = $event"
+              />
             </div>
-          </div>
-          <div v-else class="flex gap-3 bg-amber-50 p-5 text-xs leading-5 text-amber-800">
-            <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
-            <p>{{ editor.temporal_match.blocked_reason }}</p>
-          </div>
-        </article>
+          </article>
 
-        <aside
-          class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
-        >
-          <template v-if="editor.mode === 'create'">
-            GridPBX creates the route in Switch first, then projects it into MySQL and assigns the
-            selected numbers.
-          </template>
-          <template v-else>
-            GridPBX fetches the latest route from Switch before saving. The root destination
-            changes, while every existing child and unsupported branch is preserved.
-          </template>
-        </aside>
-      </fieldset>
+          <article class="card-surface overflow-hidden">
+            <header class="border-b border-slate-100 px-5 py-4">
+              <h2 class="text-sm font-semibold text-slate-700">Fallback destination</h2>
+              <p class="mt-1 text-[10px] leading-4 text-slate-400">
+                The wildcard branch runs when the root destination does not complete the call.
+              </p>
+            </header>
+            <div v-if="editor.fallback.editable" class="grid gap-5 p-5">
+              <ToggleSwitch
+                v-model="form.fallback_enabled"
+                label="Use a fallback destination"
+                description="Create or replace the root node's wildcard branch."
+              />
+              <div v-if="form.fallback_enabled" class="grid gap-4 sm:grid-cols-2">
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Fallback type</span>
+                  <FormListbox
+                    :model-value="form.fallback_destination_type"
+                    :options="branchDestinationTypeOptions"
+                    aria-label="Fallback type"
+                    :invalid="Boolean(fieldError('fallback_destination_type'))"
+                    @update:model-value="setFallbackDestinationType"
+                  />
+                  <span
+                    v-if="fieldError('fallback_destination_type')"
+                    class="text-[10px] text-danger"
+                    >{{ fieldError('fallback_destination_type') }}</span
+                  >
+                </label>
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Fallback destination</span>
+                  <FormListbox
+                    :model-value="form.fallback_destination_id"
+                    :options="fallbackDestinationOptions"
+                    aria-label="Fallback destination"
+                    :placeholder="
+                      fallbackOptions.length
+                        ? 'Select a fallback destination'
+                        : 'No projected targets available'
+                    "
+                    :invalid="Boolean(fieldError('fallback_destination_id'))"
+                    @update:model-value="setFallbackDestination"
+                  />
+                  <span
+                    v-if="fieldError('fallback_destination_id')"
+                    class="text-[10px] text-danger"
+                    >{{ fieldError('fallback_destination_id') }}</span
+                  >
+                </label>
+              </div>
+            </div>
+            <div v-else class="flex gap-3 bg-amber-50 p-5 text-xs leading-5 text-amber-800">
+              <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
+              <p>{{ editor.fallback.blocked_reason }}</p>
+            </div>
+          </article>
 
-      <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
-        <button
-          type="button"
-          class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
-          @click="emit('close')"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          :disabled="saving"
-          class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
-        >
-          {{ saving ? 'Saving route…' : editor.mode === 'create' ? 'Create route' : 'Save route' }}
-        </button>
+          <article
+            v-if="form.destination_type === 'menu'"
+            class="card-surface overflow-hidden"
+            :class="validationControlClass(fieldError('menu_branches'))"
+            :aria-invalid="Boolean(fieldError('menu_branches'))"
+          >
+            <header class="border-b border-slate-100 px-5 py-4">
+              <h2 class="text-sm font-semibold text-slate-700">Menu key routes</h2>
+              <p class="mt-1 text-[10px] leading-4 text-slate-400">
+                Route digits, Star, or timeout. Configure the default action in the fallback
+                section.
+              </p>
+            </header>
+            <div v-if="editor.menu_branches.editable" class="p-5">
+              <CallflowMenuBranchesField
+                :branches="form.menu_branches"
+                :editor="editor"
+                :errors="errors"
+                @update:branches="form.menu_branches = $event"
+              />
+            </div>
+            <div v-else class="flex gap-3 bg-amber-50 p-5 text-xs leading-5 text-amber-800">
+              <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
+              <p>{{ editor.menu_branches.blocked_reason }}</p>
+            </div>
+          </article>
+
+          <article
+            v-if="form.destination_type === 'temporal_rule_set'"
+            class="card-surface overflow-hidden"
+            :class="validationControlClass(fieldError('temporal_match_destination_id'))"
+            :aria-invalid="Boolean(fieldError('temporal_match_destination_id'))"
+          >
+            <header class="border-b border-slate-100 px-5 py-4">
+              <h2 class="text-sm font-semibold text-slate-700">Schedule routes</h2>
+              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                Switch evaluates the selected Rule Set in its configured order. A match follows the
+                route below; no match follows the fallback destination.
+              </p>
+            </header>
+            <div v-if="editor.temporal_match.editable" class="grid gap-5 p-5">
+              <div class="rounded-md border border-slate-200 bg-slate-50/60 p-4">
+                <p class="text-xs font-semibold text-slate-700">Rule evaluation order</p>
+                <ol v-if="selectedTemporalRules.length" class="mt-3 grid gap-2">
+                  <li
+                    v-for="rule in selectedTemporalRules"
+                    :key="rule.id ?? `unresolved-${rule.position}`"
+                    class="flex items-center gap-3 text-xs"
+                  >
+                    <span
+                      class="grid size-6 shrink-0 place-items-center rounded-full border border-slate-300 bg-white text-[10px] font-semibold text-slate-600"
+                    >
+                      {{ rule.position + 1 }}
+                    </span>
+                    <span
+                      :class="rule.resolved ? 'text-slate-700' : 'font-semibold text-amber-700'"
+                    >
+                      {{ rule.label }}
+                    </span>
+                  </li>
+                </ol>
+                <p v-else class="mt-2 text-[10px] text-amber-700">
+                  This Rule Set has no projected member rules.
+                </p>
+              </div>
+
+              <ToggleSwitch
+                v-model="form.temporal_match_enabled"
+                label="Route matching calls"
+                description="Use the literal rule_set branch required by the Switch temporal-route contract."
+              />
+
+              <div v-if="form.temporal_match_enabled" class="grid gap-4 sm:grid-cols-2">
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Match destination type</span>
+                  <FormListbox
+                    :model-value="form.temporal_match_destination_type"
+                    :options="branchDestinationTypeOptions"
+                    aria-label="Schedule match destination type"
+                    :invalid="Boolean(fieldError('temporal_match_destination_type'))"
+                    @update:model-value="setTemporalMatchDestinationType"
+                  />
+                  <span
+                    v-if="fieldError('temporal_match_destination_type')"
+                    class="text-[10px] text-danger"
+                  >
+                    {{ fieldError('temporal_match_destination_type') }}
+                  </span>
+                </label>
+                <label class="grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Match destination</span>
+                  <FormListbox
+                    :model-value="form.temporal_match_destination_id"
+                    :options="temporalMatchDestinationOptions"
+                    aria-label="Schedule match destination"
+                    :placeholder="
+                      temporalMatchOptions.length
+                        ? 'Select a match destination'
+                        : 'No projected targets available'
+                    "
+                    :invalid="Boolean(fieldError('temporal_match_destination_id'))"
+                    @update:model-value="setTemporalMatchDestination"
+                  />
+                  <span
+                    v-if="fieldError('temporal_match_destination_id')"
+                    class="text-[10px] text-danger"
+                  >
+                    {{ fieldError('temporal_match_destination_id') }}
+                  </span>
+                </label>
+              </div>
+
+              <div
+                v-if="editor.temporal_match.preserved_branch_count"
+                class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-800"
+              >
+                {{ editor.temporal_match.preserved_branch_count }} additional legacy temporal
+                {{
+                  editor.temporal_match.preserved_branch_count === 1 ? 'branch is' : 'branches are'
+                }}
+                preserved read-only.
+              </div>
+            </div>
+            <div v-else class="flex gap-3 bg-amber-50 p-5 text-xs leading-5 text-amber-800">
+              <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
+              <p>{{ editor.temporal_match.blocked_reason }}</p>
+            </div>
+          </article>
+
+          <aside
+            class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+          >
+            <template v-if="editor.mode === 'create'">
+              GridPBX creates the route in Switch first, then projects it into MySQL and assigns the
+              selected numbers.
+            </template>
+            <template v-else>
+              GridPBX fetches the latest route from Switch before saving. The root destination
+              changes, while every existing child and unsupported branch is preserved.
+            </template>
+          </aside>
+        </fieldset>
+
+        <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
+          <button
+            type="button"
+            class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
+            @click="emit('close')"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            :disabled="saving"
+            class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+          >
+            {{
+              saving ? 'Saving route…' : editor.mode === 'create' ? 'Create route' : 'Save route'
+            }}
+          </button>
+        </div>
       </div>
+
+      <aside v-if="workspace && editor.mode === 'create'" class="grid gap-4 xl:sticky xl:top-3">
+        <CallflowActionPalette compact root-only enabled @choose="selectRootAction" />
+        <div
+          class="rounded-md border border-blue-100 bg-blue-50 p-4 text-[10px] leading-4 text-blue-800"
+        >
+          Choose a resource-backed root action here. After the route exists, select its node to add
+          schema-specific inline actions and branches.
+        </div>
+      </aside>
     </form>
   </CrudSlideOver>
 </template>

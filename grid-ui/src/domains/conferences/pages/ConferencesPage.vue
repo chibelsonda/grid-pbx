@@ -8,6 +8,7 @@ import {
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ConferenceFormPanel from '../components/ConferenceFormPanel.vue'
 import { useConferenceStore } from '../stores/conferenceStore'
@@ -15,6 +16,7 @@ import type { ConferenceInput } from '../types/conference'
 
 const accounts = useAccountStore()
 const conferences = useConferenceStore()
+const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const activeParticipants = computed(() =>
@@ -24,10 +26,11 @@ const activeParticipants = computed(() =>
   ),
 )
 watch(
-  () => accounts.selectedId,
-  (id) => {
+  [() => accounts.selectedId, globalSearchQuery],
+  ([id, searchQuery]) => {
     panelOpen.value = false
     conferences.reset()
+    conferences.search = searchQuery
     if (id) void conferences.load(id)
   },
   { immediate: true },
@@ -126,7 +129,13 @@ async function remove(): Promise<void> {
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && conferences.load(accounts.selectedId)"
     >
-      <SearchInput v-model="conferences.search" label="Search conferences" class="min-w-0 flex-1" placeholder="Search conferences or access numbers…" input-class="h-10 bg-white text-xs shadow-sm" /><FormSelect
+      <SearchInput
+        v-model="conferences.search"
+        label="Search conferences"
+        class="min-w-0 flex-1"
+        placeholder="Search conferences or access numbers…"
+        input-class="h-10 bg-white text-xs shadow-sm"
+      /><FormSelect
         v-model="conferences.status"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
         ><option value="">All rooms</option>

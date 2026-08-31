@@ -161,4 +161,28 @@ describe('CallflowActionPalette', () => {
     expect(wrapper.text()).toContain('Branch Bnumber')
     expect(wrapper.find('[aria-label="Add Branch Bnumber"]').exists()).toBe(true)
   })
+
+  it('uses resource-backed actions as safe roots in the create workspace', async () => {
+    const wrapper = mount(CallflowActionPalette, {
+      props: { compact: true, enabled: true, rootOnly: true },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('voicemail')
+    await wrapper.get('[aria-label="Use Voicemail as root action"]').trigger('click')
+
+    expect(wrapper.emitted('choose')?.[0]?.[0]).toMatchObject({ module: 'voicemail' })
+  })
+
+  it('does not offer inline action variants as unsaved roots', async () => {
+    const wrapper = mount(CallflowActionPalette, {
+      props: { compact: true, enabled: true, rootOnly: true },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('Conference Service')
+
+    expect(wrapper.find('[aria-label="Use Conference Service as root action"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.get('button[disabled]').attributes('disabled')).toBeDefined()
+  })
 })

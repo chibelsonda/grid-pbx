@@ -9,11 +9,14 @@ describe('DeviceAdvancedSettings', () => {
   it.each<[DeviceType, string[]]>([
     ['sip_device', ['Basic', 'Caller ID', 'SIP', 'Audio', 'Video', 'Options', 'Restrictions']],
     ['cellphone', ['Basic', 'Options']],
-    ['smartphone', ['Basic', 'Wi-Fi calling', 'Options', 'Restrictions']],
+    [
+      'smartphone',
+      ['Basic', 'Caller ID', 'Wi-Fi calling', 'Audio', 'Video', 'Options', 'Restrictions'],
+    ],
     ['softphone', ['Basic', 'Caller ID', 'SIP', 'Audio', 'Video', 'Options', 'Restrictions']],
     ['landline', ['Basic', 'Options']],
-    ['fax', ['Basic', 'Caller ID', 'SIP', 'Options', 'Restrictions']],
-    ['ata', ['Basic', 'Caller ID', 'SIP', 'Options', 'Restrictions']],
+    ['fax', ['Basic', 'Caller ID', 'SIP', 'Audio', 'Options', 'Restrictions']],
+    ['ata', ['Basic', 'Caller ID', 'SIP', 'Audio', 'Options', 'Restrictions']],
     ['sip_uri', ['Basic', 'Options']],
   ])('shows the audited tabs for %s', (deviceType, expectedTabs) => {
     const wrapper = mount(DeviceAdvancedSettings, {

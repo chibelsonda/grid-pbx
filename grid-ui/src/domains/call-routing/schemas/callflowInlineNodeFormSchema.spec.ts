@@ -392,7 +392,9 @@ describe('callflow inline node form schema', () => {
     const schema = createCallflowInlineNodeFormSchema('do_not_disturb', ['_'], true)
     const base = { branch: '_', data: { action: 'toggle', skip_module: false } }
 
-    expect(schema.safeParse(base).success).toBe(true)
+    for (const action of ['activate', 'deactivate', 'toggle']) {
+      expect(schema.safeParse({ ...base, data: { ...base.data, action } }).success).toBe(true)
+    }
     expect(
       schema.safeParse({
         ...base,
@@ -403,7 +405,7 @@ describe('callflow inline node form schema', () => {
           ringtone_external: 'external-ring',
         },
       }).success,
-    ).toBe(true)
+    ).toBe(false)
     expect(
       schema.safeParse({ ...base, data: { action: 'enable', skip_module: false } }).success,
     ).toBe(false)

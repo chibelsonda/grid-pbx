@@ -15,6 +15,10 @@ import FormInput from '@/shared/components/FormInput.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallDetailRecordPanel from '../components/CallDetailRecordPanel.vue'
 import { useCallDetailRecordFilters } from '../composables/useCallDetailRecordFilters'
+import {
+  callDetailRecordDrilldownSchema,
+  type CallDetailRecordDrilldown,
+} from '../schemas/callDetailRecordDrilldownSchema'
 import { useCallDetailRecordStore } from '../stores/callDetailRecordStore'
 
 const accounts = useAccountStore()
@@ -36,31 +40,176 @@ const freshnessLabel = computed(() => {
   if (!calls.sync.last_successful_at) return 'Not synchronized yet'
   return `Last synchronized ${new Date(calls.sync.last_successful_at).toLocaleString()}`
 })
+const dashboardPeriod = computed<CallDetailRecordDrilldown | null>(() => {
+  const result = callDetailRecordDrilldownSchema.safeParse({
+    started_after: calls.filters.started_after,
+    started_before: calls.filters.started_before,
+    ...(calls.filters.direction ? { direction: calls.filters.direction } : {}),
+    ...(calls.filters.outcome ? { outcome: calls.filters.outcome } : {}),
+    ...(calls.filters.search ? { search: calls.filters.search } : {}),
+    ...(calls.filters.duration_min ? { duration_min: calls.filters.duration_min } : {}),
+    ...(calls.filters.duration_max ? { duration_max: calls.filters.duration_max } : {}),
+  })
+
+  return result.success ? result.data : null
+})
+const dashboardPeriodLabel = computed(() => {
+  if (!dashboardPeriod.value) return ''
+
+  const formatter = new Intl.DateTimeFormat(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+    ...(accounts.selected?.timezone ? { timeZone: accounts.selected.timezone } : {}),
+  })
+
+  return `${formatter.format(new Date(dashboardPeriod.value.started_after))} – ${formatter.format(new Date(dashboardPeriod.value.started_before))}`
+})
+
+function routeString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function parseRouteDrilldown(): CallDetailRecordDrilldown | null {
+  const result = callDetailRecordDrilldownSchema.safeParse({
+    started_after: routeString(route.query.started_after),
+    started_before: routeString(route.query.started_before),
+    ...(routeString(route.query.direction)
+      ? { direction: routeString(route.query.direction) }
+      : {}),
+    ...(routeString(route.query.outcome) ? { outcome: routeString(route.query.outcome) } : {}),
+    ...(routeString(route.query.search) ? { search: routeString(route.query.search) } : {}),
+    ...(routeString(route.query.duration_min)
+      ? { duration_min: routeString(route.query.duration_min) }
+      : {}),
+    ...(routeString(route.query.duration_max)
+      ? { duration_max: routeString(route.query.duration_max) }
+      : {}),
+  })
+
+  return result.success ? result.data : null
+}
 
 watch(
-  [() => accounts.selectedId, () => route.query.cdr],
-  ([accountId, recordId], previous) => {
-    const accountChanged = accountId !== previous?.[0]
+  () => ({
+    accountId: accounts.selectedId,
+    recordId: routeString(route.query.cdr),
+    startedAfter: routeString(route.query.started_after),
+    startedBefore: routeString(route.query.started_before),
+    direction: routeString(route.query.direction),
+    outcome: routeString(route.query.outcome),
+    search: routeString(route.query.search),
+    durationMin: routeString(route.query.duration_min),
+    durationMax: routeString(route.query.duration_max),
+  }),
+  (current, previous) => {
+    const accountChanged = current.accountId !== previous?.accountId
+    const drilldownChanged =
+      current.startedAfter !== previous?.startedAfter ||
+      current.startedBefore !== previous?.startedBefore ||
+      current.direction !== previous?.direction ||
+      current.outcome !== previous?.outcome ||
+      current.search !== previous?.search ||
+      current.durationMin !== previous?.durationMin ||
+      current.durationMax !== previous?.durationMax
 
-    if (accountChanged) {
-      calls.reset()
-      if (accountId) void calls.load(accountId, 1)
+    if (accountChanged) calls.reset()
+
+    if (accountChanged || drilldownChanged) {
+      const drilldown = parseRouteDrilldown()
+      calls.filters.started_after = drilldown?.started_after ?? ''
+      calls.filters.started_before = drilldown?.started_before ?? ''
+      calls.filters.direction = drilldown?.direction ?? ''
+      calls.filters.outcome = drilldown?.outcome ?? ''
+      calls.filters.search = drilldown?.search ?? ''
+      calls.filters.duration_min = drilldown?.duration_min ?? ''
+      calls.filters.duration_max = drilldown?.duration_max ?? ''
+
+      if (current.accountId) void calls.load(current.accountId, 1)
     }
 
-    if (accountId && typeof recordId === 'string' && recordId !== calls.detail?.id) {
-      void calls.loadDetail(accountId, recordId)
+    if (current.accountId && current.recordId && current.recordId !== calls.detail?.id) {
+      void calls.loadDetail(current.accountId, current.recordId)
     }
   },
   { immediate: true },
 )
 
 function applyFilters(): void {
-  if (validate() && accounts.selectedId) void calls.load(accounts.selectedId, 1)
+  if (!validate() || !accounts.selectedId) return
+
+  if (dashboardPeriod.value) {
+    const query = { ...route.query }
+    if (calls.filters.direction) query.direction = calls.filters.direction
+    else delete query.direction
+    if (calls.filters.outcome) query.outcome = calls.filters.outcome
+    else delete query.outcome
+    if (calls.filters.search) query.search = calls.filters.search
+    else delete query.search
+    if (calls.filters.duration_min) query.duration_min = calls.filters.duration_min
+    else delete query.duration_min
+    if (calls.filters.duration_max) query.duration_max = calls.filters.duration_max
+    else delete query.duration_max
+
+    if (
+      routeString(route.query.direction) !== calls.filters.direction ||
+      routeString(route.query.outcome) !== calls.filters.outcome ||
+      routeString(route.query.search) !== calls.filters.search ||
+      routeString(route.query.duration_min) !== calls.filters.duration_min ||
+      routeString(route.query.duration_max) !== calls.filters.duration_max
+    ) {
+      void router.replace({ query })
+      return
+    }
+  }
+
+  void calls.load(accounts.selectedId, 1)
 }
 
 function clearFilters(): void {
   calls.clearFilters()
+  const query = { ...route.query }
+  delete query.started_after
+  delete query.started_before
+  delete query.direction
+  delete query.outcome
+  delete query.search
+  delete query.duration_min
+  delete query.duration_max
+
+  if (
+    route.query.started_after ||
+    route.query.started_before ||
+    route.query.direction ||
+    route.query.outcome ||
+    route.query.search ||
+    route.query.duration_min ||
+    route.query.duration_max
+  ) {
+    void router.replace({ query })
+    return
+  }
+
   applyFilters()
+}
+
+function clearDashboardPeriod(): void {
+  calls.filters.started_after = ''
+  calls.filters.started_before = ''
+  calls.filters.direction = ''
+  calls.filters.outcome = ''
+  calls.filters.search = ''
+  calls.filters.duration_min = ''
+  calls.filters.duration_max = ''
+
+  const query = { ...route.query }
+  delete query.started_after
+  delete query.started_before
+  delete query.direction
+  delete query.outcome
+  delete query.search
+  delete query.duration_min
+  delete query.duration_max
+  void router.replace({ query })
 }
 
 function synchronize(): void {
@@ -167,6 +316,47 @@ function humanize(value: string | null): string {
         </div>
       </article>
     </div>
+
+    <aside
+      v-if="dashboardPeriod"
+      class="mb-4 flex flex-col gap-3 rounded-md border border-brand-200 bg-brand-50/60 px-4 py-3 sm:flex-row sm:items-center"
+      aria-label="Active dashboard call period"
+    >
+      <div>
+        <p class="text-xs font-semibold text-brand-700">Dashboard period</p>
+        <p class="mt-0.5 text-[11px] text-slate-600">
+          {{ dashboardPeriodLabel }}
+          <span class="font-semibold">
+            ·
+            {{ dashboardPeriod.direction ? humanize(dashboardPeriod.direction) : 'All directions' }}
+          </span>
+          <span v-if="dashboardPeriod.search" class="font-semibold">
+            · Search: {{ dashboardPeriod.search }}
+          </span>
+          <span v-if="dashboardPeriod.outcome" class="font-semibold">
+            · {{ humanize(dashboardPeriod.outcome) }}
+          </span>
+          <span
+            v-if="dashboardPeriod.duration_min || dashboardPeriod.duration_max"
+            class="font-semibold"
+          >
+            · Duration {{ dashboardPeriod.duration_min ?? '0' }}–{{
+              dashboardPeriod.duration_max ?? '86400'
+            }}s
+          </span>
+        </p>
+        <p class="mt-0.5 text-[10px] text-slate-500">
+          Includes calls starting at the first time and before the second time.
+        </p>
+      </div>
+      <button
+        type="button"
+        class="rounded-md border border-brand-200 bg-white px-3 py-2 text-xs font-semibold text-brand-700 shadow-sm hover:bg-brand-50 sm:ml-auto"
+        @click="clearDashboardPeriod"
+      >
+        Clear dashboard period
+      </button>
+    </aside>
 
     <form class="mb-4 grid gap-3" novalidate @submit.prevent="applyFilters">
       <div class="grid gap-3 lg:grid-cols-[minmax(240px,1fr)_170px_170px_auto]">

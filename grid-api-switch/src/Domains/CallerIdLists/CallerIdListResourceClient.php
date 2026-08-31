@@ -87,10 +87,12 @@ final readonly class CallerIdListResourceClient
 
     public function update(string $accountId, string $listId, CallerIdListWriteData $list): CallerIdListSnapshot
     {
+        $current = $this->get($accountId, $listId);
+
         return $this->listSnapshot($this->client->request(
             'POST',
             $this->path($accountId, $listId),
-            ['json' => ['data' => $list->toSwitchData()]],
+            ['json' => ['data' => $list->toSwitchData($current->toArray())]],
         ));
     }
 
@@ -120,11 +122,14 @@ final readonly class CallerIdListResourceClient
         CallerIdListEntryWriteData $entry,
     ): CallerIdListEntrySnapshot {
         $listId = $this->required($listId, 'Caller-ID List');
+        $current = $this->getEntry($accountId, $listId, $entryId);
 
         return $this->entrySnapshot($this->client->request(
             'POST',
             $this->entryPath($accountId, $listId, $entryId),
-            ['json' => ['data' => $entry->toSwitchData() + ['list_id' => $listId]]],
+            ['json' => [
+                'data' => $entry->toSwitchData($current->toArray()) + ['list_id' => $listId],
+            ]],
         ));
     }
 

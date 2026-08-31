@@ -57,6 +57,9 @@ test('keeps Media validation inline and its music-on-hold choice inside the view
   await page.getByRole('button', { name: 'Upload media' }).click()
 
   const upload = page.getByRole('dialog', { name: 'Upload media' })
+  await upload.getByRole('tab', { name: 'Advanced' }).click()
+  await expect(upload.getByRole('switch', { name: 'Allow streaming' })).toBeVisible()
+  await upload.getByRole('tab', { name: 'Basic' }).click()
   await upload.getByRole('button', { name: 'Upload media' }).click()
   for (const control of [upload.getByLabel('Media name'), upload.getByLabel('Media audio file')]) {
     await expect(control).toHaveAttribute('aria-invalid', 'true')

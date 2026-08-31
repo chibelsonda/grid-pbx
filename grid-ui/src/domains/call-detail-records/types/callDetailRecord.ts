@@ -49,6 +49,8 @@ export type CallDetailRecordFilters = {
   hangup_cause: string
   started_from: string
   started_to: string
+  started_after: string
+  started_before: string
   duration_min: string
   duration_max: string
 }

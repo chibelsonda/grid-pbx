@@ -48,7 +48,16 @@ test('keeps Menu validation inline and its media listbox inside the viewport', a
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
   await page.getByRole('option', { name: 'Switch system prompt' }).click()
 
-  await page.getByRole('tab', { name: 'Advanced' }).click()
+  const formSections = page.getByRole('tablist', { name: 'Form sections' })
+  await expect(formSections.getByRole('tab')).toHaveText(['Basic', 'Advanced'])
+  await formSections.getByRole('tab', { name: 'Advanced' }).click()
+  const advancedSections = page.getByRole('tablist', { name: 'Menu advanced sections' })
+  await expect(advancedSections.getByRole('tab')).toHaveText([
+    'Basic',
+    'Extension Dialing',
+    'Options',
+  ])
+  await advancedSections.getByRole('tab', { name: 'Options' }).click()
   await page.getByRole('switch', { name: 'Suppress result prompts' }).click()
   await expect(
     page.getByText('Disable invalid, transfer, and exit prompts at runtime.'),
@@ -68,7 +77,8 @@ test('keeps Menu validation inline and its media listbox inside the viewport', a
   await expect(name).toHaveClass(/border-red-400/)
   await expect(page.getByText('Enter a menu name.')).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
-  await page.getByRole('tab', { name: 'Advanced' }).click()
+  await formSections.getByRole('tab', { name: 'Advanced' }).click()
+  await advancedSections.getByRole('tab', { name: 'Options' }).click()
   await expect(page.getByLabel('Initial digit timeout (ms)')).toHaveAttribute(
     'aria-invalid',
     'true',
@@ -127,7 +137,14 @@ test('round-trips Menu runtime prompt suppression and write-only PIN clearing', 
     await row.click()
     dialog = page.getByRole('dialog', { name: 'Edit menu' })
     await dialog.getByRole('textbox', { name: 'Recording PIN', exact: true }).fill('5937')
-    await dialog.getByRole('tab', { name: 'Advanced' }).click()
+    await dialog
+      .getByRole('tablist', { name: 'Form sections' })
+      .getByRole('tab', { name: 'Advanced' })
+      .click()
+    await dialog
+      .getByRole('tablist', { name: 'Menu advanced sections' })
+      .getByRole('tab', { name: 'Options' })
+      .click()
     await dialog.getByRole('switch', { name: 'Suppress result prompts' }).click()
 
     const updateResponsePromise = page.waitForResponse(
@@ -140,14 +157,24 @@ test('round-trips Menu runtime prompt suppression and write-only PIN clearing', 
     row = page.getByRole('row', { name: new RegExp(menuName) })
     await row.click()
     dialog = page.getByRole('dialog', { name: 'Edit menu' })
-    await dialog.getByRole('tab', { name: 'Advanced' }).click()
+    await dialog
+      .getByRole('tablist', { name: 'Form sections' })
+      .getByRole('tab', { name: 'Advanced' })
+      .click()
+    await dialog
+      .getByRole('tablist', { name: 'Menu advanced sections' })
+      .getByRole('tab', { name: 'Options' })
+      .click()
     await expect(dialog.getByRole('switch', { name: 'Suppress result prompts' })).toBeChecked()
     await expect(dialog.getByRole('switch', { name: 'Enabled' })).toHaveCount(3)
     for (const toggle of await dialog.getByRole('switch', { name: 'Enabled' }).all()) {
       await expect(toggle).not.toBeChecked()
       await expect(toggle).toBeDisabled()
     }
-    await dialog.getByRole('tab', { name: 'Basic' }).click()
+    await dialog
+      .getByRole('tablist', { name: 'Form sections' })
+      .getByRole('tab', { name: 'Basic' })
+      .click()
     await dialog.getByRole('switch', { name: 'Remove current recording PIN' }).click()
 
     const clearResponsePromise = page.waitForResponse(

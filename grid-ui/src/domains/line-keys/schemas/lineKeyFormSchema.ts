@@ -106,23 +106,10 @@ export function createLineKeyFormSchema(capability?: LineKeyCapability) {
     .object({ line_keys: z.array(lineKeySchema).max(maximumAssignments) })
     .strict()
     .superRefine(({ line_keys: lineKeys }, context) => {
-      const seen = new Set<string>()
       const physicalPositions = new Set<number>()
 
       lineKeys.forEach((key, index) => {
-        const identity = `${key.category}:${key.position}`
-
-        if (seen.has(identity)) {
-          context.addIssue({
-            code: 'custom',
-            path: ['line_keys', index, 'position'],
-            message: 'Each category and position combination must be unique.',
-          })
-        }
-
-        seen.add(identity)
-
-        if (capability?.model.matched && physicalPositions.has(key.position)) {
+        if (physicalPositions.has(key.position)) {
           context.addIssue({
             code: 'custom',
             path: ['line_keys', index, 'position'],

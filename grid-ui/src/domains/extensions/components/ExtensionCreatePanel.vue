@@ -14,13 +14,16 @@ import VoicemailDraftForm from '@/domains/voicemail/components/VoicemailDraftFor
 import type { VoicemailBoxInput, VoicemailFormOptions } from '@/domains/voicemail/types/voicemail'
 import { defaultVoicemailFormOptions } from '@/domains/voicemail/voicemailForm'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelector.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import {
   defaultExtensionCredentialsInput,
+  defaultExtensionAdvancedCallingConfiguration,
   defaultExtensionHotdeskInput,
   defaultExtensionUserConfiguration,
+  hydrateExtensionAdvancedCalling,
 } from '../extensionForm'
 import { useExtensionFormOptions } from '../composables/useExtensionFormOptions'
 import { extensionCreateSchema } from '../schemas/extensionFormSchema'
@@ -32,6 +35,8 @@ import type {
   ExtensionUserConfiguration,
 } from '../types/extension'
 import ExtensionCredentialsProfile from './ExtensionCredentialsProfile.vue'
+import ExtensionAdvancedCallingSettings from './ExtensionAdvancedCallingSettings.vue'
+import ExtensionCallRecordingSettings from './ExtensionCallRecordingSettings.vue'
 import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
 
@@ -50,6 +55,13 @@ const emit = defineEmits<{ close: []; save: [input: ExtensionCreate] }>()
 const userConfiguration = reactive(defaultExtensionUserConfiguration())
 const credentials = reactive(defaultExtensionCredentialsInput())
 const hotdesk = reactive(defaultExtensionHotdeskInput())
+const advancedCalling = reactive(
+  hydrateExtensionAdvancedCalling(
+    defaultExtensionAdvancedCallingConfiguration(),
+    props.options.restrictions.map(({ key }) => key),
+  ),
+)
+const selectedFormSection = ref(0)
 const panelView = ref<'extension' | 'device' | 'voicemail'>('extension')
 const configuredDevice = ref<DeviceInput | null>(null)
 const configuredVoicemail = ref<VoicemailBoxInput | null>(null)
@@ -135,6 +147,16 @@ watch(
   },
 )
 
+watch(
+  () => props.options.restrictions,
+  (restrictions) => {
+    for (const { key } of restrictions) {
+      advancedCalling.call_restriction[key] ??= { action: 'inherit' }
+    }
+  },
+  { deep: true },
+)
+
 function nullable(value: string): string | null {
   const trimmed = value.trim()
   return trimmed ? trimmed : null
@@ -163,6 +185,42 @@ function updateHotdesk(value: ExtensionHotdeskInput): void {
   Object.assign(hotdesk, value)
 }
 
+function updateAdvancedCalling(
+  value: Pick<ExtensionCreate, 'caller_id' | 'call_forward' | 'call_restriction'>,
+): void {
+  Object.assign(advancedCalling, value)
+}
+
+function isAdvancedField(field: string): boolean {
+  return [
+    'language',
+    'presence_id',
+    'call_waiting',
+    'do_not_disturb',
+    'contact_list',
+    'caller_id_options',
+    'caller_id',
+    'call_forward',
+    'call_restriction',
+    'call_recording',
+    'hotdesk',
+  ].some((prefix) => field === prefix || field.startsWith(`${prefix}.`))
+}
+
+function revealValidationSection(errors: FormErrors): void {
+  const fields = Object.keys(errors)
+
+  selectedFormSection.value = fields.length > 0 && fields.every(isAdvancedField) ? 1 : 0
+}
+
+watch(
+  () => props.fieldErrors,
+  (errors) => {
+    if (Object.keys(errors).length > 0) revealValidationSection(errors)
+  },
+  { deep: true, immediate: true },
+)
+
 function configureDevice(input: DeviceInput): void {
   configuredDevice.value = input
   panelView.value = 'extension'
@@ -190,6 +248,13 @@ function submit(): void {
     timezone: form.timezone,
     is_enabled: form.isEnabled,
     ...userConfiguration,
+    caller_id: advancedCalling.caller_id,
+    call_forward: {
+      ...advancedCalling.call_forward,
+      number: advancedCalling.call_forward.number?.trim() || null,
+    },
+    call_restriction: advancedCalling.call_restriction,
+    call_recording: advancedCalling.call_recording,
     hotdesk: {
       ...hotdesk,
       id: hotdesk.id ? hotdesk.id.trim() : null,
@@ -209,6 +274,7 @@ function submit(): void {
 
   if (!validation.success) {
     clientErrors.value = validation.errors
+    revealValidationSection(validation.errors)
 
     return
   }
@@ -245,7 +311,12 @@ function submit(): void {
         {{ error }}
       </div>
 
-      <article class="card-surface overflow-hidden">
+      <BasicAdvancedTabSelector
+        v-model="selectedFormSection"
+        aria-label="Extension form sections"
+      />
+
+      <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
             <UserIcon class="size-5" />
@@ -306,27 +377,49 @@ function submit(): void {
         </div>
       </article>
 
-      <ExtensionCredentialsProfile
-        :model-value="credentials"
-        :field-errors="displayErrors"
-        @update:model-value="updateCredentials"
-      />
+      <div v-show="selectedFormSection === 0" class="contents">
+        <ExtensionCredentialsProfile
+          :model-value="credentials"
+          :field-errors="displayErrors"
+          @update:model-value="updateCredentials"
+        />
+      </div>
 
-      <ExtensionUserOptions
-        :model-value="userConfiguration"
-        :field-errors="displayErrors"
-        :language-options="languageOptions"
-        :presence-options="presenceOptions"
-        @update:model-value="updateUserConfiguration"
-      />
+      <div
+        v-show="selectedFormSection === 1"
+        data-testid="extension-advanced-section"
+        class="contents"
+      >
+        <ExtensionUserOptions
+          :model-value="userConfiguration"
+          :field-errors="displayErrors"
+          :language-options="languageOptions"
+          :presence-options="presenceOptions"
+          @update:model-value="updateUserConfiguration"
+        />
 
-      <ExtensionHotdeskProfile
-        :model-value="hotdesk"
-        :field-errors="displayErrors"
-        @update:model-value="updateHotdesk"
-      />
+        <ExtensionAdvancedCallingSettings
+          :model-value="advancedCalling"
+          :field-errors="displayErrors"
+          :phone-numbers="options.caller_id_numbers"
+          :restrictions="options.restrictions"
+          :unresolved-numbers="{ external: null, emergency: null }"
+          @update:model-value="updateAdvancedCalling"
+        />
 
-      <article class="card-surface overflow-hidden">
+        <ExtensionCallRecordingSettings
+          v-model="advancedCalling.call_recording"
+          :field-errors="displayErrors"
+        />
+
+        <ExtensionHotdeskProfile
+          :model-value="hotdesk"
+          :field-errors="displayErrors"
+          @update:model-value="updateHotdesk"
+        />
+      </div>
+
+      <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-purple-50 text-purple-600"
             ><MicrophoneIcon class="size-5"
@@ -379,7 +472,7 @@ function submit(): void {
         </div>
       </article>
 
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-blue-50 text-info"
             ><DevicePhoneMobileIcon class="size-5"

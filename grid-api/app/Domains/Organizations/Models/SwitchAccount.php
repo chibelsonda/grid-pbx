@@ -10,6 +10,7 @@ use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\CallerIdLists\Models\SwitchCallerIdList;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Conferences\Models\SwitchConference;
+use App\Domains\Dashboard\Models\CallGeographyAggregate;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Directories\Models\SwitchDirectory;
 use App\Domains\Extensions\Models\SwitchExtension;
@@ -164,6 +165,12 @@ class SwitchAccount extends Model
     public function devices(): HasMany
     {
         return $this->hasMany(SwitchDevice::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<CallGeographyAggregate, $this> */
+    public function callGeographyAggregates(): HasMany
+    {
+        return $this->hasMany(CallGeographyAggregate::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchVoicemailBox, $this> */

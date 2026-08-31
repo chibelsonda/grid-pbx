@@ -8,8 +8,10 @@ final class CallflowBranchPolicy
     private const LOCKED_MODULES = [
         'acdc_agent',
         'call_forward',
+        'dynamic_cid',
         'eavesdrop',
         'eavesdrop_feature',
+        'webhook',
     ];
 
     /** @var list<string> */

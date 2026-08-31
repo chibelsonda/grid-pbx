@@ -28,7 +28,7 @@ export default defineConfig({
     {
       name: 'gridpbx-live',
       testMatch:
-        /gridpbx-(account-projection|billing-workspace|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|feature-codes|group-form|layout-alignment|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|sidebar-navigation|system-status|temporal-routing)\.spec\.ts/,
+        /gridpbx-(account-projection|billing-workspace|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|decorative-icons|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|feature-codes|global-search|group-form|layout-alignment|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|sidebar-navigation|system-status|temporal-routing|theme-customizer)\.spec\.ts/,
       use: {
         baseURL: gridUiUrl,
         ignoreHTTPSErrors: ignoreLocalHttpsErrors,
@@ -37,10 +37,11 @@ export default defineConfig({
     },
     {
       name: 'switch-ui-reference',
-      testMatch: /switch-ui-device-parity\.spec\.ts/,
+      testMatch: /switch-ui-(device|user)-parity\.spec\.ts/,
       use: {
         baseURL: switchUiUrl,
         storageState: '.playwright/.auth/switch-ui.json',
+        trace: 'off',
       },
     },
   ],

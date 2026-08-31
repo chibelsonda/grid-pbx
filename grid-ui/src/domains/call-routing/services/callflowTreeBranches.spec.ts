@@ -162,6 +162,40 @@ describe('callflowNodeDropDecision', () => {
 })
 
 describe('availableCallflowBranches', () => {
+  it('offers only empty Kazoo Menu branches at any tree depth', () => {
+    const node: CallflowNode = {
+      module: 'menu',
+      target: null,
+      reference_status: 'resolved',
+      children: {
+        '1': {
+          module: 'user',
+          target: null,
+          reference_status: 'resolved',
+          children: {},
+        },
+      },
+    }
+
+    const branches = availableCallflowBranches(node)
+
+    expect(branches.map(({ value }) => value)).toEqual([
+      '_',
+      'timeout',
+      '0',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '*',
+    ])
+    expect(branches.map(({ value }) => value)).not.toContain('#')
+  })
+
   it.each(['check_cid', 'cidlistmatch'])(
     'offers unoccupied caller-ID result branches for %s',
     (module) => {

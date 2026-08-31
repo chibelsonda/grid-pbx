@@ -34,6 +34,8 @@ use App\Domains\Payments\Models\PaymentAttempt;
 use App\Domains\Payments\Models\PaymentCustomerProfile;
 use App\Domains\Payments\Policies\PaymentAttemptPolicy;
 use App\Domains\Payments\Policies\PaymentCustomerProfilePolicy;
+use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
+use App\Domains\PhoneNumbers\Policies\PhoneNumberPolicy;
 use App\Domains\Queues\Models\SwitchQueue;
 use App\Domains\Queues\Policies\QueuePolicy;
 use App\Domains\Recordings\Models\SwitchRecording;
@@ -72,6 +74,7 @@ class AppServiceProvider extends ServiceProvider
         Gate::policy(SwitchAccount::class, AccountPolicy::class);
         Gate::policy(PaymentAttempt::class, PaymentAttemptPolicy::class);
         Gate::policy(PaymentCustomerProfile::class, PaymentCustomerProfilePolicy::class);
+        Gate::policy(SwitchPhoneNumber::class, PhoneNumberPolicy::class);
         Gate::policy(SwitchConference::class, ConferencePolicy::class);
         Gate::policy(SwitchBlacklist::class, BlacklistPolicy::class);
         Gate::policy(SwitchCallerIdList::class, CallerIdListPolicy::class);

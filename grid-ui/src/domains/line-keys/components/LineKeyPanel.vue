@@ -369,23 +369,30 @@ function submit(): void {
                 <fieldset
                   v-if="isInGroup(key.position, group)"
                   :disabled="!canManage"
-                  class="grid gap-3 p-5 sm:grid-cols-[110px_90px_1fr_1fr_36px] disabled:opacity-70"
+                  class="grid items-start gap-3 p-5 sm:grid-cols-[minmax(100px,0.8fr)_90px_minmax(0,2fr)_minmax(0,2fr)_36px] disabled:opacity-70"
                 >
-                  <label class="grid gap-1"
-                    ><span class="text-[10px] font-semibold text-slate-500">Category</span
-                    ><FormListbox
-                      :model-value="key.category"
-                      :options="categoryOptionsFor(key)"
-                      :aria-label="`Select category for position ${key.position}`"
-                      size="small"
-                      :invalid="Boolean(fieldError(index, 'category'))"
-                      @update:model-value="setCategory(key, $event)"
-                    /><span v-if="fieldError(index, 'category')" class="text-[10px] text-danger">{{
-                      fieldError(index, 'category')
-                    }}</span></label
-                  >
+                  <label class="flex min-w-0 self-start flex-col">
+                    <span class="text-xs font-semibold text-slate-600">Category</span>
+                    <span class="mt-2">
+                      <FormListbox
+                        :model-value="key.category"
+                        :options="categoryOptionsFor(key)"
+                        :aria-label="`Select category for position ${key.position}`"
+                        size="small"
+                        :invalid="Boolean(fieldError(index, 'category'))"
+                        @update:model-value="setCategory(key, $event)"
+                      />
+                    </span>
+                    <span
+                      v-if="fieldError(index, 'category')"
+                      class="mt-1 text-[10px] leading-4 text-danger"
+                    >
+                      {{ fieldError(index, 'category') }}
+                    </span>
+                  </label>
                   <FormInput
                     v-model.number="key.position"
+                    class="min-w-0 self-start"
                     label="Position"
                     type="number"
                     min="0"
@@ -394,63 +401,73 @@ function submit(): void {
                     input-class="h-9 px-2"
                     :error="fieldError(index, 'position')"
                   />
-                  <label class="grid gap-1"
-                    ><span class="text-[10px] font-semibold text-slate-500">Type</span
-                    ><FormListbox
-                      :model-value="key.type"
-                      :options="keyTypes"
-                      :aria-label="`Select type for position ${key.position}`"
-                      size="small"
-                      :invalid="Boolean(fieldError(index, 'type'))"
-                      @update:model-value="setType(key, $event)"
-                    /><span v-if="fieldError(index, 'type')" class="text-[10px] text-danger">{{
-                      fieldError(index, 'type')
-                    }}</span></label
-                  >
-                  <div class="grid grid-cols-2 gap-2">
+                  <label class="flex min-w-0 self-start flex-col">
+                    <span class="text-xs font-semibold text-slate-600">Type</span>
+                    <span class="mt-2">
+                      <FormListbox
+                        :model-value="key.type"
+                        :options="keyTypes"
+                        :aria-label="`Select type for position ${key.position}`"
+                        size="small"
+                        :invalid="Boolean(fieldError(index, 'type'))"
+                        @update:model-value="setType(key, $event)"
+                      />
+                    </span>
+                    <span
+                      v-if="fieldError(index, 'type')"
+                      class="mt-1 text-[10px] leading-4 text-danger"
+                    >
+                      {{ fieldError(index, 'type') }}
+                    </span>
+                  </label>
+                  <div class="grid min-w-0 self-start gap-2">
                     <label
                       v-if="
                         key.type !== 'line' &&
                         key.type !== 'parking' &&
                         valueChoiceOptions(key).length > 1
                       "
-                      class="col-span-2 grid gap-1"
-                      ><span class="text-[10px] font-semibold text-slate-500">
+                      class="flex min-w-0 flex-col"
+                    >
+                      <span class="text-xs font-semibold text-slate-600">
                         {{
                           key.type === 'presence' || key.type === 'personal_parking'
                             ? 'Extension'
                             : 'Suggested destination'
-                        }} </span
-                      ><FormListbox
-                        :model-value="suggestedValue(key)"
-                        :options="valueChoiceOptions(key)"
-                        :aria-label="`Select value for position ${key.position}`"
-                        size="small"
-                        :invalid="
-                          (key.type === 'presence' || key.type === 'personal_parking') &&
-                          Boolean(fieldError(index, 'value'))
-                        "
-                        @update:model-value="setSuggestedValue(key, $event)"
-                      />
+                        }}
+                      </span>
+                      <span class="mt-2">
+                        <FormListbox
+                          :model-value="suggestedValue(key)"
+                          :options="valueChoiceOptions(key)"
+                          :aria-label="`Select value for position ${key.position}`"
+                          size="small"
+                          :invalid="
+                            (key.type === 'presence' || key.type === 'personal_parking') &&
+                            Boolean(fieldError(index, 'value'))
+                          "
+                          @update:model-value="setSuggestedValue(key, $event)"
+                        />
+                      </span>
                       <span
                         v-if="
                           (key.type === 'presence' || key.type === 'personal_parking') &&
                           fieldError(index, 'value')
                         "
-                        class="text-[10px] text-danger"
+                        class="mt-1 text-[10px] leading-4 text-danger"
                         >{{ fieldError(index, 'value') }}</span
                       >
-                      <span v-else class="text-[10px] text-slate-500">
+                      <span v-else class="mt-1 text-[10px] leading-4 text-slate-500">
                         {{
                           key.type === 'presence' || key.type === 'personal_parking'
                             ? 'Kazoo resolves this account-scoped user to its presence ID.'
                             : 'The dialable extension is stored, never its internal resource ID.'
                         }}
-                      </span></label
-                    >
+                      </span>
+                    </label>
                     <p
                       v-if="key.type === 'line'"
-                      class="col-span-2 self-center text-[10px] text-slate-500"
+                      class="self-center text-[10px] leading-4 text-slate-500"
                     >
                       Uses the device's primary account. Kazoo does not use a custom value or label
                       for a line appearance.
@@ -460,7 +477,7 @@ function submit(): void {
                         (key.type === 'presence' || key.type === 'personal_parking') &&
                         valueChoiceOptions(key).length === 1
                       "
-                      class="col-span-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] text-amber-800"
+                      class="rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] text-amber-800"
                     >
                       No synchronized extensions are available. Synchronize People & Extensions
                       before assigning this key type.

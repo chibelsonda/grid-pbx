@@ -101,6 +101,10 @@ test('keeps Services compact and links to the dedicated billing workspace', asyn
 
   const panel = page.getByRole('dialog', { name: 'Service details' })
   await expect(panel.getByRole('heading', { name: 'Billing workspace' })).toBeVisible()
+  await expect(panel.getByRole('tab', { name: /basic|advanced/i })).toHaveCount(0)
+  await expect(
+    panel.getByRole('button', { name: /charge|refund|credit|debit|top.?up/i }),
+  ).toHaveCount(0)
   await expect(panel.getByText('Billing documents', { exact: true })).toHaveCount(0)
   await expect(panel.getByText('Switch billing activity', { exact: true })).toHaveCount(0)
   await panel.getByRole('link', { name: 'Open billing workspace' }).click()
@@ -156,9 +160,12 @@ test('loads provider-neutral invoice detail before offering its safe PDF downloa
   await page.goto('/billing')
   await page.getByText('INV-E2E-100', { exact: true }).click()
 
-  await expect(page.getByRole('button', { name: 'Download invoice PDF' })).toBeVisible()
+  const panel = page.getByRole('dialog', { name: 'INV-E2E-100' })
+  await expect(panel.getByRole('tab', { name: /basic|advanced/i })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: /edit|delete|charge|refund/i })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Download invoice PDF' })).toBeVisible()
   const downloadPromise = page.waitForEvent('download')
-  await page.getByRole('button', { name: 'Download invoice PDF' }).click()
+  await panel.getByRole('button', { name: 'Download invoice PDF' }).click()
   const download = await downloadPromise
 
   expect(download.suggestedFilename()).toBe(`invoice-${invoiceId}.pdf`)

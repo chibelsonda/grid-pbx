@@ -174,6 +174,14 @@ test('shows the safe account projection and explicit settings boundaries', async
   await expect(page.getByText('Projected resources')).toBeVisible()
   await expect(page.getByText('Operational and billing controls')).toBeVisible()
   await page.getByRole('button', { name: 'Edit settings' }).click()
+  const settings = page.getByRole('dialog', { name: 'Edit account settings' })
+  await expect(settings.getByRole('tab', { name: 'Basic' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.getByText('Identity and locale')).toBeVisible()
+  await expect(page.getByText('Account call restrictions')).toBeHidden()
+  await settings.getByRole('tab', { name: 'Advanced' }).click()
   await expect(page.getByText('Account call restrictions')).toBeVisible()
   await expect(page.getByText('Call-recording defaults')).toBeVisible()
   await expect(page.getByText('Dial plan and formatters')).toBeVisible()
@@ -183,12 +191,17 @@ test('shows the safe account projection and explicit settings boundaries', async
   await expect(page.getByText('1 unsupported or unprojected action tree(s)')).toBeVisible()
   await page.getByRole('button', { name: 'Account preflow' }).click()
   await page.getByRole('option', { name: /Main inbound route/ }).click()
+  await page.getByRole('switch', { name: 'Off-net' }).first().click()
+  await settings.getByRole('tab', { name: 'Basic' }).click()
   await page.getByRole('button', { name: 'Outbound caller privacy' }).click()
   await page.getByRole('option', { name: 'Use Switch default' }).click()
-  await page.getByRole('switch', { name: 'Off-net' }).first().click()
   const name = page.getByRole('textbox', { name: 'Account name' })
   await name.fill('')
   await page.getByRole('button', { name: 'Save settings' }).click()
+  await expect(settings.getByRole('tab', { name: 'Basic' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
   await expect(name).toHaveAttribute('aria-invalid', 'true')
   await expect(page.getByText('Enter an account name.')).toBeVisible()
   await name.fill('Grid Operations')

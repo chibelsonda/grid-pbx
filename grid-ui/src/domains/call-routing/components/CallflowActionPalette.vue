@@ -6,6 +6,7 @@ import { ArrowUturnLeftIcon, ArrowsPointingOutIcon } from '@heroicons/vue/24/out
 import SearchInput from '@/shared/components/SearchInput.vue'
 import { callflowActionAppearance } from '../catalog/callflowActionAppearance'
 import {
+  callflowActionDestinationType,
   callflowActionCatalog,
   searchableCallflowActions,
   type CallflowAction,
@@ -20,6 +21,7 @@ const props = withDefaults(
     compact?: boolean
     movable?: boolean
     floating?: boolean
+    rootOnly?: boolean
   }>(),
   {
     enabled: false,
@@ -27,6 +29,7 @@ const props = withDefaults(
     compact: false,
     movable: false,
     floating: false,
+    rootOnly: false,
   },
 )
 const emit = defineEmits<{
@@ -114,11 +117,11 @@ const statusDotClass = {
 } as const
 
 function choose(action: CallflowAction): void {
-  if (props.enabled && action.status === 'guided') emit('choose', action)
+  if (props.enabled && isActionEnabled(action)) emit('choose', action)
 }
 
 function startActionDrag(event: DragEvent, action: CallflowAction): void {
-  if (!props.dragEnabled || action.status !== 'guided') {
+  if (!props.dragEnabled || !isActionEnabled(action)) {
     event.preventDefault()
     return
   }
@@ -127,6 +130,14 @@ function startActionDrag(event: DragEvent, action: CallflowAction): void {
   event.dataTransfer?.setData('text/plain', action.module)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
   emit('action-drag-start', action)
+}
+
+function isActionEnabled(action: CallflowAction): boolean {
+  return (
+    action.status === 'guided' &&
+    (!props.rootOnly ||
+      (action.action === undefined && callflowActionDestinationType(action.module) !== null))
+  )
 }
 
 function toggleCategory(categoryId: string): void {
@@ -266,20 +277,22 @@ function toggleCategory(categoryId: string): void {
             v-for="action in category.actions"
             :key="action.id"
             type="button"
-            :disabled="action.status !== 'guided' || (!enabled && !dragEnabled)"
-            :draggable="dragEnabled && action.status === 'guided'"
+            :disabled="!isActionEnabled(action) || (!enabled && !dragEnabled)"
+            :draggable="dragEnabled && isActionEnabled(action)"
             :title="`${action.label} · ${action.module} · ${statusLabel[action.status]}`"
             class="relative rounded-md text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default"
             :class="[
               compact ? 'h-14' : 'p-3',
               !compact && callflowActionAppearance(action.module).paletteBorder,
-              dragEnabled && action.status === 'guided' && 'cursor-grab active:cursor-grabbing',
+              dragEnabled && isActionEnabled(action) && 'cursor-grab active:cursor-grabbing',
             ]"
             :aria-label="
-              action.status !== 'guided'
+              !isActionEnabled(action)
                 ? undefined
                 : enabled
-                  ? `Add ${action.label}`
+                  ? rootOnly
+                    ? `Use ${action.label} as root action`
+                    : `Add ${action.label}`
                   : dragEnabled
                     ? `Drag ${action.label} onto route`
                     : `${action.label} unavailable in read-only mode`
@@ -335,10 +348,16 @@ function toggleCategory(categoryId: string): void {
               {{ action.description }}
             </p>
             <p
-              v-if="!compact && action.status === 'guided' && (enabled || dragEnabled)"
+              v-if="!compact && isActionEnabled(action) && (enabled || dragEnabled)"
               class="mt-2 text-[9px] font-semibold text-brand-600"
             >
-              {{ enabled ? 'Add after the selected node' : 'Drag onto an eligible route node' }}
+              {{
+                enabled
+                  ? rootOnly
+                    ? 'Use as the root action'
+                    : 'Add after the selected node'
+                  : 'Drag onto an eligible route node'
+              }}
             </p>
           </button>
         </DisclosurePanel>

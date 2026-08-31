@@ -2,6 +2,8 @@
 
 namespace App\Domains\CallDetailRecords\Requests;
 
+use DateTimeImmutable;
+use DateTimeInterface;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -23,6 +25,8 @@ class ListCallDetailRecordsRequest extends FormRequest
             'hangup_cause' => ['nullable', 'string', 'max:64'],
             'started_from' => ['nullable', 'date_format:Y-m-d'],
             'started_to' => ['nullable', 'date_format:Y-m-d'],
+            'started_after' => ['nullable', 'date_format:Y-m-d\TH:i:sP'],
+            'started_before' => ['nullable', 'date_format:Y-m-d\TH:i:sP'],
             'duration_min' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'duration_max' => ['nullable', 'integer', 'min:0', 'max:86400'],
             'page' => ['sometimes', 'integer', 'min:1'],
@@ -39,6 +43,25 @@ class ListCallDetailRecordsRequest extends FormRequest
 
             if (is_string($from) && is_string($to) && $from > $to) {
                 $validator->errors()->add('started_to', 'The end date must be on or after the start date.');
+            }
+
+            $after = $this->input('started_after');
+            $before = $this->input('started_before');
+
+            if (
+                is_string($after)
+                && is_string($before)
+                && ! $validator->errors()->hasAny(['started_after', 'started_before'])
+            ) {
+                $afterAt = DateTimeImmutable::createFromFormat(DateTimeInterface::ATOM, $after);
+                $beforeAt = DateTimeImmutable::createFromFormat(DateTimeInterface::ATOM, $before);
+
+                if ($afterAt !== false && $beforeAt !== false && $afterAt >= $beforeAt) {
+                    $validator->errors()->add(
+                        'started_before',
+                        'The precise end time must be after the precise start time.',
+                    );
+                }
             }
 
             $minimum = $this->input('duration_min');

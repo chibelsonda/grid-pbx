@@ -40,7 +40,6 @@ test('organizes desktop navigation into route-aware accordion groups', async ({ 
   })
   await expect(collapsedGroup).toBeVisible()
   await expect(page.getByRole('link', { name: 'Billing', exact: true })).toBeVisible()
-
   await collapsedGroup.click()
   await expect(page.getByRole('button', { name: 'People & Endpoints', exact: true })).toBeVisible()
   expect(issues).toEqual([])

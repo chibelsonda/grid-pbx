@@ -11,6 +11,11 @@ class VoicemailBoxPolicy
 {
     public function __construct(private readonly OrganizationAccessService $access) {}
 
+    public function viewAny(User $user, SwitchAccount $account): bool
+    {
+        return $this->access->roleFor($user, $account) !== null;
+    }
+
     public function create(User $user, SwitchAccount $account): bool
     {
         return $this->access->canManageVoicemail($user, $account);

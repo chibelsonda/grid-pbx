@@ -22,6 +22,7 @@ test('keeps Directory validation inline and its sort listbox inside the viewport
   await page.getByRole('button', { name: 'New directory' }).click()
   await expect(page.getByRole('heading', { name: 'Create directory' })).toBeVisible()
 
+  await page.getByRole('tab', { name: 'Advanced' }).click()
   await page.getByRole('button', { name: 'Sort names by' }).click()
   const options = page.getByRole('listbox')
   await expect(options).toBeVisible()

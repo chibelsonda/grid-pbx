@@ -9,6 +9,44 @@ type PublicCallflowNode = {
   children?: Record<string, PublicCallflowNode>
 }
 
+type RingGroupMediaLegEvidence = {
+  route_name: string
+  observer: 'freeswitch_esl'
+  carrier_attempts: number
+  legs: Array<{
+    direction: 'internal' | 'external'
+    call_id: string
+    source: 'account_local_sip'
+    alert_info: string
+    ringback_media_matches_seed: boolean
+    audible_ringback: boolean
+  }>
+}
+
+function verifyMediaLegEvidence(evidence: RingGroupMediaLegEvidence, routeName: string): void {
+  expect(evidence).toMatchObject({
+    route_name: routeName,
+    observer: 'freeswitch_esl',
+    carrier_attempts: 0,
+  })
+  expect(evidence.legs).toHaveLength(2)
+  expect(new Set(evidence.legs.map(({ call_id }) => call_id.trim())).size).toBe(2)
+
+  for (const [direction, alertInfo] of [
+    ['internal', 'internal-ring'],
+    ['external', 'external-ring'],
+  ] as const) {
+    expect(evidence.legs).toContainEqual({
+      direction,
+      call_id: expect.stringMatching(/\S/),
+      source: 'account_local_sip',
+      alert_info: alertInfo,
+      ringback_media_matches_seed: true,
+      audible_ringback: true,
+    })
+  }
+}
+
 function findCallflowNode(
   node: PublicCallflowNode | null | undefined,
   module: string,
@@ -53,7 +91,6 @@ async function deleteRoute(page: Page, routeName: string): Promise<void> {
 }
 
 test('verifies weighted Ring Group guided inline actions', async ({ page }) => {
-  test.setTimeout(60_000)
   const routeName = process.env.GRID_E2E_CALL_PRIORITY_ROUTE_NAME?.trim()
   const seedFile = process.env.GRID_E2E_RING_GROUP_SEED_FILE?.trim()
   const seed = seedFile
@@ -72,6 +109,9 @@ test('verifies weighted Ring Group guided inline actions', async ({ page }) => {
   const privateMarker = process.env.GRID_E2E_RING_GROUP_PRIVATE_MARKER?.trim()
   const privateReadyFile = process.env.GRID_E2E_RING_GROUP_PRIVATE_READY_FILE?.trim()
   const verificationFile = process.env.GRID_E2E_RING_GROUP_VERIFICATION_FILE?.trim()
+  const mediaLegVerificationFile = process.env.GRID_E2E_RING_GROUP_MEDIA_LEG_FILE?.trim()
+
+  test.setTimeout(mediaLegVerificationFile ? 150_000 : 60_000)
 
   test.skip(!routeName, 'Set GRID_E2E_CALL_PRIORITY_ROUTE_NAME to a disposable route.')
 
@@ -159,6 +199,14 @@ test('verifies weighted Ring Group guided inline actions', async ({ page }) => {
 
     if (privateReadyFile) {
       await expect.poll(() => existsSync(privateReadyFile), { timeout: 20_000 }).toBe(true)
+    }
+
+    if (mediaLegVerificationFile) {
+      await expect.poll(() => existsSync(mediaLegVerificationFile), { timeout: 90_000 }).toBe(true)
+      verifyMediaLegEvidence(
+        JSON.parse(readFileSync(mediaLegVerificationFile, 'utf8')) as RingGroupMediaLegEvidence,
+        routeName!,
+      )
     }
 
     const ringGroupNode = diagram.getByRole('treeitem', { name: 'Ring Group' })
