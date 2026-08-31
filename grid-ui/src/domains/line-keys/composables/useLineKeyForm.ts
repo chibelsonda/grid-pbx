@@ -36,8 +36,8 @@ export function useLineKeyForm(preview: LineKeyPreview) {
       category: key.category,
       position: key.position,
       type: key.type,
-      label: key.label,
-      value: key.value,
+      label: key.type === 'line' ? null : key.label,
+      value: key.type === 'line' ? null : key.value,
     })),
   )
   const validationErrors = ref<FormErrors>({})
@@ -73,10 +73,12 @@ export function useLineKeyForm(preview: LineKeyPreview) {
 
     if (position > endPosition) return
 
+    const type = preview.capability.model.supported_key_types[0] ?? 'speed_dial'
+
     form.push({
-      category: 'feature',
+      category: type === 'line' ? 'combo' : 'feature',
       position,
-      type: preview.capability.model.supported_key_types[0] ?? 'speed_dial',
+      type,
       label: null,
       value: null,
     })

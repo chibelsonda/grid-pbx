@@ -207,7 +207,6 @@ const amount = (value: number): string =>
   </div>
   <ServiceDetailPanel
     v-if="services.detailsOpen && services.overview && accounts.selectedId"
-    :account-id="accounts.selectedId"
     :overview="services.overview"
     @close="services.detailsOpen = false"
   />

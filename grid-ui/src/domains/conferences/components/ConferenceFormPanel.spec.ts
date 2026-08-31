@@ -17,7 +17,6 @@ describe('ConferenceFormPanel', () => {
         stubs: {
           CrudSlideOver: { template: '<div><slot /></div>' },
           ConfirmDialog: true,
-          DisclosureCard: { template: '<div><slot /></div>' },
         },
       },
     })
@@ -33,5 +32,34 @@ describe('ConferenceFormPanel', () => {
     expect(memberNumbers.classes()).toContain('!border-red-400')
     expect(wrapper.text()).toContain('Enter a conference name.')
     expect(wrapper.text()).not.toContain('Check the highlighted fields and try again.')
+  })
+
+  it('separates safe Switch references into the Advanced tab', async () => {
+    const wrapper = mount(ConferenceFormPanel, {
+      props: {
+        record: null,
+        options: { owners: [], media: [] },
+        saving: false,
+        error: null,
+        fieldErrors: {},
+        canManage: true,
+      },
+      global: {
+        stubs: {
+          CrudSlideOver: { template: '<div><slot /></div>' },
+          ConfirmDialog: true,
+        },
+      },
+    })
+
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
+    expect(wrapper.find('input[aria-label="Profile name"]').isVisible()).toBe(false)
+    expect(wrapper.find('input[aria-label="General conference numbers"]').isVisible()).toBe(false)
+
+    await wrapper.findAll('[role="tab"]')[1]!.trigger('click')
+
+    expect(wrapper.get('input[aria-label="Profile name"]')).toBeTruthy()
+    expect(wrapper.get('input[aria-label="General conference numbers"]')).toBeTruthy()
+    expect(wrapper.text()).toContain('Named conference profiles and control sets')
   })
 })

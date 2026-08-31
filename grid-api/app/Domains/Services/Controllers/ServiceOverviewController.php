@@ -2,6 +2,7 @@
 
 namespace App\Domains\Services\Controllers;
 
+use App\Domains\Billing\Services\BillingDocumentOverviewService;
 use App\Domains\Billing\Services\BillingReconciliationService;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
@@ -22,6 +23,7 @@ class ServiceOverviewController extends Controller
         SwitchAccountService $accounts,
         ServiceOverviewService $service,
         BillingReconciliationService $reconciliation,
+        BillingDocumentOverviewService $documents,
     ): JsonResponse {
         /** @var User $user */ $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
@@ -30,6 +32,10 @@ class ServiceOverviewController extends Controller
 
         return $summary === null
             ? ApiResponse::data(null)
-            : (new ServiceOverviewResource($summary, $reconciliation->reconcile($summary)))->response();
+            : (new ServiceOverviewResource(
+                $summary,
+                $reconciliation->reconcile($summary),
+                $documents->forAccount($switchAccount, $summary),
+            ))->response();
     }
 }

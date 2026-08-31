@@ -386,12 +386,12 @@ not as an independent copy that can diverge from Switch.
 
 ### Data ownership
 
-| Data category | Authoritative system | Examples |
-| --- | --- | --- |
-| PBX configuration | Switch | Extensions, devices, numbers, voicemail, callflows |
-| GridPBX application data | MySQL | Users, roles, organizations, account mappings, preferences |
-| Search/reporting projections | MySQL, derived from Switch | Extension directory, device summary, number assignments |
-| Temporary operational state | Redis | Sessions, locks, queues, token cache |
+| Data category                | Authoritative system       | Examples                                                   |
+| ---------------------------- | -------------------------- | ---------------------------------------------------------- |
+| PBX configuration            | Switch                     | Extensions, devices, numbers, voicemail, callflows         |
+| GridPBX application data     | MySQL                      | Users, roles, organizations, account mappings, preferences |
+| Search/reporting projections | MySQL, derived from Switch | Extension directory, device summary, number assignments    |
+| Temporary operational state  | Redis                      | Sessions, locks, queues, token cache                       |
 
 MySQL projection rows must never be edited as a shortcut around Switch. PBX
 mutations go through Laravel to Switch first. After Switch accepts a mutation,
@@ -521,6 +521,13 @@ commercial template's source code or proprietary assets.
 - Fixed 280px desktop sidebar that can collapse to an 80px icon rail.
 - White navigation surfaces over a light gray application background.
 - Mobile sidebar becomes an overlay drawer.
+- Cloud-phone routes are organized into single-open, caret-controlled groups:
+  People & Endpoints, Numbers & Routing, Call Applications, and Activity. The
+  active route automatically reveals its group; Business and Workspace remain
+  direct-link sections.
+- Group controls expose `aria-expanded` and `aria-controls`, collapsed icons
+  retain accessible names and native tooltips, and selecting a mobile route
+  closes the drawer.
 - Content uses compact page headings, breadcrumbs, actions, and responsive
   card grids.
 
@@ -529,18 +536,18 @@ commercial template's source code or proprietary assets.
 The starting palette is based on the recognizable visual language of the
 reference demo:
 
-| Purpose | Value |
-| --- | --- |
-| Primary | `#3f6ad8` |
-| Info | `#16aaff` |
-| Success | `#3ac47d` |
-| Warning | `#f7b924` |
-| Danger | `#d92550` |
-| Dark text | `#343a40` |
+| Purpose    | Value     |
+| ---------- | --------- |
+| Primary    | `#3f6ad8` |
+| Info       | `#16aaff` |
+| Success    | `#3ac47d` |
+| Warning    | `#f7b924` |
+| Danger     | `#d92550` |
+| Dark text  | `#343a40` |
 | Muted text | `#6c757d` |
-| Canvas | `#f1f4f6` |
-| Border | `#e9ecef` |
-| Surface | `#ffffff` |
+| Canvas     | `#f1f4f6` |
+| Border     | `#e9ecef` |
+| Surface    | `#ffffff` |
 
 Typography should be compact and highly readable. Cards use modest radii,
 thin borders or low-opacity shadows, clear status accents, and restrained
@@ -954,8 +961,136 @@ Tenant-scoped attempt history and independently gated, typed-confirmation UI
 controls are implemented for void, bounded partial refund, and customer-profile
 creation. Those three operations remain provider-mocked only and must not be
 enabled or exercised live until separately authorized. The dedicated threat
-model, reconciliation/operations workflow, signed webhook design, and disposable
-sandbox cleanup procedure are still required before broader acceptance.
+model and disposable sandbox cleanup procedure are still required before broader
+acceptance.
+
+The sandbox reconciliation foundation now includes a default-off unauthenticated
+callback endpoint that accepts only correctly signed Authorize.Net notifications.
+It verifies `X-ANET-Signature` as HMAC-SHA512 over the exact raw body using the
+binary Signature Key, rejects oversized or malformed bodies, deduplicates by a
+keyed notification digest, and never persists the raw body, signature, webhook
+identifier, or raw provider response. Minimal provider transaction references
+are encrypted. Accepted transaction events are queued after durable receipt and
+confirmed against `getTransactionDetails`; safe provider state can resolve a
+pending or indeterminate GridPBX attempt without regressing an already-final
+attempt. Unrelated and unsupported events are safely acknowledged and ignored,
+while transient reporting failures use bounded retries. Webhook enrollment and
+live delivery testing remain disabled until a public HTTPS callback, separate
+authorization, and operational recovery procedure are available.
+
+Account administrators now have a tenant-scoped webhook reconciliation health
+view containing only public delivery/attempt UUIDs, safe status categories,
+bounded attempt counts, and recovery guidance. Failed reconciliation can be
+requeued only by an account-settings administrator, only while sandbox provider
+status verification is available, and only before the ten-attempt recovery
+ceiling. Retry requests are rate-limited and never accept or expose provider
+references, signed bodies, credentials, or raw errors. This operational view
+records an immutable safe audit event with the public actor/delivery IDs and a
+keyed requester-address digest; it does not enroll a webhook or enable any
+payment mutation.
+
+Recent account payment attempts now provide an administrator-only detail view
+with their immutable state-transition timeline. The API and UI expose only
+public attempt/event UUIDs, normalized status and error categories, fixed
+server-owned summaries, and timestamps. Stored JSON audit context, actor and IP
+metadata, provider references and hashes, signatures, credentials, and raw
+gateway/webhook data remain private. This is an observability feature only and
+does not change any payment or webhook mutation gate.
+
+Saved customer-payment profiles now also have an administrator-only,
+account-scoped inventory that survives a UI reload. The endpoint is read-only,
+bounded, and deterministically ordered; it exposes only the public profile UUID,
+provider name, normalized lifecycle status, masked account label, account type,
+and timestamps. Encrypted provider customer/payment profile identifiers, keyed
+hashes, source attempt keys, and internal primary keys remain server-private.
+Hydrating this inventory prevents the UI from incorrectly offering a second
+profile-creation action when an account already has a saved profile. Listing the
+inventory does not call the provider or enable any payment mutation.
+
+Billing-document presentation now preserves source authority explicitly. The
+verified Switch endpoints currently provide invoice-group counts, ledger totals,
+and billing transactions, but not authoritative invoice documents. Likewise,
+local payment attempts prove that GridPBX requested and recorded an operation;
+they are not provider-issued legal or tax receipts. The Services detail view
+therefore reports invoice and receipt sources as unconfigured and shows only a
+bounded list of successful charge/refund records labelled as non-authoritative
+payment confirmations. These confirmations contain public attempt UUIDs, safe
+operation/amount/currency metadata, provider name, and completion time only.
+Provider references, idempotency data, hashes, gateway payloads, and internal
+keys remain private. Invoice or receipt documents must not be enabled until the
+client designates an authoritative source and its immutable identifier, totals,
+currency, tax, status, issue date, and document-access contract are verified.
+
+Invoice and receipt integrations use separate provider-neutral gateway
+contracts. Both are bound to fail-closed unavailable adapters by default through
+`BILLING_INVOICE_PROVIDER=unconfigured` and
+`BILLING_RECEIPT_PROVIDER=unconfigured`. An unknown configured value is reported
+as unsupported and does not trigger a network or document request. The legacy
+GridPBX application used its own local invoice, line, payment, and allocation
+tables while Authorize.Net handled card transactions; those legacy tables are
+evidence of a custom accounting subsystem, not authority to copy its schema or
+balances. A future adapter must be selected from the client's actual accounting
+ownership and implement the existing read contract rather than replacing the
+Services UI or its source-status model.
+
+An opt-in `legacy_gridpbx_mysql` invoice-summary adapter is available for
+controlled migration discovery. It is selected only when the invoice provider,
+adapter-enabled flag, client confirmation that the legacy database remains the
+authority, and confirmation of read-only database credentials are all present.
+The adapter uses a separate connection, maps the private Switch account ID to
+the legacy CRM client entirely server-side, bounds and isolates every query,
+uses decimal-safe arithmetic, and derives stable public UUIDs with a keyed hash.
+It exposes invoice number, dates, status, totals, payments, and amount due, but
+never exposes legacy primary keys, CRM IDs, Switch IDs, or payment gateway data.
+Currency remains unset and document download remains disabled because neither
+is defined by the verified legacy schema. The receipt adapter remains disabled
+because legacy payment statuses and receipt semantics are not yet authoritative.
+
+Before the legacy invoice adapter can return data, GridPBX now runs the same
+fail-closed safety diagnostic used by the operator command
+`php artisan billing:legacy-invoices:verify`. No database connection is
+attempted until provider selection, adapter enablement, billing-authority
+confirmation, read-only confirmation, and non-empty server-side connection
+configuration are all present. The live diagnostic then verifies that the
+database account grants only `SELECT`, `SHOW VIEW`, and `USAGE`, followed by
+read-only metadata checks for the required account, invoice, line, and payment
+tables and columns. Any connection, grant, or schema failure returns only a
+fixed status and safe recovery guidance; credentials, hosts, database names,
+SQL errors, table details, invoice values, and legacy identifiers are never
+included. The invoice adapter repeats this guard at runtime and refuses its
+queries when the diagnostic is not ready.
+
+Billing now also has a dedicated account-scoped Vue workspace at `/billing`.
+The page reuses the existing Services read model and authorization boundary
+instead of introducing a second billing projection. It presents billing-impact
+totals, invoice and receipt source authority, authoritative invoice summaries,
+non-authoritative payment confirmations, reconciliation warnings, and Switch
+billing transactions. Selecting a record opens a read-only detail slide-over.
+Invoice and receipt detail/document access now use separate account-scoped,
+provider-neutral read endpoints. Detail must be loaded successfully before the
+UI offers a download. Both document endpoints use the same policy-protected,
+rate-limited, audited, fail-closed PDF streamer: it accepts only a known-size
+PDF within the configured byte limit, returns private/no-store and nosniff
+headers, and never exposes provider or database errors. Receipts have their own
+typed summary, detail, list, and download presentation and are never inferred
+from GridPBX payment confirmations. The legacy invoice adapter supports detail
+lookup through an account-scoped public UUID but deliberately returns no binary
+document because the verified legacy schema has no authoritative document
+contract. The receipt adapter remains unavailable until an authoritative
+provider is approved. Payment confirmations and Switch transactions remain
+clearly identified as neither invoices nor provider-issued receipts. The page
+does not expose the
+operator-only legacy database diagnostic and does not add a billing-plan,
+invoice, receipt, production-payment, or reseller mutation. The existing
+capability-gated Authorize.Net sandbox verification component has moved from
+Services into this workspace without changing its explicit sandbox flags,
+confirmation requirements, rate limits, or production refusal.
+
+The Services detail slide-over now contains only a compact billing-impact and
+reconciliation-status summary with a link to `/billing`. Invoice source details,
+invoice summaries, payment confirmations, reconciliation diagnostics, Switch
+billing transactions, and sandbox payment verification are no longer duplicated
+inside Services.
 
 ### Phase 5: Migration and hardening
 

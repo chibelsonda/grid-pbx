@@ -25,7 +25,8 @@ class ConferenceControllerTest extends TestCase
         $media = SwitchMedia::factory()->for($account)->create(['switch_resource_id' => 'switch-media-1', 'name' => 'Conference tone']);
         $gateway = $this->mock(SwitchConferenceGateway::class);
         $gateway->shouldReceive('create')->once()->withArgs(fn (SwitchAccount $received, array $data): bool => $received->is($account)
-            && $data['switch_owner_reference'] === 'switch-user-1' && $data['member_pin'] === '1234'
+            && $data['switch_owner_reference'] === 'switch-user-1' && $data['member_pins'] === ['1234', '5678']
+            && $data['moderator_pins'] === ['9876']
             && $data['switch_max_members_media_reference'] === 'switch-media-1'
             && $data['switch_play_entry_tone'] === 'switch-media-1'
             && $data['switch_play_exit_tone'] === false)
@@ -39,7 +40,8 @@ class ConferenceControllerTest extends TestCase
             ]));
 
         $response = $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/conferences", [
-            ...$this->payload(), 'owner_id' => $owner->id, 'member_pin' => '1234', 'moderator_pin' => '9876',
+            ...$this->payload(), 'owner_id' => $owner->id,
+            'member_pins' => ['1234', '5678'], 'moderator_pins' => ['9876'],
             'max_members_media_id' => $media->id,
             'play_entry_tone_mode' => 'media', 'play_entry_tone_media_id' => $media->id,
             'play_exit_tone_mode' => 'disabled',
@@ -49,7 +51,8 @@ class ConferenceControllerTest extends TestCase
             ->assertJsonPath('data.member_numbers.0', '7001')->assertJsonPath('data.member_pin_configured', true)
             ->assertJsonPath('data.max_members_media.id', $media->id)
             ->assertJsonPath('data.entry_tone.mode', 'media')->assertJsonPath('data.exit_tone.mode', 'disabled')
-            ->assertJsonMissingPath('data.member_pin')->assertJsonMissingPath('data.conference_id')
+            ->assertJsonMissingPath('data.member_pins')->assertJsonMissingPath('data.moderator_pins')
+            ->assertJsonMissingPath('data.conference_id')
             ->assertJsonMissingPath('data.switch_resource_id')->assertJsonMissingPath('data.switch_json');
         $conference = SwitchConference::query()->where('id', $response->json('data.id'))->firstOrFail();
         $this->assertSame('[REDACTED]', $conference->switch_json['member']['pins']);
@@ -70,6 +73,18 @@ class ConferenceControllerTest extends TestCase
         $foreignMedia = SwitchMedia::factory()->create();
         $this->actingAs($operator)->postJson("/api/v1/accounts/{$managed->id}/conferences", [...$this->payload(), 'max_members_media_id' => $foreignMedia->id])
             ->assertUnprocessable()->assertJsonValidationErrors('max_members_media_id');
+    }
+
+    public function test_pin_lists_cannot_be_replaced_and_removed_together(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchConferenceGateway::class)->shouldNotReceive('create');
+
+        $this->actingAs($user)->postJson("/api/v1/accounts/{$account->id}/conferences", [
+            ...$this->payload(),
+            'member_pins' => ['1234'],
+            'clear_member_pin' => true,
+        ])->assertUnprocessable()->assertJsonValidationErrors('member_pins');
     }
 
     public function test_operator_update_preserves_unresolved_media_and_custom_tones(): void
@@ -121,8 +136,8 @@ class ConferenceControllerTest extends TestCase
     {
         return [
             'name' => 'Daily standup', 'owner_id' => null, 'conference_numbers' => ['7000'],
-            'member_numbers' => ['7001'], 'moderator_numbers' => ['7099'], 'member_pin' => null,
-            'clear_member_pin' => false, 'moderator_pin' => null, 'clear_moderator_pin' => false,
+            'member_numbers' => ['7001'], 'moderator_numbers' => ['7099'], 'member_pins' => [],
+            'clear_member_pin' => false, 'moderator_pins' => [], 'clear_moderator_pin' => false,
             'member_join_muted' => true, 'member_join_deaf' => false, 'member_play_entry_prompt' => false,
             'moderator_join_muted' => false, 'moderator_join_deaf' => false, 'max_participants' => 50,
             'language' => 'en-US', 'profile_name' => null, 'caller_controls' => null, 'moderator_controls' => null,

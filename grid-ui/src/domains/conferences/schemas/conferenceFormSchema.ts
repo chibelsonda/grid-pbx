@@ -6,7 +6,10 @@ const digitList = z
   .refine((values) => new Set(values).size === values.length, 'Enter each access number once.')
 
 const nullableText = (maximum: number) => z.string().max(maximum).nullable()
-const nullablePin = z.string().regex(/^\d{1,32}$/, 'Use 1–32 digits.').nullable()
+const pinList = z
+  .array(z.string().regex(/^\d{1,32}$/, 'Use 1–32 digits.'))
+  .max(20)
+  .refine((values) => new Set(values).size === values.length, 'Enter each PIN once.')
 
 export const conferenceFormSchema = z
   .object({
@@ -15,9 +18,9 @@ export const conferenceFormSchema = z
     conference_numbers: digitList,
     member_numbers: digitList,
     moderator_numbers: digitList,
-    member_pin: nullablePin,
+    member_pins: pinList,
     clear_member_pin: z.boolean(),
-    moderator_pin: nullablePin,
+    moderator_pins: pinList,
     clear_moderator_pin: z.boolean(),
     member_join_muted: z.boolean(),
     member_join_deaf: z.boolean(),
@@ -41,19 +44,19 @@ export const conferenceFormSchema = z
   })
   .strict()
   .superRefine((value, context) => {
-    if (value.member_pin !== null && value.clear_member_pin) {
+    if (value.member_pins.length > 0 && value.clear_member_pin) {
       context.addIssue({
         code: 'custom',
-        path: ['member_pin'],
-        message: 'A member PIN cannot be replaced and removed together.',
+        path: ['member_pins'],
+        message: 'Member PINs cannot be replaced and removed together.',
       })
     }
 
-    if (value.moderator_pin !== null && value.clear_moderator_pin) {
+    if (value.moderator_pins.length > 0 && value.clear_moderator_pin) {
       context.addIssue({
         code: 'custom',
-        path: ['moderator_pin'],
-        message: 'A moderator PIN cannot be replaced and removed together.',
+        path: ['moderator_pins'],
+        message: 'Moderator PINs cannot be replaced and removed together.',
       })
     }
 

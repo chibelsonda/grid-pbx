@@ -3,9 +3,13 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import {
   ArrowPathIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
+  ClockIcon,
   CreditCardIcon,
   ExclamationTriangleIcon,
+  IdentificationIcon,
   LockClosedIcon,
+  ShieldCheckIcon,
   UserPlusIcon,
   XCircleIcon,
 } from '@heroicons/vue/24/outline'
@@ -13,7 +17,7 @@ import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import { useAuthorizeNetAcceptUi } from '../composables/useAuthorizeNetAcceptUi'
 import { usePaymentStore } from '../stores/paymentStore'
-import type { PaymentAttempt } from '../types/payment'
+import type { PaymentAttempt, PaymentAttemptEvent } from '../types/payment'
 
 const props = defineProps<{ accountId: string }>()
 const payments = usePaymentStore()
@@ -47,6 +51,7 @@ const isVoided = computed(() =>
 const hasCustomerProfile = computed(
   () =>
     payments.customerProfile !== null ||
+    payments.customerProfiles.length > 0 ||
     successfulChildren.value.some((attempt) => attempt.operation === 'attach_payment_method'),
 )
 const chargedMinor = computed(() =>
@@ -73,6 +78,7 @@ const operationsAvailable = computed(
       payments.capability?.mutations.attach_payment_method === true),
 )
 const refundAmountMinor = ref<number>(100)
+const expandedAttemptId = ref<string | null>(null)
 const confirmation = ref<'void' | 'refund' | 'profile' | null>(null)
 const refundError = computed(() => {
   if (!Number.isInteger(refundAmountMinor.value) || refundAmountMinor.value < 1) {
@@ -138,7 +144,12 @@ const loadHostedForm = async (): Promise<void> => {
 
 const loadAccount = async (accountId: string): Promise<void> => {
   payments.reset()
-  await Promise.all([payments.loadCapability(accountId), payments.loadAttempts(accountId)])
+  await Promise.all([
+    payments.loadCapability(accountId),
+    payments.loadAttempts(accountId),
+    payments.loadProfiles(accountId),
+    payments.loadWebhookHealth(accountId),
+  ])
   refundAmountMinor.value = Math.max(1, Math.min(100, refundLimitMinor.value || 100))
   await loadHostedForm()
 }
@@ -161,6 +172,46 @@ const confirmOperation = async (): Promise<void> => {
   }
 
   if (succeeded) confirmation.value = null
+}
+
+const webhookStatusTone = (status: string): string => {
+  if (status === 'processed') return 'bg-emerald-50 text-emerald-700'
+  if (status === 'failed') return 'bg-red-50 text-red-700'
+  if (status === 'retry_pending') return 'bg-amber-50 text-amber-800'
+
+  return 'bg-slate-100 text-slate-600'
+}
+
+const webhookEventLabel = (eventType: string): string =>
+  eventType
+    .replace('net.authorize.payment.', '')
+    .replace(/\.created$/, '')
+    .replaceAll(/([a-z])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
+
+const attemptStatusTone = (status: PaymentAttempt['status']): string => {
+  if (status === 'succeeded') return 'bg-emerald-50 text-emerald-700'
+  if (status === 'failed' || status === 'cancelled') return 'bg-red-50 text-red-700'
+  if (status === 'indeterminate') return 'bg-amber-50 text-amber-800'
+
+  return 'bg-slate-100 text-slate-600'
+}
+
+const attemptEvents = (attemptId: string): PaymentAttemptEvent[] =>
+  payments.attemptDetails[attemptId]?.events ?? []
+
+const toggleAttempt = async (attemptId: string): Promise<void> => {
+  if (expandedAttemptId.value === attemptId) {
+    expandedAttemptId.value = null
+
+    return
+  }
+
+  expandedAttemptId.value = attemptId
+  if (!payments.attemptDetails[attemptId]) {
+    const loaded = await payments.loadAttempt(props.accountId, attemptId)
+    if (!loaded) expandedAttemptId.value = null
+  }
 }
 
 onMounted(() => loadAccount(props.accountId))
@@ -241,10 +292,34 @@ watch(
               data are never accepted from the browser.
             </p>
           </div>
-          <span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-[9px] text-slate-600">
-            {{ successfulCharge?.id }}
-          </span>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <span class="rounded-md bg-slate-100 px-2 py-1 font-mono text-[9px] text-slate-600">
+              {{ successfulCharge?.id }}
+            </span>
+            <button
+              type="button"
+              class="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-600 disabled:opacity-50"
+              :disabled="payments.operating"
+              @click="payments.loadAttempts(accountId)"
+            >
+              <ArrowPathIcon class="size-3.5" />
+              Refresh status
+            </button>
+          </div>
         </div>
+
+        <p
+          v-if="successfulCharge?.provider_status"
+          class="mt-3 text-[10px] leading-4 text-slate-500"
+        >
+          Provider state:
+          <span class="font-semibold text-slate-700">
+            {{ successfulCharge.provider_status.replaceAll('_', ' ') }}
+          </span>
+          <template v-if="successfulCharge.reconciled_at">
+            · Reconciled {{ new Date(successfulCharge.reconciled_at).toLocaleString() }}
+          </template>
+        </p>
 
         <div class="mt-4 grid gap-3 sm:grid-cols-2">
           <button
@@ -296,6 +371,251 @@ watch(
         </div>
       </section>
 
+      <section class="mt-5 border-t border-slate-200 pt-5">
+        <div class="flex items-start gap-2.5">
+          <IdentificationIcon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+          <div>
+            <h3 class="text-xs font-semibold text-slate-700">Saved payment profiles</h3>
+            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+              Safe account-level inventory only. Provider profile identifiers remain encrypted and
+              private.
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-if="payments.customerProfiles.length === 0"
+          class="mt-3 rounded-md border border-dashed border-slate-200 p-3 text-[10px] text-slate-500"
+        >
+          No saved payment profiles are stored for this account.
+        </div>
+
+        <ul v-else class="mt-3 grid gap-2 sm:grid-cols-2">
+          <li
+            v-for="profile in payments.customerProfiles"
+            :key="profile.id"
+            class="rounded-md border border-slate-200 bg-slate-50/70 p-3"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[11px] font-semibold text-slate-700">
+                {{ profile.masked_account || 'Stored payment profile' }}
+              </p>
+              <span
+                class="rounded px-1.5 py-0.5 text-[9px] font-semibold capitalize"
+                :class="
+                  profile.status === 'active'
+                    ? 'bg-emerald-50 text-emerald-700'
+                    : 'bg-slate-100 text-slate-600'
+                "
+              >
+                {{ profile.status.replaceAll('_', ' ') }}
+              </span>
+            </div>
+            <p class="mt-1 text-[10px] text-slate-500">
+              {{ profile.account_type || 'Account details unavailable' }}
+              <template v-if="profile.updated_at">
+                · Updated {{ new Date(profile.updated_at).toLocaleString() }}
+              </template>
+            </p>
+            <p class="mt-1 font-mono text-[9px] text-slate-500">{{ profile.id }}</p>
+          </li>
+        </ul>
+      </section>
+
+      <section v-if="payments.webhookHealth" class="mt-5 border-t border-slate-200 pt-5">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div class="flex min-w-0 items-start gap-2.5">
+            <ShieldCheckIcon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+            <div>
+              <h3 class="text-xs font-semibold text-slate-700">Webhook reconciliation health</h3>
+              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                Sanitized delivery state only. Provider references and signed payloads are never
+                exposed.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 text-[10px] font-semibold text-slate-600 disabled:opacity-50"
+            :disabled="payments.recoveringWebhookId !== null"
+            @click="payments.loadWebhookHealth(accountId)"
+          >
+            <ArrowPathIcon class="size-3.5" />
+            Refresh
+          </button>
+        </div>
+
+        <div class="mt-3 grid grid-cols-3 gap-2">
+          <div class="rounded-md border border-slate-200 bg-slate-50/70 p-2.5">
+            <p class="text-sm font-semibold text-slate-700">
+              {{ payments.webhookHealth.summary.total }}
+            </p>
+            <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Received</p>
+          </div>
+          <div class="rounded-md border border-emerald-200 bg-emerald-50/70 p-2.5">
+            <p class="text-sm font-semibold text-emerald-700">
+              {{ payments.webhookHealth.summary.processed }}
+            </p>
+            <p class="text-[9px] font-semibold uppercase tracking-wide text-emerald-600">
+              Reconciled
+            </p>
+          </div>
+          <div
+            class="rounded-md border p-2.5"
+            :class="
+              payments.webhookHealth.summary.requiring_attention > 0
+                ? 'border-amber-200 bg-amber-50/70'
+                : 'border-slate-200 bg-slate-50/70'
+            "
+          >
+            <p class="text-sm font-semibold text-slate-700">
+              {{ payments.webhookHealth.summary.requiring_attention }}
+            </p>
+            <p class="text-[9px] font-semibold uppercase tracking-wide text-slate-500">Attention</p>
+          </div>
+        </div>
+
+        <p
+          v-if="!payments.webhookHealth.recovery_available"
+          class="mt-3 rounded-md border border-slate-200 bg-slate-50 p-2.5 text-[10px] leading-4 text-slate-600"
+        >
+          Manual recovery is unavailable until sandbox provider status verification is configured.
+        </p>
+
+        <div
+          v-if="payments.webhookHealth.deliveries.length === 0"
+          class="mt-3 rounded-md border border-dashed border-slate-200 p-3 text-[10px] text-slate-500"
+        >
+          No account-linked webhook deliveries have been received.
+        </div>
+
+        <ul v-else class="mt-3 divide-y divide-slate-200 rounded-md border border-slate-200">
+          <li
+            v-for="delivery in payments.webhookHealth.deliveries"
+            :key="delivery.id"
+            class="flex flex-wrap items-center justify-between gap-3 p-3"
+          >
+            <div class="min-w-0">
+              <div class="flex flex-wrap items-center gap-2">
+                <p class="text-[11px] font-semibold capitalize text-slate-700">
+                  {{ webhookEventLabel(delivery.event_type) }}
+                </p>
+                <span
+                  class="rounded px-1.5 py-0.5 text-[9px] font-semibold capitalize"
+                  :class="webhookStatusTone(delivery.status)"
+                >
+                  {{ delivery.status.replaceAll('_', ' ') }}
+                </span>
+              </div>
+              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                {{ delivery.recovery_guidance }}
+              </p>
+              <p class="mt-1 font-mono text-[9px] text-slate-500">Delivery {{ delivery.id }}</p>
+            </div>
+            <button
+              v-if="delivery.can_retry"
+              type="button"
+              class="inline-flex h-8 items-center gap-1.5 rounded-md border border-amber-200 bg-amber-50 px-2.5 text-[10px] font-semibold text-amber-800 disabled:cursor-not-allowed disabled:opacity-50"
+              :disabled="
+                !payments.webhookHealth.recovery_available ||
+                payments.recoveringWebhookId === delivery.id
+              "
+              @click="payments.retryWebhook(accountId, delivery.id)"
+            >
+              <ArrowPathIcon
+                class="size-3.5"
+                :class="payments.recoveringWebhookId === delivery.id ? 'animate-spin' : ''"
+              />
+              {{ payments.recoveringWebhookId === delivery.id ? 'Retrying…' : 'Retry' }}
+            </button>
+          </li>
+        </ul>
+      </section>
+
+      <section class="mt-5 border-t border-slate-200 pt-5">
+        <div class="flex items-start gap-2.5">
+          <ClockIcon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+          <div>
+            <h3 class="text-xs font-semibold text-slate-700">Recent payment activity</h3>
+            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+              Account-scoped, immutable state transitions without provider references or raw gateway
+              data.
+            </p>
+          </div>
+        </div>
+
+        <div
+          v-if="payments.attempts.length === 0"
+          class="mt-3 rounded-md border border-dashed border-slate-200 p-3 text-[10px] text-slate-500"
+        >
+          No payment attempts are stored for this account.
+        </div>
+
+        <ul v-else class="mt-3 divide-y divide-slate-200 rounded-md border border-slate-200">
+          <li v-for="attempt in payments.attempts.slice(0, 10)" :key="attempt.id">
+            <button
+              type="button"
+              class="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-slate-50"
+              :aria-expanded="expandedAttemptId === attempt.id"
+              @click="toggleAttempt(attempt.id)"
+            >
+              <span class="min-w-0">
+                <span class="flex flex-wrap items-center gap-2">
+                  <span class="text-[11px] font-semibold capitalize text-slate-700">
+                    {{ attempt.operation.replaceAll('_', ' ') }}
+                  </span>
+                  <span
+                    class="rounded px-1.5 py-0.5 text-[9px] font-semibold capitalize"
+                    :class="attemptStatusTone(attempt.status)"
+                  >
+                    {{ attempt.status.replaceAll('_', ' ') }}
+                  </span>
+                </span>
+                <span class="mt-1 block font-mono text-[9px] text-slate-500">
+                  {{ attempt.id }}
+                </span>
+              </span>
+              <ChevronDownIcon
+                class="size-4 shrink-0 text-slate-400 transition-transform"
+                :class="expandedAttemptId === attempt.id ? 'rotate-180' : ''"
+              />
+            </button>
+
+            <div
+              v-if="expandedAttemptId === attempt.id"
+              class="border-t border-slate-200 bg-slate-50/70 p-3"
+            >
+              <p v-if="payments.loadingAttemptId === attempt.id" class="text-[10px] text-slate-500">
+                Loading timeline…
+              </p>
+              <ol v-else-if="attemptEvents(attempt.id).length" class="space-y-3">
+                <li v-for="event in attemptEvents(attempt.id)" :key="event.id" class="flex gap-2.5">
+                  <span class="mt-1 size-2 shrink-0 rounded-full bg-brand-400" />
+                  <div class="min-w-0">
+                    <p class="text-[10px] font-semibold text-slate-700">{{ event.summary }}</p>
+                    <p class="mt-0.5 text-[9px] text-slate-500">
+                      {{ event.event_type.replaceAll('_', ' ') }}
+                      <template v-if="event.provider_status">
+                        · {{ event.provider_status.replaceAll('_', ' ') }}
+                      </template>
+                      <template v-if="event.created_at">
+                        · {{ new Date(event.created_at).toLocaleString() }}
+                      </template>
+                    </p>
+                    <p v-if="event.safe_error_code" class="mt-0.5 text-[9px] text-amber-700">
+                      {{ event.safe_error_code.replaceAll('_', ' ') }}
+                    </p>
+                  </div>
+                </li>
+              </ol>
+              <p v-else class="text-[10px] text-slate-500">
+                No immutable state transitions are recorded for this attempt.
+              </p>
+            </div>
+          </li>
+        </ul>
+      </section>
+
       <div
         v-if="hostedFormError || payments.error"
         class="mt-4 flex gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-700"
@@ -319,6 +639,9 @@ watch(
             Payment attempt {{ payments.latestAttempt.status.replaceAll('_', ' ') }}
           </p>
           <p class="mt-1 font-mono text-[9px]">Reference {{ payments.latestAttempt.id }}</p>
+          <p v-if="payments.latestAttempt.provider_status" class="mt-1 text-[10px]">
+            Provider state: {{ payments.latestAttempt.provider_status.replaceAll('_', ' ') }}
+          </p>
         </div>
       </div>
     </div>

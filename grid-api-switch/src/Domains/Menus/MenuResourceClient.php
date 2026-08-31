@@ -80,13 +80,12 @@ final readonly class MenuResourceClient
 
     public function update(string $accountId, string $menuId, MenuWriteData $menu): MenuSnapshot
     {
-        $data = $menu->toSwitchData();
+        $current = $this->get($accountId, $menuId);
+        $data = $menu->toSwitchData($current->data);
 
-        if ($menu->recordPin === null) {
-            $currentPin = $this->get($accountId, $menuId)->recordPin;
-
-            if ($currentPin !== null) {
-                $data['record_pin'] = $currentPin;
+        if ($menu->recordPin === null && ! $menu->clearRecordPin) {
+            if ($current->recordPin !== null) {
+                $data['record_pin'] = $current->recordPin;
             }
         }
 

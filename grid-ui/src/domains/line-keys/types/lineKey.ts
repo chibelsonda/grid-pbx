@@ -50,7 +50,8 @@ export type LineKeyPreview = {
 
 export type LineKeyValueChoice = {
   id: string
-  source: 'extensions' | 'devices'
+  source: 'extensions'
+  types: Array<'presence' | 'personal_parking' | 'speed_dial'>
   value: string
   label: string
   description: string | null

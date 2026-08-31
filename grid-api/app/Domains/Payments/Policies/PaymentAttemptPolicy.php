@@ -15,6 +15,11 @@ class PaymentAttemptPolicy
         return $this->access->canViewServices($user, $account);
     }
 
+    public function view(User $user, SwitchAccount $account): bool
+    {
+        return $this->viewAny($user, $account);
+    }
+
     public function charge(User $user, SwitchAccount $account): bool
     {
         return $this->access->canManageAccountSettings($user, $account);
@@ -31,6 +36,11 @@ class PaymentAttemptPolicy
     }
 
     public function attachPaymentMethod(User $user, SwitchAccount $account): bool
+    {
+        return $this->access->canManageAccountSettings($user, $account);
+    }
+
+    public function retryWebhookReconciliation(User $user, SwitchAccount $account): bool
     {
         return $this->access->canManageAccountSettings($user, $account);
     }

@@ -124,6 +124,11 @@ const router = createRouter({
           component: () => import('@/domains/services/pages/ServicesPage.vue'),
         },
         {
+          path: 'billing',
+          name: 'billing',
+          component: () => import('@/domains/billing/pages/BillingPage.vue'),
+        },
+        {
           path: 'voicemail/new',
           name: 'voicemail-create',
           component: () => import('@/domains/voicemail/pages/VoicemailBoxFormPage.vue'),

@@ -264,7 +264,17 @@ class VoicemailBoxControllerTest extends TestCase
         $mailbox = SwitchVoicemailBox::factory()->for($account)->create([
             'switch_resource_id' => 'switch-vmbox-1',
             'require_pin' => true,
-            'switch_json' => ['flags' => ['external-managed']],
+            'switch_json' => [
+                'pin' => '[REDACTED]',
+                'flags' => ['external-managed'],
+                'is_setup' => true,
+                'media' => ['unavailable' => '0123456789abcdef0123456789abcdef'],
+                'future_voicemail_option' => true,
+                'notify' => [
+                    'future_notify_option' => 'keep',
+                    'callback' => ['future_callback_option' => true],
+                ],
+            ],
         ]);
         $this->mock(SwitchVoicemailBoxGateway::class)
             ->shouldReceive('update')
@@ -273,9 +283,14 @@ class VoicemailBoxControllerTest extends TestCase
                 && $resourceId === 'switch-vmbox-1'
                 && $payload['owner_switch_resource_id'] === null
                 && $payload['pin'] === null
+                && $payload['preserve_pin'] === true
                 && $payload['media_extension'] === 'wav'
                 && $payload['seek_duration_ms'] === 15000
                 && $payload['flags'] === ['external-managed']
+                && $payload['advanced_preserved_options']['is_setup'] === true
+                && $payload['advanced_preserved_options']['media']['unavailable'] === '0123456789abcdef0123456789abcdef'
+                && $payload['advanced_preserved_options']['future_voicemail_option'] === true
+                && $payload['notify_preserved_options']['future_notify_option'] === 'keep'
                 && $payload['notify_callback'] === null)
             ->andReturn([
                 'id' => 'switch-vmbox-1',
@@ -322,6 +337,44 @@ class VoicemailBoxControllerTest extends TestCase
             )
             ->assertUnprocessable()
             ->assertJsonValidationErrors('pin');
+    }
+
+    public function test_it_preserves_unknown_callback_options_when_editing_callback(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $mailbox = SwitchVoicemailBox::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-vmbox-1',
+            'switch_json' => [
+                'notify' => [
+                    'callback' => [
+                        'disabled' => false,
+                        'number' => '+15559876543',
+                        'future_callback_option' => true,
+                    ],
+                ],
+            ],
+        ]);
+        $this->mock(SwitchVoicemailBoxGateway::class)
+            ->shouldReceive('update')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $resourceId, array $payload): bool => $received->is($account)
+                && $resourceId === 'switch-vmbox-1'
+                && $payload['notify_callback']['number'] === '+15559876543'
+                && $payload['notify_callback']['preserved_options']['future_callback_option'] === true)
+            ->andReturn([
+                'id' => 'switch-vmbox-1',
+                'name' => 'Alice voicemail',
+                'mailbox' => '1001',
+                'transcribe' => true,
+                'require_pin' => true,
+            ]);
+
+        $this->actingAs($user)
+            ->putJson(
+                "/api/v1/accounts/{$account->id}/voicemail-boxes/{$mailbox->id}",
+                $this->payload(),
+            )
+            ->assertOk();
     }
 
     public function test_it_deletes_upstream_then_soft_deletes_the_projection(): void

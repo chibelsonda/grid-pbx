@@ -39,6 +39,8 @@ class PaymentCapabilityControllerTest extends TestCase
             ->assertJsonPath('data.server_accepts_card_data', false)
             ->assertJsonPath('data.diagnostics.available', true)
             ->assertJsonPath('data.diagnostics.sandbox_only', true)
+            ->assertJsonPath('data.webhooks.enabled', false)
+            ->assertJsonPath('data.webhooks.accepting', false)
             ->assertJsonPath('data.mutations.charge', false)
             ->assertJsonPath('data.mutations.void', false)
             ->assertJsonPath('data.mutations.refund', false)
@@ -87,6 +89,8 @@ class PaymentCapabilityControllerTest extends TestCase
             ->assertJsonPath('data.mutations.refund', true)
             ->assertJsonPath('data.mutations.attach_payment_method', true)
             ->assertJsonPath('data.client.sandbox_max_refund_minor', 100)
+            ->assertJsonPath('data.webhooks.enabled', false)
+            ->assertJsonPath('data.webhooks.configured', false)
             ->assertJsonMissing(['private-transaction-key'])
             ->assertJsonMissing(['private-signature-key']);
     }

@@ -94,23 +94,6 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
           <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
         </DisclosureButton>
         <DisclosurePanel class="grid gap-5 border-t border-slate-100 p-4 sm:grid-cols-2">
-          <label class="grid gap-2 sm:col-span-2">
-            <span class="text-xs font-semibold text-slate-600">Music on hold</span>
-            <FormListbox
-              v-model="configuration.music_on_hold.media_id"
-              :invalid="Boolean(error('music_on_hold.media_id'))"
-              :options="[
-                { value: null, label: 'Inherit account music' },
-                ...mediaOptions.map((media) => ({
-                  value: media.id,
-                  label: media.name || 'Untitled media',
-                })),
-              ]"
-            />
-            <span v-if="error('music_on_hold.media_id')" class="text-[11px] text-danger">
-              {{ error('music_on_hold.media_id') }}
-            </span>
-          </label>
           <FormTextarea
             v-model="staticFlags"
             label="Static outbound flags"

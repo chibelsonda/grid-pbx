@@ -12,9 +12,13 @@ import {
   LinkIcon,
   PencilSquareIcon,
   SignalIcon,
+  SquaresPlusIcon,
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import LineKeyPanel from '@/domains/line-keys/components/LineKeyPanel.vue'
+import { useLineKeyStore } from '@/domains/line-keys/stores/lineKeyStore'
+import type { LineKeyInput } from '@/domains/line-keys/types/lineKey'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import DeviceHotdeskPanel from '../components/DeviceHotdeskPanel.vue'
 import DeviceProvisioningEnrollmentPanel from '../components/DeviceProvisioningEnrollmentPanel.vue'
@@ -25,8 +29,10 @@ const route = useRoute()
 const router = useRouter()
 const accounts = useAccountStore()
 const devices = useDeviceStore()
+const lineKeys = useLineKeyStore()
 const deviceId = computed(() => String(route.params.deviceId))
 const device = computed(() => devices.detail)
+const lineKeyPanelOpen = ref(false)
 const pendingAction = ref<'delete' | 'sync' | 'reprovision' | 'enroll' | 'detach' | null>(null)
 const modelLabel = computed(() => {
   if (!device.value) return 'Unknown hardware'
@@ -79,6 +85,21 @@ function signInHotdeskUser(extensionId: string): void {
 function signOutHotdeskUser(extensionId: string): void {
   if (accounts.selectedId && device.value) {
     void devices.signOutHotdeskUser(accounts.selectedId, device.value.id, extensionId)
+  }
+}
+
+async function openLineKeys(): Promise<void> {
+  if (!accounts.selectedId || !device.value) return
+
+  await lineKeys.prepare(accounts.selectedId, device.value.id)
+  lineKeyPanelOpen.value = lineKeys.preview !== null
+}
+
+async function saveLineKeys(keys: LineKeyInput[]): Promise<void> {
+  if (!accounts.selectedId) return
+
+  if (await lineKeys.save(accounts.selectedId, keys)) {
+    lineKeyPanelOpen.value = false
   }
 }
 
@@ -180,6 +201,16 @@ const confirmation = computed(() => {
         <button
           v-if="device.device_type && supportsProvisioning(device.device_type)"
           type="button"
+          :disabled="lineKeys.previewLoading"
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+          @click="openLineKeys"
+        >
+          <SquaresPlusIcon class="size-4" />
+          {{ lineKeys.previewLoading ? 'Loading keys…' : 'Line keys' }}
+        </button>
+        <button
+          v-if="device.device_type && supportsProvisioning(device.device_type)"
+          type="button"
           :disabled="devices.mutationLoading"
           class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
           @click="pendingAction = 'sync'"
@@ -230,6 +261,12 @@ const confirmation = computed(() => {
       class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
     >
       {{ devices.mutationError }}
+    </p>
+    <p
+      v-if="lineKeys.mutationError && !lineKeyPanelOpen"
+      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+    >
+      {{ lineKeys.mutationError }}
     </p>
     <div
       v-if="devices.detailLoading"
@@ -426,6 +463,16 @@ const confirmation = computed(() => {
       />
     </template>
   </div>
+  <LineKeyPanel
+    v-if="lineKeyPanelOpen && lineKeys.preview"
+    :preview="lineKeys.preview"
+    :saving="lineKeys.saving"
+    :error="lineKeys.mutationError"
+    :field-errors="lineKeys.fieldErrors"
+    :can-manage="accounts.selected?.permissions.can_manage_devices ?? false"
+    @close="lineKeyPanelOpen = false"
+    @save="saveLineKeys"
+  />
   <ConfirmDialog
     :open="pendingAction !== null"
     :title="confirmation.title"

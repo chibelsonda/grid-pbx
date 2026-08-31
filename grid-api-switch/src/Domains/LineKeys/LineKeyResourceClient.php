@@ -31,12 +31,6 @@ final readonly class LineKeyResourceClient
             if (! $key instanceof LineKeyWriteData) {
                 throw new InvalidArgumentException('Switch line-key updates require LineKeyWriteData values.');
             }
-
-            if ($key->category === 'combo') {
-                $combo[(string) $key->position] = $key->toSwitchData();
-            } else {
-                $feature[(string) $key->position] = $key->toSwitchData();
-            }
         }
 
         $currentPayload = $this->client->request('GET', $this->path($accountId, $deviceId));
@@ -49,6 +43,19 @@ final readonly class LineKeyResourceClient
         unset($current['id']);
         $current = $this->removeEmptyArrays($current);
         $provision = is_array($current['provision'] ?? null) ? $current['provision'] : [];
+
+        foreach ($keys as $key) {
+            $category = $key->category === 'combo' ? 'combo_keys' : 'feature_keys';
+            $existing = $provision[$category][(string) $key->position] ?? null;
+            $data = $this->mergeKeyData(is_array($existing) ? $existing : [], $key->toSwitchData());
+
+            if ($key->category === 'combo') {
+                $combo[(string) $key->position] = $data;
+            } else {
+                $feature[(string) $key->position] = $data;
+            }
+        }
+
         $provision['combo_keys'] = (object) $combo;
         $provision['feature_keys'] = (object) $feature;
         $current['provision'] = $provision;
@@ -113,5 +120,22 @@ final readonly class LineKeyResourceClient
         }
 
         return $data;
+    }
+
+    /**
+     * @param  array<string, mixed>  $existing
+     * @param  array<string, mixed>  $write
+     * @return array<string, mixed>
+     */
+    private function mergeKeyData(array $existing, array $write): array
+    {
+        $unknown = array_diff_key($existing, array_flip(['type', 'value']));
+
+        if (is_array($existing['value'] ?? null) && is_array($write['value'] ?? null)) {
+            $unknownValue = array_diff_key($existing['value'], array_flip(['label', 'value']));
+            $write['value'] = array_merge($unknownValue, $write['value']);
+        }
+
+        return array_merge($unknown, $write);
     }
 }

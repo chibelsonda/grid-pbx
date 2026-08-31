@@ -44,6 +44,7 @@ class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
             transcribe: $voicemailBox['transcribe'],
             requirePin: $voicemailBox['require_pin'],
             pin: $voicemailBox['pin'],
+            preservePin: (bool) ($voicemailBox['preserve_pin'] ?? false),
             advanced: new VoicemailBoxAdvancedData(
                 checkIfOwner: $voicemailBox['check_if_owner'],
                 deleteAfterNotify: $voicemailBox['delete_after_notify'],
@@ -60,6 +61,8 @@ class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
                 seekDurationMilliseconds: $voicemailBox['seek_duration_ms'],
                 flags: $voicemailBox['flags'],
                 notificationCallback: $this->notificationCallback($voicemailBox['notify_callback']),
+                preservedOptions: $voicemailBox['advanced_preserved_options'] ?? [],
+                notificationPreservedOptions: $voicemailBox['notify_preserved_options'] ?? [],
             ),
         );
     }
@@ -78,6 +81,7 @@ class CrossbarSwitchVoicemailBoxGateway implements SwitchVoicemailBoxGateway
             intervalSeconds: $callback['interval_s'] ?? null,
             timeoutSeconds: $callback['timeout_s'] ?? null,
             schedule: $callback['schedule'] ?? [],
+            preservedOptions: $callback['preserved_options'] ?? [],
         );
     }
 }

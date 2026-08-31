@@ -22,6 +22,7 @@ class LineKeyMutationService
         private readonly RedactSensitiveSwitchData $redactor,
         private readonly AuditService $audit,
         private readonly ProvisioningModelCapabilitiesService $modelCapabilities,
+        private readonly LineKeyReferenceResolver $references,
     ) {}
 
     /** @param list<array{category: string, position: int, type: string, value: string|int|null, label: string|null}> $keys */
@@ -31,14 +32,19 @@ class LineKeyMutationService
             throw new ConflictHttpException('Line-key mutations are disabled by server configuration.');
         }
 
+        if ($device->switch_resource_id === null) {
+            throw new ConflictHttpException('The device must be synchronized from Switch before line keys can be applied.');
+        }
+
         if ($device->make === null || $device->model === null || $device->mac_address === null) {
             throw new ConflictHttpException('The device needs an endpoint brand, model, and MAC address before it can be provisioned.');
         }
 
         $this->modelCapabilities->assertKeysFit($device, $keys);
+        $switchKeys = $this->references->useSwitchValues($account, $keys);
 
         try {
-            $snapshot = $this->gateway->update($account, $device->switch_resource_id, $keys);
+            $snapshot = $this->gateway->update($account, $device->switch_resource_id, $switchKeys);
 
             return DB::transaction(function () use ($account, $device, $actor, $keys, $ipAddress, $snapshot): SwitchDevice {
                 $device->fill([
@@ -56,7 +62,10 @@ class LineKeyMutationService
                     'key_count' => count($keys),
                 ], $ipAddress);
 
-                return $device->load('lineKeys');
+                $updated = $device->load('lineKeys');
+                $this->references->usePublicValues($account, $updated->lineKeys);
+
+                return $updated;
             });
         } catch (Throwable $exception) {
             $this->audit->record($actor, $account, 'line_keys.update_failed', 'failed', $device->switch_resource_id, [

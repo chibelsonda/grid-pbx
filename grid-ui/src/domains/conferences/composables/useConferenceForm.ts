@@ -24,15 +24,16 @@ export function useConferenceForm(record: Conference | null) {
     member: record?.member_numbers.join(', ') ?? '',
     moderator: record?.moderator_numbers.join(', ') ?? '',
   })
+  const pins = reactive({ member: '', moderator: '' })
   const form = reactive<ConferenceInput>({
     name: record?.name ?? '',
     owner_id: record?.owner?.id ?? null,
     conference_numbers: [],
     member_numbers: [],
     moderator_numbers: [],
-    member_pin: null,
+    member_pins: [],
     clear_member_pin: false,
-    moderator_pin: null,
+    moderator_pins: [],
     clear_moderator_pin: false,
     member_join_muted: record?.member_join_muted ?? true,
     member_join_deaf: record?.member_join_deaf ?? false,
@@ -56,7 +57,7 @@ export function useConferenceForm(record: Conference | null) {
   })
   const validationErrors = ref<FormErrors>({})
 
-  watch([form, numbers], () => (validationErrors.value = {}), { deep: true })
+  watch([form, numbers, pins], () => (validationErrors.value = {}), { deep: true })
 
   function validate(): FormValidationResult<ConferenceInput> {
     const result = validateForm(conferenceFormSchema, {
@@ -65,8 +66,8 @@ export function useConferenceForm(record: Conference | null) {
       conference_numbers: list(numbers.conference),
       member_numbers: list(numbers.member),
       moderator_numbers: list(numbers.moderator),
-      member_pin: nullable(form.member_pin),
-      moderator_pin: nullable(form.moderator_pin),
+      member_pins: list(pins.member),
+      moderator_pins: list(pins.moderator),
       max_participants:
         typeof form.max_participants === 'number' && Number.isFinite(form.max_participants)
           ? form.max_participants
@@ -81,5 +82,5 @@ export function useConferenceForm(record: Conference | null) {
     return result
   }
 
-  return { form, numbers, validate, validationErrors }
+  return { form, numbers, pins, validate, validationErrors }
 }

@@ -21,6 +21,11 @@ export const paymentCapabilitySchema = z.object({
     void: z.boolean(),
     refund: z.boolean(),
   }),
+  webhooks: z.object({
+    enabled: z.boolean(),
+    configured: z.boolean(),
+    accepting: z.boolean(),
+  }),
 })
 
 export const paymentAttemptSchema = z.object({
@@ -32,8 +37,24 @@ export const paymentAttemptSchema = z.object({
   currency: z.literal('USD').nullable(),
   status: z.enum(['pending', 'succeeded', 'failed', 'indeterminate', 'cancelled']),
   safe_error_code: z.string().nullable(),
+  provider_status: z.string().nullable(),
+  reconciled_at: z.string().nullable(),
   completed_at: z.string().nullable(),
   created_at: z.string().nullable(),
+})
+
+export const paymentAttemptEventSchema = z.object({
+  id: z.string().uuid(),
+  event_type: z.string(),
+  status: z.enum(['pending', 'succeeded', 'failed', 'indeterminate', 'cancelled']).nullable(),
+  summary: z.string(),
+  safe_error_code: z.string().nullable(),
+  provider_status: z.string().nullable(),
+  created_at: z.string().nullable(),
+})
+
+export const paymentAttemptDetailSchema = paymentAttemptSchema.extend({
+  events: paymentAttemptEventSchema.array(),
 })
 
 export const paymentCustomerProfileSchema = z.object({
@@ -43,9 +64,51 @@ export const paymentCustomerProfileSchema = z.object({
   masked_account: z.string().nullable(),
   account_type: z.string().nullable(),
   created_at: z.string().nullable(),
+  updated_at: z.string().nullable(),
 })
 
 export const paymentProfileOutcomeSchema = z.object({
   attempt: paymentAttemptSchema,
   profile: paymentCustomerProfileSchema.nullable(),
+})
+
+export const paymentWebhookDeliveryStatusSchema = z.enum([
+  'received',
+  'processing',
+  'processed',
+  'ignored',
+  'retry_pending',
+  'failed',
+])
+
+export const paymentWebhookDeliverySchema = z.object({
+  id: z.string().uuid(),
+  payment_attempt_id: z.string().uuid().nullable(),
+  provider: z.string(),
+  event_type: z.string(),
+  status: paymentWebhookDeliveryStatusSchema,
+  processing_attempts: z.number().int().nonnegative(),
+  safe_error_code: z.string().nullable(),
+  can_retry: z.boolean(),
+  recovery_guidance: z.string(),
+  event_occurred_at: z.string().nullable(),
+  received_at: z.string().nullable(),
+  processed_at: z.string().nullable(),
+})
+
+const paymentWebhookSummarySchema = z.object({
+  received: z.number().int().nonnegative(),
+  processing: z.number().int().nonnegative(),
+  processed: z.number().int().nonnegative(),
+  ignored: z.number().int().nonnegative(),
+  retry_pending: z.number().int().nonnegative(),
+  failed: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  requiring_attention: z.number().int().nonnegative(),
+})
+
+export const paymentWebhookHealthSchema = z.object({
+  summary: paymentWebhookSummarySchema,
+  recovery_available: z.boolean(),
+  deliveries: paymentWebhookDeliverySchema.array(),
 })

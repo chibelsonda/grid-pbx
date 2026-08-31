@@ -19,6 +19,11 @@ export type PaymentCapability = {
     void: boolean
     refund: boolean
   }
+  webhooks: {
+    enabled: boolean
+    configured: boolean
+    accepting: boolean
+  }
 }
 
 export type PaymentOpaqueData = {
@@ -35,8 +40,24 @@ export type PaymentAttempt = {
   currency: 'USD' | null
   status: 'pending' | 'succeeded' | 'failed' | 'indeterminate' | 'cancelled'
   safe_error_code: string | null
+  provider_status: string | null
+  reconciled_at: string | null
   completed_at: string | null
   created_at: string | null
+}
+
+export type PaymentAttemptEvent = {
+  id: string
+  event_type: string
+  status: PaymentAttempt['status'] | null
+  summary: string
+  safe_error_code: string | null
+  provider_status: string | null
+  created_at: string | null
+}
+
+export type PaymentAttemptDetail = PaymentAttempt & {
+  events: PaymentAttemptEvent[]
 }
 
 export type PaymentCustomerProfile = {
@@ -46,9 +67,37 @@ export type PaymentCustomerProfile = {
   masked_account: string | null
   account_type: string | null
   created_at: string | null
+  updated_at: string | null
 }
 
 export type PaymentProfileOutcome = {
   attempt: PaymentAttempt
   profile: PaymentCustomerProfile | null
+}
+
+export type PaymentWebhookDeliveryStatus =
+  'received' | 'processing' | 'processed' | 'ignored' | 'retry_pending' | 'failed'
+
+export type PaymentWebhookDelivery = {
+  id: string
+  payment_attempt_id: string | null
+  provider: string
+  event_type: string
+  status: PaymentWebhookDeliveryStatus
+  processing_attempts: number
+  safe_error_code: string | null
+  can_retry: boolean
+  recovery_guidance: string
+  event_occurred_at: string | null
+  received_at: string | null
+  processed_at: string | null
+}
+
+export type PaymentWebhookHealth = {
+  summary: Record<PaymentWebhookDeliveryStatus, number> & {
+    total: number
+    requiring_attention: number
+  }
+  recovery_available: boolean
+  deliveries: PaymentWebhookDelivery[]
 }

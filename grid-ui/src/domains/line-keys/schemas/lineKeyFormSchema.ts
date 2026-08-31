@@ -13,6 +13,34 @@ const lineKeySchema = z
   })
   .strict()
   .superRefine((key, context) => {
+    if (key.type === 'line') {
+      if (key.category !== 'combo') {
+        context.addIssue({
+          code: 'custom',
+          path: ['category'],
+          message: 'Line appearances must use combo keys.',
+        })
+      }
+
+      if (key.value !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['value'],
+          message: 'Line appearances do not accept a value.',
+        })
+      }
+
+      if (key.label !== null) {
+        context.addIssue({
+          code: 'custom',
+          path: ['label'],
+          message: 'Line appearances do not accept a label.',
+        })
+      }
+
+      return
+    }
+
     if (key.label !== null && key.value === null) {
       context.addIssue({
         code: 'custom',
@@ -21,7 +49,36 @@ const lineKeySchema = z
       })
     }
 
-    if (key.type === 'parking' && key.value !== null) {
+    if (key.value === null || key.value === '') {
+      context.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'The selected line-key type requires a value.',
+      })
+
+      return
+    }
+
+    if (
+      (key.type === 'presence' || key.type === 'personal_parking') &&
+      (typeof key.value !== 'string' || !z.uuid().safeParse(key.value).success)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'Select an extension from this account.',
+      })
+    }
+
+    if (key.type === 'speed_dial' && typeof key.value !== 'string') {
+      context.addIssue({
+        code: 'custom',
+        path: ['value'],
+        message: 'Enter a dialable destination.',
+      })
+    }
+
+    if (key.type === 'parking') {
       const parkingPosition = Number(key.value)
 
       if (!Number.isInteger(parkingPosition) || parkingPosition < 1 || parkingPosition > 10) {

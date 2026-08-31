@@ -357,9 +357,9 @@ direction/network hierarchy.
 | `provision.check_sync_reload` | string, legacy schema only | Managed/admin | Advanced / Provisioning events; explicit reload action on detail | Conditionally retained; live configuration lifecycle and reload command verified |
 | `provision.check_sync_reboot` | string, legacy schema only | Managed/admin | Advanced / Provisioning events; confirmed reboot action on detail | Conditionally retained; live configuration lifecycle and reboot command verified |
 | `provision.combo_keys.<position>` | combo-key object or null | Conditional | Advanced / Line keys | Grouped main/expansion presentation plus model capacity and supported-type validation implemented |
-| `provision.feature_keys.<position>` | combo-key object or null | Conditional | Advanced / Feature keys | Account-scoped suggestions resolve only through fixed extension/user and device providers; arbitrary catalog source identifiers are ignored |
-| combo-key `type` | `line`, `presence`, `personal_parking`, `speed_dial`, or `parking` | Conditional | key editor | Foundation |
-| combo-key `value` | string, parking position 1–10, or `{label,value}` | Conditional | key editor | Foundation |
+| `provision.feature_keys.<position>` | combo-key object or null | Conditional | Advanced / Feature keys | Account-scoped presence/personal-parking suggestions resolve only through synchronized Extension/User projections; devices are not offered as BLF targets |
+| combo-key `type` | `line`, `presence`, `personal_parking`, `speed_dial`, or `parking` | Conditional | key editor | Implemented with model capability checks and line restricted to combo keys |
+| combo-key `value` | string, parking position 1–10, or `{label,value}` | Conditional | key editor | Implemented: presence/personal parking map public user UUIDs at the API boundary, speed dial stores a literal dialable value, and line carries no custom value |
 
 Provisioning mutations remain capability-gated. GridPBX never exposes vendor
 credentials, provisioning URLs containing secrets, templates containing
@@ -397,6 +397,14 @@ Zod and Laravel validation, a complete recording direction/network matrix,
 typed nested Switch DTOs, and a credential-safe detail resource. These
 controls are implemented end to end but Device remains
 `Foundation` until the remaining items below are delivered.
+
+The 2026-08-31 Advanced-tab drift re-audit restored the shared recording and
+routing editors plus the full schema-backed payload groups after a presentation
+refactor had disconnected them. The correction keeps forwarding-only and SIP
+URI payloads minimal, retains connected-schema gates, uses account-scoped
+public UUIDs for resource selectors, and continues to preserve unknown Switch
+properties at the typed read-merge-write boundary. Focused SDK, Laravel, Vue,
+typecheck, and isolated headless create/edit/clear checks passed.
 
 Still outstanding for Device schema completion:
 
@@ -500,6 +508,13 @@ music on hold. `verified`, `priv_level`, `feature_level`, and external flags
 are displayed only as safe status metadata. Their values are preserved during
 ordinary edits but cannot be submitted by the browser.
 
+The 2026-08-31 Advanced-tab drift re-audit reconfirmed every managed-edit
+section against the installed User schema and referenced schemas. Unlike the
+Device presentation regression, all User controls and payload groups remained
+connected. Focused SDK, API, Zod/metaflow, E2E TypeScript, and one isolated
+headless User-calling walkthrough passed. The audit made no User code change
+and retains the existing live-mutation evidence limits documented above.
+
 The Wave 2 form audit found presentation and contract work that is not visible
 in the field table alone. Shared invalid styling and inline-only field error
 placement are implemented for User/Extension. Timezone, language, and presence
@@ -526,7 +541,7 @@ mailbox configuration below; it does not overwrite message or media state.
 | `notify_email_addresses[]` | Editable; distinct validated addresses, maximum 10 | Implemented |
 | `transcribe` | Schema-backed boolean with default `false`. GridPBX reads the installed authentication capability backed by `kazoo_asr:available()` and `kvm_util:transcribe_default()`, exposes only nullable availability/default booleans, and prevents newly enabling transcription when availability is explicitly false. Existing enabled values remain preservable and can be turned off | Implemented and live capability-verified |
 | `require_pin` | Editable | Implemented |
-| `pin` | Write-only, 4–6 digits; omitted on edit preserves the current PIN | Implemented and redacted |
+| `pin` | Write-only, 4–6 digits; an omitted configured PIN is recovered privately from Switch for the replacement write and never returned to the browser or stored unredacted | Implemented, redacted, and live preserve-verified |
 | `is_setup` | Read-only mailbox setup status | Implemented |
 | `check_if_owner` | Editable, default `true` | Implemented |
 | `delete_after_notify` | Editable, default `false`; mutually exclusive with `save_after_notify` in GridPBX | Implemented |
@@ -545,6 +560,7 @@ mailbox configuration below; it does not overwrite message or media state.
 | `announcement_only` | Hidden because the upstream schema marks it unsupported | Deliberately excluded |
 | `flags[]` | External-application metadata preserved from `switch_json` during mailbox updates; not operator-editable | Implemented preservation boundary |
 | `notify.callback` | Dedicated bounded workflow for disabled state, number, attempts, interval, timeout, and schedule | Implemented |
+| unknown safe public fields | Preserved server-side from redacted `switch_json`, including unedited greeting/setup state and unknown `notify`/callback fields; redaction markers and modeled fields are never copied as preservation input | Implemented preservation boundary |
 | voicemail key maps and account playback keys | Operational/account configuration, not mailbox CRUD | Pending administration workflow |
 
 The Vue create/edit form uses a domain-owned Zod schema and right-hand
@@ -563,19 +579,39 @@ therefore cannot drift into separate Kazoo payload contracts. Isolated live
 verification covers aggregate create, full edit hydration, advanced
 callback/audio clearing, persistence reload, and cleanup.
 
+The 2026-08-31 Advanced-form drift re-audit found no missing supported form
+controls, but runtime inspection found that voicemail `POST` uses
+`crossbar_doc:load_merge/3`, which retains CouchDB private fields only and
+replaces the submitted public document. The mutation path now preserves safe
+unmodeled public fields entirely server-side, preserves unknown `notify`
+siblings and callback options, restores empty `media` as a JSON object, and
+privately re-reads an unchanged configured PIN before the replacement write.
+An isolated disposable lifecycle passed protected-mailbox create, two blank-PIN
+edits, callback edit/clear, reopen, and deletion. MySQL reported zero matching
+active projections afterward, and an independent CouchDB query reported zero
+matching active voicemail documents.
+
 The Wave 2 form audit also identified incomplete UI acceptance behavior and
 conditional contracts. Shared invalid styling, inline-only field errors,
 account-backed timezone/assignment choices, and create-versus-edit PIN behavior
-are now implemented for Voicemail. The Switch schema accepts ASR fields, but
-the GridPBX session layer does not yet retain the authentication response's
-runtime transcription capability; the options endpoint therefore returns an
-explicit unknown state and the UI warns without discarding existing values.
+are now implemented for Voicemail. The Switch schema accepts ASR fields, and
+the GridPBX session layer retains only the authentication response's typed
+availability/default booleans. The options endpoint reports those values or an
+explicit unknown state, and the UI warns without discarding an existing enabled
+value.
 External flags are preserved rather than exposed, and the callback object is
 typed and bounded end-to-end. Runtime create/edit/clear acceptance remains
 documented in [`SWITCH_FORM_AUDIT.md`](SWITCH_FORM_AUDIT.md#voicemail-findings):
 the paused callback lifecycle and disposable cleanup passed against the
 connected Switch. Unassigned mailbox writes omit `owner_id` because the
 connected schema rejects an explicit `null`.
+
+The reusable Voicemail fields now use the shared Basic/Advanced selector in
+both standalone and embedded Extension forms. Basic contains identity,
+timezone, account-scoped assignment, and write-only PIN; Advanced contains
+notifications, typed callback delivery, transcription/owner options, and
+playback behavior. Error routing selects the relevant tab while preserving one
+form model and validation contract.
 
 ## 9. Directory field-level matrix
 
@@ -594,6 +630,7 @@ re-reads the Directory, with compensation if a multi-user update fails.
 | `sort_by` | Editable enum: `first_name` or `last_name` | Implemented |
 | `flags[]` | External-application metadata; initialized empty and preserved from `switch_json` on edit, never accepted from the operator form | Implemented preservation boundary |
 | `users[]` | Managed through public Extension UUIDs and resolved User/Callflow mappings | Implemented |
+| unknown future public properties | Derived only from redacted server-side `switch_json`; modeled fields, `id`, derived `users`, private keys, and redacted values are excluded before the typed full update | Implemented preservation boundary |
 
 The API never accepts Switch User or Callflow identifiers from the UI. It
 resolves each public Extension UUID inside the selected account, requires a
@@ -605,12 +642,21 @@ values. The Vue slideover uses a domain composable, Zod, a non-clipping
 Headless UI sort listbox, shared invalid borders, and inline-only field errors
 before Laravel repeats validation at the trust boundary.
 
+The 2026-08-31 form-drift re-audit confirmed that the visible Basic/Advanced
+fields match the complete installed schema and Monster workflow. It also
+confirmed that Directory `POST` validation finishes through
+`crossbar_doc:load_merge/4`, which replaces the existing public document.
+Directory updates now pass a private server-derived preservation bag into the
+typed SDK DTO, so a safe unknown future field survives without becoming form
+input or public response data. Focused SDK and Laravel preservation/rejection
+tests passed. No new live Directory mutation was performed for this re-audit.
+
 ## 10. LineKey field-level matrix
 
 Line keys are positions inside a Device's `provision.combo_keys` and
 `provision.feature_keys` maps; they are not independent Switch documents.
 GridPBX uses a standalone MySQL projection and public UUIDs for UI workflows,
-but applies changes as one bounded patch to the owning Device provisioning
+but applies changes as one bounded replacement to the owning Device provisioning
 subtree.
 
 | Schema path or variant | Treatment | Current status |
@@ -623,6 +669,8 @@ subtree.
 | `type: speed_dial` | Editable with optional string or labeled-string value | Implemented |
 | `type: parking` | Editable position 1–10 as integer, numeric string, or labeled integer | Implemented |
 | labeled value object | Editable only when a value is present; label/value limited to 255 characters by GridPBX storage | Implemented |
+| account resource value | Suggested Extension/User and Device values cross the public boundary as account-scoped UUIDs; Laravel resolves the raw provisioner value only for the Switch write and maps known raw values back before every response | Implemented |
+| unknown retained-key fields | Safe unknown top-level key fields and unknown members of a retained labeled-value object are merged from the live Device read; modeled `type`, `label`, and `value` always win | Implemented preservation boundary |
 | `provision.endpoint_brand`, `endpoint_family`, `endpoint_model` | Read-only capability identity in this workflow; edited in Device | Implemented |
 | `check_sync_event`, `check_sync_reload`, `check_sync_reboot` | Managed in the Device provisioning panel; reload and reboot are explicit audited Device actions | Implemented and live verified for provisionable Device types |
 
@@ -634,6 +682,27 @@ Preview and mutation responses exclude SIP credentials and provisioning
 infrastructure, and the complete redacted Device response remains in
 `switch_json`.
 
+The 2026-08-31 drift re-audit reconfirmed all five key types and their
+conditional value shapes directly from the installed
+`devices.combo_key.json`. The current Monster checkout has no separate Line
+Key editor, so its Device workflow does not override that schema; the legacy
+Grid workflow remains evidence only for model-sized main/expansion sections.
+Installed Device updates use `POST` and `crossbar_doc:load_merge`, while PATCH
+recursively merges old key maps, so GridPBX intentionally performs a live
+read-modify-POST full map replacement. The SDK now merges safe unknown fields
+for retained positions into that replacement. Public suggestions, projected
+values, payload previews, and mutation responses use only account-scoped
+UUIDs for known Extension/User and Device references. Laravel privately maps
+those UUIDs to the raw Switch value and rejects foreign UUIDs; arbitrary
+non-UUID dial strings remain schema-valid.
+
+Focused verification passed with five SDK tests / 13 assertions, five Laravel
+tests / 55 assertions, the isolated E2E TypeScript typecheck, and one isolated
+headless provisioning walkthrough. The browser check created and removed a
+disposable Device, confirmed every suggested reference value equaled its
+public UUID, found no `switch_resource_id` field, and rechecked the grouped
+main/expansion controls without clipping.
+
 ## 11. Group and Menu field-level matrices
 
 ### Group
@@ -644,6 +713,33 @@ infrastructure, and the complete redacted Device response remains in
 | `endpoints.<id>.type/weight` | Public User, Device, or Group UUIDs are resolved server-side; ordered weights are bounded 1–100 | Implemented |
 | `music_on_hold.media_id` | API-backed projected Media UUID; `null` inherits the account default | Implemented |
 | `flags[]` | External-application metadata initialized empty and preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+| unknown public fields | Safe unknown top-level fields, retained-endpoint metadata, and non-modeled `music_on_hold` members are preserved privately; modeled fields always win and removed endpoints remain removed | Implemented preservation boundary |
+
+The 2026-08-31 Group drift re-audit confirmed that these are all fields in the
+installed `groups.json`. Monster's Group workflow writes the name and User
+membership to the Group document, while its extensions, numbers, ring timing,
+and feature panels mutate related Callflows rather than additional Group
+fields. GridPBX's account-scoped Device and nested-Group membership choices are
+a typed normalized superset of that workflow; the API resolves only active
+public UUIDs to raw endpoint identifiers and never returns the raw map keys.
+
+Installed Group updates use `POST` and finish through
+`crossbar_doc:load_merge`, so an update can replace omitted public document
+fields. Laravel now derives a private preservation bag from redacted
+`switch_json`, removing resource/private/redacted and modeled values before the
+typed SDK merges safe unknown top-level, retained-endpoint, and nested
+music-on-hold metadata. The bag and raw endpoint IDs are prohibited operator
+inputs and never enter the public response. Clearing music removes the modeled
+`media_id` but preserves safe sibling metadata; a completely empty value is
+encoded as the schema-required JSON object `{}`. The 128-character name bound,
+100-member product cap, UUID ownership checks, and 1–100 weight limits match
+across SDK/Laravel/Zod where applicable.
+
+Focused verification passed with three SDK tests / 14 assertions, three
+Laravel tests / 27 assertions, isolated E2E TypeScript typecheck, and one
+isolated headless Group form check. The browser check was non-mutating and
+reconfirmed inline-only name validation plus a viewport-contained shared
+music-on-hold listbox; no new live Group mutation was performed or claimed.
 
 ### Menu
 
@@ -651,17 +747,49 @@ infrastructure, and the complete redacted Device response remains in
 | --- | --- | --- |
 | `name`, `timeout`, `interdigit_timeout`, `max_extension_length`, `retries` | Required schema-bounded controls with matching Zod and Laravel validation | Implemented |
 | `hunt`, `hunt_allow`, `hunt_deny` | Direct-extension dialing and bounded optional patterns | Implemented |
-| `allow_record_from_offnet`, `suppress_media` | Explicit boolean controls | Implemented |
-| `record_pin` | Write-only 3–6 digit value; blank edit securely preserves the Switch value without returning or persisting it | Implemented |
-| `media.greeting` | API-backed projected Media UUID | Implemented |
-| `media.invalid_media`, `transfer_media`, `exit_media` | Schema union represented as enabled/system-prompt boolean or projected Media UUID | Implemented |
-| `flags[]` | External-application metadata initialized empty and preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+| `allow_record_from_offnet` | Explicit boolean recording-origin control | Implemented |
+| `suppress_media` | Public compatibility control mapped to `media.invalid_media`, `transfer_media`, and `exit_media = false`, which are the values consumed by installed `cf_menu` | Implemented runtime mapping |
+| `record_pin` | Write-only 3–6 digit value; blank edit preserves, a replacement overwrites, and an explicit removal omits it from the full public-document update | Implemented |
+| `media.greeting` | Account-scoped projected Media UUID; unresolved current raw references remain private and are preserve-or-explicit-clear | Implemented |
+| `media.invalid_media`, `transfer_media`, `exit_media` | Schema union represented as enabled/system-prompt boolean or account-scoped Media UUID; disabling ignores stale IDs and unresolved current values are preserve-or-explicit-clear | Implemented |
+| `flags[]` | External-application metadata initialized empty and retained; prohibited from operator input | Implemented preservation boundary |
+| unknown public fields | A fresh pre-update Switch read preserves safe unknown top-level and nested `media` fields; modeled values win and private/redacted/resource metadata is discarded | Implemented preservation boundary |
 
-The legacy Monster menu presents a smaller prompt workflow. GridPBX keeps the
-additional invalid, transfer, and exit prompt controls because they are typed
-by the connected schema and mapped without raw JSON editing. Both Group and
-Menu slideovers now use domain composables, Zod, Headless UI choices, shared
-invalid styling, and isolated authenticated visual acceptance.
+The 2026-08-31 Menu drift re-audit confirmed every installed `menus.json`
+field and inspected `cb_menus`, `crossbar_doc:load_merge`, `cf_menu`, and
+Monster's Menu workflow. Installed `cf_menu` does not read the documented
+top-level `suppress_media` value; Monster implements that switch by writing all
+three result-prompt media members as booleans. GridPBX now does the same while
+retaining the schema field, disables the dependent prompt controls, and never
+lets a disabled prompt's stale Media UUID override the boolean.
+
+Menu `POST` replaces omitted public fields after retaining only private CouchDB
+metadata. The SDK therefore performs one authoritative pre-update read and
+merges safe unknown top-level and nested `media` values into the typed write.
+The write-only record PIN is recovered only for a preserve operation and never
+enters MySQL or the public API; explicit removal leaves it out. Unresolved raw
+Media references are exposed only as booleans, remain preserved by default,
+and require an explicit clear or account-scoped public Media replacement.
+Empty media serializes as the schema-required object `{}`.
+
+The shared Basic/Advanced presentation now maps Monster's Basic screen to
+name, write-only recording PIN, direct-extension enablement, and greeting.
+Advanced combines Monster's Extension Dialing and Options screens with the
+schema-backed invalid/transfer/exit prompt superset. Client and server errors
+select the appropriate tab without duplicating validation rules.
+
+Focused verification passed with four SDK tests / 19 assertions, four Laravel
+tests / 37 assertions, eight Vue tests across three files, Vue and E2E
+TypeScript checks, one isolated non-mutating form check, and one disposable
+live lifecycle. The final lifecycle used `E2E Menu 45693910`, created and
+replaced a write-only PIN, enabled runtime prompt suppression, reopened the
+authoritative values, removed the PIN, reopened again, deleted the Menu, and
+ran an independent Menu synchronization. MySQL remained soft-deleted after
+that sync, proving no matching active Switch Menu remained. Public responses
+contained only the Menu UUID and safe fields, never the PIN or raw Switch ID.
+The focused presentation rerun passed two component tests, Vue and isolated
+E2E typechecks, and both isolated headless Menu checks, including disposable
+live round-trip and cleanup.
 
 ## 12. Queue and Agent field-level matrix
 
@@ -675,7 +803,8 @@ invalid styling, and isolated authenticated visual acceptance.
 | `announcements.interval` | 15–86400 second bounded virtual field | Implemented and live verified |
 | `announcements.position_announcements_enabled`, `wait_time_announcements_enabled` | Explicit periodic announcement switches | Implemented and live verified |
 | `announcements.media.*` | Four public Media choices accepted only as a complete schema-valid set | Implemented |
-| `cdr_url`, `recording_url` | Hidden pending outbound URL/SSRF allowlist policy; existing Switch values are preserved and never returned | Intentionally policy-gated |
+| `cdr_url`, `recording_url`, runtime `call_recording_url` | Hidden pending outbound URL/SSRF allowlist policy. The installed schema exposes `recording_url`, but the installed ACDc queue FSM reads `call_recording_url`; existing values under both keys are preserved and never returned | Intentionally policy-gated |
+| safe unknown Queue fields | Authoritative pre-update GET merges unknown top-level, `announcements`, and nested prompt metadata; modeled fields win, while IDs, revisions, private/redacted values, and raw roster IDs are discarded | Implemented and focused-tested |
 | queue roster | Public Extension UUIDs resolved to Switch User identifiers and replaced separately | Implemented |
 | live agent status | Login, logout, pause, resume, and end-wrapup commands with conditional pause timeout and audit logging | Implemented; no automated live mutation of real agents |
 | runtime capability discovery | Safe account-level reads probe Queue configuration, aggregate Agent status, and Queue statistics independently; only three booleans enter the public contract, with a one-minute account cache | Implemented and live verified as configuration available, live controls unavailable, and statistics unavailable |
@@ -684,6 +813,17 @@ The Queue additions remain virtual projections from the redacted response
 `data` object in `switch_json`; normalized MySQL columns are reserved for the
 existing searchable operational fields. An isolated authenticated lifecycle
 passed create, edit, clear, and cleanup against the connected Switch.
+
+The installed Queue POST handler calls `crossbar_doc:load_merge`, whose runtime
+implementation retains only private fields from the stored document before
+merging the submitted public object. GridPBX therefore cannot rely on a full
+POST to preserve unknown public data. Focused SDK evidence now covers the
+authoritative GET/POST sequence, safe unknown preservation at all three Queue
+levels, hidden URL preservation, create-only priority retention, and removal
+of private/redacted values and raw roster IDs. The corrected path also passed
+the focused public API update checks and a disposable isolated browser Queue
+lifecycle. The installed Monster checkout has no Queue/Agent form, so no
+Monster-only assumptions were added.
 
 The 2026-08-31 runtime capability audit found `cb_queues` and `cb_agents`
 loaded, but the ACDc OTP application was not running and
@@ -773,24 +913,35 @@ completion.
 | --- | --- | --- |
 | `name`, `owner_id` | Required bounded name; public account Extension UUID resolved to a Switch User reference | Implemented |
 | `conference_numbers`, `member.numbers`, `moderator.numbers` | Present, unique digit lists; empty lists remain schema-valid | Implemented and live verified |
-| `member.pins`, `moderator.pins` | Write-only replacement or explicit clear; never returned or persisted in plaintext | Implemented |
+| `member.pins`, `moderator.pins` | Write-only arrays of up to 20 unique 1–32 digit values per role; replacement or explicit clear; never returned or persisted in plaintext | Implemented and live verified |
 | `member.join_muted`, `member.join_deaf`, `member.play_entry_prompt` | Explicit member behavior controls | Implemented |
 | `moderator.join_muted`, `moderator.join_deaf` | Explicit moderator behavior controls | Implemented |
 | `max_participants`, `language` | Bounded capacity and prompt-language controls | Implemented |
 | `max_members_media` | Public account Media UUID resolved server-side; unresolved existing Switch media is preserved | Implemented |
 | `play_entry_tone`, `play_exit_tone` | Schema boolean/string union represented as standard, silent, projected Media, or opaque current-custom preservation | Implemented and live verified |
 | `play_name`, `play_welcome`, `require_moderator`, `wait_for_moderator` | Explicit room and moderator behavior controls | Implemented |
-| `profile_name`, `caller_controls`, `moderator_controls` | Bounded advanced profile references | Implemented |
+| `profile_name`, `caller_controls`, `moderator_controls` | Bounded advanced profile references; runtime defaults and references remain named Switch configuration rather than raw profile JSON | Implemented and live verified |
 | `bridge_username`, `bridge_password`, `domain` | Infrastructure-owned values; not accepted from account operators | Intentionally hidden |
-| `flags[]` | External-application metadata; not operator-editable | Intentionally hidden/preserved by Switch partial update |
+| `flags[]` | External-application metadata; not operator-editable | Intentionally hidden; native recursive PATCH preservation live verified |
 | `focus` | Read-only media-server location | Intentionally read-only |
-| `controls`, `profile` | Arbitrary nested Switch configuration; no raw JSON editor in the simplified UI | Intentionally advanced/opaque |
+| `controls`, `profile` | Arbitrary nested Switch configuration; no raw JSON editor in the simplified UI | Intentionally advanced/opaque; unknown nested `controls` preservation live verified |
 | lock/unlock, participant mute/deaf/kick actions | Runtime conference operations require a separate audited command surface | Pending |
 
 The typed sound fields are read from the redacted response `data` stored in
-`switch_json`; no JSON-derived Conference column was added to MySQL. The
-isolated authenticated lifecycle passed visual validation, create, edit, and
-cleanup against the connected Switch.
+`switch_json`; no JSON-derived Conference column was added to MySQL. Public
+owner input is an account-scoped Extension UUID that Laravel resolves to the
+raw 32-character Kazoo `owner_id`; responses return only the public UUID.
+Updates use installed Kazoo recursive `PATCH`, omit unchanged write-only PIN
+arrays, and send `null` only for explicit deletion of nullable managed fields.
+The shared form tabs keep Monster's workflow recognizable: identity, owner,
+and member access are Basic, while conference-server settings, participant and
+moderator behavior, sounds, and safe named profiles are Advanced. Opaque
+nested profile/control JSON remains hidden. The focused isolated lifecycle
+passed again after this presentation split.
+The 2026-08-31 isolated authenticated lifecycle passed create, selective PIN
+replacement, advanced-field reopen, unknown/external field preservation, and
+cleanup. Its MySQL projection was independently confirmed soft-deleted and the
+active Switch collection had no exact-name match.
 
 ## 14. Temporal Rule and Rule Set field-level matrix
 
@@ -807,7 +958,7 @@ cleanup against the connected Switch.
 | `month` | Optional month integer, 1–12, shown for yearly cycles | Implemented |
 | `ordinal` | Optional enum `every`, `first`–`fifth`, or `last`, shown for monthly/yearly patterns | Implemented |
 | `enabled` | Operational override only; prohibited in CRUD and changed through confirmed audited `true`/`false`/`null` PATCH commands | Implemented and live verified |
-| `flags[]` | External-application metadata preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+| `flags[]` | External-application metadata prohibited from operator input; normal edits omit it from native recursive PATCH while compensation retains the projected value | Implemented preservation boundary |
 | effective status | GridPBX schedule projection evaluated in the account timezone and kept distinct from the manual override | Implemented |
 
 ### Temporal Rule Set
@@ -816,7 +967,7 @@ cleanup against the connected Switch.
 | --- | --- | --- |
 | `name` | Required bounded editable name | Implemented |
 | `temporal_rules[]` | Non-empty ordered membership; public Rule UUIDs resolve to account-scoped Switch identifiers | Implemented and live verified |
-| `flags[]` | External-application metadata preserved from `switch_json`; prohibited from operator input | Implemented preservation boundary |
+| `flags[]` | External-application metadata prohibited from operator input and omitted from normal native recursive PATCH edits | Implemented preservation boundary |
 | enable/disable/reset | Confirmed command applies to every resolved member under a lock with partial-failure compensation | Implemented and live verified |
 | Callflow and membership lifecycle | Delete is rejected while the Rule Set is referenced by temporal routing; successful deletion removes membership rows so member Rules can be removed safely | Implemented and live verified |
 
@@ -824,9 +975,14 @@ Both right-side panels use domain composables, Zod, Headless UI where an
 interactive primitive adds value, shared red invalid controls, and inline-only
 field errors. Ordinary edits preserve existing operational overrides, and no
 new JSON-derived MySQL columns were added; the complete redacted response
-`data` remains in `switch_json`. The isolated lifecycle passed create, edit,
-override preservation, force/reset commands, ordered Rule Set creation, and
-cleanup against the connected Switch.
+`data` remains in `switch_json`. Installed-schema review confirmed that
+GridPBX's `date` and `daily` choices are valid even though Monster exposes only
+weekly/monthly/yearly. Rule and Rule Set edits use recursive PATCH; nullable
+managed schedule fields are explicitly deleted when cleared, while unknown
+fields and omitted external flags remain server-side. The 2026-08-31 isolated
+lifecycle passed Rule and Rule Set create/edit/reopen, override force/reset,
+ordered membership, and cleanup. Independent checks confirmed both projections
+soft-deleted and zero exact-name active Switch matches.
 
 ## 15. Blacklist field-level matrix
 
@@ -906,6 +1062,17 @@ from authorization, billing, and compliance policy. Focused Switch package,
 Laravel, Vue, TypeScript, and isolated authenticated Playwright checks pass
 without executing any carrier mutation.
 
+The 2026-08-31 form-drift re-audit found no missing Advanced fields because a
+generic Phone Number edit form is deliberately absent. The installed schema
+and runtime continue to require dedicated workflows for CNAM, E911, porting,
+activation, reservation, purchase, and release. Callflow assignment remains
+owned by the Callflow domain. The public detail contract still exposes only
+account-scoped GridPBX and Callflow UUIDs plus allowlisted operational values;
+provider IDs, billing data, raw number documents, and internal primary keys
+remain private. Five package tests / 26 assertions, three API tests / 37
+assertions, the one detail component test, isolated E2E TypeScript typecheck,
+and the one read-only headless detail test passed without a Switch write.
+
 For CNAM specifically, `_read_only.features.available` means Kazoo selected the
 feature as allowable for that number; it is not a provider acknowledgement.
 The installed default provider publishes an asynchronous notification for an
@@ -933,17 +1100,23 @@ is unset. Schema availability is therefore not provider or routing readiness.
 | `streamable` | Explicit boolean control | Implemented |
 | `media_source` | Operator upload workflow always creates `upload`; existing `recording` and `tts` values are preserved and cannot be injected through metadata CRUD | Implemented boundary |
 | raw audio | Required MP3/WAV/OGG create upload and confirmed replacement, maximum 5 MB; streamed through the authorized API and never duplicated in MySQL | Implemented |
-| `content_type`, `content_length` | Refreshed from Switch after upload; content type is retained during metadata updates and length remains Switch-owned | Implemented |
+| `content_type`, `content_length` | Switch-owned values are retained during metadata updates when present. The connected deployment returns `content_type` but omits `content_length` from Media detail even immediately after an 844-byte upload; GridPBX preserves the authoritative nullable value rather than inventing one | Implemented and live-verified |
 | `prompt_id`, `source_id`, `source_type`, `tts` | Hidden schema-owned values preserved through typed DTOs during metadata updates; not accepted from operator payloads | Implemented preservation boundary |
+| unknown safe public fields | Retained server-side from redacted `switch_json` during replacement writes, including unknown nested TTS siblings; modeled, private/read-only, and redaction-marker values are excluded | Implemented and live-verified |
 | generated TTS and callflow recording | Separate provider/runtime operations rather than generic metadata CRUD | Intentionally capability-gated |
 | account music on hold | Public Media UUID resolved server-side; Headless UI selection may set or clear the account reference | Implemented |
 | deletion | Dependency summary covers music on hold, voicemail greetings, and Callflows before deletion | Implemented |
 
 The Media forms use domain composables, Zod, shared red invalid controls,
 inline-only API errors, and `novalidate`. The account-default selector uses the
-viewport-bounded Headless UI listbox. Focused Switch package, Laravel, Vue,
-TypeScript, and isolated authenticated Playwright checks pass without creating
-or replacing live audio.
+viewport-bounded Headless UI listbox. A 2026-08-31 drift re-audit corrected the
+installed full-document `POST` boundary so metadata edits preserve safe unknown
+public fields, nested TTS siblings, and Switch-owned content metadata entirely
+server-side. Focused Switch package, Laravel, Vue, TypeScript, and isolated
+authenticated Playwright checks pass. A disposable 844-byte WAV lifecycle also
+verified upload, production metadata edit, public/raw UUID separation, nested
+unknown-field preservation, deletion, two soft-deleted audit projections, zero
+active MySQL projections, and zero matching active Switch Media documents.
 
 ## 19. Call activity field-level matrices
 
@@ -984,13 +1157,13 @@ without console, page, or server errors.
 | Schema path or operation | Treatment | Current status |
 | --- | --- | --- |
 | public `id` | GridPBX UUID only; internal `account_id` and Switch account ID never cross the API | Implemented |
-| `name`, `realm`, `timezone`, `enabled` | Name/timezone are typed administrator settings; realm and enabled state remain read-only | Partially implemented |
+| `name`, `realm`, `timezone`, `enabled` | Name and schema-bounded timezone are typed administrator settings; realm remains read-only; enabled uses a separate exact-name-confirmed administrator command | Implemented/gated by field |
 | organization relationship | Public organization UUID and display name, scoped through authenticated membership | Implemented |
 | projected resource counts | Tenant-scoped Extension, Device, Phone Number, Callflow, Voicemail, Queue, Media, and Recording counts | Implemented |
 | `org`, `language` | Typed nullable identity/default settings with explicit clear semantics | Implemented |
 | `music_on_hold.media_id` | Managed by the existing account Media workflow using a public Media UUID | Implemented in Media domain |
 | `blacklists[]` | Managed by the Blacklist domain and account activation workflow | Implemented in Blacklist domain |
-| `call_waiting.enabled`, `do_not_disturb.enabled`, `caller_id_options.outbound_privacy`, `caller_id_options.show_rate`, `ringtones.internal`, `ringtones.external` | Typed calling defaults; no raw nested JSON editor | Implemented |
+| `call_waiting.enabled`, `do_not_disturb.enabled`, `caller_id_options.outbound_privacy`, `caller_id_options.show_rate`, `ringtones.internal`, `ringtones.external` | Typed calling defaults; privacy includes a virtual Switch-default choice that sends JSON `null` through Account `PATCH` to remove the optional property; ringtone headers use the installed 256-character limit | Implemented |
 | `caller_id.internal` | Bounded internal caller-ID name and number | Implemented |
 | `caller_id.external` | Name plus account-owned Phone Number public UUID resolved server-side; unresolved current values are preserve-or-clear | Implemented |
 | `caller_id.emergency` | Name plus account-owned E911-enabled Phone Number public UUID resolved server-side | Implemented |
@@ -1016,6 +1189,30 @@ synchronization metadata, and audit history. Raw JSON, internal primary keys,
 and the Switch account identifier never cross the public API. Enable/disable
 is a separate exact-name-confirmed operation; higher-risk configuration
 remains gated.
+
+The 2026-08-31 form-drift re-audit compared the complete installed
+`accounts.json` schema and its `call_waiting`, `caller_id`, `call_recording`,
+`dialplans`, `formatters`, and `metaflows` references with `cb_accounts` and
+Monster's Account workflows. GridPBX now enforces the installed timezone
+length of 5–32 characters, offers `Etc/UTC` rather than the schema-invalid
+three-character alias, accepts the full 256-character ringtone limit, and
+includes Monster's German and Russian language choices while retaining an
+unknown current language as a safe display value. The privacy-default choice
+maps to public `null`; the typed Switch DTO emits that null and installed
+`kz_json:merge_left/2` removes the nested property during `PATCH`, restoring
+inherited behavior without accepting Monster's virtual `inherit` string.
+
+Account updates remain recursive partial patches. Installed
+`crossbar_doc:patch_the_doc/2` merges public request fields over the existing
+document, so unknown public Account properties and unknown nested siblings are
+retained. GridPBX additionally preserves hidden recording storage URLs and
+unknown dial-plan, formatter, and metaflow options from the redacted
+server-side snapshot. Music on Hold and Blacklist assignment stay in their
+dedicated account-scoped workflows. Realm/asserted identity, notification
+state, billing/top-up, voicemail callback URLs, and zones remain explicitly
+gated. Focused SDK, Laravel, Zod, Vue, E2E TypeScript, and one isolated
+headless Account walkthrough passed; the re-audit made no live Account
+mutation.
 
 Externally routable numbers entered by future purchasing, porting, CNAM, or
 E911 forms must use a shared libphonenumber-grade parser in Vue and an

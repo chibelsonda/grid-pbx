@@ -80,8 +80,25 @@ final readonly class QueueResourceClient
 
     public function update(string $accountId, string $queueId, QueueWriteData $queue): QueueSnapshot
     {
+        $current = $this->get($accountId, $queueId);
+        $data = $queue->toSwitchData($current->data);
+
+        if ($current->maxPriority === null) {
+            unset($data['max_priority']);
+        } else {
+            $data['max_priority'] = $current->maxPriority;
+        }
+
+        foreach (['cdr_url' => $current->cdrUrl, 'recording_url' => $current->recordingUrl] as $key => $value) {
+            if ($value === null) {
+                unset($data[$key]);
+            } else {
+                $data[$key] = $value;
+            }
+        }
+
         $snapshot = $this->snapshot($this->client->request('POST', $this->path($accountId, $queueId), [
-            'json' => ['data' => $queue->toSwitchData()],
+            'json' => ['data' => $data],
         ]));
 
         if ($snapshot->id !== $queueId) {

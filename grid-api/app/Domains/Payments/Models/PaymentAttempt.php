@@ -31,6 +31,8 @@ class PaymentAttempt extends Model
         'provider_reference',
         'provider_reference_hash',
         'safe_error_code',
+        'provider_status',
+        'reconciled_at',
         'completed_at',
     ];
 
@@ -92,6 +94,7 @@ class PaymentAttempt extends Model
             'amount' => 'decimal:8',
             'status' => PaymentAttemptStatus::class,
             'provider_reference' => 'encrypted',
+            'reconciled_at' => 'datetime',
             'completed_at' => 'datetime',
         ];
     }

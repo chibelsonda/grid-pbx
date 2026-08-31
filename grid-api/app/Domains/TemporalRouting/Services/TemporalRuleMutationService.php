@@ -48,10 +48,6 @@ class TemporalRuleMutationService
     {
         $previous = $this->writeData($rule);
         $update = $data;
-        if ($rule->enabled !== null) {
-            $update['enabled'] = $rule->enabled;
-        }
-        $update['flags'] = $this->flags($rule->switch_json);
         try {
             $snapshot = $this->gateway->update($account, $rule->switch_resource_id, $update);
 

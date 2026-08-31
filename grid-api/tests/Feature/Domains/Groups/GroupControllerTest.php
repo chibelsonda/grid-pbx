@@ -67,31 +67,76 @@ class GroupControllerTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('members');
     }
 
-    public function test_update_preserves_external_switch_flags_and_rejects_operator_flags(): void
+    public function test_update_preserves_hidden_switch_fields_and_rejects_operator_owned_metadata(): void
     {
         [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-1',
+        ]);
         $group = SwitchGroup::factory()->for($account)->create([
             'switch_resource_id' => 'switch-group-1',
-            'switch_json' => ['flags' => ['external-managed']],
+            'switch_json' => [
+                'id' => 'switch-group-1',
+                'name' => 'Support',
+                'endpoints' => [
+                    'switch-user-1' => [
+                        'type' => 'user',
+                        'weight' => 9,
+                        'vendor_alert' => ['enabled' => true],
+                    ],
+                ],
+                'music_on_hold' => [
+                    'media_id' => 'switch-media-old',
+                    'vendor_mode' => 'shuffle',
+                ],
+                'flags' => ['external-managed'],
+                'future_option' => ['nested' => 'keep'],
+                'pvt_secret' => 'discard',
+                'redacted_option' => '[REDACTED]',
+            ],
         ]);
         $gateway = $this->mock(SwitchGroupGateway::class);
         $gateway->shouldReceive('update')->once()->withArgs(
             fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
                 && $resourceId === 'switch-group-1'
-                && $data['switch_flags'] === ['external-managed'],
+                && $data['switch_flags'] === ['external-managed']
+                && $data['resolved_members'][0]['switch_resource_id'] === 'switch-user-1'
+                && $data['switch_preserved_options'] === [
+                    'future_option' => ['nested' => 'keep'],
+                    'endpoints' => [
+                        'switch-user-1' => ['vendor_alert' => ['enabled' => true]],
+                    ],
+                    'music_on_hold' => ['vendor_mode' => 'shuffle'],
+                ],
         )->andReturn([
             'id' => 'switch-group-1',
             'name' => 'Updated support',
-            'endpoints' => [],
-            'music_on_hold' => [],
+            'endpoints' => [
+                'switch-user-1' => [
+                    'type' => 'user',
+                    'weight' => 1,
+                    'vendor_alert' => ['enabled' => true],
+                ],
+            ],
+            'music_on_hold' => ['vendor_mode' => 'shuffle'],
             'flags' => ['external-managed'],
+            'future_option' => ['nested' => 'keep'],
         ]);
 
         $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/groups/{$group->id}", [
             'name' => 'Updated support',
             'music_on_hold_media_id' => null,
-            'members' => [],
-        ])->assertOk()->assertJsonPath('data.name', 'Updated support');
+            'members' => [[
+                'type' => 'user',
+                'id' => $extension->id,
+                'weight' => 1,
+            ]],
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Updated support')
+            ->assertJsonPath('data.members.0.target.id', $extension->id)
+            ->assertJsonMissingPath('data.switch_preserved_options')
+            ->assertDontSee('switch-user-1')
+            ->assertDontSee('vendor_alert');
 
         $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/groups/{$group->id}", [
             'name' => 'Rejected flags',
@@ -99,6 +144,17 @@ class GroupControllerTest extends TestCase
             'members' => [],
             'flags' => ['operator-managed'],
         ])->assertUnprocessable()->assertJsonValidationErrors('flags');
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/groups/{$group->id}", [
+            'name' => 'Rejected endpoint metadata',
+            'music_on_hold_media_id' => null,
+            'members' => [[
+                'type' => 'user',
+                'id' => $extension->id,
+                'weight' => 1,
+                'switch_resource_id' => 'operator-controlled',
+            ]],
+        ])->assertUnprocessable()->assertJsonValidationErrors('members.0');
     }
 
     public function test_accessible_user_lists_only_account_groups(): void

@@ -18,6 +18,7 @@ final readonly class VoicemailBoxWriteData
         public bool $transcribe = false,
         public bool $requirePin = false,
         private ?string $pin = null,
+        public bool $preservePin = false,
         public ?VoicemailBoxAdvancedData $advanced = null,
     ) {
         if (trim($this->name) === '') {
@@ -26,6 +27,10 @@ final readonly class VoicemailBoxWriteData
 
         if (trim($this->mailbox) === '') {
             throw new InvalidArgumentException('Switch voicemail mailbox number is required.');
+        }
+
+        if ($this->pin !== null && $this->preservePin) {
+            throw new InvalidArgumentException('A voicemail PIN cannot be set and preserved in the same request.');
         }
     }
 

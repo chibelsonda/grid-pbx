@@ -58,7 +58,10 @@ discovery is unconfigured or unavailable.
 Model `value_sources` are identifiers, not queries. GridPBX recognizes only
 the server-side `extensions`/`users` and `devices` providers, scopes their
 choices to the active account, limits each result set, and returns display-safe
-choices in the line-key preview. Unknown identifiers return no choices.
+choices in the line-key preview. Each choice value is the resource's public
+UUID, never its raw Switch identifier. Laravel resolves that UUID inside the
+active account only when building the Switch write and maps known raw values
+back to public UUIDs for reads. Unknown identifiers return no choices.
 
 Device MAC addresses are canonicalized to uppercase colon notation. MySQL also
 enforces one active canonical MAC per Switch account through an indexed virtual

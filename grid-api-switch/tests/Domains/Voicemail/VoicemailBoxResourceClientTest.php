@@ -168,6 +168,71 @@ final class VoicemailBoxResourceClientTest extends TestCase
         self::assertSame(['external-managed'], $data['flags']);
     }
 
+    public function test_it_serializes_empty_preserved_voicemail_media_as_an_object(): void
+    {
+        $data = new VoicemailBoxAdvancedData(preservedOptions: ['media' => []]);
+
+        self::assertSame('{"media":{},"flags":[]}', json_encode(
+            $data->toSwitchData(),
+            JSON_THROW_ON_ERROR,
+        ));
+    }
+
+    public function test_it_privately_preserves_a_configured_pin_and_unknown_voicemail_fields(): void
+    {
+        $client = $this->clientWithResponses([
+            $this->response(['data' => [
+                'id' => 'vmbox-1',
+                'name' => 'Shared voicemail',
+                'mailbox' => '1002',
+                'pin' => '246810',
+            ]]),
+            $this->response(['data' => [
+                'id' => 'vmbox-1',
+                'name' => 'Shared voicemail',
+                'mailbox' => '1002',
+            ]]),
+        ]);
+
+        $client->update('account-1', 'vmbox-1', new VoicemailBoxWriteData(
+            name: 'Shared voicemail',
+            mailbox: '1002',
+            preservePin: true,
+            advanced: new VoicemailBoxAdvancedData(
+                flags: ['external-managed'],
+                notificationCallback: new VoicemailNotificationCallbackData(
+                    disabled: true,
+                    preservedOptions: ['future_callback_option' => true],
+                ),
+                preservedOptions: [
+                    'is_setup' => true,
+                    'media' => ['unavailable' => '0123456789abcdef0123456789abcdef'],
+                    'future_voicemail_option' => true,
+                ],
+                notificationPreservedOptions: ['future_notify_option' => 'keep'],
+            ),
+        ));
+
+        self::assertSame('GET', $this->history[0]['request']->getMethod());
+        self::assertSame('POST', $this->history[1]['request']->getMethod());
+        $data = json_decode(
+            (string) $this->history[1]['request']->getBody(),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        )['data'];
+
+        self::assertSame('246810', $data['pin']);
+        self::assertTrue($data['is_setup']);
+        self::assertSame(
+            '0123456789abcdef0123456789abcdef',
+            $data['media']['unavailable'],
+        );
+        self::assertTrue($data['future_voicemail_option']);
+        self::assertSame('keep', $data['notify']['future_notify_option']);
+        self::assertTrue($data['notify']['callback']['future_callback_option']);
+        self::assertTrue($data['notify']['callback']['disabled']);
+    }
+
     public function test_it_deletes_a_voicemail_box(): void
     {
         $client = $this->clientWithResponses([$this->response(['data' => []])]);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Queues\Dto;
 
+use GridPbx\Switch\Shared\Support\SafeSwitchDocumentFields;
 use InvalidArgumentException;
 
 final readonly class QueueAnnouncementsWriteData
@@ -28,18 +29,37 @@ final readonly class QueueAnnouncementsWriteData
         }
     }
 
-    /** @return array<string, mixed> */
-    public function toSwitchData(): array
+    /**
+     * @param  array<string, mixed>  $preservedOptions
+     * @return array<string, mixed>
+     */
+    public function toSwitchData(array $preservedOptions = []): array
     {
-        $data = [
+        $preserved = SafeSwitchDocumentFields::from(array_diff_key(
+            $preservedOptions,
+            array_flip([
+                'interval', 'position_announcements_enabled',
+                'wait_time_announcements_enabled', 'media',
+            ]),
+        ));
+        $data = array_merge($preserved, [
             'interval' => $this->interval,
             'position_announcements_enabled' => $this->positionAnnouncementsEnabled,
             'wait_time_announcements_enabled' => $this->waitTimeAnnouncementsEnabled,
-        ];
+        ]);
         $media = $this->media();
 
         if ($media !== []) {
-            $data['media'] = $media;
+            $preservedMedia = is_array($preservedOptions['media'] ?? null)
+                ? SafeSwitchDocumentFields::from(array_diff_key(
+                    $preservedOptions['media'],
+                    array_flip([
+                        'in_the_queue', 'increase_in_call_volume',
+                        'the_estimated_wait_time_is', 'you_are_at_position',
+                    ]),
+                ))
+                : [];
+            $data['media'] = array_merge($preservedMedia, $media);
         }
 
         return $data;

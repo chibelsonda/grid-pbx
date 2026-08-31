@@ -152,10 +152,22 @@ class MediaControllerTest extends TestCase
                 'name' => 'Old name',
                 'media_source' => 'tts',
                 'content_type' => 'audio/mpeg',
+                'content_length' => 4096,
                 'prompt_id' => 'system_prompt',
                 'source_id' => '0123456789abcdef0123456789abcdef',
                 'source_type' => 'callflow',
-                'tts' => ['text' => 'Welcome.', 'voice' => 'female/en-US'],
+                'tts' => [
+                    'text' => 'Welcome.',
+                    'voice' => 'female/en-US',
+                    'provider_option' => 'preserved',
+                    'provider_secret' => '[REDACTED]',
+                ],
+                'custom_metadata' => [
+                    'managed_by' => 'external-app',
+                    'nullable_option' => null,
+                ],
+                'redacted_value' => '[REDACTED]',
+                '_read_only' => ['private' => 'not writable'],
             ],
             'media_source' => 'tts',
         ]);
@@ -165,11 +177,19 @@ class MediaControllerTest extends TestCase
                 && $resourceId === 'switch-media-1'
                 && $data['media_source'] === 'tts'
                 && $data['content_type'] === 'audio/mpeg'
+                && $data['content_length'] === 4096
                 && $data['prompt_id'] === 'system_prompt'
                 && $data['source_id'] === '0123456789abcdef0123456789abcdef'
                 && $data['source_type'] === 'callflow'
                 && $data['tts_text'] === 'Welcome.'
-                && $data['tts_voice'] === 'female/en-US',
+                && $data['tts_voice'] === 'female/en-US'
+                && $data['tts_preserved_options'] === ['provider_option' => 'preserved']
+                && $data['preserved_options'] === [
+                    'custom_metadata' => [
+                        'managed_by' => 'external-app',
+                        'nullable_option' => null,
+                    ],
+                ],
         )->andReturn([
             'id' => 'switch-media-1',
             'name' => 'Main hold music',

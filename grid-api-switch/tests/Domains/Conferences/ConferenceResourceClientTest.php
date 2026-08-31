@@ -61,7 +61,7 @@ final class ConferenceResourceClientTest extends TestCase
             playEntryTone: true,
             playExitTone: false,
         ));
-        $client->update('account-1', 'conference-1', new ConferenceWriteData(name: 'Standup', moderatorPin: '9876', clearMemberPin: true));
+        $client->update('account-1', 'conference-1', new ConferenceWriteData(name: 'Standup', moderatorPins: ['9876', '8765'], clearMemberPin: true));
 
         $create = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
         $update = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
@@ -71,8 +71,29 @@ final class ConferenceResourceClientTest extends TestCase
         self::assertTrue($create['data']['play_entry_tone']);
         self::assertFalse($create['data']['play_exit_tone']);
         self::assertSame([], $update['data']['member']['pins']);
-        self::assertSame(['9876'], $update['data']['moderator']['pins']);
+        self::assertSame(['9876', '8765'], $update['data']['moderator']['pins']);
+        self::assertSame('PATCH', $this->history[1]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/conferences/conference-1', $this->history[1]['request']->getUri()->getPath());
+    }
+
+    public function test_update_uses_recursive_patch_and_omits_unchanged_write_only_pins(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => ['id' => 'conference-1', 'name' => 'Standup']]),
+        ]);
+
+        (new ConferenceResourceClient($switch))->update(
+            'account-1',
+            'conference-1',
+            new ConferenceWriteData(name: 'Standup', language: null),
+        );
+        $update = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('PATCH', $this->history[0]['request']->getMethod());
+        self::assertArrayNotHasKey('pins', $update['data']['member']);
+        self::assertArrayNotHasKey('pins', $update['data']['moderator']);
+        self::assertArrayHasKey('language', $update['data']);
+        self::assertNull($update['data']['language']);
     }
 
     public function test_explicitly_clears_the_conference_full_prompt(): void
@@ -89,8 +110,16 @@ final class ConferenceResourceClientTest extends TestCase
 
         $update = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
+        self::assertSame('PATCH', $this->history[0]['request']->getMethod());
         self::assertArrayHasKey('max_members_media', $update['data']);
         self::assertNull($update['data']['max_members_media']);
+    }
+
+    public function test_write_data_enforces_documented_gridpbx_safety_limits(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new ConferenceWriteData(name: 'Standup', maxParticipants: 10001);
     }
 
     /** @param list<Response> $responses */

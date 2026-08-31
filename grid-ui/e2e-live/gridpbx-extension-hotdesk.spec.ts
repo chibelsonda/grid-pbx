@@ -512,6 +512,7 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   await expect(page.getByRole('option', { name: /Account default/ })).toBeVisible()
   await page.getByRole('option', { name: /Account default/ }).click()
 
+  await page.getByRole('tab', { name: 'Advanced' }).click()
   const features = page.locator('article').filter({ hasText: 'Features' })
   await features.getByRole('switch', { name: 'Require PIN' }).click()
 
@@ -527,6 +528,7 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   await expect(pin).toHaveAttribute('aria-invalid', 'true')
   await expect(pin).toHaveClass(/border-red-400/)
   await expect(page.getByText('Enter a mailbox PIN when PIN protection is enabled.')).toBeVisible()
+  await page.getByRole('tab', { name: 'Advanced' }).click()
   const callbackNumber = page.getByRole('textbox', { name: 'Callback number' })
   await expect(callbackNumber).toHaveAttribute('aria-invalid', 'true')
   await expect(callbackNumber).toHaveClass(/border-red-400/)
@@ -537,7 +539,9 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   expect(issues).toEqual([])
 })
 
-test('reports unavailable voicemail transcription without allowing a mutation', async ({ page }) => {
+test('reports unavailable voicemail transcription without allowing a mutation', async ({
+  page,
+}) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
@@ -563,7 +567,7 @@ test('reports unavailable voicemail transcription without allowing a mutation', 
   expect(issues).toEqual([])
 })
 
-test('creates, edits, clears, and removes a paused Voicemail callback configuration', async ({
+test('preserves a write-only PIN while editing and clearing a Voicemail callback', async ({
   page,
 }) => {
   const issues = collectPageIssues(page)
@@ -576,6 +580,8 @@ test('creates, edits, clears, and removes a paused Voicemail callback configurat
     await page.getByRole('link', { name: 'Add mailbox' }).click()
     await page.getByLabel('Mailbox name').fill(name)
     await page.getByLabel('Mailbox number').fill(mailbox)
+    await page.getByRole('switch', { name: 'Require PIN' }).click()
+    await page.getByLabel('PIN', { exact: true }).fill('246810')
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await page.getByRole('switch', { name: 'Configure callback notification' }).click()
     await page.getByRole('switch', { name: 'Pause callback attempts' }).click()
@@ -594,6 +600,9 @@ test('creates, edits, clears, and removes a paused Voicemail callback configurat
 
     await page.getByRole('link', { name: 'Edit' }).click()
     await expect(page.getByLabel('Mailbox name')).toHaveValue(name)
+    await expect(page.getByRole('switch', { name: 'Require PIN' })).toBeChecked()
+    await expect(page.getByLabel('New PIN')).toHaveValue('')
+    await expect(page.getByText('Leave blank to keep the existing PIN.')).toBeVisible()
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await expect(
       page.getByRole('switch', { name: 'Configure callback notification' }),
@@ -610,10 +619,16 @@ test('creates, edits, clears, and removes a paused Voicemail callback configurat
         ),
     )
     await page.getByRole('button', { name: 'Save changes' }).click()
-    expect((await editResponse).status()).toBe(200)
+    const editedResponse = await editResponse
+    if (editedResponse.status() !== 200) {
+      throw new Error(`Voicemail edit failed: ${await editedResponse.text()}`)
+    }
 
     await page.getByRole('link', { name: 'Edit' }).click()
     await expect(page.getByLabel('Mailbox name')).toHaveValue(name)
+    await expect(page.getByRole('switch', { name: 'Require PIN' })).toBeChecked()
+    await expect(page.getByLabel('New PIN')).toHaveValue('')
+    await expect(page.getByText('Leave blank to keep the existing PIN.')).toBeVisible()
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await page.getByRole('switch', { name: 'Configure callback notification' }).click()
 
@@ -625,10 +640,15 @@ test('creates, edits, clears, and removes a paused Voicemail callback configurat
         ),
     )
     await page.getByRole('button', { name: 'Save changes' }).click()
-    expect((await clearResponse).status()).toBe(200)
+    const clearedResponse = await clearResponse
+    if (clearedResponse.status() !== 200) {
+      throw new Error(`Voicemail callback clear failed: ${await clearedResponse.text()}`)
+    }
 
     await page.getByRole('link', { name: 'Edit' }).click()
     await expect(page.getByLabel('Mailbox name')).toHaveValue(name)
+    await expect(page.getByRole('switch', { name: 'Require PIN' })).toBeChecked()
+    await expect(page.getByLabel('New PIN')).toHaveValue('')
     await page.getByRole('button', { name: 'Callback notification' }).click()
     await expect(
       page.getByRole('switch', { name: 'Configure callback notification' }),

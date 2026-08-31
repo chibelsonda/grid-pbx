@@ -1,8 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import {
+  Disclosure,
+  DisclosureButton,
+  DisclosurePanel,
+  Tab,
+  TabGroup,
+  TabList,
+  TabPanel,
+  TabPanels,
+} from '@headlessui/vue'
+import {
+  BellAlertIcon,
+  ChevronDownIcon,
   IdentificationIcon,
+  MicrophoneIcon,
   MusicalNoteIcon,
   PhoneArrowUpRightIcon,
   ShieldExclamationIcon,
@@ -12,17 +24,19 @@ import {
 } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
-import FormTextarea from '@/shared/components/FormTextarea.vue'
-import { useDelimitedStringList } from '@/shared/forms/useDelimitedStringList'
 import {
   audioCodecs,
   deviceAdvancedTabForError,
+  supportsDeviceFieldGroup,
   deviceSupportsTab,
   supportsDeviceOption,
+  supportsDeviceNotifications,
+  supportsDeviceRecording,
   supportsFaxOption,
   supportsMusicOnHold,
-  supportsOutboundFlags,
+  supportsProvisioning,
   supportsVideo,
+  usesSip,
   videoCodecs,
 } from '../deviceForm'
 import type {
@@ -34,7 +48,9 @@ import type {
   DeviceType,
 } from '../types/device'
 import DeviceCodecPriority from './DeviceCodecPriority.vue'
+import DeviceRecordingSettings from './DeviceRecordingSettings.vue'
 import DeviceRingtoneSettings from './DeviceRingtoneSettings.vue'
+import DeviceRoutingSettings from './DeviceRoutingSettings.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -73,11 +89,6 @@ const inviteFormatOptions = computed(() =>
     label: inviteFormatLabels[format],
   })),
 )
-const staticOutboundFlags = useDelimitedStringList(
-  () => configuration.value.outbound_flags.static,
-  (values) => (configuration.value.outbound_flags.static = values),
-)
-
 const tabs = computed(() => [
   { key: 'basic', label: 'Basic', icon: Squares2X2Icon },
   ...(deviceSupportsTab(props.deviceType, 'caller-id')
@@ -447,16 +458,6 @@ function toggleEncryptionMethod(method: string): void {
               placeholder="udp, tcp, or tls"
               :error="error('sip.transport')"
             />
-            <FormTextarea
-              v-if="supportsOutboundFlags(deviceType)"
-              v-model="staticOutboundFlags"
-              label="Outbound flags"
-              rows="2"
-              placeholder="fax, trusted"
-              description="Separate Switch resource flags with commas or new lines."
-              class="sm:col-span-2"
-              :error="error('outbound_flags.static')"
-            />
           </TabPanel>
         </template>
 
@@ -578,6 +579,47 @@ function toggleEncryptionMethod(method: string): void {
               v-model="configuration.call_forward.keep_caller_id"
               label="Keep original caller ID"
             />
+            <Disclosure v-slot="{ open }" as="div" class="sm:col-span-2">
+              <div class="rounded-md border border-slate-200">
+                <DisclosureButton
+                  class="flex w-full items-center justify-between px-4 py-3 text-left text-xs font-semibold text-slate-700"
+                >
+                  Advanced forwarding
+                  <ChevronDownIcon class="size-4 transition" :class="open && 'rotate-180'" />
+                </DisclosureButton>
+                <DisclosurePanel class="grid gap-4 border-t border-slate-100 p-4 sm:grid-cols-2">
+                  <ToggleSwitch
+                    v-model="configuration.call_forward.direct_calls_only"
+                    label="Direct calls only"
+                  />
+                  <ToggleSwitch
+                    v-model="configuration.call_forward.failover"
+                    label="Forward only when offline"
+                  />
+                  <ToggleSwitch
+                    v-model="configuration.call_forward.ignore_early_media"
+                    label="Ignore early media"
+                  />
+                  <ToggleSwitch
+                    v-model="configuration.call_forward.substitute"
+                    label="Replace this device"
+                  />
+                </DisclosurePanel>
+              </div>
+            </Disclosure>
+          </template>
+          <template v-if="supportsDeviceFieldGroup(deviceType, 'endpoint-behavior')">
+            <ToggleSwitch v-model="configuration.call_waiting.enabled" label="Call waiting" />
+            <ToggleSwitch v-model="configuration.do_not_disturb.enabled" label="Do not disturb" />
+            <ToggleSwitch v-model="configuration.exclude_from_queues" label="Exclude from queues" />
+            <FormInput
+              v-if="!deviceSupportsTab(deviceType, 'caller-id')"
+              v-model="configuration.presence_id"
+              label="Presence ID"
+              maxlength="255"
+              placeholder="Use the SIP username when empty"
+              :error="error('presence_id')"
+            />
           </template>
           <ToggleSwitch
             v-if="supportsDeviceOption(deviceType, 'fax') && supportsFaxOption(deviceType)"
@@ -595,6 +637,66 @@ function toggleEncryptionMethod(method: string): void {
             v-model="configuration.sip.ignore_completed_elsewhere"
             label="Ignore completed elsewhere"
             description="Do not mark group calls answered elsewhere as missed"
+          />
+          <section
+            v-if="supportsDeviceRecording(deviceType)"
+            class="grid gap-4 border-t border-slate-100 pt-5 sm:col-span-2"
+          >
+            <div class="flex items-center gap-2">
+              <MicrophoneIcon class="size-4 text-brand-500" />
+              <h3 class="text-xs font-semibold text-slate-700">Call recording</h3>
+            </div>
+            <DeviceRecordingSettings
+              v-model="configuration.call_recording"
+              :field-errors="fieldErrors"
+            />
+          </section>
+          <section
+            v-if="supportsDeviceNotifications(deviceType)"
+            class="grid gap-5 border-t border-slate-100 pt-5 sm:col-span-2 sm:grid-cols-2"
+          >
+            <div class="flex items-center gap-2 sm:col-span-2">
+              <BellAlertIcon class="size-4 text-brand-500" />
+              <div>
+                <h3 class="text-xs font-semibold text-slate-700">Notifications and locale</h3>
+                <p class="mt-1 text-[10px] text-slate-400">
+                  Unregistration notifications are configured in Basic settings.
+                </p>
+              </div>
+            </div>
+            <ToggleSwitch
+              v-model="configuration.mwi_unsolicited_updates"
+              label="Unsolicited MWI updates"
+            />
+            <ToggleSwitch
+              v-model="configuration.register_overwrite_notify"
+              label="Registration overwrite notifications"
+            />
+            <FormInput
+              v-model="configuration.language"
+              label="Language"
+              maxlength="32"
+              placeholder="Account default"
+              :error="error('language')"
+            />
+            <FormInput
+              v-model="configuration.timezone"
+              label="Timezone"
+              maxlength="255"
+              placeholder="Account default"
+              :error="error('timezone')"
+            />
+          </section>
+          <DeviceRoutingSettings
+            v-if="supportsDeviceFieldGroup(deviceType, 'advanced-routing')"
+            v-model="configuration"
+            :field-errors="fieldErrors"
+            :media-options="mediaOptions"
+            :metaflow-resources="metaflowResources"
+            :extension-options="extensionOptions"
+            :supports-sip="usesSip(deviceType)"
+            :supports-provisioning="supportsProvisioning(deviceType)"
+            :schema-compatibility="schemaCompatibility"
           />
         </TabPanel>
 

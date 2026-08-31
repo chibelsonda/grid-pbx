@@ -38,9 +38,9 @@ export type ConferenceInput = {
   conference_numbers: string[]
   member_numbers: string[]
   moderator_numbers: string[]
-  member_pin: string | null
+  member_pins: string[]
   clear_member_pin: boolean
-  moderator_pin: string | null
+  moderator_pins: string[]
   clear_moderator_pin: boolean
   member_join_muted: boolean
   member_join_deaf: boolean
@@ -64,4 +64,8 @@ export type ConferenceInput = {
 }
 export type ConferenceOption = { id: string; label: string; detail: string | null }
 export type ConferenceOptions = { owners: ConferenceOption[]; media: ConferenceOption[] }
-export type ConferenceSyncRun = { id: string; status: 'queued' | 'running' | 'succeeded' | 'failed'; error_message: string | null }
+export type ConferenceSyncRun = {
+  id: string
+  status: 'queued' | 'running' | 'succeeded' | 'failed'
+  error_message: string | null
+}

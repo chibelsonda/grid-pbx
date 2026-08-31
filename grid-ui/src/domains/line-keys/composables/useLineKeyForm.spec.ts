@@ -73,7 +73,7 @@ describe('useLineKeyForm', () => {
       },
     }
     const { form, validate, validationErrors } = useLineKeyForm(modelPreview)
-    form.push({ category: 'combo', position: 0, type: 'line', value: '1001', label: null })
+    form.push({ category: 'combo', position: 0, type: 'line', value: null, label: null })
     form.push({ category: 'feature', position: 0, type: 'speed_dial', value: '1002', label: null })
 
     expect(validate().success).toBe(false)
@@ -107,5 +107,62 @@ describe('useLineKeyForm', () => {
       { position: 10, type: 'presence' },
       { position: 11, type: 'presence' },
     ])
+  })
+
+  it('requires line appearances to be value-less combo keys', () => {
+    const { form, validate, validationErrors } = useLineKeyForm(preview)
+    form.push({
+      category: 'feature',
+      position: 0,
+      type: 'line',
+      value: '1001',
+      label: 'Primary line',
+    })
+
+    expect(validate().success).toBe(false)
+    expect(validationErrors.value).toMatchObject({
+      'line_keys.0.category': ['Line appearances must use combo keys.'],
+      'line_keys.0.value': ['Line appearances do not accept a value.'],
+      'line_keys.0.label': ['Line appearances do not accept a label.'],
+    })
+  })
+
+  it('requires account-scoped extension identifiers for presence keys', () => {
+    const { form, validate, validationErrors } = useLineKeyForm(preview)
+    form.push({
+      category: 'feature',
+      position: 0,
+      type: 'presence',
+      value: '1001',
+      label: 'Reception',
+    })
+
+    expect(validate().success).toBe(false)
+    expect(validationErrors.value).toMatchObject({
+      'line_keys.0.value': ['Select an extension from this account.'],
+    })
+  })
+
+  it('normalizes legacy line values before editing', () => {
+    const { form, safePreview, validate } = useLineKeyForm({
+      ...preview,
+      device: {
+        ...preview.device,
+        line_keys: [
+          {
+            id: 'line-key-public-id',
+            category: 'combo',
+            position: 0,
+            type: 'line',
+            value: 'legacy-account-line',
+            label: 'Legacy line',
+          },
+        ],
+      },
+    })
+
+    expect(form[0]).toMatchObject({ value: null, label: null })
+    expect(validate().success).toBe(true)
+    expect(safePreview.value.provision.combo_keys).toEqual({ 0: { type: 'line' } })
   })
 })

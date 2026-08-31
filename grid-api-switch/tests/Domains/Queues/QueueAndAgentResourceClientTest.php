@@ -101,6 +101,79 @@ final class QueueAndAgentResourceClientTest extends TestCase
         self::assertSame('/v2/accounts/account-1/queues/queue-1/roster', $this->history[1]['request']->getUri()->getPath());
     }
 
+    public function test_queue_update_preserves_safe_unknown_and_policy_hidden_fields(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'id' => 'queue-1',
+                'name' => 'Support',
+                'max_priority' => 25,
+                'cdr_url' => 'https://cdr.example.test/events',
+                'recording_url' => 'https://recordings.example.test/audio',
+                'call_recording_url' => 'https://runtime.example.test/audio',
+                'announcements' => [
+                    'interval' => 30,
+                    'vendor_mode' => 'managed',
+                    'media' => [
+                        'in_the_queue' => 'old-media-1',
+                        'increase_in_call_volume' => 'old-media-2',
+                        'the_estimated_wait_time_is' => 'old-media-3',
+                        'you_are_at_position' => 'old-media-4',
+                        'future_prompt' => 'keep-media',
+                    ],
+                ],
+                'future_option' => ['nested' => 'keep'],
+                'agents' => ['private-user-1'],
+                'pvt_secret' => 'discard',
+                '_rev' => '1-private',
+            ]]),
+            $this->response(['data' => [
+                'id' => 'queue-1',
+                'name' => 'Updated support',
+                'max_priority' => 25,
+            ]]),
+        ]);
+        $client = new QueueResourceClient($switch);
+
+        $client->update('account-1', 'queue-1', new QueueWriteData(
+            name: 'Updated support',
+            maxPriority: 99,
+            cdrUrl: 'https://attempted.example.test/events',
+            recordingUrl: 'https://attempted.example.test/audio',
+            announcements: new QueueAnnouncementsWriteData(
+                interval: 45,
+                positionAnnouncementsEnabled: true,
+                inTheQueueMediaId: 'new-media-1',
+                increaseInCallVolumeMediaId: 'new-media-2',
+                estimatedWaitTimeMediaId: 'new-media-3',
+                positionMediaId: 'new-media-4',
+            ),
+        ));
+        $body = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('GET', $this->history[0]['request']->getMethod());
+        self::assertSame('POST', $this->history[1]['request']->getMethod());
+        self::assertSame(25, $body['data']['max_priority']);
+        self::assertSame('https://cdr.example.test/events', $body['data']['cdr_url']);
+        self::assertSame('https://recordings.example.test/audio', $body['data']['recording_url']);
+        self::assertSame('https://runtime.example.test/audio', $body['data']['call_recording_url']);
+        self::assertSame('keep', $body['data']['future_option']['nested']);
+        self::assertSame('managed', $body['data']['announcements']['vendor_mode']);
+        self::assertSame('keep-media', $body['data']['announcements']['media']['future_prompt']);
+        self::assertSame('new-media-4', $body['data']['announcements']['media']['you_are_at_position']);
+        self::assertArrayNotHasKey('agents', $body['data']);
+        self::assertArrayNotHasKey('pvt_secret', $body['data']);
+        self::assertArrayNotHasKey('_rev', $body['data']);
+        self::assertArrayNotHasKey('id', $body['data']);
+    }
+
+    public function test_queue_write_data_enforces_documented_gridpbx_safety_limits(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new QueueWriteData(name: 'Support', ringSimultaneously: 101);
+    }
+
     public function test_agent_client_maps_user_memberships_and_sends_operational_commands(): void
     {
         $switch = $this->switchWithResponses([

@@ -4,6 +4,10 @@ namespace App\Domains\Payments\Services;
 
 final class PaymentCapabilityService
 {
+    public function __construct(
+        private readonly AuthorizeNetWebhookSignatureVerifier $webhookSignatures,
+    ) {}
+
     /** @return array<string, mixed> */
     public function get(): array
     {
@@ -32,6 +36,8 @@ final class PaymentCapabilityService
             && (bool) config('payments.authorize_net.sandbox_refund_enabled', false);
         $profileAvailable = $serverMutationAvailable
             && (bool) config('payments.authorize_net.sandbox_profile_enabled', false);
+        $webhookConfigured = $configured && $sandbox && $this->webhookSignatures->configured();
+        $webhookEnabled = (bool) config('payments.authorize_net.webhook_enabled', false);
 
         return [
             'enabled' => $enabled,
@@ -42,7 +48,7 @@ final class PaymentCapabilityService
             'server_accepts_card_data' => false,
             'configuration' => [
                 'public_client_key_configured' => $publicClientConfigured,
-                'signature_key_configured' => filled(config('payments.authorize_net.signature_key')),
+                'signature_key_configured' => $this->webhookSignatures->configured(),
             ],
             'client' => [
                 'available' => $chargeAvailable,
@@ -65,6 +71,11 @@ final class PaymentCapabilityService
             'diagnostics' => [
                 'available' => $configured && $sandbox,
                 'sandbox_only' => true,
+            ],
+            'webhooks' => [
+                'enabled' => $webhookEnabled,
+                'configured' => $webhookConfigured,
+                'accepting' => $webhookEnabled && $webhookConfigured,
             ],
             'mutations' => [
                 'attach_payment_method' => $profileAvailable,

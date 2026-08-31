@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Queues\Dto;
 
+use GridPbx\Switch\Shared\Support\SafeSwitchDocumentFields;
 use InvalidArgumentException;
 
 final readonly class QueueWriteData
@@ -26,15 +27,19 @@ final readonly class QueueWriteData
         public ?string $cdrUrl = null,
         public ?string $recordingUrl = null,
     ) {
-        if (trim($this->name) === '') {
-            throw new InvalidArgumentException('Switch queue name is required.');
+        if (trim($this->name) === '' || mb_strlen($this->name) > 128) {
+            throw new InvalidArgumentException('Switch queue name must contain between 1 and 128 characters.');
         }
 
         if (! in_array($this->strategy, ['round_robin', 'most_idle'], true)) {
             throw new InvalidArgumentException('Switch queue strategy is invalid.');
         }
 
-        if ($this->agentRingTimeout < 1 || $this->agentWrapupTime < 0 || $this->connectionTimeout < 0 || $this->maxQueueSize < 0 || $this->ringSimultaneously < 1) {
+        if ($this->agentRingTimeout < 1 || $this->agentRingTimeout > 300
+            || $this->agentWrapupTime < 0 || $this->agentWrapupTime > 3600
+            || $this->connectionTimeout < 0 || $this->connectionTimeout > 86400
+            || $this->maxQueueSize < 0 || $this->maxQueueSize > 10000
+            || $this->ringSimultaneously < 1 || $this->ringSimultaneously > 100) {
             throw new InvalidArgumentException('Switch queue numeric settings are invalid.');
         }
 
@@ -47,10 +52,22 @@ final readonly class QueueWriteData
         }
     }
 
-    /** @return array<string, mixed> */
-    public function toSwitchData(): array
+    /**
+     * @param  array<string, mixed>  $preservedOptions
+     * @return array<string, mixed>
+     */
+    public function toSwitchData(array $preservedOptions = []): array
     {
-        $data = [
+        $preserved = SafeSwitchDocumentFields::from(array_diff_key(
+            $preservedOptions,
+            array_flip([
+                'id', 'name', 'strategy', 'agent_ring_timeout', 'agent_wrapup_time',
+                'connection_timeout', 'max_queue_size', 'ring_simultaneously',
+                'enter_when_empty', 'record_caller', 'caller_exit_key', 'moh',
+                'announce', 'announcements', 'agents',
+            ]),
+        ));
+        $data = array_merge($preserved, [
             'name' => $this->name,
             'strategy' => $this->strategy,
             'agent_ring_timeout' => $this->agentRingTimeout,
@@ -61,7 +78,7 @@ final readonly class QueueWriteData
             'enter_when_empty' => $this->enterWhenEmpty,
             'record_caller' => $this->recordCaller,
             'caller_exit_key' => $this->callerExitKey,
-        ];
+        ]);
 
         if ($this->musicOnHoldMediaId !== null) {
             $data['moh'] = $this->musicOnHoldMediaId;
@@ -76,7 +93,11 @@ final readonly class QueueWriteData
         }
 
         if ($this->announcements !== null) {
-            $data['announcements'] = $this->announcements->toSwitchData();
+            $data['announcements'] = $this->announcements->toSwitchData(
+                is_array($preservedOptions['announcements'] ?? null)
+                    ? $preservedOptions['announcements']
+                    : [],
+            );
         }
 
         if ($this->cdrUrl !== null) {

@@ -79,6 +79,81 @@ export type ServiceReconciliation = {
     created_at: string | null
   }>
 }
+export type PaymentConfirmation = {
+  id: string
+  source_attempt_id: string | null
+  provider: string
+  operation: 'charge' | 'refund'
+  amount: string | null
+  currency: string | null
+  status: 'succeeded'
+  completed_at: string | null
+}
+export type InvoiceDocumentSummary = {
+  id: string
+  number: string | null
+  status: string
+  currency: string | null
+  total: string
+  amount_paid: string
+  amount_due: string
+  issued_at: string | null
+  due_at: string | null
+  document_available: boolean
+}
+export type BillingInvoiceDetail = InvoiceDocumentSummary & {
+  authoritative: boolean
+  source: string
+  line_items: {
+    available: boolean
+    items: Array<Record<string, unknown>>
+  }
+  document: {
+    available: boolean
+    content_type: 'application/pdf' | null
+  }
+}
+export type ReceiptDocumentSummary = {
+  id: string
+  number: string | null
+  status: string
+  currency: string | null
+  amount: string
+  paid_at: string | null
+  document_available: boolean
+}
+export type BillingReceiptDetail = ReceiptDocumentSummary & {
+  authoritative: boolean
+  source: string
+  document: {
+    available: boolean
+    content_type: 'application/pdf' | null
+  }
+}
+export type BillingDocuments = {
+  invoices: {
+    available: boolean
+    authoritative: boolean
+    source: string
+    reported_count: number
+    items: InvoiceDocumentSummary[]
+    guidance: string
+  }
+  receipts: {
+    available: boolean
+    authoritative: boolean
+    source: string
+    items: ReceiptDocumentSummary[]
+    guidance: string
+  }
+  payment_confirmations: {
+    available: true
+    authoritative: false
+    source: 'gridpbx_payment_attempts'
+    items: PaymentConfirmation[]
+    guidance: string
+  }
+}
 export type ServiceOverview = {
   id: string
   standing: { acceptable: boolean; reason: string | null }
@@ -91,6 +166,7 @@ export type ServiceOverview = {
   billing_impact: { invoice_count: number; due_today: number; recurring_amount: number }
   billing: BillingProjection | null
   reconciliation: ServiceReconciliation
+  documents: BillingDocuments
   plans: ServicePlan[]
   quantities: ServiceQuantity[]
   limits: ServiceLimits | null

@@ -39,7 +39,7 @@ class AccountProjectionService
                 : max(0, (int) ($account->descendants_count ?? 0)),
             'call_waiting_enabled' => Arr::get($snapshot, 'call_waiting.enabled', true) !== false,
             'do_not_disturb_enabled' => Arr::get($snapshot, 'do_not_disturb.enabled', false) === true,
-            'outbound_privacy' => $this->string(Arr::get($snapshot, 'caller_id_options.outbound_privacy')) ?? 'none',
+            'outbound_privacy' => $this->string(Arr::get($snapshot, 'caller_id_options.outbound_privacy')),
             'ringtone_internal' => $this->string(Arr::get($snapshot, 'ringtones.internal')),
             'ringtone_external' => $this->string(Arr::get($snapshot, 'ringtones.external')),
             'last_synced_at' => now(),

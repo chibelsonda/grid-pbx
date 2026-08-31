@@ -64,6 +64,25 @@ describe('account settings schema', () => {
     expect(accountSettingsSchema.safeParse(candidate).success).toBe(true)
   })
 
+  it('matches the installed Account timezone and ringtone bounds', () => {
+    const candidate = input()
+    ;(candidate as unknown as Record<string, unknown>).outbound_privacy = null
+    candidate.ringtone_internal = 'r'.repeat(256)
+
+    expect(accountSettingsSchema.safeParse(candidate).success).toBe(true)
+
+    candidate.timezone = 'UTC'
+    candidate.ringtone_external = 'r'.repeat(257)
+
+    const result = accountSettingsSchema.safeParse(candidate)
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.issues.map((issue) => issue.path.join('.'))).toEqual(
+      expect.arrayContaining(['timezone', 'ringtone_external']),
+    )
+  })
+
   it('rejects unsafe classification keys and recording limits', () => {
     const candidate = input()
     const restrictions = candidate.call_restriction as Record<

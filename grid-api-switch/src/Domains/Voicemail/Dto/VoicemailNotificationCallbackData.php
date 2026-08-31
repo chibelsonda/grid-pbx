@@ -8,7 +8,10 @@ use InvalidArgumentException;
 
 final readonly class VoicemailNotificationCallbackData
 {
-    /** @param list<int> $schedule */
+    /**
+     * @param  list<int>  $schedule
+     * @param  array<string, mixed>  $preservedOptions
+     */
     public function __construct(
         public bool $disabled = false,
         public ?string $number = null,
@@ -16,6 +19,7 @@ final readonly class VoicemailNotificationCallbackData
         public ?int $intervalSeconds = null,
         public ?int $timeoutSeconds = null,
         public array $schedule = [],
+        public array $preservedOptions = [],
     ) {
         foreach ([$this->attempts, $this->intervalSeconds, $this->timeoutSeconds] as $value) {
             if ($value !== null && $value < 0) {
@@ -30,17 +34,17 @@ final readonly class VoicemailNotificationCallbackData
         }
     }
 
-    /** @return array<string, bool|int|string|list<int>> */
+    /** @return array<string, mixed> */
     public function toSwitchData(): array
     {
-        return array_filter([
+        return array_merge($this->preservedOptions, array_filter([
             'disabled' => $this->disabled,
             'number' => $this->number,
             'attempts' => $this->attempts,
             'interval_s' => $this->intervalSeconds,
             'timeout_s' => $this->timeoutSeconds,
             'schedule' => $this->schedule,
-        ], static fn (mixed $value): bool => $value !== null);
+        ], static fn (mixed $value): bool => $value !== null));
     }
 
     /** @param array<string, mixed> $data */

@@ -37,6 +37,14 @@ final readonly class LineKeySnapshot
         }
 
         $this->type = $type;
+
+        if ($this->type === 'line') {
+            $this->label = null;
+            $this->value = null;
+
+            return;
+        }
+
         $rawValue = $data['value'] ?? null;
 
         if (is_array($rawValue)) {

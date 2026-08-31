@@ -11,6 +11,11 @@ return [
         'transaction_key' => env('AUTHORIZENET_TRANSACTION_KEY'),
         'public_client_key' => env('AUTHORIZENET_PUBLIC_CLIENT_KEY'),
         'signature_key' => env('AUTHORIZENET_SIGNATURE_KEY'),
+        'webhook_enabled' => filter_var(
+            env('AUTHORIZENET_WEBHOOK_ENABLED', false),
+            FILTER_VALIDATE_BOOL,
+        ),
+        'webhook_max_body_bytes' => (int) env('AUTHORIZENET_WEBHOOK_MAX_BODY_BYTES', 65536),
         'sandbox_charge_enabled' => filter_var(
             env('AUTHORIZENET_SANDBOX_CHARGE_ENABLED', false),
             FILTER_VALIDATE_BOOL,

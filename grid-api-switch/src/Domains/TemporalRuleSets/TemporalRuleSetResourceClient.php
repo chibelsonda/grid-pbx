@@ -68,7 +68,7 @@ final readonly class TemporalRuleSetResourceClient
 
     public function update(string $accountId, string $setId, TemporalRuleSetWriteData $set): TemporalRuleSetSnapshot
     {
-        $snapshot = $this->snapshot($this->client->request('POST', $this->path($accountId, $setId), ['json' => ['data' => $set->toSwitchData()]]));
+        $snapshot = $this->snapshot($this->client->request('PATCH', $this->path($accountId, $setId), ['json' => ['data' => $set->toSwitchData()]]));
         if ($snapshot->id !== $setId) {
             throw new InvalidSwitchPayloadException('Switch temporal rule set response id does not match the requested resource.');
         }

@@ -48,7 +48,7 @@ export type AccountDetail = Pick<Account, 'id' | 'name' | 'realm' | 'timezone' |
     language: string | null
     call_waiting_enabled: boolean
     do_not_disturb_enabled: boolean
-    outbound_privacy: 'full' | 'name' | 'number' | 'none'
+    outbound_privacy: 'full' | 'name' | 'number' | 'none' | null
     show_rate: boolean
     ringtone_internal: string | null
     ringtone_external: string | null
@@ -82,7 +82,7 @@ export type AccountSettingsInput = {
   language: string | null
   call_waiting_enabled: boolean
   do_not_disturb_enabled: boolean
-  outbound_privacy: 'full' | 'name' | 'number' | 'none'
+  outbound_privacy: 'full' | 'name' | 'number' | 'none' | null
   show_rate: boolean
   ringtone_internal: string | null
   ringtone_external: string | null

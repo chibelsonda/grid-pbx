@@ -36,6 +36,22 @@ final class AccountResourceClientSettingsTest extends TestCase
     {
         self::assertSame(['always' => ''], (new AccountPreflowData)->toSwitchData());
         self::assertInstanceOf(\stdClass::class, (new AccountMetaflowsData)->toSwitchData());
+
+        $settings = new AccountSettingsWriteData(
+            name: 'Support',
+            organizationName: null,
+            timezone: null,
+            language: null,
+            callWaitingEnabled: true,
+            doNotDisturbEnabled: false,
+            outboundPrivacy: null,
+            showRate: false,
+            internalRingtone: null,
+            externalRingtone: null,
+            callerId: new AccountCallerIdWriteData(null, null, null, null, null, null),
+        );
+
+        self::assertNull($settings->toSwitchData()['caller_id_options']['outbound_privacy']);
     }
 
     public function test_it_reads_and_updates_account_music_on_hold(): void

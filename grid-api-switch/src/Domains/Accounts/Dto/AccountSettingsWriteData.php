@@ -13,7 +13,7 @@ final readonly class AccountSettingsWriteData
         public ?string $language,
         public bool $callWaitingEnabled,
         public bool $doNotDisturbEnabled,
-        public string $outboundPrivacy,
+        public ?string $outboundPrivacy,
         public bool $showRate,
         public ?string $internalRingtone,
         public ?string $externalRingtone,

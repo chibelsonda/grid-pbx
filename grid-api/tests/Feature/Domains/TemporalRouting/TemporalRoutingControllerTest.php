@@ -48,8 +48,8 @@ class TemporalRoutingControllerTest extends TestCase
             ->once()
             ->withArgs(fn (SwitchAccount $received, string $id, array $data): bool => $received->is($account)
                 && $id === 'switch-rule-1'
-                && $data['enabled'] === false
-                && $data['flags'] === ['external']
+                && ! array_key_exists('enabled', $data)
+                && ! array_key_exists('flags', $data)
                 && $data['name'] === 'Updated hours')
             ->andReturn([...$this->ruleSnapshot(), 'name' => 'Updated hours', 'enabled' => false, 'flags' => ['external']]);
 
@@ -94,7 +94,7 @@ class TemporalRoutingControllerTest extends TestCase
             ->withArgs(fn (SwitchAccount $received, string $id, array $data): bool => $received->is($account)
                 && $id === 'switch-set-1'
                 && $data['switch_rule_ids'] === ['switch-rule-1']
-                && $data['flags'] === ['external'])
+                && ! array_key_exists('flags', $data))
             ->andReturn(['id' => 'switch-set-1', 'name' => 'Updated schedule', 'temporal_rules' => ['switch-rule-1'], 'flags' => ['external']]);
 
         $this->actingAs($user)

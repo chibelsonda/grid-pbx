@@ -17,6 +17,7 @@ class PaymentCustomerProfileResource extends JsonResource
             'masked_account' => $this->resource->masked_account,
             'account_type' => $this->resource->account_type,
             'created_at' => $this->resource->created_at?->toIso8601String(),
+            'updated_at' => $this->resource->updated_at?->toIso8601String(),
         ];
     }
 }

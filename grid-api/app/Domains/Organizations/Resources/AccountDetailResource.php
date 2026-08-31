@@ -49,7 +49,7 @@ class AccountDetailResource extends JsonResource
                 'language' => $this->language,
                 'call_waiting_enabled' => $this->call_waiting_enabled ?? true,
                 'do_not_disturb_enabled' => $this->do_not_disturb_enabled ?? false,
-                'outbound_privacy' => $this->outbound_privacy ?? 'none',
+                'outbound_privacy' => $this->outbound_privacy,
                 'show_rate' => ($callerIdOptions['show_rate'] ?? false) === true,
                 'ringtone_internal' => $this->ringtone_internal,
                 'ringtone_external' => $this->ringtone_external,

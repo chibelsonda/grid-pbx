@@ -56,8 +56,13 @@ class DirectoryMutationService
         $previous = [
             ...$directory->only(['name', 'confirm_match', 'min_dtmf', 'max_dtmf', 'sort_by']),
             'flags' => $this->stringList($directory->switch_json['flags'] ?? null),
+            'preserved_options' => $this->preservedOptions($directory->switch_json),
         ];
-        $next = [...$data, 'flags' => $previous['flags']];
+        $next = [
+            ...$data,
+            'flags' => $previous['flags'],
+            'preserved_options' => $previous['preserved_options'],
+        ];
 
         try {
             $this->gateway->update($account, $directory->switch_resource_id, $next);
@@ -144,6 +149,54 @@ class DirectoryMutationService
             is_array($value) ? $value : [],
             static fn (mixed $item): bool => is_string($item) && $item !== '',
         ));
+    }
+
+    /**
+     * Keep future public Directory fields server-side without accepting them from the UI.
+     * Derived users and response/resource identifiers must never be written back.
+     *
+     * @param  array<string, mixed>|null  $snapshot
+     * @return array<string, mixed>
+     */
+    private function preservedOptions(?array $snapshot): array
+    {
+        $modeled = [
+            'id',
+            'name',
+            'confirm_match',
+            'min_dtmf',
+            'max_dtmf',
+            'sort_by',
+            'flags',
+            'users',
+        ];
+
+        return $this->withoutPrivateOrRedactedValues(
+            array_diff_key($snapshot ?? [], array_flip($modeled)),
+        );
+    }
+
+    /** @param array<array-key, mixed> $values
+     * @return array<array-key, mixed>
+     */
+    private function withoutPrivateOrRedactedValues(array $values): array
+    {
+        $safe = [];
+        $isList = array_is_list($values);
+
+        foreach ($values as $key => $value) {
+            if ((is_string($key)
+                    && (str_starts_with($key, '_') || str_starts_with($key, 'pvt_')))
+                || $value === '[REDACTED]') {
+                continue;
+            }
+
+            $safe[$key] = is_array($value)
+                ? $this->withoutPrivateOrRedactedValues($value)
+                : $value;
+        }
+
+        return $isList ? array_values($safe) : $safe;
     }
 
     private function containsDirectory(mixed $node, string $resourceId): bool

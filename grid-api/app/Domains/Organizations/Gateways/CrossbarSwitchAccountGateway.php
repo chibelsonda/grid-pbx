@@ -78,7 +78,7 @@ class CrossbarSwitchAccountGateway implements SwitchAccountGateway
                 language: $this->nullableString($data['language'] ?? null),
                 callWaitingEnabled: (bool) $data['call_waiting_enabled'],
                 doNotDisturbEnabled: (bool) $data['do_not_disturb_enabled'],
-                outboundPrivacy: (string) $data['outbound_privacy'],
+                outboundPrivacy: $this->nullableString($data['outbound_privacy'] ?? null),
                 showRate: (bool) $data['show_rate'],
                 internalRingtone: $this->nullableString($data['ringtone_internal'] ?? null),
                 externalRingtone: $this->nullableString($data['ringtone_external'] ?? null),

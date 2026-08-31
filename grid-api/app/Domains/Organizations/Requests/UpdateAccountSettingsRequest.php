@@ -27,14 +27,14 @@ class UpdateAccountSettingsRequest extends FormRequest
         $rules = [
             'name' => ['required', 'string', 'max:128'],
             'organization_name' => ['nullable', 'string', 'max:255'],
-            'timezone' => ['nullable', 'string', 'max:64'],
+            'timezone' => ['nullable', 'string', 'min:5', 'max:32'],
             'language' => ['nullable', 'string', 'max:32'],
             'call_waiting_enabled' => ['required', 'boolean'],
             'do_not_disturb_enabled' => ['required', 'boolean'],
-            'outbound_privacy' => ['required', Rule::in(['full', 'name', 'number', 'none'])],
+            'outbound_privacy' => ['present', 'nullable', Rule::in(['full', 'name', 'number', 'none'])],
             'show_rate' => ['required', 'boolean'],
-            'ringtone_internal' => ['nullable', 'string', 'max:255'],
-            'ringtone_external' => ['nullable', 'string', 'max:255'],
+            'ringtone_internal' => ['nullable', 'string', 'max:256'],
+            'ringtone_external' => ['nullable', 'string', 'max:256'],
             'caller_id' => ['required', 'array:internal,external,emergency'],
             'caller_id.internal' => ['required', 'array:name,number'],
             'caller_id.internal.name' => ['nullable', 'string', 'max:35'],
@@ -181,7 +181,7 @@ class UpdateAccountSettingsRequest extends FormRequest
     {
         return [
             'name.required' => 'Enter an account name.',
-            'outbound_privacy.required' => 'Select an outbound privacy policy.',
+            'outbound_privacy.present' => 'Select an outbound privacy policy.',
             'outbound_privacy.in' => 'Select a valid outbound privacy policy.',
         ];
     }

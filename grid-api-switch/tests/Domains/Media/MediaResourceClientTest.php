@@ -112,15 +112,19 @@ final class MediaResourceClientTest extends TestCase
             name: 'Main hold music',
             language: 'en-gb',
             contentType: 'audio/mpeg',
+            contentLength: 4096,
             promptId: 'system_prompt',
             sourceId: '0123456789abcdef0123456789abcdef',
             sourceType: 'callflow',
             tts: new MediaTtsWriteData(
                 text: 'Welcome to GridPBX.',
                 voice: 'female/en-US',
+                preservedOptions: ['provider_option' => 'preserved'],
             ),
+            preservedOptions: ['custom_metadata' => ['managed_by' => 'external-app']],
         ));
         parse_str($this->history[2]['request']->getUri()->getQuery(), $secondPageQuery);
+        $updatePayload = json_decode((string) $this->history[4]['request']->getBody(), true)['data'];
 
         self::assertSame(['media-1', 'media-2'], array_map(
             static fn ($snapshot): string => $snapshot->id,
@@ -131,17 +135,20 @@ final class MediaResourceClientTest extends TestCase
         self::assertSame('next page', $secondPageQuery['start_key']);
         self::assertSame('POST', $this->history[4]['request']->getMethod());
         self::assertSame('/v2/accounts/account-1/media/media-1', $this->history[4]['request']->getUri()->getPath());
-        self::assertSame('en-gb', json_decode((string) $this->history[4]['request']->getBody(), true)['data']['language']);
+        self::assertSame('en-gb', $updatePayload['language']);
+        self::assertSame(4096, $updatePayload['content_length']);
         self::assertSame(
             [
+                'provider_option' => 'preserved',
                 'text' => 'Welcome to GridPBX.',
                 'voice' => 'female/en-US',
             ],
-            json_decode((string) $this->history[4]['request']->getBody(), true)['data']['tts'],
+            $updatePayload['tts'],
         );
+        self::assertSame('system_prompt', $updatePayload['prompt_id']);
         self::assertSame(
-            'system_prompt',
-            json_decode((string) $this->history[4]['request']->getBody(), true)['data']['prompt_id'],
+            ['managed_by' => 'external-app'],
+            $updatePayload['custom_metadata'],
         );
     }
 

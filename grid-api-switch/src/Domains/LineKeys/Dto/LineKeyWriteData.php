@@ -29,8 +29,20 @@ final readonly class LineKeyWriteData
             throw new InvalidArgumentException('Unsupported Switch line-key type.');
         }
 
+        if ($this->type === 'line' && $this->category !== 'combo') {
+            throw new InvalidArgumentException('Switch line appearances must use combo keys.');
+        }
+
+        if ($this->type === 'line' && ($this->value !== null || $this->label !== null)) {
+            throw new InvalidArgumentException('Switch line appearances do not accept a value or label.');
+        }
+
         if ($this->label !== null && $this->value === null) {
             throw new InvalidArgumentException('A labeled Switch line key requires a value.');
+        }
+
+        if ($this->type !== 'line' && ($this->value === null || $this->value === '')) {
+            throw new InvalidArgumentException('The selected Switch line-key type requires a value.');
         }
 
         if ($this->type === 'parking' && $this->value !== null) {

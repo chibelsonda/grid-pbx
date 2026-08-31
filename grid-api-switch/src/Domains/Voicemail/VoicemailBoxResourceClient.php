@@ -36,6 +36,18 @@ final readonly class VoicemailBoxResourceClient
         return $this->snapshot($payload);
     }
 
+    public function get(string $accountId, string $voicemailBoxId): VoicemailBoxSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $voicemailBoxId = $this->requiredIdentifier($voicemailBoxId, 'voicemail box');
+
+        return $this->snapshot($this->client->request('GET', sprintf(
+            'accounts/%s/vmboxes/%s',
+            rawurlencode($accountId),
+            rawurlencode($voicemailBoxId),
+        )));
+    }
+
     public function update(
         string $accountId,
         string $voicemailBoxId,
@@ -43,6 +55,18 @@ final readonly class VoicemailBoxResourceClient
     ): VoicemailBoxSnapshot {
         $accountId = $this->requiredIdentifier($accountId, 'account');
         $voicemailBoxId = $this->requiredIdentifier($voicemailBoxId, 'voicemail box');
+        $data = $voicemailBox->toSwitchData();
+
+        if ($voicemailBox->preservePin) {
+            $pin = $this->get($accountId, $voicemailBoxId)->data['pin'] ?? null;
+
+            if (! is_string($pin) || $pin === '') {
+                throw new InvalidSwitchPayloadException('Switch voicemail box has no configured PIN to preserve.');
+            }
+
+            $data['pin'] = $pin;
+        }
+
         $payload = $this->client->request(
             'POST',
             sprintf(
@@ -50,7 +74,7 @@ final readonly class VoicemailBoxResourceClient
                 rawurlencode($accountId),
                 rawurlencode($voicemailBoxId),
             ),
-            ['json' => ['data' => $voicemailBox->toSwitchData()]],
+            ['json' => ['data' => $data]],
         );
         $snapshot = $this->snapshot($payload);
 

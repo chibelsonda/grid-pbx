@@ -9,6 +9,9 @@ use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\Payments\Enums\PaymentAttemptStatus;
+use App\Domains\Payments\Enums\PaymentOperation;
+use App\Domains\Payments\Models\PaymentAttempt;
 use App\Domains\Services\Models\SwitchServiceLimit;
 use App\Domains\Services\Models\SwitchServicePlan;
 use App\Domains\Services\Models\SwitchServiceQuantity;
@@ -82,6 +85,20 @@ class ServiceOverviewControllerTest extends TestCase
             'started_at' => now()->subSecond(),
             'finished_at' => now(),
         ]);
+        $payment = PaymentAttempt::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'requested_by_user_id' => $user->getKey(),
+            'provider' => 'authorize_net',
+            'operation' => PaymentOperation::Charge,
+            'idempotency_hash' => hash('sha256', 'billing-document-idempotency'),
+            'request_fingerprint' => hash('sha256', 'billing-document-fingerprint'),
+            'amount' => '1.00',
+            'currency' => 'USD',
+            'status' => PaymentAttemptStatus::Succeeded,
+            'provider_reference' => 'private-provider-transaction-id',
+            'provider_reference_hash' => hash('sha256', 'private-provider-transaction-id'),
+            'completed_at' => now(),
+        ]);
 
         $response = $this->actingAs($user)->getJson("/api/v1/accounts/{$account->id}/services");
 
@@ -99,10 +116,20 @@ class ServiceOverviewControllerTest extends TestCase
             ->assertJsonPath('data.reconciliation.checks.0.status', 'passed')
             ->assertJsonPath('data.reconciliation.sync_history.0.id', $run->id)
             ->assertJsonPath('data.reconciliation.sync_history.0.status', 'succeeded')
+            ->assertJsonPath('data.documents.invoices.available', false)
+            ->assertJsonPath('data.documents.invoices.reported_count', 1)
+            ->assertJsonPath('data.documents.receipts.available', false)
+            ->assertJsonPath('data.documents.payment_confirmations.authoritative', false)
+            ->assertJsonPath('data.documents.payment_confirmations.items.0.id', $payment->id)
+            ->assertJsonPath('data.documents.payment_confirmations.items.0.amount', '1.00000000')
             ->assertJsonMissingPath('data.service_summary_id')
             ->assertJsonMissingPath('data.switch_resource_id')->assertJsonMissingPath('data.switch_account_id')
             ->assertJsonMissingPath('data.switch_json')
-            ->assertJsonMissing(['private-switch-transaction-id']);
+            ->assertJsonMissing(['private-switch-transaction-id'])
+            ->assertJsonMissing(['private-provider-transaction-id'])
+            ->assertJsonMissing(['provider_reference'])
+            ->assertJsonMissing(['idempotency_hash'])
+            ->assertJsonMissing(['request_fingerprint']);
     }
 
     public function test_account_administrator_receives_safe_failed_dependency_drill_down(): void

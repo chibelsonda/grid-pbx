@@ -56,6 +56,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
             maxDtmf: 5,
             sortBy: 'first_name',
             flags: ['public-directory'],
+            preservedOptions: ['future_option' => ['nested' => 'keep']],
         ));
         $body = json_decode((string) $this->history[2]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
@@ -65,6 +66,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
         self::assertArrayNotHasKey('users', $body['data']);
         self::assertSame('first_name', $body['data']['sort_by']);
         self::assertSame(['public-directory'], $body['data']['flags']);
+        self::assertSame('keep', $body['data']['future_option']['nested']);
         self::assertSame(['public-directory'], $created->flags);
     }
 
@@ -92,6 +94,14 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
             ],
             musicOnHoldMediaId: 'media-1',
             flags: ['external-managed'],
+            preservedOptions: [
+                'future_option' => ['nested' => 'keep'],
+                'music_on_hold' => ['media_id' => 'old-media', 'vendor_mode' => 'shuffle'],
+                'endpoints' => [
+                    'user-1' => ['type' => 'device', 'weight' => 99, 'vendor_alert' => true],
+                    'removed-user' => ['vendor_alert' => true],
+                ],
+            ],
         ));
         $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
 
@@ -99,7 +109,39 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
         self::assertSame('media-1', $group->musicOnHoldMediaId);
         self::assertSame(['external-managed'], $group->flags);
         self::assertSame(2, $body['data']['endpoints']['device-1']['weight']);
+        self::assertSame('user', $body['data']['endpoints']['user-1']['type']);
+        self::assertTrue($body['data']['endpoints']['user-1']['vendor_alert']);
+        self::assertArrayNotHasKey('removed-user', $body['data']['endpoints']);
+        self::assertSame('shuffle', $body['data']['music_on_hold']['vendor_mode']);
+        self::assertSame('media-1', $body['data']['music_on_hold']['media_id']);
+        self::assertSame('keep', $body['data']['future_option']['nested']);
         self::assertSame(['external-managed'], $body['data']['flags']);
+    }
+
+    public function test_group_client_encodes_cleared_music_on_hold_as_an_object(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'id' => 'group-1',
+                'name' => 'Support team',
+                'endpoints' => [],
+                'music_on_hold' => [],
+            ]]),
+        ]);
+        $client = new GroupResourceClient($switch);
+
+        $client->update('account-1', 'group-1', new GroupWriteData('Support team', []));
+        $body = json_decode((string) $this->history[0]['request']->getBody(), flags: JSON_THROW_ON_ERROR);
+
+        self::assertIsObject($body->data->music_on_hold);
+        self::assertSame([], get_object_vars($body->data->music_on_hold));
+    }
+
+    public function test_group_write_data_enforces_the_installed_name_limit(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new GroupWriteData(str_repeat('x', 129), []);
     }
 
     public function test_user_client_patches_directory_mappings_without_replacing_user_profile(): void

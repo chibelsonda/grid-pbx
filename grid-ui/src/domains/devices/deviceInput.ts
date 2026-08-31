@@ -1,7 +1,8 @@
 import {
   deviceSupportsTab,
+  supportsDeviceFieldGroup,
   supportsDeviceOption,
-  supportsDeviceNotifications,
+  supportsDeviceRecording,
   supportsMusicOnHold,
   supportsOutboundFlags,
   supportsIgnoreCompletedElsewhere,
@@ -13,6 +14,8 @@ import type {
   DeviceBasicForm,
   DeviceConfiguration,
   DeviceInput,
+  DeviceMetaflowAction,
+  DeviceMetaflowChild,
   DeviceSchemaCompatibility,
   DeviceSipInput,
   FullDeviceSipInput,
@@ -22,6 +25,22 @@ function nullable(value: string | null): string | null {
   const trimmed = value?.trim() ?? ''
 
   return trimmed === '' ? null : trimmed
+}
+
+function metaflowChildrenInput(children: DeviceMetaflowChild[]): DeviceMetaflowChild[] {
+  return children.map((child) => ({
+    ...child,
+    data: { ...child.data },
+    children: metaflowChildrenInput(child.children),
+  }))
+}
+
+function metaflowActionsInput(actions: DeviceMetaflowAction[]): DeviceMetaflowAction[] {
+  return actions.map((action) => ({
+    ...action,
+    data: { ...action.data },
+    children: metaflowChildrenInput(action.children),
+  }))
 }
 
 export function normalizeMacAddress(value: string | null): string | null {
@@ -70,11 +89,10 @@ function sipInput(
     static_invite: staticInvite,
     transport: sipTransport,
     ignore_completed_elsewhere: ignoreCompletedElsewhere,
-    custom_sip_headers: _customSipHeaders,
+    custom_sip_headers: customSipHeaders,
     ...sipConfiguration
   } = configuration.sip
   void _usernameConfigured
-  void _customSipHeaders
 
   return {
     ...sipConfiguration,
@@ -95,6 +113,10 @@ function sipInput(
     ...(supportsIgnoreCompletedElsewhere(form.device_type)
       ? { ignore_completed_elsewhere: ignoreCompletedElsewhere }
       : {}),
+    custom_sip_headers: {
+      in: customSipHeaders.in.map((header) => ({ ...header })),
+      out: customSipHeaders.out.map((header) => ({ ...header })),
+    },
   } satisfies FullDeviceSipInput
 }
 
@@ -104,6 +126,8 @@ export function buildDeviceInput(
   compatibility: DeviceSchemaCompatibility,
 ): DeviceInput {
   const provisionable = supportsProvisioning(form.device_type)
+  const supportsEndpointBehavior = supportsDeviceFieldGroup(form.device_type, 'endpoint-behavior')
+  const supportsAdvancedRouting = supportsDeviceFieldGroup(form.device_type, 'advanced-routing')
 
   return {
     name: form.name.trim(),
@@ -117,6 +141,15 @@ export function buildDeviceInput(
             ...(compatibility.provision.template_id
               ? { id: nullable(configuration.provision.id) }
               : {}),
+            ...(compatibility.provision.check_sync_event
+              ? { check_sync_event: nullable(configuration.provision.check_sync_event) }
+              : {}),
+            ...(compatibility.provision.check_sync_reload
+              ? { check_sync_reload: nullable(configuration.provision.check_sync_reload) }
+              : {}),
+            ...(compatibility.provision.check_sync_reboot
+              ? { check_sync_reboot: nullable(configuration.provision.check_sync_reboot) }
+              : {}),
           },
           mac_address: normalizeMacAddress(form.mac_address),
         }
@@ -128,8 +161,12 @@ export function buildDeviceInput(
           call_forward: {
             enabled: form.is_enabled,
             number: nullable(configuration.call_forward.number),
+            direct_calls_only: configuration.call_forward.direct_calls_only,
+            failover: configuration.call_forward.failover,
+            ignore_early_media: configuration.call_forward.ignore_early_media,
             require_keypress: configuration.call_forward.require_keypress,
             keep_caller_id: configuration.call_forward.keep_caller_id,
+            substitute: configuration.call_forward.substitute,
           },
         }
       : {}),
@@ -147,12 +184,19 @@ export function buildDeviceInput(
       ? {
           caller_id: configuration.caller_id,
           caller_id_options: configuration.caller_id_options,
-          presence_id: nullable(configuration.presence_id),
         }
       : {}),
     contact_list: configuration.contact_list,
-    ...(supportsDeviceNotifications(form.device_type)
+    ...(supportsEndpointBehavior
       ? {
+          call_waiting: configuration.call_waiting,
+          do_not_disturb: configuration.do_not_disturb,
+          exclude_from_queues: configuration.exclude_from_queues,
+          language: nullable(configuration.language),
+          timezone: nullable(configuration.timezone),
+          presence_id: nullable(configuration.presence_id),
+          mwi_unsolicited_updates: configuration.mwi_unsolicited_updates,
+          register_overwrite_notify: configuration.register_overwrite_notify,
           suppress_unregister_notifications: configuration.suppress_unregister_notifications,
         }
       : {}),
@@ -167,6 +211,9 @@ export function buildDeviceInput(
     ...(deviceSupportsTab(form.device_type, 'restrictions')
       ? { call_restriction: configuration.call_restriction }
       : {}),
+    ...(supportsDeviceRecording(form.device_type)
+      ? { call_recording: configuration.call_recording }
+      : {}),
     ...(supportsMusicOnHold(form.device_type)
       ? { music_on_hold: { media_id: configuration.music_on_hold.media_id } }
       : {}),
@@ -179,6 +226,27 @@ export function buildDeviceInput(
                 : [...configuration.outbound_flags.static],
             dynamic: [...configuration.outbound_flags.dynamic],
           },
+        }
+      : {}),
+    ...(supportsAdvancedRouting
+      ? {
+          dial_plan: {
+            system: [...configuration.dial_plan.system],
+            rules: configuration.dial_plan.rules.map((rule) => ({
+              pattern: rule.pattern.trim(),
+              description: nullable(rule.description),
+              prefix: nullable(rule.prefix),
+              suffix: nullable(rule.suffix),
+            })),
+          },
+          metaflows: {
+            binding_digit: configuration.metaflows.binding_digit,
+            digit_timeout: configuration.metaflows.digit_timeout,
+            listen_on: configuration.metaflows.listen_on,
+            actions: metaflowActionsInput(configuration.metaflows.actions),
+          },
+          flags: [...configuration.flags],
+          formatters: configuration.formatters.map((formatter) => ({ ...formatter })),
         }
       : {}),
   }

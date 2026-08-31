@@ -75,9 +75,10 @@ class DirectoryControllerTest extends TestCase
         $this->actingAs($operator)
             ->postJson("/api/v1/accounts/{$account->id}/directories", $this->payload([], [
                 'flags' => ['operator-replacement'],
+                'preserved_options' => ['future_option' => 'operator-replacement'],
             ]))
             ->assertUnprocessable()
-            ->assertJsonValidationErrors('flags');
+            ->assertJsonValidationErrors(['flags', 'preserved_options']);
     }
 
     public function test_member_failure_restores_the_previous_directory_flags(): void
@@ -85,20 +86,28 @@ class DirectoryControllerTest extends TestCase
         [$operator, $account] = $this->accessibleAccount();
         $directory = SwitchDirectory::factory()->for($account)->create([
             'switch_resource_id' => 'switch-directory-1',
-            'switch_json' => ['flags' => ['stable']],
+            'switch_json' => [
+                'id' => 'switch-directory-1',
+                'flags' => ['stable'],
+                'users' => [['user_id' => 'private-user-id']],
+                'future_option' => ['nested' => 'keep', 'secret' => '[REDACTED]'],
+                'pvt_private' => 'drop',
+            ],
         ]);
         $gateway = $this->mock(SwitchDirectoryGateway::class);
         $gateway->shouldReceive('update')->once()->ordered()->withArgs(
             fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
                 && $resourceId === 'switch-directory-1'
-                && $data['flags'] === ['stable'],
+                && $data['flags'] === ['stable']
+                && $data['preserved_options'] === ['future_option' => ['nested' => 'keep']],
         )->andReturn(['id' => 'switch-directory-1', 'name' => 'People']);
         $gateway->shouldReceive('replaceMembers')->once()->ordered()
             ->andThrow(new \RuntimeException('Member mapping failed.'));
         $gateway->shouldReceive('update')->once()->ordered()->withArgs(
             fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
                 && $resourceId === 'switch-directory-1'
-                && $data['flags'] === ['stable'],
+                && $data['flags'] === ['stable']
+                && $data['preserved_options'] === ['future_option' => ['nested' => 'keep']],
         )->andReturn(['id' => 'switch-directory-1', 'name' => 'People']);
 
         $this->expectException(\RuntimeException::class);

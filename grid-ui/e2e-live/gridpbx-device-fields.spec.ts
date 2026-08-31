@@ -41,7 +41,7 @@ function deviceMutation(page: Page, method: 'POST' | 'PUT'): Promise<Response> {
   )
 }
 
-async function openAdvancedTab(page: Page, tab: 'SIP' | 'Audio'): Promise<void> {
+async function openAdvancedTab(page: Page, tab: 'SIP' | 'Audio' | 'Options'): Promise<void> {
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: tab, exact: true }).click()
 }
@@ -176,6 +176,7 @@ test('creates, edits, and clears Device outbound flags and music on hold', async
     await openAdvancedTab(page, 'SIP')
     await page.getByLabel('SIP username').fill(`e2e${suffix.slice(-10)}`)
     await page.getByLabel('SIP password').fill('E2E-device-pass-123')
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
     await page.getByPlaceholder('fax, trusted').fill('e2e-alpha, e2e-beta')
 
     await page.getByRole('tab', { name: 'Audio', exact: true }).click()
@@ -200,6 +201,7 @@ test('creates, edits, and clears Device outbound flags and music on hold', async
     await expect(page.getByRole('heading', { name: 'Edit device' })).toBeVisible()
 
     await openAdvancedTab(page, 'SIP')
+    await page.getByRole('tab', { name: 'Options', exact: true }).click()
     await expect(page.getByPlaceholder('fax, trusted')).toHaveValue('e2e-alpha, e2e-beta')
     await page.getByPlaceholder('fax, trusted').fill('e2e-gamma')
     await page.getByRole('tab', { name: 'Audio', exact: true }).click()
@@ -218,7 +220,7 @@ test('creates, edits, and clears Device outbound flags and music on hold', async
 
     await expect(page.getByRole('heading', { name: deviceName, level: 1 })).toBeVisible()
     await page.getByRole('link', { name: 'Edit' }).click()
-    await openAdvancedTab(page, 'SIP')
+    await openAdvancedTab(page, 'Options')
     await page.getByPlaceholder('fax, trusted').fill('')
     await page.getByRole('tab', { name: 'Audio', exact: true }).click()
     await page.getByRole('button', { name: 'Select device music on hold' }).click()

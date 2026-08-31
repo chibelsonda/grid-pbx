@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
+import { reactive } from 'vue'
 import {
   defaultDeviceConfiguration,
   deviceTypes,
   legacyDeviceSchemaCompatibility,
+  supportsDeviceFieldGroup,
   supportsDeviceNotifications,
   supportsDeviceOption,
+  supportsDeviceRecording,
   supportsIgnoreCompletedElsewhere,
   supportsMusicOnHold,
   supportsOutboundFlags,
@@ -50,7 +53,9 @@ describe('buildDeviceInput', () => {
       expect('sip' in input).toBe(usesSip(deviceType))
       expect('provision' in input).toBe(supportsProvisioning(deviceType))
       expect('mac_address' in input).toBe(supportsProvisioning(deviceType))
-      expect(input).not.toHaveProperty('call_waiting')
+      expect('call_waiting' in input).toBe(
+        supportsDeviceFieldGroup(deviceType, 'endpoint-behavior'),
+      )
       expect('music_on_hold' in input).toBe(supportsMusicOnHold(deviceType))
       expect('outbound_flags' in input).toBe(
         supportsOutboundFlags(deviceType) || deviceType === 'fax',
@@ -59,11 +64,11 @@ describe('buildDeviceInput', () => {
       expect('suppress_unregister_notifications' in input).toBe(
         supportsDeviceNotifications(deviceType),
       )
-      if (input.sip && 'method' in input.sip) {
-        expect('ignore_completed_elsewhere' in input.sip).toBe(
-          supportsIgnoreCompletedElsewhere(deviceType),
-        )
-      }
+      expect('call_recording' in input).toBe(supportsDeviceRecording(deviceType))
+      expect('dial_plan' in input).toBe(supportsDeviceFieldGroup(deviceType, 'advanced-routing'))
+      expect(
+        Boolean(input.sip && 'method' in input.sip && 'ignore_completed_elsewhere' in input.sip),
+      ).toBe(supportsIgnoreCompletedElsewhere(deviceType))
     },
   )
 
@@ -108,8 +113,12 @@ describe('buildDeviceInput', () => {
       expect(input.call_forward).toEqual({
         enabled: false,
         number: '+15551234567',
+        direct_calls_only: false,
+        failover: false,
+        ignore_early_media: true,
         keep_caller_id: true,
         require_keypress: true,
+        substitute: true,
       })
       expect(input.contact_list).toEqual({ exclude: false })
       expect(input).not.toHaveProperty('sip')
@@ -129,7 +138,36 @@ describe('buildDeviceInput', () => {
     expect(input.outbound_flags?.static).toEqual(['fax', 'regional'])
   })
 
-  it('omits schema-supported fields that the simplified Kazoo workflow does not own', () => {
+  it('converts reactive metaflow actions into a plain payload', () => {
+    const configuration = reactive(defaultDeviceConfiguration())
+    configuration.metaflows.actions = [
+      {
+        trigger_type: 'number',
+        trigger: '5',
+        module: 'hangup',
+        data: {},
+        children: [],
+      },
+    ]
+
+    const input = buildDeviceInput(
+      form('sip_device'),
+      configuration,
+      legacyDeviceSchemaCompatibility,
+    )
+
+    expect(input.metaflows?.actions).toEqual([
+      {
+        trigger_type: 'number',
+        trigger: '5',
+        module: 'hangup',
+        data: {},
+        children: [],
+      },
+    ])
+  })
+
+  it('includes schema-backed registered-endpoint fields in the advanced payload', () => {
     const configuration = defaultDeviceConfiguration()
     configuration.call_waiting.enabled = false
     configuration.do_not_disturb.enabled = true
@@ -140,7 +178,7 @@ describe('buildDeviceInput', () => {
     configuration.register_overwrite_notify = true
     configuration.call_recording.any.any.enabled = true
     configuration.music_on_hold.media_id = 'c438e735-b6b7-4f5e-b4c6-c009453b85b6'
-    configuration.flags = ['must-not-submit']
+    configuration.flags = ['schema-flag']
     configuration.sip.custom_sip_headers.in = [{ name: 'X-Existing', value: 'preserve-me' }]
     configuration.provision.check_sync_event = 'check-sync'
 
@@ -150,19 +188,25 @@ describe('buildDeviceInput', () => {
       legacyDeviceSchemaCompatibility,
     )
 
-    expect(input).not.toHaveProperty('call_waiting')
-    expect(input).not.toHaveProperty('do_not_disturb')
-    expect(input).not.toHaveProperty('exclude_from_queues')
-    expect(input).not.toHaveProperty('language')
-    expect(input).not.toHaveProperty('timezone')
-    expect(input).not.toHaveProperty('mwi_unsolicited_updates')
-    expect(input).not.toHaveProperty('register_overwrite_notify')
-    expect(input).not.toHaveProperty('call_recording')
+    expect(input.call_waiting).toEqual({ enabled: false })
+    expect(input.do_not_disturb).toEqual({ enabled: true })
+    expect(input.exclude_from_queues).toBe(true)
+    expect(input.language).toBe('en-US')
+    expect(input.timezone).toBe('America/New_York')
+    expect(input.mwi_unsolicited_updates).toBe(false)
+    expect(input.register_overwrite_notify).toBe(true)
+    expect(input.call_recording?.any.any.enabled).toBe(true)
     expect(input.music_on_hold).toEqual({
       media_id: 'c438e735-b6b7-4f5e-b4c6-c009453b85b6',
     })
-    expect(input).not.toHaveProperty('flags')
-    expect(input.sip).not.toHaveProperty('custom_sip_headers')
-    expect(input.provision).not.toHaveProperty('check_sync_event')
+    expect(input.flags).toEqual(['schema-flag'])
+    expect(input.sip).toHaveProperty('custom_sip_headers', {
+      in: [{ name: 'X-Existing', value: 'preserve-me' }],
+      out: [],
+    })
+    expect(input.provision).toHaveProperty('check_sync_event', 'check-sync')
+    expect(input).toHaveProperty('dial_plan')
+    expect(input).toHaveProperty('metaflows')
+    expect(input).toHaveProperty('formatters')
   })
 })

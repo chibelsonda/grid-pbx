@@ -114,6 +114,7 @@ class GroupMutationService
             'resolved_members' => $resolvedMembers,
             'switch_music_on_hold_media_id' => $media?->switch_resource_id,
             'switch_flags' => $group === null ? [] : $this->stringList($group->switch_json['flags'] ?? null),
+            'switch_preserved_options' => $group === null ? [] : $this->preservedOptions($group->switch_json),
         ];
     }
 
@@ -124,6 +125,76 @@ class GroupMutationService
             is_array($value) ? $value : [],
             static fn (mixed $item): bool => is_string($item) && $item !== '',
         ));
+    }
+
+    /**
+     * Keep safe unknown public Group fields server-side without accepting them from the UI.
+     * Modeled endpoint and music fields are removed here and rebuilt by the typed SDK DTO.
+     *
+     * @param  array<string, mixed>|null  $snapshot
+     * @return array<string, mixed>
+     */
+    private function preservedOptions(?array $snapshot): array
+    {
+        $snapshot ??= [];
+        $preserved = array_diff_key($snapshot, array_flip([
+            'id',
+            'name',
+            'endpoints',
+            'music_on_hold',
+            'flags',
+        ]));
+        $endpoints = [];
+
+        foreach (is_array($snapshot['endpoints'] ?? null) ? $snapshot['endpoints'] : [] as $resourceId => $endpoint) {
+            if (! is_string($resourceId) || ! is_array($endpoint)) {
+                continue;
+            }
+
+            $unknown = array_diff_key($endpoint, array_flip(['type', 'weight']));
+
+            if ($unknown !== []) {
+                $endpoints[$resourceId] = $unknown;
+            }
+        }
+
+        if ($endpoints !== []) {
+            $preserved['endpoints'] = $endpoints;
+        }
+
+        $musicOnHold = is_array($snapshot['music_on_hold'] ?? null)
+            ? array_diff_key($snapshot['music_on_hold'], ['media_id' => true])
+            : [];
+
+        if ($musicOnHold !== []) {
+            $preserved['music_on_hold'] = $musicOnHold;
+        }
+
+        return $this->withoutPrivateOrRedactedValues($preserved);
+    }
+
+    /**
+     * @param  array<array-key, mixed>  $values
+     * @return array<array-key, mixed>
+     */
+    private function withoutPrivateOrRedactedValues(array $values): array
+    {
+        $safe = [];
+        $isList = array_is_list($values);
+
+        foreach ($values as $key => $value) {
+            if ((is_string($key)
+                    && (str_starts_with($key, '_') || str_starts_with($key, 'pvt_')))
+                || $value === '[REDACTED]') {
+                continue;
+            }
+
+            $safe[$key] = is_array($value)
+                ? $this->withoutPrivateOrRedactedValues($value)
+                : $value;
+        }
+
+        return $isList ? array_values($safe) : $safe;
     }
 
     private function containsNestedGroup(SwitchGroup $candidate, string $targetKey, array $seen = []): bool

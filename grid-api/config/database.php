@@ -64,6 +64,25 @@ return [
             ]) : [],
         ],
 
+        'legacy_billing' => [
+            'driver' => 'mysql',
+            'host' => env('BILLING_LEGACY_DB_HOST', '127.0.0.1'),
+            'port' => env('BILLING_LEGACY_DB_PORT', '3306'),
+            'database' => env('BILLING_LEGACY_DB_DATABASE', ''),
+            'username' => env('BILLING_LEGACY_DB_USERNAME', ''),
+            'password' => env('BILLING_LEGACY_DB_PASSWORD', ''),
+            'unix_socket' => env('BILLING_LEGACY_DB_SOCKET', ''),
+            'charset' => 'utf8mb4',
+            'collation' => 'utf8mb4_unicode_ci',
+            'prefix' => '',
+            'prefix_indexes' => true,
+            'strict' => true,
+            'engine' => null,
+            'options' => extension_loaded('pdo_mysql') ? array_filter([
+                Mysql::ATTR_SSL_CA => env('BILLING_LEGACY_DB_SSL_CA'),
+            ]) : [],
+        ],
+
         'mariadb' => [
             'driver' => 'mariadb',
             'url' => env('DB_URL'),

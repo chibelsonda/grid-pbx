@@ -67,29 +67,88 @@ class MenuControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_resource_id');
     }
 
-    public function test_update_preserves_external_flags_and_rejects_operator_flags(): void
+    public function test_update_preserves_external_flags_and_unresolved_media_without_exposing_raw_references(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $menu = SwitchMenu::factory()->for($account)->create([
             'switch_resource_id' => 'switch-menu-1',
+            'greeting_media_reference' => 'unresolved-greeting-media',
+            'greeting_media_id' => null,
+            'invalid_media_reference' => 'unresolved-invalid-media',
+            'invalid_media_id' => null,
             'switch_json' => ['flags' => ['external-managed']],
         ]);
         $gateway = $this->mock(SwitchMenuGateway::class);
         $gateway->shouldReceive('update')->once()->withArgs(
             fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
                 && $resourceId === 'switch-menu-1'
-                && $data['switch_flags'] === ['external-managed'],
-        )->andReturn($this->snapshot(['name' => 'Updated menu', 'flags' => ['external-managed']]));
+                && $data['switch_flags'] === ['external-managed']
+                && $data['switch_greeting_media_reference'] === 'unresolved-greeting-media'
+                && $data['switch_invalid_media'] === 'unresolved-invalid-media',
+        )->andReturn($this->snapshot([
+            'name' => 'Updated menu',
+            'flags' => ['external-managed'],
+            'media' => [
+                'greeting' => 'unresolved-greeting-media',
+                'invalid_media' => 'unresolved-invalid-media',
+            ],
+        ]));
 
         $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}", [
             ...$this->payload(),
             'name' => 'Updated menu',
-        ])->assertOk()->assertJsonPath('data.name', 'Updated menu');
+        ])->assertOk()
+            ->assertJsonPath('data.name', 'Updated menu')
+            ->assertJsonPath('data.greeting_media_unresolved', true)
+            ->assertJsonPath('data.invalid_media_unresolved', true)
+            ->assertDontSee('unresolved-greeting-media')
+            ->assertDontSee('unresolved-invalid-media');
 
         $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}", [
             ...$this->payload(),
             'flags' => ['operator-managed'],
         ])->assertUnprocessable()->assertJsonValidationErrors('flags');
+    }
+
+    public function test_update_clears_the_write_only_pin_and_suppresses_all_runtime_prompt_values(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-1',
+            'record_pin_configured' => true,
+            'invalid_media_reference' => 'unresolved-invalid-media',
+            'transfer_media_reference' => 'unresolved-transfer-media',
+            'exit_media_reference' => 'unresolved-exit-media',
+        ]);
+        $gateway = $this->mock(SwitchMenuGateway::class);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-menu-1'
+                && $data['clear_record_pin'] === true
+                && $data['switch_invalid_media'] === false
+                && $data['switch_transfer_media'] === false
+                && $data['switch_exit_media'] === false,
+        )->andReturn($this->snapshot([
+            'suppress_media' => true,
+            'media' => ['invalid_media' => false, 'transfer_media' => false, 'exit_media' => false],
+        ]));
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}", [
+            ...$this->payload(),
+            'suppress_media' => true,
+            'clear_record_pin' => true,
+        ])->assertOk()
+            ->assertJsonPath('data.record_pin_configured', false)
+            ->assertJsonPath('data.invalid_media_enabled', false)
+            ->assertJsonPath('data.transfer_media_enabled', false)
+            ->assertJsonPath('data.exit_media_enabled', false)
+            ->assertJsonPath('data.invalid_media_unresolved', false);
+
+        $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}", [
+            ...$this->payload(),
+            'record_pin' => '4826',
+            'clear_record_pin' => true,
+        ])->assertUnprocessable()->assertJsonValidationErrors('record_pin');
     }
 
     /** @return array<string, mixed> */
@@ -99,10 +158,11 @@ class MenuControllerTest extends TestCase
             'name' => 'Main menu', 'timeout' => 10000, 'interdigit_timeout' => 2000,
             'max_extension_length' => 4, 'retries' => 3, 'hunt' => true,
             'allow_record_from_offnet' => false, 'suppress_media' => false,
-            'record_pin' => null, 'hunt_allow' => null, 'hunt_deny' => null,
-            'greeting_media_id' => null, 'invalid_media_enabled' => true, 'invalid_media_id' => null,
-            'transfer_media_enabled' => true, 'transfer_media_id' => null,
-            'exit_media_enabled' => true, 'exit_media_id' => null,
+            'record_pin' => null, 'clear_record_pin' => false, 'hunt_allow' => null, 'hunt_deny' => null,
+            'greeting_media_id' => null, 'clear_greeting_media' => false,
+            'invalid_media_enabled' => true, 'invalid_media_id' => null, 'clear_invalid_media' => false,
+            'transfer_media_enabled' => true, 'transfer_media_id' => null, 'clear_transfer_media' => false,
+            'exit_media_enabled' => true, 'exit_media_id' => null, 'clear_exit_media' => false,
         ];
     }
 

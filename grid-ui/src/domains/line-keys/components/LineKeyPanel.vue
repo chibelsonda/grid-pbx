@@ -9,7 +9,12 @@ import FormListbox, {
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
 import { useLineKeyForm } from '../composables/useLineKeyForm'
-import type { LineKeyInput, LineKeyPreview, LineKeyType } from '../types/lineKey'
+import type {
+  LineKeyInput,
+  LineKeyPreview,
+  LineKeyType,
+  LineKeyValueChoice,
+} from '../types/lineKey'
 
 type SlotGroup = {
   key: string
@@ -132,14 +137,36 @@ const slotGroups = computed<SlotGroup[]>(() => {
         },
       ]
 })
-const valueChoiceOptions = computed<ListboxOptionValue[]>(() => [
-  { value: '', label: 'Select a suggested value' },
-  ...props.preview.value_choices.map((choice) => ({
-    value: choice.value,
-    label: choice.label,
-    description: `${choice.source === 'extensions' ? 'Extension' : 'Device'}${choice.description ? ` · ${choice.description}` : ''}`,
-  })),
-])
+function categoryOptionsFor(key: LineKeyInput): ListboxOptionValue[] {
+  return key.type === 'line' ? categoryOptions.slice(0, 1) : categoryOptions
+}
+
+type SuggestedLineKeyType = LineKeyValueChoice['types'][number]
+
+function isSuggestedLineKeyType(type: LineKeyType): type is SuggestedLineKeyType {
+  return type === 'presence' || type === 'personal_parking' || type === 'speed_dial'
+}
+
+function valueChoiceOptions(key: LineKeyInput): ListboxOptionValue[] {
+  const placeholder =
+    key.type === 'presence' || key.type === 'personal_parking'
+      ? 'Select an extension'
+      : 'Select a suggested destination'
+
+  const type = key.type
+  const choices = isSuggestedLineKeyType(type)
+    ? props.preview.value_choices.filter((choice) => choice.types.includes(type))
+    : []
+
+  return [
+    { value: '', label: placeholder },
+    ...choices.map((choice) => ({
+      value: choice.value,
+      label: choice.label,
+      description: `Extension${choice.description ? ` · ${choice.description}` : ''}`,
+    })),
+  ]
+}
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 
 function fieldError(index: number, field: string): string | null {
@@ -157,23 +184,34 @@ function normalizeKeyValue(key: LineKeyInput): void {
 }
 
 function setCategory(key: LineKeyInput, value: ListboxValue): void {
-  if (value === 'combo' || value === 'feature') key.category = value
+  if (value === 'combo' || (value === 'feature' && key.type !== 'line')) key.category = value
 }
 
 function setType(key: LineKeyInput, value: ListboxValue): void {
   if (keyTypes.value.some((option) => option.value === value)) {
+    if (key.type !== value) {
+      key.value = null
+      key.label = null
+    }
+
     key.type = value as LineKeyType
+    if (key.type === 'line') key.category = 'combo'
     normalizeKeyValue(key)
   }
 }
 
 function setSuggestedValue(key: LineKeyInput, value: ListboxValue): void {
-  if (typeof value === 'string' && value !== '') key.value = value
+  if (typeof value === 'string') key.value = value === '' ? null : value
 }
 
 function suggestedValue(key: LineKeyInput): ListboxValue {
-  return typeof key.value === 'string' &&
-    props.preview.value_choices.some((choice) => choice.value === key.value)
+  const type = key.type
+
+  if (typeof key.value !== 'string' || !isSuggestedLineKeyType(type)) return ''
+
+  return props.preview.value_choices.some(
+    (choice) => choice.value === key.value && choice.types.includes(type),
+  )
     ? key.value
     : ''
 }
@@ -337,7 +375,8 @@ function submit(): void {
                     ><span class="text-[10px] font-semibold text-slate-500">Category</span
                     ><FormListbox
                       :model-value="key.category"
-                      :options="categoryOptions"
+                      :options="categoryOptionsFor(key)"
+                      :aria-label="`Select category for position ${key.position}`"
                       size="small"
                       :invalid="Boolean(fieldError(index, 'category'))"
                       @update:model-value="setCategory(key, $event)"
@@ -360,6 +399,7 @@ function submit(): void {
                     ><FormListbox
                       :model-value="key.type"
                       :options="keyTypes"
+                      :aria-label="`Select type for position ${key.position}`"
                       size="small"
                       :invalid="Boolean(fieldError(index, 'type'))"
                       @update:model-value="setType(key, $event)"
@@ -369,19 +409,62 @@ function submit(): void {
                   >
                   <div class="grid grid-cols-2 gap-2">
                     <label
-                      v-if="key.type !== 'parking' && valueChoiceOptions.length > 1"
+                      v-if="
+                        key.type !== 'line' &&
+                        key.type !== 'parking' &&
+                        valueChoiceOptions(key).length > 1
+                      "
                       class="col-span-2 grid gap-1"
-                      ><span class="text-[10px] font-semibold text-slate-500">Suggested value</span
+                      ><span class="text-[10px] font-semibold text-slate-500">
+                        {{
+                          key.type === 'presence' || key.type === 'personal_parking'
+                            ? 'Extension'
+                            : 'Suggested destination'
+                        }} </span
                       ><FormListbox
                         :model-value="suggestedValue(key)"
-                        :options="valueChoiceOptions"
+                        :options="valueChoiceOptions(key)"
+                        :aria-label="`Select value for position ${key.position}`"
                         size="small"
+                        :invalid="
+                          (key.type === 'presence' || key.type === 'personal_parking') &&
+                          Boolean(fieldError(index, 'value'))
+                        "
                         @update:model-value="setSuggestedValue(key, $event)"
                       />
-                      <span class="text-[10px] text-slate-400"
-                        >Account-scoped choices from the model's allowlisted value sources.</span
-                      ></label
+                      <span
+                        v-if="
+                          (key.type === 'presence' || key.type === 'personal_parking') &&
+                          fieldError(index, 'value')
+                        "
+                        class="text-[10px] text-danger"
+                        >{{ fieldError(index, 'value') }}</span
+                      >
+                      <span v-else class="text-[10px] text-slate-500">
+                        {{
+                          key.type === 'presence' || key.type === 'personal_parking'
+                            ? 'Kazoo resolves this account-scoped user to its presence ID.'
+                            : 'The dialable extension is stored, never its internal resource ID.'
+                        }}
+                      </span></label
                     >
+                    <p
+                      v-if="key.type === 'line'"
+                      class="col-span-2 self-center text-[10px] text-slate-500"
+                    >
+                      Uses the device's primary account. Kazoo does not use a custom value or label
+                      for a line appearance.
+                    </p>
+                    <p
+                      v-else-if="
+                        (key.type === 'presence' || key.type === 'personal_parking') &&
+                        valueChoiceOptions(key).length === 1
+                      "
+                      class="col-span-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-[10px] text-amber-800"
+                    >
+                      No synchronized extensions are available. Synchronize People & Extensions
+                      before assigning this key type.
+                    </p>
                     <FormInput
                       v-if="key.type === 'parking'"
                       v-model.number="key.value"
@@ -393,14 +476,15 @@ function submit(): void {
                       :error="fieldError(index, 'value')"
                     />
                     <FormInput
-                      v-else
+                      v-else-if="key.type === 'speed_dial'"
                       v-model="key.value"
-                      label="Value"
+                      label="Dialable destination"
                       maxlength="255"
                       input-class="h-9 px-2"
                       :error="fieldError(index, 'value')"
                     />
                     <FormInput
+                      v-if="key.type !== 'line'"
                       v-model="key.label"
                       label="Label"
                       maxlength="255"

@@ -32,8 +32,8 @@ final readonly class TemporalRuleWriteData
         public ?string $ordinal = null,
         public array $flags = [],
     ) {
-        if (trim($this->name) === '' || ! in_array($this->cycle, self::CYCLES, true)) {
-            throw new InvalidArgumentException('Switch temporal rule name and cycle are required.');
+        if (trim($this->name) === '' || mb_strlen($this->name) > 128 || ! in_array($this->cycle, self::CYCLES, true)) {
+            throw new InvalidArgumentException('Switch temporal rule name must contain between 1 and 128 characters and its cycle must be supported.');
         }
         if ($this->interval < 1 || ($this->month !== null && ($this->month < 1 || $this->month > 12))) {
             throw new InvalidArgumentException('Switch temporal rule recurrence settings are invalid.');
@@ -49,6 +49,20 @@ final readonly class TemporalRuleWriteData
             || ($this->ordinal !== null && ! in_array($this->ordinal, self::ORDINALS, true))) {
             throw new InvalidArgumentException('Switch temporal rule recurrence values are invalid.');
         }
+    }
+
+    /** @return array<string, mixed> */
+    public function toSwitchPatchData(): array
+    {
+        return array_merge($this->toSwitchData(), [
+            'start_date' => $this->startDate,
+            'time_window_start' => $this->timeWindowStart,
+            'time_window_stop' => $this->timeWindowStop,
+            'days' => $this->days === [] ? null : array_values($this->days),
+            'wdays' => $this->weekdays === [] ? null : array_values($this->weekdays),
+            'month' => $this->month,
+            'ordinal' => $this->ordinal,
+        ]);
     }
 
     /** @return array<string, mixed> */

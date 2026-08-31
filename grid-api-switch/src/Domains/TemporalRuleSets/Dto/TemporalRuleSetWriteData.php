@@ -13,8 +13,9 @@ final readonly class TemporalRuleSetWriteData
      */
     public function __construct(public string $name, public array $temporalRuleIds, public array $flags = [])
     {
-        if (trim($this->name) === ''
+        if (trim($this->name) === '' || mb_strlen($this->name) > 128 || $this->temporalRuleIds === []
             || array_filter($this->temporalRuleIds, static fn (mixed $id): bool => ! is_string($id) || $id === '')
+            || count($this->temporalRuleIds) !== count(array_unique($this->temporalRuleIds))
             || array_filter($this->flags, static fn (mixed $flag): bool => ! is_string($flag))) {
             throw new InvalidArgumentException('Switch temporal rule set name and rule identifiers are invalid.');
         }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Domains\Billing\Controllers\BillingInvoiceController;
+use App\Domains\Billing\Controllers\BillingReceiptController;
 use App\Domains\Blacklists\Controllers\BlacklistController;
 use App\Domains\Blacklists\Controllers\BlacklistSyncController;
 use App\Domains\CallDetailRecords\Controllers\CallDetailRecordController;
@@ -37,8 +39,12 @@ use App\Domains\Organizations\Controllers\AccountHierarchyController;
 use App\Domains\Organizations\Controllers\AccountSettingsOptionsController;
 use App\Domains\Organizations\Controllers\AccountStatusController;
 use App\Domains\Organizations\Controllers\DescendantOnboardingController;
+use App\Domains\Payments\Controllers\AuthorizeNetWebhookController;
 use App\Domains\Payments\Controllers\PaymentAttemptController;
 use App\Domains\Payments\Controllers\PaymentCapabilityController;
+use App\Domains\Payments\Controllers\PaymentCustomerProfileController;
+use App\Domains\Payments\Controllers\PaymentWebhookHealthController;
+use App\Domains\Payments\Controllers\PaymentWebhookRetryController;
 use App\Domains\Payments\Controllers\SandboxChargeController;
 use App\Domains\Payments\Controllers\SandboxPaymentProfileController;
 use App\Domains\Payments\Controllers\SandboxRefundController;
@@ -71,6 +77,8 @@ Route::prefix('v1')->group(function (): void {
         'status' => 'healthy',
         'timestamp' => now()->toIso8601String(),
     ]));
+
+    Route::post('/webhooks/authorize-net', AuthorizeNetWebhookController::class);
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/session', [SessionController::class, 'show']);
@@ -218,8 +226,32 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/sync/faxes', [FaxSyncController::class, 'store']);
             Route::get('/sync/faxes/{run}', [FaxSyncController::class, 'show']);
             Route::get('/services', [ServiceOverviewController::class, 'show']);
+            Route::get('/billing/invoices/{invoice}', [BillingInvoiceController::class, 'show'])
+                ->whereUuid('invoice')
+                ->middleware('throttle:billing-documents');
+            Route::get(
+                '/billing/invoices/{invoice}/document',
+                [BillingInvoiceController::class, 'document'],
+            )->whereUuid('invoice')->middleware('throttle:billing-documents');
+            Route::get('/billing/receipts/{receipt}', [BillingReceiptController::class, 'show'])
+                ->whereUuid('receipt')
+                ->middleware('throttle:billing-documents');
+            Route::get(
+                '/billing/receipts/{receipt}/document',
+                [BillingReceiptController::class, 'document'],
+            )->whereUuid('receipt')->middleware('throttle:billing-documents');
             Route::get('/payments/capabilities', PaymentCapabilityController::class);
+            Route::get('/payments/customer-profiles', [PaymentCustomerProfileController::class, 'index']);
             Route::get('/payments/attempts', [PaymentAttemptController::class, 'index']);
+            Route::get(
+                '/payments/attempts/{paymentAttempt}',
+                [PaymentAttemptController::class, 'show'],
+            );
+            Route::get('/payments/webhook-deliveries', PaymentWebhookHealthController::class);
+            Route::post(
+                '/payments/webhook-deliveries/{paymentWebhookDelivery}/retry',
+                PaymentWebhookRetryController::class,
+            )->middleware('throttle:payment-sandbox');
             Route::post('/payments/sandbox-charges', SandboxChargeController::class)
                 ->middleware('throttle:payment-sandbox');
             Route::post(

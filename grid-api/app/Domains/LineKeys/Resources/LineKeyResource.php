@@ -17,8 +17,8 @@ class LineKeyResource extends JsonResource
             'category' => $this->category,
             'position' => $this->position,
             'type' => $this->type,
-            'label' => $this->label,
-            'value' => $this->value,
+            'label' => $this->type === 'line' ? null : $this->label,
+            'value' => $this->type === 'line' ? null : $this->value,
         ];
     }
 }

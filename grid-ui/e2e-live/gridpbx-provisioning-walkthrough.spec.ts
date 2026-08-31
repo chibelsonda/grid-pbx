@@ -27,7 +27,13 @@ type LineKeyPreview = {
       keys_per_expansion_module: number | null
     }
   }
-  value_choices: Array<{ label: string; value: string }>
+  value_choices: Array<{
+    id: string
+    label: string
+    value: string
+    description: string | null
+    types: Array<'presence' | 'personal_parking' | 'speed_dial'>
+  }>
 }
 
 function observeBrowserIssues(page: Page): BrowserIssue[] {
@@ -148,7 +154,7 @@ async function cleanupWalkthroughDevices(page: Page): Promise<void> {
   for (const device of devices) await deleteDevice(page, device.id)
 }
 
-test('walks through enrollment confirmation and grouped line-key layout in isolation', async ({
+test('walks through provisioning and line-key create, edit, and clear in isolation', async ({
   page,
 }, testInfo) => {
   test.setTimeout(90_000)
@@ -231,6 +237,18 @@ test('walks through enrollment confirmation and grouped line-key layout in isola
     expect(enrollmentMutations).toBe(0)
     await page.unroute('**/provisioning-enrollment')
 
+    const detailLineKeyPreview = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname.endsWith(`/devices/${deviceId}/line-keys/preview`),
+    )
+    await page.getByRole('button', { name: 'Line keys', exact: true }).click()
+    expect((await detailLineKeyPreview).status()).toBe(200)
+    const detailLineKeyPanel = page.getByRole('dialog')
+    await expect(detailLineKeyPanel.getByRole('heading', { name: 'Line keys' })).toBeVisible()
+    await expect(page.locator('h1')).toHaveText(name)
+    await detailLineKeyPanel.getByRole('button', { name: 'Close', exact: true }).click()
+
     const lineKeyList = page.waitForResponse(
       (response) =>
         response.request().method() === 'GET' &&
@@ -261,6 +279,30 @@ test('walks through enrollment confirmation and grouped line-key layout in isola
       keys_per_expansion_module: 20,
     })
     expect(preview.value_choices.length).toBeGreaterThan(0)
+    const presenceChoices = preview.value_choices.filter((choice) =>
+      choice.types.includes('presence'),
+    )
+    const speedDialChoices = preview.value_choices.filter((choice) =>
+      choice.types.includes('speed_dial'),
+    )
+    expect(presenceChoices.length).toBeGreaterThan(0)
+    expect(
+      presenceChoices.every(
+        (choice) =>
+          choice.value === choice.id &&
+          /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+            choice.value,
+          ),
+      ),
+    ).toBe(true)
+    if (speedDialChoices.length > 0) {
+      expect(
+        speedDialChoices.every(
+          (choice) => choice.value !== choice.id && choice.value === choice.description,
+        ),
+      ).toBe(true)
+    }
+    expect(JSON.stringify(preview)).not.toContain('switch_resource_id')
 
     const panel = page.getByRole('dialog')
     await expect(panel.getByRole('heading', { name: 'Line keys' })).toBeVisible()
@@ -273,12 +315,10 @@ test('walks through enrollment confirmation and grouped line-key layout in isola
       has: page.getByRole('heading', { name: 'Main unit' }),
     })
     await mainUnit.getByRole('button', { name: 'Add key' }).click()
-    await expect(mainUnit.getByText('Suggested value', { exact: true })).toBeVisible()
-    const suggestedValue = mainUnit
-      .getByText('Suggested value', { exact: true })
-      .locator('..')
-      .getByRole('button')
-    await suggestedValue.click()
+    await mainUnit.getByRole('button', { name: 'Select type for position 0' }).click()
+    await page.getByRole('option', { name: /Presence \/ BLF/ }).click()
+    await expect(mainUnit.getByText('Extension', { exact: true })).toBeVisible()
+    await mainUnit.getByRole('button', { name: 'Select value for position 0' }).click()
 
     const choices = page.getByRole('listbox')
     await expect(choices).toBeVisible()
@@ -292,8 +332,9 @@ test('walks through enrollment confirmation and grouped line-key layout in isola
     expect(choicesBox!.y).toBeGreaterThanOrEqual(0)
     expect(choicesBox!.x + choicesBox!.width).toBeLessThanOrEqual(viewport!.width)
     expect(choicesBox!.y + choicesBox!.height).toBeLessThanOrEqual(viewport!.height)
-    await choices.getByRole('option').first().click()
+    await choices.getByRole('option').nth(1).click()
     await expect(choices).toHaveCount(0)
+    await mainUnit.getByLabel('Label').fill('E2E monitored extension')
 
     const [panelOverflow, formOverflow, clippedControls] = await Promise.all([
       panel.evaluate((element) => element.scrollWidth - element.clientWidth),
@@ -323,7 +364,54 @@ test('walks through enrollment confirmation and grouped line-key layout in isola
     expect(formOverflow).toBeLessThanOrEqual(1)
     expect(clippedControls).toEqual([])
     await attachScreenshot(page, testInfo, 'line-keys-grouped-layout')
-    await panel.getByRole('button', { name: 'Close', exact: true }).click()
+
+    const createLineKey = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname.endsWith(`/devices/${deviceId}/line-keys`),
+    )
+    await panel.getByRole('button', { name: 'Apply to device' }).click()
+    expect((await createLineKey).status()).toBe(200)
+    await expect(panel).toHaveCount(0)
+
+    const editPreview = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname.endsWith(`/devices/${deviceId}/line-keys/preview`),
+    )
+    await page.locator('tbody tr').nth(deviceIndex).click()
+    expect((await editPreview).status()).toBe(200)
+    const editPanel = page.getByRole('dialog')
+    await expect(editPanel.getByLabel('Label')).toHaveValue('E2E monitored extension')
+    await editPanel.getByLabel('Label').fill('E2E monitored extension updated')
+
+    const updateLineKey = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname.endsWith(`/devices/${deviceId}/line-keys`),
+    )
+    await editPanel.getByRole('button', { name: 'Apply to device' }).click()
+    expect((await updateLineKey).status()).toBe(200)
+    await expect(editPanel).toHaveCount(0)
+
+    const clearPreview = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        new URL(response.url()).pathname.endsWith(`/devices/${deviceId}/line-keys/preview`),
+    )
+    await page.locator('tbody tr').nth(deviceIndex).click()
+    expect((await clearPreview).status()).toBe(200)
+    const clearPanel = page.getByRole('dialog')
+    await clearPanel.getByRole('button', { name: 'Remove key' }).click()
+
+    const clearLineKeys = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname.endsWith(`/devices/${deviceId}/line-keys`),
+    )
+    await clearPanel.getByRole('button', { name: 'Apply to device' }).click()
+    expect((await clearLineKeys).status()).toBe(200)
+    await expect(clearPanel).toHaveCount(0)
 
     expect(issues).toEqual([])
   } finally {

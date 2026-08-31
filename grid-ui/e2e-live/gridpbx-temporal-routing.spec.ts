@@ -78,6 +78,7 @@ test('creates, edits, controls, orders, and removes Temporal routing resources',
   const ruleName = `E2E hours ${suffix}`
   const updatedRuleName = `${ruleName} updated`
   const setName = `E2E schedule ${suffix}`
+  const updatedSetName = `${setName} updated`
   let apiOrigin: string | null = null
   let accountId: string | null = null
   let ruleId: string | null = null
@@ -190,7 +191,24 @@ test('creates, edits, controls, orders, and removes Temporal routing resources',
     ])
 
     await page.getByText(setName, { exact: true }).click()
-    const setPanel = page.getByRole('dialog', { name: 'Edit rule set' })
+    let setPanel = page.getByRole('dialog', { name: 'Edit rule set' })
+    await setPanel.getByLabel('Name', { exact: true }).fill(updatedSetName)
+    const setUpdate = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PUT' &&
+        new URL(response.url()).pathname.endsWith(`/temporal-rule-sets/${setId}`),
+    )
+    await setPanel.getByRole('button', { name: 'Save rule set' }).click()
+    const setUpdateResponse = await setUpdate
+    expect(setUpdateResponse.status()).toBe(200)
+    expect(setUpdateResponse.request().postDataJSON()).toMatchObject({
+      name: updatedSetName,
+      rule_ids: [ruleId],
+    })
+
+    await page.getByText(updatedSetName, { exact: true }).click()
+    setPanel = page.getByRole('dialog', { name: 'Edit rule set' })
+    await expect(setPanel.getByLabel('Name', { exact: true })).toHaveValue(updatedSetName)
     const forceActive = setPanel.getByRole('button', { name: 'Force active' })
     await expect(forceActive).toBeEnabled()
     await forceActive.click()

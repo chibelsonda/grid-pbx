@@ -39,4 +39,24 @@ describe('useMenuForm', () => {
       ]),
     )
   })
+
+  it('maps prompt suppression to the values consumed by the installed runtime', () => {
+    const { form, validate } = useMenuForm(null)
+    form.name = 'Main menu'
+    form.suppress_media = true
+    form.invalid_media_enabled = true
+    form.invalid_media_id = '8472d3d5-c79f-4ab1-8c9e-d738f7b03953'
+    form.transfer_media_enabled = true
+    form.transfer_media_id = '11289f55-aa15-4edf-aeca-a0acfd5eb21b'
+
+    const result = validate()
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.invalid_media_enabled).toBe(false)
+    expect(result.data.invalid_media_id).toBeNull()
+    expect(result.data.transfer_media_enabled).toBe(false)
+    expect(result.data.transfer_media_id).toBeNull()
+    expect(result.data.exit_media_enabled).toBe(false)
+  })
 })

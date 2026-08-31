@@ -28,7 +28,7 @@ final readonly class AccountSnapshot
 
     public bool $doNotDisturbEnabled;
 
-    public string $outboundPrivacy;
+    public ?string $outboundPrivacy;
 
     public bool $showRate;
 
@@ -89,7 +89,7 @@ final readonly class AccountSnapshot
         $this->enabled = ($data['enabled'] ?? true) !== false;
         $this->callWaitingEnabled = ($callWaiting['enabled'] ?? true) !== false;
         $this->doNotDisturbEnabled = ($doNotDisturb['enabled'] ?? false) === true;
-        $this->outboundPrivacy = $this->nullableString($callerIdOptions['outbound_privacy'] ?? null) ?? 'none';
+        $this->outboundPrivacy = $this->nullableString($callerIdOptions['outbound_privacy'] ?? null);
         $this->showRate = ($callerIdOptions['show_rate'] ?? false) === true;
         $this->isReseller = ($data['is_reseller'] ?? false) === true;
         $this->resellerId = $this->nullableString($data['reseller_id'] ?? null);

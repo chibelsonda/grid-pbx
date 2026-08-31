@@ -11,15 +11,22 @@ final readonly class GroupWriteData
     /**
      * @param  list<GroupEndpointWriteData>  $endpoints
      * @param  list<string>  $flags
+     * @param  array<string, mixed>  $preservedOptions
      */
     public function __construct(
         public string $name,
         public array $endpoints,
         public ?string $musicOnHoldMediaId = null,
         public array $flags = [],
+        public array $preservedOptions = [],
     ) {
-        if (trim($this->name) === '') {
-            throw new InvalidArgumentException('Switch group name is required.');
+        if (trim($this->name) === '' || mb_strlen($this->name) > 128) {
+            throw new InvalidArgumentException('Switch group name must contain between 1 and 128 characters.');
+        }
+
+        if ($this->musicOnHoldMediaId !== null
+            && ($this->musicOnHoldMediaId === '' || mb_strlen($this->musicOnHoldMediaId) > 128)) {
+            throw new InvalidArgumentException('Switch group music-on-hold media identifier is invalid.');
         }
 
         foreach ($this->endpoints as $endpoint) {
@@ -39,21 +46,38 @@ final readonly class GroupWriteData
     public function toSwitchData(): array
     {
         $endpoints = [];
+        $preservedEndpoints = is_array($this->preservedOptions['endpoints'] ?? null)
+            ? $this->preservedOptions['endpoints']
+            : [];
 
         foreach ($this->endpoints as $endpoint) {
-            $endpoints[$endpoint->resourceId] = [
+            $preserved = is_array($preservedEndpoints[$endpoint->resourceId] ?? null)
+                ? array_diff_key($preservedEndpoints[$endpoint->resourceId], array_flip(['type', 'weight']))
+                : [];
+            $endpoints[$endpoint->resourceId] = array_merge($preserved, [
                 'type' => $endpoint->type,
                 'weight' => $endpoint->weight,
-            ];
+            ]);
         }
 
-        return [
+        $musicOnHold = is_array($this->preservedOptions['music_on_hold'] ?? null)
+            ? array_diff_key($this->preservedOptions['music_on_hold'], ['media_id' => true])
+            : [];
+
+        if ($this->musicOnHoldMediaId !== null) {
+            $musicOnHold['media_id'] = $this->musicOnHoldMediaId;
+        }
+
+        $preserved = array_diff_key(
+            $this->preservedOptions,
+            array_flip(['name', 'endpoints', 'music_on_hold', 'flags']),
+        );
+
+        return array_merge($preserved, [
             'name' => $this->name,
             'endpoints' => $endpoints,
-            'music_on_hold' => $this->musicOnHoldMediaId === null
-                ? []
-                : ['media_id' => $this->musicOnHoldMediaId],
+            'music_on_hold' => $musicOnHold === [] ? (object) [] : $musicOnHold,
             'flags' => array_values($this->flags),
-        ];
+        ]);
     }
 }

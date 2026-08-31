@@ -22,6 +22,7 @@ class SaveDirectoryRequest extends FormRequest
             'max_dtmf' => ['required', 'integer', 'min:0', 'max:20'],
             'sort_by' => ['required', Rule::in(['first_name', 'last_name'])],
             'flags' => ['prohibited'],
+            'preserved_options' => ['prohibited'],
             'member_ids' => ['present', 'array'],
             'member_ids.*' => ['required', 'uuid', 'distinct'],
         ];

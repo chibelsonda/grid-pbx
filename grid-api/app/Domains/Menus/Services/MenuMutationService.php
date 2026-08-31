@@ -92,19 +92,16 @@ class MenuMutationService
             ...$data,
             'switch_flags' => $menu === null ? [] : $this->stringList($menu->switch_json['flags'] ?? null),
         ];
+        $suppressMedia = (bool) $data['suppress_media'];
 
         foreach (['greeting', 'invalid', 'transfer', 'exit'] as $type) {
-            $publicId = $data["{$type}_media_id"] ?? null;
-            $media = empty($publicId) ? null : $account->media()->where('id', $publicId)->first();
-
-            if (! empty($publicId) && $media === null) {
-                throw ValidationException::withMessages(["{$type}_media_id" => ['The selected media is unavailable for this account.']]);
-            }
+            $enabled = $type === 'greeting' || (! $suppressMedia && (bool) $data["{$type}_media_enabled"]);
+            $switchValue = $this->resolveMedia($account, $menu, $data, $type, $enabled);
 
             if ($type === 'greeting') {
-                $resolved['switch_greeting_media_reference'] = $media?->switch_resource_id;
+                $resolved['switch_greeting_media_reference'] = $switchValue;
             } else {
-                $resolved["switch_{$type}_media"] = $media?->switch_resource_id ?? (bool) $data["{$type}_media_enabled"];
+                $resolved["switch_{$type}_media"] = $switchValue;
             }
         }
 
@@ -118,13 +115,40 @@ class MenuMutationService
             'name' => $menu->name, 'timeout' => $menu->timeout, 'interdigit_timeout' => $menu->interdigit_timeout,
             'max_extension_length' => $menu->max_extension_length, 'retries' => $menu->retries, 'hunt' => $menu->hunt,
             'allow_record_from_offnet' => $menu->allow_record_from_offnet, 'suppress_media' => $menu->suppress_media,
-            'record_pin' => null, 'hunt_allow' => $menu->hunt_allow, 'hunt_deny' => $menu->hunt_deny,
+            'record_pin' => null, 'clear_record_pin' => false, 'hunt_allow' => $menu->hunt_allow, 'hunt_deny' => $menu->hunt_deny,
             'switch_greeting_media_reference' => $menu->greeting_media_reference,
             'switch_invalid_media' => $menu->invalid_media_reference ?? $menu->invalid_media_enabled,
             'switch_transfer_media' => $menu->transfer_media_reference ?? $menu->transfer_media_enabled,
             'switch_exit_media' => $menu->exit_media_reference ?? $menu->exit_media_enabled,
             'switch_flags' => $this->stringList($menu->switch_json['flags'] ?? null),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveMedia(SwitchAccount $account, ?SwitchMenu $menu, array $data, string $type, bool $enabled): string|bool|null
+    {
+        $publicId = $enabled ? ($data["{$type}_media_id"] ?? null) : null;
+        $media = empty($publicId) ? null : $account->media()->where('id', $publicId)->first();
+
+        if (! empty($publicId) && $media === null) {
+            throw ValidationException::withMessages(["{$type}_media_id" => ['The selected media is unavailable for this account.']]);
+        }
+
+        if ($media !== null) {
+            return $media->switch_resource_id;
+        }
+
+        $clearCurrent = (bool) ($data["clear_{$type}_media"] ?? false);
+        $reference = $menu?->getAttribute("{$type}_media_reference");
+        $projectedId = $menu?->getAttribute("{$type}_media_id");
+
+        if ($enabled && ! $clearCurrent && is_string($reference) && $reference !== '' && $projectedId === null) {
+            return $reference;
+        }
+
+        return $type === 'greeting' ? null : $enabled;
     }
 
     /** @return list<string> */

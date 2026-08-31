@@ -7,6 +7,10 @@ vi.mock('../api/paymentApi', () => ({
   paymentApi: {
     capabilities: vi.fn(),
     attempts: vi.fn(),
+    attempt: vi.fn(),
+    profiles: vi.fn(),
+    webhookHealth: vi.fn(),
+    retryWebhook: vi.fn(),
     sandboxCharge: vi.fn(),
     sandboxVoid: vi.fn(),
     sandboxRefund: vi.fn(),
@@ -31,6 +35,8 @@ describe('payment store', () => {
       currency: 'USD',
       status: 'succeeded',
       safe_error_code: null,
+      provider_status: null,
+      reconciled_at: null,
       completed_at: null,
       created_at: null,
     })
@@ -63,6 +69,8 @@ describe('payment store', () => {
       currency: 'USD',
       status: 'succeeded',
       safe_error_code: null,
+      provider_status: null,
+      reconciled_at: null,
       completed_at: null,
       created_at: null,
     })
@@ -75,6 +83,8 @@ describe('payment store', () => {
       currency: 'USD',
       status: 'succeeded',
       safe_error_code: null,
+      provider_status: null,
+      reconciled_at: null,
       completed_at: null,
       created_at: null,
     })
@@ -112,6 +122,8 @@ describe('payment store', () => {
         currency: null,
         status: 'succeeded',
         safe_error_code: null,
+        provider_status: null,
+        reconciled_at: null,
         completed_at: null,
         created_at: null,
       },
@@ -122,6 +134,7 @@ describe('payment store', () => {
         masked_account: 'XXXX1111',
         account_type: 'Visa',
         created_at: null,
+        updated_at: null,
       },
     })
 
@@ -138,5 +151,116 @@ describe('payment store', () => {
     expect(store.customerProfile).toEqual(
       expect.objectContaining({ masked_account: 'XXXX1111', account_type: 'Visa' }),
     )
+    expect(store.customerProfiles).toEqual([
+      expect.objectContaining({ masked_account: 'XXXX1111', account_type: 'Visa' }),
+    ])
+  })
+
+  it('hydrates saved profiles after reload using only the safe inventory', async () => {
+    vi.mocked(paymentApi.profiles).mockResolvedValue([
+      {
+        id: '00000000-0000-4000-8000-000000000008',
+        provider: 'authorize_net',
+        status: 'active',
+        masked_account: 'XXXX1111',
+        account_type: 'Visa',
+        created_at: null,
+        updated_at: null,
+      },
+    ])
+    const store = usePaymentStore()
+
+    await store.loadProfiles('account-public-id')
+
+    expect(paymentApi.profiles).toHaveBeenCalledWith('account-public-id')
+    expect(store.customerProfiles).toHaveLength(1)
+    expect(JSON.stringify(store.customerProfiles)).not.toMatch(
+      /customer_profile_id|payment_profile_id|provider_reference|hash/i,
+    )
+  })
+
+  it('refreshes sanitized webhook health after requesting a bounded retry', async () => {
+    const delivery = {
+      id: '00000000-0000-4000-8000-000000000010',
+      payment_attempt_id: '00000000-0000-4000-8000-000000000002',
+      provider: 'authorize_net',
+      event_type: 'net.authorize.payment.authcapture.created',
+      status: 'failed' as const,
+      processing_attempts: 5,
+      safe_error_code: 'reconciliation_exhausted',
+      can_retry: true,
+      recovery_guidance:
+        'Automatic retries were exhausted. Verify provider connectivity, then retry.',
+      event_occurred_at: null,
+      received_at: null,
+      processed_at: null,
+    }
+    const health = {
+      summary: {
+        received: 0,
+        processing: 0,
+        processed: 0,
+        ignored: 0,
+        retry_pending: 0,
+        failed: 1,
+        total: 1,
+        requiring_attention: 1,
+      },
+      recovery_available: true,
+      deliveries: [delivery],
+    }
+    vi.mocked(paymentApi.webhookHealth).mockResolvedValue(health)
+    vi.mocked(paymentApi.retryWebhook).mockResolvedValue({
+      ...delivery,
+      status: 'received',
+      safe_error_code: null,
+      can_retry: false,
+      recovery_guidance: 'Reconciliation is queued.',
+    })
+    vi.mocked(paymentApi.attempts).mockResolvedValue([])
+    const store = usePaymentStore()
+    store.webhookHealth = health
+
+    expect(await store.retryWebhook('account-public-id', delivery.id)).toBe(true)
+
+    expect(paymentApi.retryWebhook).toHaveBeenCalledWith('account-public-id', delivery.id)
+    expect(paymentApi.webhookHealth).toHaveBeenCalledWith('account-public-id')
+    expect(store.recoveringWebhookId).toBeNull()
+  })
+
+  it('stores a sanitized attempt timeline under its public id', async () => {
+    const attemptId = '00000000-0000-4000-8000-000000000002'
+    vi.mocked(paymentApi.attempt).mockResolvedValue({
+      id: attemptId,
+      source_attempt_id: null,
+      provider: 'authorize_net',
+      operation: 'charge',
+      amount: '1.00000000',
+      currency: 'USD',
+      status: 'succeeded',
+      safe_error_code: null,
+      provider_status: null,
+      reconciled_at: null,
+      completed_at: null,
+      created_at: null,
+      events: [
+        {
+          id: '00000000-0000-4000-8000-000000000011',
+          event_type: 'provider_result_recorded',
+          status: 'succeeded',
+          summary: 'The provider result was recorded.',
+          safe_error_code: null,
+          provider_status: null,
+          created_at: null,
+        },
+      ],
+    })
+    const store = usePaymentStore()
+
+    expect(await store.loadAttempt('account-public-id', attemptId)).toBe(true)
+
+    expect(paymentApi.attempt).toHaveBeenCalledWith('account-public-id', attemptId)
+    expect(store.attemptDetails[attemptId]?.events).toHaveLength(1)
+    expect(store.loadingAttemptId).toBeNull()
   })
 })

@@ -28,7 +28,7 @@ export default defineConfig({
     {
       name: 'gridpbx-live',
       testMatch:
-        /gridpbx-(account-projection|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|feature-codes|group-form|layout-alignment|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|system-status|temporal-routing)\.spec\.ts/,
+        /gridpbx-(account-projection|billing-workspace|blacklist-form|call-activity|caller-id-list|callflow-dnd|callflow-form|callflow-ring-group|conference-form|device-panel-context|device-parity|device-fields|directory-form|extension-hotdesk|fax-box-form|feature-codes|group-form|layout-alignment|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|sidebar-navigation|system-status|temporal-routing)\.spec\.ts/,
       use: {
         baseURL: gridUiUrl,
         ignoreHTTPSErrors: ignoreLocalHttpsErrors,

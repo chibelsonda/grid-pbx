@@ -1,14 +1,22 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
 import {
   paymentAttemptSchema,
+  paymentAttemptDetailSchema,
   paymentCapabilitySchema,
+  paymentCustomerProfileSchema,
   paymentProfileOutcomeSchema,
+  paymentWebhookDeliverySchema,
+  paymentWebhookHealthSchema,
 } from '../schemas/paymentSchema'
 import type {
   PaymentAttempt,
+  PaymentAttemptDetail,
   PaymentCapability,
+  PaymentCustomerProfile,
   PaymentOpaqueData,
   PaymentProfileOutcome,
+  PaymentWebhookDelivery,
+  PaymentWebhookHealth,
 } from '../types/payment'
 
 export const paymentApi = {
@@ -54,6 +62,49 @@ export const paymentApi = {
           ),
         ),
       )
+  },
+
+  async profiles(accountId: string): Promise<PaymentCustomerProfile[]> {
+    return paymentCustomerProfileSchema
+      .array()
+      .parse(
+        unwrapApiData(
+          await http.get<ApiResponse<PaymentCustomerProfile[]>>(
+            `/api/v1/accounts/${accountId}/payments/customer-profiles`,
+          ),
+        ),
+      )
+  },
+
+  async attempt(accountId: string, attemptId: string): Promise<PaymentAttemptDetail> {
+    return paymentAttemptDetailSchema.parse(
+      unwrapApiData(
+        await http.get<ApiResponse<PaymentAttemptDetail>>(
+          `/api/v1/accounts/${accountId}/payments/attempts/${attemptId}`,
+        ),
+      ),
+    )
+  },
+
+  async webhookHealth(accountId: string): Promise<PaymentWebhookHealth> {
+    return paymentWebhookHealthSchema.parse(
+      unwrapApiData(
+        await http.get<ApiResponse<PaymentWebhookHealth>>(
+          `/api/v1/accounts/${accountId}/payments/webhook-deliveries`,
+        ),
+      ),
+    )
+  },
+
+  async retryWebhook(accountId: string, deliveryId: string): Promise<PaymentWebhookDelivery> {
+    return paymentWebhookDeliverySchema.parse(
+      unwrapApiData(
+        await http.post<ApiResponse<PaymentWebhookDelivery>>(
+          `/api/v1/accounts/${accountId}/payments/webhook-deliveries/${deliveryId}/retry`,
+          {},
+        ),
+      ),
+    )
   },
 
   async sandboxVoid(

@@ -94,11 +94,27 @@ class MediaMutationService
             ...$data,
             'media_source' => $media->media_source ?? 'upload',
             'content_type' => $this->stringValue($switchJson['content_type'] ?? null),
+            'content_length' => $this->positiveInteger($switchJson['content_length'] ?? null),
             'prompt_id' => $this->stringValue($switchJson['prompt_id'] ?? null),
             'source_id' => $this->stringValue($switchJson['source_id'] ?? null),
             'source_type' => $this->stringValue($switchJson['source_type'] ?? null),
             'tts_text' => $this->stringValue($tts['text'] ?? null),
             'tts_voice' => $this->stringValue($tts['voice'] ?? null),
+            'tts_preserved_options' => $this->safePreservedOptions($tts, ['text', 'voice']),
+            'preserved_options' => $this->safePreservedOptions($switchJson, [
+                'id',
+                'name',
+                'description',
+                'language',
+                'media_source',
+                'streamable',
+                'content_type',
+                'content_length',
+                'prompt_id',
+                'source_id',
+                'source_type',
+                'tts',
+            ]),
         ]);
 
         return DB::transaction(function () use ($account, $actor, $ipAddress, $snapshot): SwitchMedia {
@@ -221,5 +237,56 @@ class MediaMutationService
     private function stringValue(mixed $value): ?string
     {
         return is_string($value) && $value !== '' ? $value : null;
+    }
+
+    private function positiveInteger(mixed $value): ?int
+    {
+        return is_int($value) && $value > 0 ? $value : null;
+    }
+
+    /**
+     * @param  array<string, mixed>  $source
+     * @param  list<string>  $modeledKeys
+     * @return array<string, mixed>
+     */
+    private function safePreservedOptions(array $source, array $modeledKeys): array
+    {
+        $preserved = [];
+
+        foreach (array_diff_key($source, array_flip($modeledKeys)) as $key => $value) {
+            if (str_starts_with($key, '_') || str_starts_with($key, 'pvt_')) {
+                continue;
+            }
+
+            if ($value === '[REDACTED]') {
+                continue;
+            }
+
+            $preserved[$key] = is_array($value)
+                ? $this->withoutRedactedValues($value)
+                : $value;
+        }
+
+        return $preserved;
+    }
+
+    /** @param array<array-key, mixed> $source
+     * @return array<array-key, mixed>
+     */
+    private function withoutRedactedValues(array $source): array
+    {
+        $clean = [];
+
+        foreach ($source as $key => $value) {
+            if ($value === '[REDACTED]') {
+                continue;
+            }
+
+            $clean[$key] = is_array($value)
+                ? $this->withoutRedactedValues($value)
+                : $value;
+        }
+
+        return $clean;
     }
 }

@@ -80,8 +80,8 @@ final readonly class ConferenceResourceClient
 
     public function update(string $accountId, string $conferenceId, ConferenceWriteData $conference): ConferenceSnapshot
     {
-        $snapshot = $this->snapshot($this->client->request('POST', $this->path($accountId, $conferenceId), [
-            'json' => ['data' => $conference->toSwitchData()],
+        $snapshot = $this->snapshot($this->client->request('PATCH', $this->path($accountId, $conferenceId), [
+            'json' => ['data' => $conference->toSwitchPatchData()],
         ]));
 
         if ($snapshot->id !== $conferenceId) {

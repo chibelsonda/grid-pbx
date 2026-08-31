@@ -25,6 +25,10 @@ test('keeps sandbox payment mutations disabled without loading provider code', a
   await page.goto('/services')
   await page.getByRole('button', { name: 'View details' }).click()
   await expect(page.getByRole('heading', { name: 'Sandbox payment verification' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Billing documents' })).toBeVisible()
+  await expect(page.getByText('Invoice documents', { exact: true })).toBeVisible()
+  await expect(page.getByText('Receipt documents', { exact: true })).toBeVisible()
+  await expect(page.getByText('Source required')).toHaveCount(2)
 
   const response = await capabilityResponse
   const payload = (await response.json()) as {
@@ -58,6 +62,13 @@ test('keeps sandbox payment mutations disabled without loading provider code', a
     refund: false,
   })
   await expect(page.getByText('Sandbox charging is disabled')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Saved payment profiles' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Webhook reconciliation health' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Recent payment activity' })).toBeVisible()
+  await expect(
+    page.getByText('No account-linked webhook deliveries have been received.'),
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Retry', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Open secure payment form' })).toHaveCount(0)
   await expect(page.locator('iframe[src*="authorize.net"]')).toHaveCount(0)
   expect(mutations).toEqual([])

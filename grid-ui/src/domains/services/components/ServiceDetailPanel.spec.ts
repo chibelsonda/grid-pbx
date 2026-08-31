@@ -4,7 +4,7 @@ import ServiceDetailPanel from './ServiceDetailPanel.vue'
 import type { ServiceOverview } from '../types/service'
 
 describe('ServiceDetailPanel', () => {
-  it('renders safe read-only billing projections without Switch identifiers', () => {
+  it('renders a compact billing handoff without duplicating billing records', () => {
     const overview: ServiceOverview = {
       id: 'summary-public-id',
       standing: { acceptable: true, reason: null },
@@ -39,6 +39,54 @@ describe('ServiceDetailPanel', () => {
           },
         ],
         last_synced_at: null,
+      },
+      documents: {
+        invoices: {
+          available: true,
+          authoritative: true,
+          source: 'legacy_gridpbx_mysql',
+          reported_count: 1,
+          items: [
+            {
+              id: '00000000-0000-4000-8000-000000000020',
+              number: 'INV-100',
+              status: 'open',
+              currency: null,
+              total: '150.50',
+              amount_paid: '50.25',
+              amount_due: '100.25',
+              issued_at: '2026-08-01',
+              due_at: '2026-08-31',
+              document_available: false,
+            },
+          ],
+          guidance: 'Invoice summaries are read from the confirmed legacy billing authority.',
+        },
+        receipts: {
+          available: false,
+          authoritative: false,
+          source: 'unconfigured',
+          items: [],
+          guidance: 'A provider receipt contract has not been approved.',
+        },
+        payment_confirmations: {
+          available: true,
+          authoritative: false,
+          source: 'gridpbx_payment_attempts',
+          guidance: 'These records do not replace an invoice or provider-issued receipt.',
+          items: [
+            {
+              id: 'payment-attempt-public-id',
+              source_attempt_id: null,
+              provider: 'authorize_net',
+              operation: 'charge',
+              amount: '1.00000000',
+              currency: 'USD',
+              status: 'succeeded',
+              completed_at: null,
+            },
+          ],
+        },
       },
       reconciliation: {
         status: 'healthy',
@@ -75,26 +123,28 @@ describe('ServiceDetailPanel', () => {
     }
 
     const wrapper = mount(ServiceDetailPanel, {
-      props: { accountId: 'account-public-id', overview },
+      props: { overview },
       global: {
         stubs: {
           CrudSlideOver: { template: '<div><slot /></div>' },
-          SandboxPaymentPanel: true,
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
         },
       },
     })
 
-    expect(wrapper.text()).toContain('Switch billing activity')
-    expect(wrapper.text()).toContain('Per Minute Voip')
-    expect(wrapper.text()).toContain('Monthly rollup')
-    expect(wrapper.text()).toContain('10.18')
-    expect(wrapper.text()).toContain('Billing reconciliation')
-    expect(wrapper.text()).toContain('8 processed')
-    expect(wrapper.text()).not.toContain('transaction-public-id')
-    expect(wrapper.text()).not.toContain('ledger-public-id')
+    expect(wrapper.text()).toContain('Billing workspace')
+    expect(wrapper.text()).toContain('Recurring9.99')
+    expect(wrapper.text()).toContain('Due today2.5')
+    expect(wrapper.text()).toContain('Invoice groups1')
+    expect(wrapper.text()).toContain('Open billing workspace')
+    expect(wrapper.get('a').attributes('href')).toBe('/billing')
+    expect(wrapper.text()).not.toContain('Switch billing activity')
+    expect(wrapper.text()).not.toContain('Billing documents')
+    expect(wrapper.text()).not.toContain('INV-100')
+    expect(wrapper.text()).not.toContain('Charge confirmed')
   })
 
-  it('explains missing version-specific billing endpoints without offering a mutation', () => {
+  it('links attention states to Billing without exposing diagnostic details', () => {
     const overview = {
       id: 'summary-public-id',
       standing: { acceptable: true, reason: null },
@@ -110,6 +160,30 @@ describe('ServiceDetailPanel', () => {
         ledger_summaries: [],
         transactions: [],
         last_synced_at: null,
+      },
+      documents: {
+        invoices: {
+          available: false as const,
+          authoritative: false as const,
+          source: 'unconfigured' as const,
+          reported_count: 0,
+          items: [],
+          guidance: 'Configure an approved invoice source before documents are shown.',
+        },
+        receipts: {
+          available: false as const,
+          authoritative: false as const,
+          source: 'unconfigured' as const,
+          items: [],
+          guidance: 'A provider receipt contract has not been approved.',
+        },
+        payment_confirmations: {
+          available: true as const,
+          authoritative: false as const,
+          source: 'gridpbx_payment_attempts' as const,
+          items: [],
+          guidance: 'These records do not replace an invoice or provider-issued receipt.',
+        },
       },
       reconciliation: {
         status: 'error' as const,
@@ -146,20 +220,19 @@ describe('ServiceDetailPanel', () => {
     }
 
     const wrapper = mount(ServiceDetailPanel, {
-      props: { accountId: 'account-public-id', overview },
+      props: { overview },
       global: {
         stubs: {
           CrudSlideOver: { template: '<div><slot /></div>' },
-          SandboxPaymentPanel: true,
+          RouterLink: { props: ['to'], template: '<a :href="to"><slot /></a>' },
         },
       },
     })
 
-    expect(wrapper.text()).toContain('did not expose every read-only billing endpoint')
-    expect(wrapper.text()).toContain('no write fallback is attempted')
-    expect(wrapper.text()).toContain('Ledger row count')
-    expect(wrapper.text()).toContain('Expected 2 · Projected 0')
-    expect(wrapper.text()).toContain('Switch authentication prevented')
+    expect(wrapper.text()).toContain('Requires attention')
+    expect(wrapper.text()).toContain('Open billing workspace')
+    expect(wrapper.text()).not.toContain('Ledger row count')
+    expect(wrapper.text()).not.toContain('Switch authentication prevented')
     expect(wrapper.text()).not.toContain('SQLSTATE')
   })
 })

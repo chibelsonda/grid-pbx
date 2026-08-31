@@ -59,7 +59,9 @@ final class MenuResourceClientTest extends TestCase
                 'name' => 'Main menu',
                 'record_pin' => '4826',
                 'flags' => ['external-managed'],
-                'media' => [],
+                'media' => ['vendor_prompt_mode' => 'account-default'],
+                'future_option' => ['nested' => 'keep'],
+                'pvt_secret' => 'discard',
             ]]),
             $this->response(['data' => [
                 'id' => 'menu-1',
@@ -81,7 +83,47 @@ final class MenuResourceClientTest extends TestCase
         self::assertSame('POST', $this->history[1]['request']->getMethod());
         self::assertSame('4826', $body['data']['record_pin']);
         self::assertSame(['external-managed'], $body['data']['flags']);
+        self::assertSame('account-default', $body['data']['media']['vendor_prompt_mode']);
+        self::assertSame('keep', $body['data']['future_option']['nested']);
+        self::assertArrayNotHasKey('pvt_secret', $body['data']);
+        self::assertArrayNotHasKey('id', $body['data']);
         self::assertSame(['external-managed'], $updated->flags);
+    }
+
+    public function test_update_explicitly_clears_a_record_pin_and_keeps_safe_unknown_fields(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'id' => 'menu-1',
+                'name' => 'Main menu',
+                'record_pin' => '4826',
+                'media' => [],
+                'future_option' => true,
+            ]]),
+            $this->response(['data' => [
+                'id' => 'menu-1',
+                'name' => 'Main menu',
+                'media' => [],
+                'future_option' => true,
+            ]]),
+        ]);
+        $client = new MenuResourceClient($switch);
+
+        $client->update('account-1', 'menu-1', new MenuWriteData(
+            name: 'Main menu',
+            clearRecordPin: true,
+        ));
+        $body = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertArrayNotHasKey('record_pin', $body['data']);
+        self::assertTrue($body['data']['future_option']);
+    }
+
+    public function test_menu_write_data_enforces_installed_string_bounds(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new MenuWriteData(name: str_repeat('x', 129));
     }
 
     /** @param list<Response> $responses */

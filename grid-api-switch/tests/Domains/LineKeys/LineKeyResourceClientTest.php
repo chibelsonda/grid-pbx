@@ -29,6 +29,8 @@ final class LineKeyResourceClientTest extends TestCase
         self::assertSame('Yealink', $snapshot->brand);
         self::assertSame('T5', $snapshot->family);
         self::assertCount(2, $snapshot->lineKeys);
+        self::assertNull($snapshot->lineKeys[0]->value);
+        self::assertNull($snapshot->lineKeys[0]->label);
         self::assertSame('Reception', $snapshot->lineKeys[1]->label);
         self::assertSame('GET', $this->history[0]['request']->getMethod());
     }
@@ -40,7 +42,7 @@ final class LineKeyResourceClientTest extends TestCase
             ['data' => $this->deviceData()],
         ]);
         $client->update('account-1', 'device-1', [
-            new LineKeyWriteData('combo', 0, 'line', '1001', 'Reception'),
+            new LineKeyWriteData('combo', 0, 'line'),
             new LineKeyWriteData('feature', 2, 'parking', '3', 'Parking 3'),
         ]);
 
@@ -50,15 +52,43 @@ final class LineKeyResourceClientTest extends TestCase
         self::assertSame([
             'data' => [
                 'name' => 'Reception phone',
+                'vendor_device' => ['managed' => true],
                 'provision' => [
                     'endpoint_brand' => 'Yealink',
                     'endpoint_family' => 'T5',
                     'endpoint_model' => 'T54W',
-                    'combo_keys' => ['0' => ['type' => 'line', 'value' => ['label' => 'Reception', 'value' => '1001']]],
-                    'feature_keys' => ['2' => ['type' => 'parking', 'value' => ['label' => 'Parking 3', 'value' => 3]]],
+                    'vendor_options' => ['theme' => 'dark'],
+                    'combo_keys' => ['0' => [
+                        'vendor_key' => ['color' => 'green'],
+                        'type' => 'line',
+                    ]],
+                    'feature_keys' => ['2' => [
+                        'vendor_key' => ['color' => 'red'],
+                        'type' => 'parking',
+                        'value' => ['vendor_value' => true, 'label' => 'Parking 3', 'value' => 3],
+                    ]],
                 ],
             ],
         ], json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public function test_it_clears_a_modeled_value_without_removing_unknown_key_fields(): void
+    {
+        $client = $this->clientWithPayloads([
+            ['data' => $this->deviceData()],
+            ['data' => $this->deviceData()],
+        ]);
+        $client->update('account-1', 'device-1', [
+            new LineKeyWriteData('combo', 0, 'line'),
+        ]);
+
+        $body = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame([
+            'vendor_key' => ['color' => 'green'],
+            'type' => 'line',
+        ], $body['data']['provision']['combo_keys']['0']);
+        self::assertSame([], $body['data']['provision']['feature_keys']);
     }
 
     public function test_it_rejects_values_that_do_not_match_the_selected_key_type(): void
@@ -75,18 +105,42 @@ final class LineKeyResourceClientTest extends TestCase
         new LineKeyWriteData('feature', 1, 'presence', null, 'Reception');
     }
 
+    public function test_it_rejects_a_line_appearance_on_a_feature_key(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new LineKeyWriteData('feature', 1, 'line');
+    }
+
+    public function test_it_rejects_an_assignment_without_a_required_value(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+
+        new LineKeyWriteData('feature', 1, 'speed_dial');
+    }
+
     /** @return array<string, mixed> */
     private function deviceData(): array
     {
         return [
             'id' => 'device-1',
             'name' => 'Reception phone',
+            'vendor_device' => ['managed' => true],
             'provision' => [
                 'endpoint_brand' => 'Yealink',
                 'endpoint_family' => 'T5',
                 'endpoint_model' => 'T54W',
-                'combo_keys' => ['0' => ['type' => 'line', 'value' => '1001']],
-                'feature_keys' => ['1' => ['type' => 'speed_dial', 'value' => ['label' => 'Reception', 'value' => '1000']]],
+                'vendor_options' => ['theme' => 'dark'],
+                'combo_keys' => ['0' => [
+                    'vendor_key' => ['color' => 'green'],
+                    'type' => 'line',
+                    'value' => '1001',
+                ]],
+                'feature_keys' => ['2' => [
+                    'vendor_key' => ['color' => 'red'],
+                    'type' => 'speed_dial',
+                    'value' => ['vendor_value' => true, 'label' => 'Reception', 'value' => '1000'],
+                ]],
             ],
         ];
     }

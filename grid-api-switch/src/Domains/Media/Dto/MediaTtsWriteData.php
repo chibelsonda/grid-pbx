@@ -8,9 +8,11 @@ use InvalidArgumentException;
 
 final readonly class MediaTtsWriteData
 {
+    /** @param array<string, mixed> $preservedOptions */
     public function __construct(
         public string $text,
         public string $voice,
+        public array $preservedOptions = [],
     ) {
         if (trim($this->text) === '') {
             throw new InvalidArgumentException('Switch media text-to-speech text is required.');
@@ -21,12 +23,12 @@ final readonly class MediaTtsWriteData
         }
     }
 
-    /** @return array{text: string, voice: string} */
+    /** @return array<string, mixed> */
     public function toSwitchData(): array
     {
-        return [
+        return array_merge($this->preservedOptions, [
             'text' => $this->text,
             'voice' => $this->voice,
-        ];
+        ]);
     }
 }

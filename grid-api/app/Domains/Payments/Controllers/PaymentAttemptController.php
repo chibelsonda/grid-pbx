@@ -5,6 +5,7 @@ namespace App\Domains\Payments\Controllers;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\Payments\Models\PaymentAttempt;
+use App\Domains\Payments\Resources\PaymentAttemptDetailResource;
 use App\Domains\Payments\Resources\PaymentAttemptResource;
 use App\Domains\Payments\Services\PaymentAttemptHistoryService;
 use App\Http\Controllers\Controller;
@@ -28,6 +29,23 @@ class PaymentAttemptController extends Controller
 
         return ApiResponse::data(
             PaymentAttemptResource::collection($attempts)->resolve($request),
+        );
+    }
+
+    public function show(
+        Request $request,
+        string $account,
+        string $paymentAttempt,
+        SwitchAccountService $accounts,
+        PaymentAttemptHistoryService $history,
+    ): JsonResponse {
+        /** @var User $user */ $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        Gate::authorize('view', [PaymentAttempt::class, $switchAccount]);
+        $attempt = $history->detail($switchAccount, $paymentAttempt);
+
+        return ApiResponse::data(
+            (new PaymentAttemptDetailResource($attempt))->resolve($request),
         );
     }
 }

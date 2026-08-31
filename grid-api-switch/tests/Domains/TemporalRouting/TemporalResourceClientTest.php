@@ -73,6 +73,35 @@ final class TemporalResourceClientTest extends TestCase
         self::assertSame(['data' => ['enabled' => null]], json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
     }
 
+    public function test_resource_edits_use_recursive_patch_and_explicitly_clear_managed_schedule_fields(): void
+    {
+        $rule = new TemporalRuleResourceClient($this->switchWithResponses([
+            $this->response(['data' => ['id' => 'rule-1', 'name' => 'Business hours', 'cycle' => 'daily']]),
+        ]));
+        $rule->update('account-1', 'rule-1', new TemporalRuleWriteData(name: 'Business hours', cycle: 'daily'));
+        $ruleRequest = $this->history[0]['request'];
+        $ruleBody = json_decode((string) $ruleRequest->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('PATCH', $ruleRequest->getMethod());
+        self::assertArrayHasKey('start_date', $ruleBody['data']);
+        self::assertNull($ruleBody['data']['start_date']);
+        self::assertNull($ruleBody['data']['days']);
+        self::assertNull($ruleBody['data']['wdays']);
+        self::assertArrayNotHasKey('enabled', $ruleBody['data']);
+        self::assertArrayNotHasKey('flags', $ruleBody['data']);
+
+        $set = new TemporalRuleSetResourceClient($this->switchWithResponses([
+            $this->response(['data' => ['id' => 'set-1', 'name' => 'Office schedule', 'temporal_rules' => ['rule-1']]]),
+        ]));
+        $set->update('account-1', 'set-1', new TemporalRuleSetWriteData('Office schedule', ['rule-1']));
+        $setRequest = $this->history[0]['request'];
+        $setBody = json_decode((string) $setRequest->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('PATCH', $setRequest->getMethod());
+        self::assertSame(['rule-1'], $setBody['data']['temporal_rules']);
+        self::assertArrayNotHasKey('flags', $setBody['data']);
+    }
+
     public function test_guided_temporal_callflow_uses_rule_set_payload_key(): void
     {
         $data = (new CallflowCreateData('Office routing', 'temporal_route', 'set-1', ['+15550001000']))->toSwitchData();

@@ -3,11 +3,12 @@ import { useConferenceForm } from './useConferenceForm'
 
 describe('useConferenceForm', () => {
   it('normalizes access numbers and nullable profile fields', () => {
-    const { form, numbers, validate } = useConferenceForm(null)
+    const { form, numbers, pins, validate } = useConferenceForm(null)
     form.name = '  Daily standup  '
     form.profile_name = '  '
     numbers.conference = '7000, 7000 7002'
     numbers.member = '7001'
+    pins.member = '1234, 5678 1234'
 
     expect(validate()).toEqual({
       success: true,
@@ -16,6 +17,7 @@ describe('useConferenceForm', () => {
         conference_numbers: ['7000', '7002'],
         member_numbers: ['7001'],
         moderator_numbers: [],
+        member_pins: ['1234', '5678'],
         profile_name: null,
       }),
       errors: {},
@@ -23,17 +25,16 @@ describe('useConferenceForm', () => {
   })
 
   it('reports invalid names, numbers, pins, and participant limits', () => {
-    const { form, numbers, validate } = useConferenceForm(null)
+    const { form, numbers, pins, validate } = useConferenceForm(null)
     numbers.member = 'member-1'
-    form.member_pin = '12ab'
+    pins.member = '12ab'
     form.max_participants = 0
 
     const result = validate()
 
     expect(result.success).toBe(false)
     expect(Object.keys(result.errors)).toEqual(
-      expect.arrayContaining(['name', 'member_numbers.0', 'member_pin', 'max_participants']),
+      expect.arrayContaining(['name', 'member_numbers.0', 'member_pins.0', 'max_participants']),
     )
   })
 })
-

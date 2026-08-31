@@ -3,9 +3,11 @@ import { defineStore } from 'pinia'
 import { paymentApi } from '../api/paymentApi'
 import type {
   PaymentAttempt,
+  PaymentAttemptDetail,
   PaymentCapability,
   PaymentCustomerProfile,
   PaymentOpaqueData,
+  PaymentWebhookHealth,
 } from '../types/payment'
 
 const errorMessage = (error: unknown, fallback: string): string =>
@@ -15,22 +17,32 @@ export const usePaymentStore = defineStore('payments', {
   state: () => ({
     capability: null as PaymentCapability | null,
     attempts: [] as PaymentAttempt[],
+    attemptDetails: {} as Record<string, PaymentAttemptDetail>,
+    customerProfiles: [] as PaymentCustomerProfile[],
     customerProfile: null as PaymentCustomerProfile | null,
     latestAttempt: null as PaymentAttempt | null,
+    webhookHealth: null as PaymentWebhookHealth | null,
     loading: false,
     charging: false,
     operating: false,
+    loadingAttemptId: null as string | null,
+    recoveringWebhookId: null as string | null,
     error: null as string | null,
   }),
   actions: {
     reset(): void {
       this.capability = null
       this.attempts = []
+      this.attemptDetails = {}
+      this.customerProfiles = []
       this.customerProfile = null
       this.latestAttempt = null
+      this.webhookHealth = null
       this.loading = false
       this.charging = false
       this.operating = false
+      this.loadingAttemptId = null
+      this.recoveringWebhookId = null
       this.error = null
     },
     async loadCapability(accountId: string): Promise<void> {
@@ -50,6 +62,60 @@ export const usePaymentStore = defineStore('payments', {
         this.attempts = await paymentApi.attempts(accountId)
       } catch (error) {
         this.error = errorMessage(error, 'Unable to load recent payment attempts.')
+      }
+    },
+    async loadAttempt(accountId: string, attemptId: string): Promise<boolean> {
+      this.loadingAttemptId = attemptId
+      this.error = null
+
+      try {
+        this.attemptDetails[attemptId] = await paymentApi.attempt(accountId, attemptId)
+
+        return true
+      } catch (error) {
+        this.error = errorMessage(error, 'Unable to load the payment attempt timeline.')
+
+        return false
+      } finally {
+        this.loadingAttemptId = null
+      }
+    },
+    async loadProfiles(accountId: string): Promise<void> {
+      try {
+        this.customerProfiles = await paymentApi.profiles(accountId)
+      } catch (error) {
+        this.error = errorMessage(error, 'Unable to load saved payment profiles.')
+      }
+    },
+    async loadWebhookHealth(accountId: string): Promise<void> {
+      try {
+        this.webhookHealth = await paymentApi.webhookHealth(accountId)
+      } catch (error) {
+        this.error = errorMessage(error, 'Unable to load webhook reconciliation health.')
+      }
+    },
+    async retryWebhook(accountId: string, deliveryId: string): Promise<boolean> {
+      this.recoveringWebhookId = deliveryId
+      this.error = null
+
+      try {
+        const delivery = await paymentApi.retryWebhook(accountId, deliveryId)
+
+        if (this.webhookHealth) {
+          this.webhookHealth.deliveries = this.webhookHealth.deliveries.map((existing) =>
+            existing.id === delivery.id ? delivery : existing,
+          )
+        }
+
+        await Promise.all([this.loadWebhookHealth(accountId), this.loadAttempts(accountId)])
+
+        return true
+      } catch (error) {
+        this.error = errorMessage(error, 'Webhook reconciliation could not be retried.')
+
+        return false
+      } finally {
+        this.recoveringWebhookId = null
       }
     },
     async sandboxCharge(
@@ -136,6 +202,14 @@ export const usePaymentStore = defineStore('payments', {
         )
         this.latestAttempt = outcome.attempt
         this.customerProfile = outcome.profile
+        const createdProfile = outcome.profile
+
+        if (createdProfile) {
+          this.customerProfiles = [
+            createdProfile,
+            ...this.customerProfiles.filter((profile) => profile.id !== createdProfile.id),
+          ]
+        }
         await this.loadAttempts(accountId)
 
         return true

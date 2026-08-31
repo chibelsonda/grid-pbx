@@ -4,6 +4,7 @@ namespace App\Domains\Conferences\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class SaveConferenceRequest extends FormRequest
 {
@@ -24,9 +25,11 @@ class SaveConferenceRequest extends FormRequest
             'member_numbers.*' => ['string', 'regex:/^[0-9]+$/', 'max:32', 'distinct'],
             'moderator_numbers' => ['present', 'array', 'max:20'],
             'moderator_numbers.*' => ['string', 'regex:/^[0-9]+$/', 'max:32', 'distinct'],
-            'member_pin' => ['nullable', 'string', 'regex:/^[0-9]{1,32}$/', Rule::prohibitedIf($this->boolean('clear_member_pin'))],
+            'member_pins' => ['present', 'array', 'max:20'],
+            'member_pins.*' => ['string', 'regex:/^[0-9]{1,32}$/', 'distinct'],
             'clear_member_pin' => ['required', 'boolean'],
-            'moderator_pin' => ['nullable', 'string', 'regex:/^[0-9]{1,32}$/', Rule::prohibitedIf($this->boolean('clear_moderator_pin'))],
+            'moderator_pins' => ['present', 'array', 'max:20'],
+            'moderator_pins.*' => ['string', 'regex:/^[0-9]{1,32}$/', 'distinct'],
             'clear_moderator_pin' => ['required', 'boolean'],
             'member_join_muted' => ['required', 'boolean'],
             'member_join_deaf' => ['required', 'boolean'],
@@ -48,5 +51,17 @@ class SaveConferenceRequest extends FormRequest
             'play_exit_tone_mode' => ['required', Rule::in(['enabled', 'disabled', 'media', 'current_custom'])],
             'play_exit_tone_media_id' => ['nullable', 'uuid', 'required_if:play_exit_tone_mode,media'],
         ];
+    }
+
+    /** @return array<int, callable(Validator): void> */
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            foreach (['member', 'moderator'] as $role) {
+                if ($this->boolean("clear_{$role}_pin") && $this->input("{$role}_pins", []) !== []) {
+                    $validator->errors()->add("{$role}_pins", ucfirst($role).' PINs cannot be replaced and removed together.');
+                }
+            }
+        }];
     }
 }

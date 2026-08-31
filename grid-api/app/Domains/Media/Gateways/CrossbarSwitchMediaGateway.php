@@ -96,12 +96,22 @@ class CrossbarSwitchMediaGateway implements SwitchMediaGateway
             streamable: (bool) ($data['streamable'] ?? true),
             language: isset($data['language']) ? (string) $data['language'] : null,
             contentType: isset($data['content_type']) ? (string) $data['content_type'] : null,
+            contentLength: isset($data['content_length']) ? (int) $data['content_length'] : null,
             promptId: isset($data['prompt_id']) ? (string) $data['prompt_id'] : null,
             sourceId: isset($data['source_id']) ? (string) $data['source_id'] : null,
             sourceType: isset($data['source_type']) ? (string) $data['source_type'] : null,
             tts: $ttsText !== null && $ttsVoice !== null
-                ? new MediaTtsWriteData($ttsText, $ttsVoice)
+                ? new MediaTtsWriteData(
+                    $ttsText,
+                    $ttsVoice,
+                    is_array($data['tts_preserved_options'] ?? null)
+                        ? $data['tts_preserved_options']
+                        : [],
+                )
                 : null,
+            preservedOptions: is_array($data['preserved_options'] ?? null)
+                ? $data['preserved_options']
+                : [],
         );
     }
 }

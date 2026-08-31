@@ -40,20 +40,29 @@ const timezoneOptions = computed(() => {
 
   return [
     { value: '', label: 'Use Switch default' },
-    ...[...new Set([form.timezone, 'UTC', ...supported].filter(Boolean))].map((value) => ({
+    ...[...new Set([form.timezone, 'Etc/UTC', ...supported].filter(Boolean))].map((value) => ({
       value,
       label: value,
     })),
   ]
 })
-const languageOptions = [
+const languageLabels: Record<string, string> = {
+  'en-US': 'English (United States)',
+  'en-GB': 'English (United Kingdom)',
+  'es-US': 'Spanish (United States)',
+  'fr-FR': 'French',
+  'de-DE': 'German',
+  'ru-RU': 'Russian',
+}
+const languageOptions = computed(() => [
   { value: '', label: 'Use Switch default' },
-  { value: 'en-US', label: 'English (United States)' },
-  { value: 'en-GB', label: 'English (United Kingdom)' },
-  { value: 'es-US', label: 'Spanish (United States)' },
-  { value: 'fr-FR', label: 'French' },
-]
+  ...[...new Set([form.language, ...Object.keys(languageLabels)].filter(Boolean))].map((value) => ({
+    value,
+    label: languageLabels[value] ?? value,
+  })),
+])
 const privacyOptions = [
+  { value: null, label: 'Use Switch default' },
   { value: 'none', label: 'Show name and number' },
   { value: 'name', label: 'Hide name' },
   { value: 'number', label: 'Hide number' },
@@ -143,12 +152,14 @@ function selectRestriction(key: string, value: ListboxValue): void {
             v-model="form.name"
             label="Account name"
             class="sm:col-span-2"
+            maxlength="128"
             :error="fieldError('name')"
           />
           <FormInput
             v-model="form.organization_name"
             label="Legal organization"
             class="sm:col-span-2"
+            maxlength="255"
             :error="fieldError('organization_name')"
           />
           <label class="grid gap-2">
@@ -212,11 +223,13 @@ function selectRestriction(key: string, value: ListboxValue): void {
           <FormInput
             v-model="form.ringtone_internal"
             label="Internal ringtone"
+            maxlength="256"
             :error="fieldError('ringtone_internal')"
           />
           <FormInput
             v-model="form.ringtone_external"
             label="External ringtone"
+            maxlength="256"
             :error="fieldError('ringtone_external')"
           />
         </div>

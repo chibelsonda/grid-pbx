@@ -59,8 +59,8 @@
           "id": "yealink_t5x",
           "name": "T5 Series",
           "models": {
-            "t54w": { "id": "yealink_t5x_t54w", "name": "T54W", "max_keys": 10, "max_expansion_modules": 3, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"], "value_sources": ["extensions", "devices"] },
-            "t57w": { "id": "yealink_t5x_t57w", "name": "T57W", "max_keys": 29, "max_expansion_modules": 3, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"], "value_sources": ["extensions", "devices"] }
+            "t54w": { "id": "yealink_t5x_t54w", "name": "T54W", "max_keys": 10, "max_expansion_modules": 3, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"], "value_sources": ["extensions"] },
+            "t57w": { "id": "yealink_t5x_t57w", "name": "T57W", "max_keys": 29, "max_expansion_modules": 3, "keys_per_expansion_module": 20, "supported_key_types": ["line", "presence", "speed_dial", "personal_parking", "parking"], "value_sources": ["extensions"] }
           }
         }
       }

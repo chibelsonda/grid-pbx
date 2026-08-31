@@ -142,7 +142,7 @@ class AccountControllerTest extends TestCase
             ->once()
             ->withArgs(fn (SwitchAccount $received, array $data): bool => $received->is($account)
                 && $data['name'] === 'Grid Support'
-                && $data['outbound_privacy'] === 'number'
+                && $data['outbound_privacy'] === null
                 && $data['caller_id']['external']['number'] === '+15550001000'
                 && $data['caller_id']['emergency']['number'] === '+15550001911'
                 && $data['call_restriction']['international']['action'] === 'deny'
@@ -159,6 +159,7 @@ class AccountControllerTest extends TestCase
                 && ! array_key_exists('phone_number_id', $data['caller_id']['external']))
             ->andReturn($this->accountSnapshot([
                 'password' => 'must-not-be-stored',
+                'caller_id_options' => ['outbound_privacy' => null],
                 'call_restriction' => ['international' => ['action' => 'deny']],
                 'call_recording' => [
                     'account' => [
@@ -214,7 +215,7 @@ class AccountControllerTest extends TestCase
             'language' => 'en-US',
             'call_waiting_enabled' => false,
             'do_not_disturb_enabled' => true,
-            'outbound_privacy' => 'number',
+            'outbound_privacy' => null,
             'show_rate' => true,
             'ringtone_internal' => 'ring-1',
             'ringtone_external' => 'ring-2',
@@ -287,6 +288,7 @@ class AccountControllerTest extends TestCase
         $response->assertOk()
             ->assertJsonPath('data.name', 'Grid Support')
             ->assertJsonPath('data.configuration.do_not_disturb_enabled', true)
+            ->assertJsonPath('data.configuration.outbound_privacy', null)
             ->assertJsonPath('data.projection.status', 'synced')
             ->assertJsonPath('data.projection.version', 1)
             ->assertJsonPath('data.permissions.can_manage_settings', true)
@@ -400,11 +402,13 @@ class AccountControllerTest extends TestCase
 
         $this->actingAs($user)->putJson("/api/v1/accounts/{$account->id}", [
             'name' => '',
+            'timezone' => 'UTC',
+            'ringtone_internal' => str_repeat('r', 257),
             'call_waiting_enabled' => true,
             'do_not_disturb_enabled' => false,
             'outbound_privacy' => 'secret',
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['name', 'outbound_privacy'])
+            ->assertJsonValidationErrors(['name', 'timezone', 'ringtone_internal', 'outbound_privacy'])
             ->assertJsonPath('errors.name.0', 'Enter an account name.')
             ->assertJsonPath('errors.outbound_privacy.0', 'Select a valid outbound privacy policy.');
     }

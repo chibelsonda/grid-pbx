@@ -224,7 +224,13 @@ export type DeviceInput = {
   call_forward?: Pick<
     DeviceConfiguration['call_forward'],
     'enabled' | 'number' | 'keep_caller_id' | 'require_keypress'
-  >
+  > &
+    Partial<
+      Pick<
+        DeviceConfiguration['call_forward'],
+        'direct_calls_only' | 'failover' | 'ignore_early_media' | 'substitute'
+      >
+    >
   sip?: DeviceSipInput
   media?: DeviceConfiguration['media'] | Pick<DeviceConfiguration['media'], 'fax_option'>
   caller_id?: DeviceConfiguration['caller_id']

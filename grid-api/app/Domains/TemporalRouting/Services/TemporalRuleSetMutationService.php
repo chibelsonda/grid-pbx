@@ -48,7 +48,6 @@ class TemporalRuleSetMutationService
     public function update(SwitchAccount $account, SwitchTemporalRuleSet $set, User $actor, array $data, ?string $ip = null): SwitchTemporalRuleSet
     {
         $resolved = $this->resolve($account, $data);
-        $resolved['flags'] = $this->flags($set->switch_json);
         $previous = ['name' => $set->name, 'switch_rule_ids' => $set->rules()->orderBy('position')->pluck('switch_rule_resource_id')->all(), 'flags' => $this->flags($set->switch_json)];
         try {
             $snapshot = $this->gateway->update($account, $set->switch_resource_id, $resolved);

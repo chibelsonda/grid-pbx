@@ -62,6 +62,8 @@ describe('VoicemailBoxFormPage', () => {
 
     const wrapper = mountPage()
 
+    expect(wrapper.findAll('[role="tab"]').map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
+
     await wrapper.get('form').trigger('submit')
 
     const name = wrapper.get('input[placeholder="Reception voicemail"]')

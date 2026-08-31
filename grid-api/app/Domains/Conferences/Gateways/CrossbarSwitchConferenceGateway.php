@@ -40,8 +40,8 @@ class CrossbarSwitchConferenceGateway implements SwitchConferenceGateway
         return new ConferenceWriteData(
             name: (string) $data['name'], ownerId: $data['switch_owner_reference'] ?? null,
             conferenceNumbers: $data['conference_numbers'], memberNumbers: $data['member_numbers'],
-            moderatorNumbers: $data['moderator_numbers'], memberPin: $data['member_pin'] ?? null,
-            clearMemberPin: (bool) $data['clear_member_pin'], moderatorPin: $data['moderator_pin'] ?? null,
+            moderatorNumbers: $data['moderator_numbers'], memberPins: $data['member_pins'],
+            clearMemberPin: (bool) $data['clear_member_pin'], moderatorPins: $data['moderator_pins'],
             clearModeratorPin: (bool) $data['clear_moderator_pin'], memberJoinMuted: (bool) $data['member_join_muted'],
             memberJoinDeaf: (bool) $data['member_join_deaf'], memberPlayEntryPrompt: (bool) $data['member_play_entry_prompt'],
             moderatorJoinMuted: (bool) $data['moderator_join_muted'], moderatorJoinDeaf: (bool) $data['moderator_join_deaf'],

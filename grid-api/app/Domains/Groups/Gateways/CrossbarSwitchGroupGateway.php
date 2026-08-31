@@ -47,6 +47,9 @@ class CrossbarSwitchGroupGateway implements SwitchGroupGateway
             ), $data['resolved_members']),
             musicOnHoldMediaId: $data['switch_music_on_hold_media_id'] ?? null,
             flags: $data['switch_flags'] ?? [],
+            preservedOptions: is_array($data['switch_preserved_options'] ?? null)
+                ? $data['switch_preserved_options']
+                : [],
         );
     }
 }

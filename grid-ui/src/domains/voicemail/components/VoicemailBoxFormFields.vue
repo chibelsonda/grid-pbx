@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import {
   EnvelopeIcon,
   KeyIcon,
@@ -8,6 +8,7 @@ import {
   SparklesIcon,
 } from '@heroicons/vue/24/outline'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelector.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import FormTextarea from '@/shared/components/FormTextarea.vue'
@@ -44,6 +45,7 @@ const callbackSchedule = defineModel<string>('callbackSchedule', { required: tru
 const notificationCallback = defineModel<VoicemailNotificationCallback>('notificationCallback', {
   required: true,
 })
+const selectedTab = ref(0)
 
 const { timezoneOptions, extensionOptions } = useVoicemailFormOptions(
   () => props.options,
@@ -53,6 +55,16 @@ const { timezoneOptions, extensionOptions } = useVoicemailFormOptions(
 
 const transcriptionUnavailable = computed(
   () => props.options.capabilities.voicemail_transcription.runtime_available === false,
+)
+const basicFields = ['name', 'mailbox', 'timezone', 'assigned_extension_id', 'pin'] as const
+
+watch(
+  () => props.fieldErrors,
+  (errors) => {
+    if (Object.keys(errors).length === 0) return
+    selectedTab.value = basicFields.some((field) => errors[field]?.length) ? 0 : 1
+  },
+  { deep: true },
 )
 
 watch(
@@ -75,9 +87,10 @@ function fieldError(field: string): string | null {
 </script>
 
 <template>
+  <BasicAdvancedTabSelector v-model="selectedTab" />
   <div class="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
     <div class="grid content-start gap-5">
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <span class="grid size-9 place-items-center rounded-md bg-brand-50 text-brand-600">
             <MicrophoneIcon class="size-5" />
@@ -130,7 +143,7 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedTab === 1" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <EnvelopeIcon class="size-5 text-emerald-500" />
           <div>
@@ -149,7 +162,7 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <DisclosureCard title="Advanced notification delivery">
+      <DisclosureCard v-show="selectedTab === 1" title="Advanced notification delivery">
         <div class="grid gap-4 sm:grid-cols-2">
           <label class="grid gap-2 sm:col-span-2">
             <span class="text-xs font-semibold text-slate-600">Voicemail audio format</span>
@@ -199,7 +212,7 @@ function fieldError(field: string): string | null {
         </div>
       </DisclosureCard>
 
-      <DisclosureCard title="Callback notification">
+      <DisclosureCard v-show="selectedTab === 1" title="Callback notification">
         <div class="grid gap-4">
           <ToggleSwitch
             v-model="callbackConfigured"
@@ -255,7 +268,11 @@ function fieldError(field: string): string | null {
     </div>
 
     <div class="grid content-start gap-5">
-      <article v-if="showAssignment" class="card-surface overflow-hidden">
+      <article
+        v-if="showAssignment"
+        v-show="selectedTab === 0"
+        class="card-surface overflow-hidden"
+      >
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <LinkIcon class="size-5 text-blue-500" />
           <h2 class="text-sm font-semibold text-slate-700">Assignment</h2>
@@ -273,7 +290,7 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedTab === 1" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <SparklesIcon class="size-5 text-violet-500" />
           <h2 class="text-sm font-semibold text-slate-700">Features</h2>
@@ -292,8 +309,8 @@ function fieldError(field: string): string | null {
             v-if="transcriptionUnavailable"
             class="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-[10px] leading-4 text-red-800"
           >
-            Voicemail transcription is unavailable on this Switch cluster. Configure an ASR
-            provider before enabling it.
+            Voicemail transcription is unavailable on this Switch cluster. Configure an ASR provider
+            before enabling it.
           </p>
           <p
             v-else-if="options.capabilities.voicemail_transcription.runtime_available === null"
@@ -329,7 +346,7 @@ function fieldError(field: string): string | null {
         </div>
       </article>
 
-      <DisclosureCard title="Playback behavior">
+      <DisclosureCard v-show="selectedTab === 1" title="Playback behavior">
         <div class="grid gap-3">
           <ToggleSwitch
             v-for="control in [
@@ -359,7 +376,7 @@ function fieldError(field: string): string | null {
         </div>
       </DisclosureCard>
 
-      <article class="card-surface overflow-hidden">
+      <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <KeyIcon class="size-5 text-amber-500" />
           <div>

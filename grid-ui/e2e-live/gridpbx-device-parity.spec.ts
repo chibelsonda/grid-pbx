@@ -37,16 +37,16 @@ test('reorders codec priority without using the desktop pointer', async ({ page 
   await expect(priorities).toHaveText(['PCMA', 'PCMU'])
 })
 
-test('does not expose non-Kazoo routing editors in Device Options', async ({ page }) => {
+test('exposes schema-backed routing editors in Device Options', async ({ page }) => {
   await page.goto('/devices')
   await page.getByRole('link', { name: 'Add device' }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: 'Options', exact: true }).click()
 
-  await expect(page.getByRole('button', { name: 'Metaflows and hotdesk' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Custom SIP headers' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Dial plan' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'General flags and formatters' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Metaflows and hotdesk' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Custom SIP headers' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Dial plan' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'General flags and formatters' })).toBeVisible()
 })
 
 test('shows the dedicated hotdesk panel on an existing device', async ({ page }) => {
@@ -60,9 +60,7 @@ test('shows the dedicated hotdesk panel on an existing device', async ({ page })
   await expect(page.getByText(/without exposing Switch IDs/)).toBeVisible()
 })
 
-test('keeps the final restriction menu visible inside the viewport', async ({
-  page,
-}) => {
+test('keeps the final restriction menu visible inside the viewport', async ({ page }) => {
   await page.goto('/devices')
   await page.getByRole('link', { name: 'Add device' }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
@@ -114,7 +112,7 @@ test('uses the connected Device schema and reports provisioning discovery state'
   await expect(page.getByText('Strip leading +', { exact: true })).toHaveCount(0)
 
   await page.getByRole('tab', { name: 'Options', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Provisioning events' })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Provisioning events' })).toBeVisible()
 })
 
 test('shows notify when unregistered in Basic without duplicating it in Advanced Options', async ({
@@ -207,12 +205,11 @@ test('matches Cellphone and Landline forwarding workflows', async ({ page }) => 
     await expect(page.getByRole('switch', { name: 'Hide from contact list' })).toBeVisible()
     await expect(page.getByRole('switch', { name: 'Enable call forwarding' })).toHaveCount(0)
     await expect(page.getByText('Forwarding number', { exact: true })).toHaveCount(0)
-    await expect(page.getByRole('switch', { name: 'Direct calls only' })).toHaveCount(0)
-
-    await expect(page.getByRole('button', { name: /Advanced forwarding/ })).toHaveCount(0)
-    await expect(page.getByRole('switch', { name: 'Forward only when offline' })).toHaveCount(0)
-    await expect(page.getByRole('switch', { name: 'Ignore early media' })).toHaveCount(0)
-    await expect(page.getByRole('switch', { name: 'Replace this device' })).toHaveCount(0)
+    await page.getByRole('button', { name: /Advanced forwarding/ }).click()
+    await expect(page.getByRole('switch', { name: 'Direct calls only' })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Forward only when offline' })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Ignore early media' })).toBeVisible()
+    await expect(page.getByRole('switch', { name: 'Replace this device' })).toBeVisible()
   }
 })
 

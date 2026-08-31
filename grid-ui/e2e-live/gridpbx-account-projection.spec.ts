@@ -183,6 +183,8 @@ test('shows the safe account projection and explicit settings boundaries', async
   await expect(page.getByText('1 unsupported or unprojected action tree(s)')).toBeVisible()
   await page.getByRole('button', { name: 'Account preflow' }).click()
   await page.getByRole('option', { name: /Main inbound route/ }).click()
+  await page.getByRole('button', { name: 'Outbound caller privacy' }).click()
+  await page.getByRole('option', { name: 'Use Switch default' }).click()
   await page.getByRole('switch', { name: 'Off-net' }).first().click()
   const name = page.getByRole('textbox', { name: 'Account name' })
   await name.fill('')
@@ -195,7 +197,7 @@ test('shows the safe account projection and explicit settings boundaries', async
   expect(updatePayload).toMatchObject({
     name: 'Grid Operations',
     timezone: 'Asia/Manila',
-    outbound_privacy: 'none',
+    outbound_privacy: null,
     caller_id: {
       external: {
         phone_number_id: '10000000-0000-4000-8000-000000000001',

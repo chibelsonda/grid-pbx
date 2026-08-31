@@ -2,11 +2,15 @@ import { z } from 'zod'
 import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
 import { metaflowSettingsSchema } from '@/shared/switch/metaflows/schema'
 
-const optionalText = (maximum: number) =>
+const optionalText = (maximum: number, minimum = 0) =>
   z
     .string()
     .trim()
     .max(maximum)
+    .refine(
+      (value) => value === '' || value.length >= minimum,
+      `Enter at least ${minimum} characters.`,
+    )
     .transform((value) => value || null)
 const optionalRegex = (maximum: number) =>
   z
@@ -56,14 +60,14 @@ export const accountSettingsSchema = z
   .object({
     name: z.string().trim().min(1, 'Enter an account name.').max(128),
     organization_name: optionalText(255),
-    timezone: optionalText(64),
+    timezone: optionalText(32, 5),
     language: optionalText(32),
     call_waiting_enabled: z.boolean(),
     do_not_disturb_enabled: z.boolean(),
-    outbound_privacy: z.enum(['full', 'name', 'number', 'none']),
+    outbound_privacy: z.enum(['full', 'name', 'number', 'none']).nullable(),
     show_rate: z.boolean(),
-    ringtone_internal: optionalText(255),
-    ringtone_external: optionalText(255),
+    ringtone_internal: optionalText(256),
+    ringtone_external: optionalText(256),
     caller_id: z.object({
       internal: z.object({ name: optionalText(35), number: optionalText(35) }),
       external: z.object({

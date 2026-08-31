@@ -36,22 +36,86 @@ describe('DeviceAdvancedSettings', () => {
     expect(tabs).toEqual(expectedTabs)
   })
 
-  it.each<[DeviceType, string[]]>([
+  it.each<[DeviceType, string[], boolean, boolean]>([
     [
       'sip_device',
-      ['Enable T.38 fax', 'Hide from contact list', 'Ignore completed elsewhere'],
+      [
+        'Call waiting',
+        'Do not disturb',
+        'Exclude from queues',
+        'Enable T.38 fax',
+        'Hide from contact list',
+        'Ignore completed elsewhere',
+      ],
+      true,
+      true,
     ],
-    ['cellphone', ['Require keypress', 'Keep original caller ID', 'Hide from contact list']],
-    ['smartphone', ['Require keypress', 'Keep original caller ID', 'Hide from contact list']],
+    [
+      'cellphone',
+      ['Require keypress', 'Keep original caller ID', 'Hide from contact list'],
+      false,
+      false,
+    ],
+    [
+      'smartphone',
+      [
+        'Require keypress',
+        'Keep original caller ID',
+        'Call waiting',
+        'Do not disturb',
+        'Exclude from queues',
+        'Hide from contact list',
+      ],
+      true,
+      false,
+    ],
     [
       'softphone',
-      ['Enable T.38 fax', 'Hide from contact list', 'Ignore completed elsewhere'],
+      [
+        'Call waiting',
+        'Do not disturb',
+        'Exclude from queues',
+        'Enable T.38 fax',
+        'Hide from contact list',
+        'Ignore completed elsewhere',
+      ],
+      true,
+      true,
     ],
-    ['landline', ['Require keypress', 'Keep original caller ID', 'Hide from contact list']],
-    ['fax', ['Enable T.38 fax', 'Hide from contact list']],
-    ['ata', ['Enable T.38 fax', 'Hide from contact list']],
-    ['sip_uri', ['Hide from contact list']],
-  ])('shows the exact Kazoo Options toggles for %s', async (deviceType, expectedLabels) => {
+    [
+      'landline',
+      ['Require keypress', 'Keep original caller ID', 'Hide from contact list'],
+      false,
+      false,
+    ],
+    [
+      'fax',
+      [
+        'Call waiting',
+        'Do not disturb',
+        'Exclude from queues',
+        'Enable T.38 fax',
+        'Hide from contact list',
+      ],
+      true,
+      false,
+    ],
+    [
+      'ata',
+      [
+        'Call waiting',
+        'Do not disturb',
+        'Exclude from queues',
+        'Enable T.38 fax',
+        'Hide from contact list',
+      ],
+      true,
+      false,
+    ],
+    ['sip_uri', ['Hide from contact list'], false, false],
+  ])(
+    'shows the schema-backed Options capabilities for %s',
+    async (deviceType, expectedLabels, advancedRouting, recording) => {
       const wrapper = mount(DeviceAdvancedSettings, {
         props: {
           modelValue: defaultDeviceConfiguration(),
@@ -72,15 +136,53 @@ describe('DeviceAdvancedSettings', () => {
         .find((tab) => tab.text() === 'Options')
         ?.trigger('click')
 
-      expect(wrapper.findAllComponents(ToggleSwitch).map((toggle) => toggle.props('label'))).toEqual(
-        expectedLabels,
-      )
-      expect(wrapper.text()).not.toContain('Call waiting')
-      expect(wrapper.text()).not.toContain('Do not disturb')
-      expect(wrapper.text()).not.toContain('Call recording')
-      expect(wrapper.text()).not.toContain('Routing and endpoint behavior')
+      expect(
+        wrapper.findAllComponents(ToggleSwitch).map((toggle) => toggle.props('label')),
+      ).toEqual(expect.arrayContaining(expectedLabels))
+      expect(wrapper.text().includes('Call recording')).toBe(recording)
+      expect(wrapper.text().includes('Routing and endpoint behavior')).toBe(advancedRouting)
       expect(wrapper.text().includes('Ringtone headers')).toBe(deviceType === 'sip_device')
-    })
+    },
+  )
+
+  it.each(['cellphone', 'landline', 'smartphone'] as const)(
+    'shows current-schema forwarding fields for %s',
+    async (deviceType) => {
+      const wrapper = mount(DeviceAdvancedSettings, {
+        props: {
+          modelValue: defaultDeviceConfiguration(),
+          deviceType,
+          fieldErrors: {},
+          firstErrorField: null,
+          isEditing: false,
+          restrictionOptions: [],
+          mediaOptions: [],
+          schemaCompatibility: legacyDeviceSchemaCompatibility,
+        },
+        global: { components: { ToggleSwitch } },
+      })
+
+      await wrapper
+        .findAll('[role="tab"]')
+        .find((tab) => tab.text() === 'Options')
+        ?.trigger('click')
+      await wrapper
+        .findAll('button')
+        .find((button) => button.text() === 'Advanced forwarding')
+        ?.trigger('click')
+
+      expect(
+        wrapper.findAllComponents(ToggleSwitch).map((toggle) => toggle.props('label')),
+      ).toEqual(
+        expect.arrayContaining([
+          'Direct calls only',
+          'Forward only when offline',
+          'Ignore early media',
+          'Replace this device',
+        ]),
+      )
+    },
+  )
 
   it('matches the minimal Kazoo SIP URI Options workflow', async () => {
     const wrapper = mount(DeviceAdvancedSettings, {
@@ -136,7 +238,10 @@ describe('DeviceAdvancedSettings', () => {
         global: { components: { ToggleSwitch } },
       })
 
-      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === 'Options')?.trigger('click')
+      await wrapper
+        .findAll('[role="tab"]')
+        .find((tab) => tab.text() === 'Options')
+        ?.trigger('click')
       expect(wrapper.text().includes('Enable T.38 fax')).toBe(faxOption)
       expect(wrapper.text().includes('Ignore completed elsewhere')).toBe(completedElsewhere)
 
@@ -232,35 +337,32 @@ describe('DeviceAdvancedSettings', () => {
     wrapper.unmount()
   })
 
-  it.each<[DeviceType, boolean]>([
-    ['sip_device', true],
-    ['smartphone', true],
-    ['softphone', true],
-    ['fax', false],
-    ['ata', true],
-  ])('shows outbound flags in SIP only for the audited %s workflow', async (deviceType, visible) => {
-    const wrapper = mount(DeviceAdvancedSettings, {
-      props: {
-        modelValue: defaultDeviceConfiguration(),
-        deviceType,
-        fieldErrors: {},
-        firstErrorField: null,
-        isEditing: false,
-        restrictionOptions: [],
-        mediaOptions: [],
-        schemaCompatibility: legacyDeviceSchemaCompatibility,
-      },
-      global: { components: { ToggleSwitch } },
-    })
+  it.each<DeviceType>(['sip_device', 'smartphone', 'softphone', 'fax', 'ata'])(
+    'shows outbound flags in schema-backed routing for %s',
+    async (deviceType) => {
+      const wrapper = mount(DeviceAdvancedSettings, {
+        props: {
+          modelValue: defaultDeviceConfiguration(),
+          deviceType,
+          fieldErrors: {},
+          firstErrorField: null,
+          isEditing: false,
+          restrictionOptions: [],
+          mediaOptions: [],
+          schemaCompatibility: legacyDeviceSchemaCompatibility,
+        },
+        global: { components: { ToggleSwitch } },
+      })
 
-    await wrapper
-      .findAll('[role="tab"]')
-      .find((tab) => tab.text() === 'SIP' || tab.text() === 'Wi-Fi calling')
-      ?.trigger('click')
+      await wrapper
+        .findAll('[role="tab"]')
+        .find((tab) => tab.text() === 'Options')
+        ?.trigger('click')
 
-    expect(wrapper.find('textarea[placeholder="fax, trusted"]').exists()).toBe(visible)
-    expect(wrapper.text()).not.toContain('WebRTC')
-  })
+      expect(wrapper.find('textarea[placeholder="fax, trusted"]').exists()).toBe(true)
+      expect(wrapper.text()).not.toContain('WebRTC')
+    },
+  )
 
   it('shows SIP fields and invite formats advertised by the connected schema', async () => {
     const currentSchema: DeviceSchemaCompatibility = {

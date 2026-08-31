@@ -19,6 +19,8 @@ class PaymentAttemptResource extends JsonResource
             'currency' => $this->resource->currency,
             'status' => $this->resource->status->value,
             'safe_error_code' => $this->resource->safe_error_code,
+            'provider_status' => $this->resource->provider_status,
+            'reconciled_at' => $this->resource->reconciled_at?->toIso8601String(),
             'completed_at' => $this->resource->completed_at?->toIso8601String(),
             'created_at' => $this->resource->created_at?->toIso8601String(),
         ];

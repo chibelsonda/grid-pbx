@@ -68,7 +68,7 @@ final readonly class TemporalRuleResourceClient
 
     public function update(string $accountId, string $ruleId, TemporalRuleWriteData $rule): TemporalRuleSnapshot
     {
-        $snapshot = $this->snapshot($this->client->request('POST', $this->path($accountId, $ruleId), ['json' => ['data' => $rule->toSwitchData()]]));
+        $snapshot = $this->snapshot($this->client->request('PATCH', $this->path($accountId, $ruleId), ['json' => ['data' => $rule->toSwitchPatchData()]]));
         if ($snapshot->id !== $ruleId) {
             throw new InvalidSwitchPayloadException('Switch temporal rule response id does not match the requested resource.');
         }
