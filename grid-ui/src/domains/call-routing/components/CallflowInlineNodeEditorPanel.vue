@@ -60,7 +60,7 @@ const replacementConfirmed = ref(false)
 const replacementError = ref<string | null>(null)
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
-  props.rootConfiguration
+  props.rootConfiguration && props.context.operation === 'create'
     ? `Configure ${action.value?.label ?? 'root action'}`
     : props.context.operation === 'create'
       ? `Add ${action.value?.label ?? 'callflow action'}`
@@ -1869,7 +1869,7 @@ watch(
           {{
             saving
               ? 'Saving…'
-              : rootConfiguration
+              : rootConfiguration && context.operation === 'create'
                 ? 'Use action'
                 : context.operation === 'create'
                   ? 'Add action'

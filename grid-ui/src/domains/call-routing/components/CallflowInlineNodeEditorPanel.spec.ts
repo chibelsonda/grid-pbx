@@ -981,6 +981,71 @@ describe('CallflowInlineNodeEditorPanel', () => {
     expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-ring-group-device')
   })
 
+  it('edits a root Ring Group through the shared form contract', async () => {
+    const deviceId = '44444444-4444-4444-8444-444444444444'
+    const context: CallflowNodeEditorContext = {
+      operation: 'update',
+      path: [],
+      module: 'ring_group',
+      node: {
+        module: 'ring_group',
+        target: null,
+        reference_status: 'resolved',
+        settings: {
+          supported_configuration: true,
+          strategy: 'simultaneous',
+          endpoints: [{ device_id: deviceId, delay: 0, timeout: 20, weight: null }],
+          repeats: 1,
+          ignore_forward: true,
+          fail_on_single_reject: false,
+          ringback_media_id: null,
+          ringtone_internal: null,
+          ringtone_external: null,
+          skip_module: false,
+        },
+        children: {},
+      },
+    }
+    const editor = {
+      destinations: {
+        device: [{ id: deviceId, label: 'Reception phone', detail: 'Front desk' }],
+        media: [],
+      },
+    } as unknown as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: {
+        context,
+        editor,
+        saving: false,
+        error: null,
+        fieldErrors: {},
+        rootConfiguration: true,
+      },
+      global: {
+        stubs: {
+          CrudSlideOver: {
+            props: ['title'],
+            template: '<div><h2>{{ title }}</h2><slot /></div>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.text()).toContain('Edit Ring Group')
+    expect(wrapper.text()).toContain('Save action')
+    expect(wrapper.text()).not.toContain('Use action')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      node_path: [],
+      module: 'ring_group',
+      data: {
+        strategy: 'simultaneous',
+        endpoints: [{ device_id: deviceId, delay: 0, timeout: 20 }],
+      },
+    })
+  })
+
   it('submits Conference Service without a conference resource identifier', async () => {
     const context: CallflowNodeEditorContext = {
       operation: 'create',

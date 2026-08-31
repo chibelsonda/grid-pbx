@@ -53,6 +53,49 @@ class CallflowTreeNodeWriteValidatorTest extends TestCase
     }
 
     #[Test]
+    public function it_allows_only_a_supported_ring_group_to_be_edited_at_the_root(): void
+    {
+        $callflow = new SwitchCallflow;
+        $callflow->forceFill([
+            'flow_structure' => [
+                'module' => 'ring_group',
+                'reference_status' => 'resolved',
+                'settings' => ['supported_configuration' => true],
+                'children' => [],
+            ],
+            'is_feature_code' => false,
+        ]);
+
+        app(CallflowTreeNodeWriteValidator::class)->assertCanUpdate(
+            $callflow,
+            [],
+            'ring_group',
+        );
+
+        $this->addToAssertionCount(1);
+    }
+
+    #[Test]
+    public function it_rejects_other_inline_modules_at_the_root(): void
+    {
+        $callflow = new SwitchCallflow;
+        $callflow->forceFill([
+            'flow_structure' => [
+                'module' => 'sleep',
+                'reference_status' => 'not_applicable',
+                'settings' => ['duration' => 1, 'unit' => 's'],
+                'children' => [],
+            ],
+            'is_feature_code' => false,
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Only a supported Ring Group may be edited as the root callflow action.');
+
+        app(CallflowTreeNodeWriteValidator::class)->assertCanUpdate($callflow, [], 'sleep');
+    }
+
+    #[Test]
     public function it_accepts_an_empty_menu_key_branch_at_a_nested_path(): void
     {
         $callflow = new SwitchCallflow;

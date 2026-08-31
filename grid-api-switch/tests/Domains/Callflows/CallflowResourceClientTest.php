@@ -1773,6 +1773,49 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('priority-external', $weightedNode['data']['ringtones']['external']);
         self::assertSame('preserve-ringtone', $weightedNode['data']['ringtones']['server_owned']);
 
+        $rootCurrent = [
+            'flow' => [
+                'module' => 'ring_group',
+                'data' => [
+                    ...$settings,
+                    'server_owned' => 'preserve-root',
+                ],
+                'children' => [
+                    '_' => [
+                        'module' => 'hangup',
+                        'data' => ['server_owned' => 'preserve-child'],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ];
+        $updatedRoot = CallflowInlineNodeWriteData::update(
+            $rootCurrent,
+            [],
+            'ring_group',
+            [
+                ...$settings,
+                'strategy' => 'single',
+                'endpoints' => [[
+                    'endpoint_type' => 'device',
+                    'id' => 'device-1',
+                    'delay' => 0,
+                    'timeout' => 30,
+                ]],
+                'timeout' => 30,
+                'ringback' => null,
+            ],
+        )->toSwitchData();
+
+        self::assertSame('ring_group', $updatedRoot['flow']['module']);
+        self::assertSame('single', $updatedRoot['flow']['data']['strategy']);
+        self::assertArrayNotHasKey('ringback', $updatedRoot['flow']['data']);
+        self::assertSame('preserve-root', $updatedRoot['flow']['data']['server_owned']);
+        self::assertSame(
+            'preserve-child',
+            ((array) $updatedRoot['flow']['children'])['_']['data']['server_owned'],
+        );
+
         $malformedCurrent = $weightedCurrent;
         $malformedCurrent['flow']['children']['_']['data']['ignore_forward'] = 'true';
 

@@ -224,7 +224,12 @@ function settingsForEdit(
 
   if (module === 'ring_group') {
     data.endpoints = Array.isArray(settings.endpoints)
-      ? settings.endpoints.map((endpoint) => ({ ...endpoint }))
+      ? settings.endpoints.map((endpoint) => {
+          const normalized = { ...endpoint }
+          if (normalized.weight === null) delete normalized.weight
+
+          return normalized
+        })
       : []
   }
 

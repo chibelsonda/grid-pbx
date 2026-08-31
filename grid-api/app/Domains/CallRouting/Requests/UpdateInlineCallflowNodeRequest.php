@@ -5,6 +5,7 @@ namespace App\Domains\CallRouting\Requests;
 use App\Domains\CallRouting\Rules\CallflowPublicBranchRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\Validator;
 
 class UpdateInlineCallflowNodeRequest extends FormRequest
 {
@@ -12,7 +13,7 @@ class UpdateInlineCallflowNodeRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'node_path' => ['required', 'array', 'min:1', 'max:32'],
+            'node_path' => ['present', 'array', 'max:32'],
             'node_path.*' => ['required', 'string', new CallflowPublicBranchRule],
             'module' => ['required', 'string', Rule::in([
                 'sleep', 'tts', 'collect_dtmf', 'record_call', 'record_caller',
@@ -25,5 +26,17 @@ class UpdateInlineCallflowNodeRequest extends FormRequest
             ])],
             'data' => ['required', 'array'],
         ];
+    }
+
+    public function after(): array
+    {
+        return [function (Validator $validator): void {
+            if ($this->input('node_path') === [] && $this->input('module') !== 'ring_group') {
+                $validator->errors()->add(
+                    'node_path',
+                    'Only a supported Ring Group may be edited as the root callflow action.',
+                );
+            }
+        }];
     }
 }

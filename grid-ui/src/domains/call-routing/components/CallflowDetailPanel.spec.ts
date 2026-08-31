@@ -330,4 +330,54 @@ describe('CallflowDetailPanel', () => {
       module: 'user',
     })
   })
+
+  it('opens the shared editor for a supported root Ring Group', async () => {
+    const ringGroupRecord: Callflow = {
+      ...record,
+      modules: ['ring_group'],
+      root_module: 'ring_group',
+      flow: {
+        module: 'ring_group',
+        target: null,
+        reference_status: 'resolved',
+        branch: null,
+        settings: {
+          supported_configuration: true,
+          strategy: 'simultaneous',
+          endpoints: [],
+        },
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowDetailPanel, {
+      props: {
+        record: ringGroupRecord,
+        loading: false,
+        error: null,
+        canManage: true,
+        deleting: false,
+        mutationError: null,
+      },
+      global: {
+        stubs: {
+          CallflowActionPalette: { template: '<div>Action catalog</div>' },
+          CallflowNodeInfoDialog: { template: '<div><slot /></div>' },
+          ConfirmDialog: true,
+        },
+      },
+    })
+
+    await wrapper.get('[aria-label="Ring Group"]').trigger('click')
+    const edit = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Edit action target'))
+    expect(edit).toBeDefined()
+    await edit!.trigger('click')
+
+    expect(wrapper.emitted('edit-node')?.[0]?.[0]).toMatchObject({
+      operation: 'update',
+      path: [],
+      module: 'ring_group',
+    })
+  })
 })

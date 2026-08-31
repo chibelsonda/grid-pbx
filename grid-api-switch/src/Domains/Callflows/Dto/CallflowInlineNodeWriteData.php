@@ -129,8 +129,8 @@ final readonly class CallflowInlineNodeWriteData
             return;
         }
 
-        if ($this->path === []) {
-            throw new InvalidArgumentException('The root callflow action must be edited through the route editor.');
+        if ($this->path === [] && $this->module !== 'ring_group') {
+            throw new InvalidArgumentException('Only a supported Ring Group may be edited as an inline root action.');
         }
         $node = $this->nodeAt($flow, $this->path, 'node');
 
@@ -1056,6 +1056,13 @@ final readonly class CallflowInlineNodeWriteData
     /** @param array<string, mixed> $node @param list<string> $path */
     private function updateAt(array &$node, array $path): void
     {
+        if ($path === []) {
+            $current = is_array($node['data'] ?? null) ? $node['data'] : [];
+            $node['data'] = $this->settingsForWrite($current);
+
+            return;
+        }
+
         $segment = array_shift($path);
         $children = is_array($node['children'] ?? null) ? $node['children'] : [];
         $child = is_string($segment) ? ($children[$segment] ?? null) : null;

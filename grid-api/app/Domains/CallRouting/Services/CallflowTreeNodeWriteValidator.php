@@ -72,8 +72,12 @@ class CallflowTreeNodeWriteValidator
         string $module,
         ?array $settings = null,
     ): void {
-        if ($nodePath === []) {
-            $this->fail('node_path', 'Edit the root action through the guided route editor.');
+        if ($nodePath === [] && $module !== 'ring_group') {
+            $this->fail('node_path', 'Only a supported Ring Group may be edited as the root callflow action.');
+        }
+
+        if ($nodePath === [] && $callflow->is_feature_code) {
+            $this->fail('node_path', 'Feature-code route roots cannot be edited here.');
         }
 
         $node = $this->nodeAt($this->flow($callflow), $nodePath, 'node_path');

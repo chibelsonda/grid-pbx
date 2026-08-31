@@ -532,6 +532,7 @@ function routeTitle(route: {
       isGuidedInlineCallflowModule(nodeEditorContext.module, nodeEditorAction(nodeEditorContext))
     "
     :context="nodeEditorContext"
+    :root-configuration="nodeEditorContext.path.length === 0"
     :editor="callflows.treeEditor"
     :loading="callflows.treeEditorLoading"
     :saving="callflows.treeNodeSaving"

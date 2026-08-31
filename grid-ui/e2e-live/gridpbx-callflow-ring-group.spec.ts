@@ -9,6 +9,46 @@ type PublicCallflowNode = {
   children?: Record<string, PublicCallflowNode>
 }
 
+type BrowserApiResult<T> = {
+  status: number
+  body: T | null
+}
+
+async function browserApiRequest<T>(
+  page: Page,
+  url: string,
+  method: 'GET' | 'POST' | 'DELETE',
+  data?: Record<string, unknown>,
+): Promise<BrowserApiResult<T>> {
+  return page.evaluate(
+    async ({ requestUrl, requestMethod, requestData }) => {
+      const token = decodeURIComponent(
+        document.cookie
+          .split('; ')
+          .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+          ?.split('=')[1] ?? '',
+      )
+      const response = await fetch(requestUrl, {
+        method: requestMethod,
+        credentials: 'include',
+        headers: {
+          Accept: 'application/json',
+          ...(requestData ? { 'Content-Type': 'application/json' } : {}),
+          ...(token ? { 'X-XSRF-TOKEN': token } : {}),
+        },
+        ...(requestData ? { body: JSON.stringify(requestData) } : {}),
+      })
+      const text = await response.text()
+
+      return {
+        status: response.status,
+        body: text ? (JSON.parse(text) as T) : null,
+      }
+    },
+    { requestUrl: url, requestMethod: method, requestData: data },
+  )
+}
+
 type RingGroupMediaLegEvidence = {
   route_name: string
   observer: 'freeswitch_esl'
@@ -337,5 +377,132 @@ test('verifies weighted Ring Group guided inline actions', async ({ page }) => {
     )
   } finally {
     if (opened) await deleteRoute(page, routeName!)
+  }
+})
+
+test('creates, edits, and clears a root Ring Group through the shared editor', async ({ page }) => {
+  test.setTimeout(60_000)
+
+  const routeName = `GridPBX root Ring Group ${Date.now()}`
+  let apiOrigin: string | null = null
+  let accountId: string | null = null
+  let callflowId: string | null = null
+
+  try {
+    const listResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows(?:\?|$)/.test(response.url()),
+    )
+    await page.goto('/call-routing')
+    const resolvedListResponse = await listResponse
+    const listUrl = new URL(resolvedListResponse.url())
+    apiOrigin = listUrl.origin
+    accountId = listUrl.pathname.match(/\/accounts\/([^/]+)\/callflows/)?.[1] ?? null
+    expect(accountId).not.toBeNull()
+
+    const editorResponse = await browserApiRequest<{
+      data: {
+        destinations?: { device?: Array<{ id: string }> }
+        phone_numbers?: Array<{ id: string; available: boolean }>
+      }
+    }>(page, `${apiOrigin}/api/v1/accounts/${accountId}/callflows/editor`, 'GET')
+    expect(editorResponse.status).toBe(200)
+    const deviceId = editorResponse.body?.data.destinations?.device?.[0]?.id
+    test.skip(!deviceId, 'A synchronized Device is required for root Ring Group verification.')
+    const phoneNumberId = editorResponse.body?.data.phone_numbers?.find(
+      ({ available }) => available,
+    )?.id
+    test.skip(
+      !phoneNumberId,
+      'An unassigned projected phone number is required for disposable root Ring Group verification.',
+    )
+
+    const createResponse = await browserApiRequest<{
+      data: { id: string; flow?: PublicCallflowNode | null }
+    }>(page, `${apiOrigin}/api/v1/accounts/${accountId}/callflows`, 'POST', {
+      name: routeName,
+      destination_type: null,
+      destination_id: null,
+      root_action: {
+        module: 'ring_group',
+        data: {
+          strategy: 'simultaneous',
+          endpoints: [{ device_id: deviceId, delay: 0, timeout: 20 }],
+          repeats: 1,
+          ignore_forward: true,
+          fail_on_single_reject: false,
+          ringback_media_id: null,
+          ringtone_internal: null,
+          ringtone_external: null,
+          skip_module: false,
+        },
+      },
+      phone_number_ids: [phoneNumberId],
+    })
+    expect(createResponse.status).toBe(201)
+    const createdBody = createResponse.body!
+    callflowId = createdBody.data.id
+    expect(createdBody.data.flow).toMatchObject({
+      module: 'ring_group',
+      reference_status: 'resolved',
+      settings: {
+        endpoints: [{ device_id: deviceId, delay: 0, timeout: 20 }],
+      },
+    })
+
+    await openRoute(page, routeName)
+    const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+    const diagram = workspace.getByRole('tree', { name: 'Callflow diagram' })
+    const root = diagram.getByRole('treeitem', { name: 'Ring Group' })
+    await root.click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Edit action target' }).click()
+
+    const editor = page.getByRole('dialog', { name: 'Edit Ring Group' })
+    await editor.getByRole('textbox', { name: 'Internal phone alert' }).fill('root-priority')
+    const updateResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await editor.getByRole('button', { name: 'Save action' }).click()
+    const updated = await updateResponse
+    expect(updated.status()).toBe(200)
+    expect(updated.request().postDataJSON()).toMatchObject({
+      node_path: [],
+      module: 'ring_group',
+      data: { ringtone_internal: 'root-priority' },
+    })
+
+    await root.click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Edit action target' }).click()
+    const reopened = page.getByRole('dialog', { name: 'Edit Ring Group' })
+    await expect(reopened.getByRole('textbox', { name: 'Internal phone alert' })).toHaveValue(
+      'root-priority',
+    )
+    await reopened.getByRole('textbox', { name: 'Internal phone alert' }).fill('')
+    const clearResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'PATCH' &&
+        /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+\/tree\/inline-nodes$/.test(
+          new URL(response.url()).pathname,
+        ),
+    )
+    await reopened.getByRole('button', { name: 'Save action' }).click()
+    const cleared = await clearResponse
+    expect(cleared.status()).toBe(200)
+    const clearedBody = (await cleared.json()) as { data: { flow?: PublicCallflowNode | null } }
+    expect(clearedBody.data.flow?.settings?.ringtone_internal).toBeNull()
+  } finally {
+    if (apiOrigin && accountId && callflowId) {
+      const deleted = await browserApiRequest<null>(
+        page,
+        `${apiOrigin}/api/v1/accounts/${accountId}/callflows/${callflowId}`,
+        'DELETE',
+      )
+      expect(deleted.status).toBe(204)
+    }
   }
 })

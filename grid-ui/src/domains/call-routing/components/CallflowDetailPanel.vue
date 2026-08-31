@@ -155,7 +155,8 @@ const selectedNodeEditable = computed(
   () =>
     props.canManage &&
     selectedNode.value !== null &&
-    selectedPath.value.length > 0 &&
+    (selectedPath.value.length > 0 || selectedNode.value.module === 'ring_group') &&
+    selectedNode.value.reference_status !== 'unresolved' &&
     selectedNode.value.branch?.kind !== 'preserved' &&
     selectedAction.value?.status === 'guided',
 )

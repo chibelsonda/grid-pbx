@@ -4190,6 +4190,125 @@ class CallflowControllerTest extends TestCase
         $this->assertNotNull($phoneNumber->fresh()->assigned_callflow_id);
     }
 
+    public function test_it_updates_a_ring_group_root_using_the_shared_inline_contract(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-root-edit',
+            'name' => 'Root edit desk',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-root-edit',
+            'name' => 'Editable root ring group',
+            'flow_structure' => [
+                'module' => 'ring_group',
+                'target' => null,
+                'reference_status' => 'resolved',
+                'settings' => [
+                    'supported_configuration' => true,
+                    'strategy' => 'simultaneous',
+                    'endpoints' => [[
+                        'device_id' => $device->id,
+                        'delay' => 0,
+                        'timeout' => 20,
+                        'weight' => null,
+                    ]],
+                    'repeats' => 1,
+                    'ignore_forward' => true,
+                    'fail_on_single_reject' => false,
+                    'ringback_media_id' => null,
+                    'ringtone_internal' => null,
+                    'ringtone_external' => null,
+                    'skip_module' => false,
+                ],
+                'children' => [
+                    '_' => [
+                        'module' => 'hangup',
+                        'target' => null,
+                        'reference_status' => 'not_applicable',
+                        'settings' => ['skip_module' => false],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-root-edit'
+            && $operation === 'update'
+            && $path === []
+            && $branch === null
+            && $module === 'ring_group'
+            && ($settings['strategy'] ?? null) === 'single'
+            && ($settings['endpoints'][0]['id'] ?? null) === 'switch-device-root-edit')
+            ->andReturn([
+                'id' => 'switch-callflow-root-edit',
+                'name' => 'Editable root ring group',
+                'numbers' => [],
+                'flow' => [
+                    'module' => 'ring_group',
+                    'data' => [
+                        'strategy' => 'single',
+                        'endpoints' => [[
+                            'endpoint_type' => 'device',
+                            'id' => 'switch-device-root-edit',
+                            'delay' => 0,
+                            'timeout' => 25,
+                        ]],
+                        'repeats' => 1,
+                        'timeout' => 25,
+                        'ignore_forward' => true,
+                        'fail_on_single_reject' => false,
+                        'skip_module' => false,
+                    ],
+                    'children' => [
+                        '_' => [
+                            'module' => 'hangup',
+                            'data' => ['skip_module' => false],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)->patchJson(
+            "/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes",
+            [
+                'node_path' => [],
+                'module' => 'ring_group',
+                'data' => [
+                    'strategy' => 'single',
+                    'endpoints' => [[
+                        'device_id' => $device->id,
+                        'delay' => 0,
+                        'timeout' => 25,
+                        'weight' => null,
+                    ]],
+                    'repeats' => 1,
+                    'ignore_forward' => true,
+                    'fail_on_single_reject' => false,
+                    'ringback_media_id' => null,
+                    'ringtone_internal' => null,
+                    'ringtone_external' => null,
+                    'skip_module' => false,
+                ],
+            ],
+        )->assertOk()
+            ->assertJsonPath('data.flow.module', 'ring_group')
+            ->assertJsonPath('data.flow.settings.strategy', 'single')
+            ->assertJsonPath('data.flow.settings.endpoints.0.device_id', $device->id)
+            ->assertJsonPath('data.flow.children._.module', 'hangup')
+            ->assertJsonMissing(['switch-device-root-edit']);
+    }
+
     public function test_it_deletes_an_unreferenced_route_and_blocks_a_referenced_route(): void
     {
         [$user, $account] = $this->accessibleAccount();

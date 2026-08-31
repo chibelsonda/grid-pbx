@@ -362,7 +362,12 @@ class CallflowMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchCallflow {
-        $this->editor->assertEditable($callflow);
+        $editingInlineRoot = $data['node_path'] === [] && $data['module'] === 'ring_group';
+
+        if (! $editingInlineRoot) {
+            $this->editor->assertEditable($callflow);
+        }
+
         $settings = $this->inlineSettingsForSwitch(
             $account,
             $data['module'],
