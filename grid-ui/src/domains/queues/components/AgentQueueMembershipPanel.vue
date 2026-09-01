@@ -6,10 +6,7 @@ import FormListbox, {
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
 import { agentQueueMembershipInputSchema } from '../schemas/agentQueueMembershipSchema'
-import type {
-  AgentQueueMembership,
-  AgentQueueMembershipInput,
-} from '../types/queue'
+import type { AgentQueueMembership, AgentQueueMembershipInput } from '../types/queue'
 
 const props = defineProps<{
   membership: AgentQueueMembership | null
@@ -24,6 +21,7 @@ const emit = defineEmits<{
   change: [input: AgentQueueMembershipInput]
 }>()
 const selectedQueueId = ref('')
+const pendingFinalQueueId = ref<string | null>(null)
 const validationError = ref<string | null>(null)
 const availableOptions = computed<ListboxOptionValue[]>(() => [
   { value: '', label: 'Select a Queue' },
@@ -34,6 +32,7 @@ watch(
   () => props.membership?.agent.id,
   () => {
     selectedQueueId.value = ''
+    pendingFinalQueueId.value = null
     validationError.value = null
   },
 )
@@ -48,7 +47,19 @@ function join(): void {
 }
 
 function leave(queueId: string): void {
+  if (props.membership?.assigned_queues.length === 1 && props.membership.unresolved_queues === 0) {
+    pendingFinalQueueId.value = queueId
+    return
+  }
+
   change({ action: 'logout', queue_id: queueId })
+}
+
+function confirmFinalLeave(): void {
+  if (!pendingFinalQueueId.value) return
+  const queueId = pendingFinalQueueId.value
+  pendingFinalQueueId.value = null
+  change({ action: 'logout', queue_id: queueId, confirm_last_queue: true })
 }
 
 function change(input: AgentQueueMembershipInput): void {
@@ -68,14 +79,14 @@ function change(input: AgentQueueMembershipInput): void {
 
 <template>
   <article class="card-surface overflow-hidden">
-    <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4">
+    <header
+      class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4"
+    >
       <div class="flex items-center gap-3">
         <QueueListIcon class="size-5 text-brand-500" aria-hidden="true" />
         <div>
           <h2 class="text-sm font-semibold text-slate-700">Queue memberships</h2>
-          <p class="text-[10px] text-slate-500">
-            Authoritative Switch assignments for this Agent.
-          </p>
+          <p class="text-[10px] text-slate-500">Authoritative Switch assignments for this Agent.</p>
         </div>
       </div>
       <button
@@ -101,21 +112,49 @@ function change(input: AgentQueueMembershipInput): void {
           >
             This Agent is not assigned to a projected Queue.
           </p>
-          <div
-            v-for="queue in membership?.assigned_queues"
-            :key="queue.id"
-            class="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2"
-          >
-            <span class="text-xs font-semibold text-slate-700">{{ queue.name }}</span>
-            <button
-              v-if="canManage"
-              type="button"
-              :disabled="saving"
-              class="h-8 rounded-md border border-red-200 px-3 text-[11px] font-semibold text-danger disabled:opacity-50"
-              @click="leave(queue.id)"
+          <div v-for="queue in membership?.assigned_queues" :key="queue.id" class="grid gap-2">
+            <div
+              class="flex items-center justify-between gap-3 rounded-md border border-slate-200 px-3 py-2"
             >
-              Leave
-            </button>
+              <span class="text-xs font-semibold text-slate-700">{{ queue.name }}</span>
+              <button
+                v-if="canManage"
+                type="button"
+                :disabled="saving"
+                class="h-8 rounded-md border border-red-200 px-3 text-[11px] font-semibold text-danger disabled:opacity-50"
+                @click="leave(queue.id)"
+              >
+                Leave
+              </button>
+            </div>
+            <div
+              v-if="pendingFinalQueueId === queue.id"
+              class="rounded-md border border-amber-200 bg-amber-50 p-3"
+              role="alert"
+            >
+              <p class="text-xs font-semibold text-amber-900">Remove the final Queue?</p>
+              <p class="mt-1 text-[11px] text-amber-800">
+                Kazoo defines an Agent by Queue membership. This User will disappear from the Agents
+                list and must be re-added through a Queue roster.
+              </p>
+              <div class="mt-3 flex justify-end gap-2">
+                <button
+                  type="button"
+                  class="h-8 rounded-md border border-amber-300 bg-white px-3 text-[11px] font-semibold text-amber-900"
+                  @click="pendingFinalQueueId = null"
+                >
+                  Keep Agent
+                </button>
+                <button
+                  type="button"
+                  :disabled="saving"
+                  class="h-8 rounded-md bg-red-600 px-3 text-[11px] font-semibold text-white disabled:opacity-50"
+                  @click="confirmFinalLeave"
+                >
+                  Leave final Queue
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -148,7 +187,8 @@ function change(input: AgentQueueMembershipInput): void {
           {{ membership.unresolved_queues }} Switch Queue assignment<span
             v-if="membership.unresolved_queues !== 1"
             >s</span
-          > cannot be shown because the Queue is not projected for this account.
+          >
+          cannot be shown because the Queue is not projected for this account.
         </p>
       </template>
 

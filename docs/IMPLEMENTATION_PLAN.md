@@ -893,6 +893,36 @@ Acceptance criteria:
   non-overlapping five-second refresh only while the panel and browser tab are
   visible, pauses during commands, stops on close/account change, and keeps
   command acceptance separate from an observed runtime transition.
+  Per-Agent Queue membership follows Kazoo's distinct `queue_status`
+  semantics: the Queue roster remains the authoritative bulk configuration
+  editor, while the Agent panel can join or leave one projected Queue and
+  immediately publish the matching ACDc runtime command. Laravel resolves all
+  public Agent and Queue UUIDs server-side, reconciles known MySQL roster rows
+  only after Switch accepts the write, audits success and failure, and reports
+  unprojected Switch memberships only as a count. Reads require Queue
+  configuration capability; writes additionally require live Agent controls.
+  Kazoo's Agent listing is derived from User documents that contain Queue
+  memberships. Removing the final Queue therefore intentionally removes that
+  User from the Agent list without deleting the User. GridPBX verifies the
+  authoritative Switch membership set before this operation, requires an
+  explicit `confirm_last_queue` flag server-side, presents an inline warning
+  instead of a nested modal, reconciles the projection only after Switch
+  accepts the write, and immediately removes the inactive Agent from the UI
+  list. The User can be restored as an Agent through a Queue roster.
+  Status-command recommendations follow Kazoo's state-aware callflow helper,
+  but remain advisory: Kazoo's REST endpoint intentionally accepts login,
+  logout, pause, resume, and end-wrap-up as asynchronous commands without a
+  current-state precondition. GridPBX orders the relevant actions first and
+  labels other commands clearly rather than enforcing a stale transition
+  matrix that could reject a valid deferred operation.
+  The Agents table also exposes current availability when the live-control
+  capability is present. GridPBX reads Kazoo's account-wide status history,
+  keeps only the latest recognized state and timestamp per Agent, resolves
+  private Agent identifiers to public UUIDs, and discards caller, call, and
+  Queue details. Available, connecting, on-call, outbound, wrap-up, paused,
+  logged-out, and unknown states are presented as compact badges and refreshed
+  every ten seconds only while the Agents tab is visible. Background failures
+  retain the last safe snapshot; unmatched rows are shown only as a count.
   Queue statistics are read-only and capability-gated: the typed Switch
   client discards caller, call, and Agent details; Laravel aggregates the
   current deployment-configured ACDc window by projected Queue; and the UI

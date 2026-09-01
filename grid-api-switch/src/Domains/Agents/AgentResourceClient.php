@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Agents;
 
+use GridPbx\Switch\Domains\Agents\Dto\AgentAvailabilitySnapshot;
 use GridPbx\Switch\Domains\Agents\Dto\AgentQueueMembershipWriteData;
 use GridPbx\Switch\Domains\Agents\Dto\AgentSnapshot;
 use GridPbx\Switch\Domains\Agents\Dto\AgentStatisticsSnapshot;
@@ -64,6 +65,19 @@ final readonly class AgentResourceClient
         }
 
         return new AgentStatisticsSnapshot($data);
+    }
+
+    public function availability(string $accountId): AgentAvailabilitySnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request('GET', sprintf('accounts/%s/agents/status', rawurlencode($accountId)));
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new InvalidSwitchPayloadException('Switch agent availability response data must be an object.');
+        }
+
+        return new AgentAvailabilitySnapshot($data);
     }
 
     public function updateStatus(string $accountId, string $userId, AgentStatusWriteData $status): void

@@ -25,12 +25,14 @@ function wrapper(overrides: Record<string, unknown> = {}) {
         assigned_queues: agent.queues,
         available_queues: [],
         unresolved_queues: 0,
+        agent_active: true,
         observed_at: '2026-09-01T04:05:06.000Z',
       },
       membershipLoading: false,
       membershipSaving: false,
       membershipError: null,
       membershipCommandAccepted: false,
+      statusAvailable: true,
       error: null,
       fieldErrors: {},
       canManage: true,
@@ -50,6 +52,7 @@ describe('AgentStatusPanel', () => {
 
     expect(view.text()).toContain('Auto-refresh · 5s')
     expect(view.text()).toContain('connected')
+    expect(view.get('[aria-label="Agent status action"]').text()).toContain('Log out')
     await view.get('button').trigger('click')
 
     expect(view.emitted('refresh')).toEqual([[]])
@@ -69,5 +72,14 @@ describe('AgentStatusPanel', () => {
     expect(view.get('[role="alert"]').text()).toContain('Unable to refresh live agent status.')
     expect(view.text()).toContain('The last observed status remains displayed.')
     expect(view.text()).toContain('connected')
+  })
+
+  it('keeps Queue membership readable when live Agent controls are unavailable', () => {
+    const view = wrapper({ canManage: false, statusAvailable: false })
+
+    expect(view.text()).toContain('Live Agent status unavailable')
+    expect(view.text()).toContain('Queue memberships')
+    expect(view.text()).toContain('Support')
+    expect(view.text()).not.toContain('Request status change')
   })
 })

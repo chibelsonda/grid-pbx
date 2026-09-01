@@ -12,6 +12,11 @@ class CrossbarSwitchAgentGateway implements SwitchAgentGateway
 {
     public function __construct(private readonly AgentResourceClient $agents) {}
 
+    public function availability(SwitchAccount $account): array
+    {
+        return $this->agents->availability($account->switch_account_id)->toArray();
+    }
+
     public function queueIds(SwitchAccount $account, string $switchUserId): array
     {
         return $this->agents->queueIds($account->switch_account_id, $switchUserId);

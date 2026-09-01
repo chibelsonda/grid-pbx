@@ -303,6 +303,55 @@ final class QueueAndAgentResourceClientTest extends TestCase
         self::assertArrayNotHasKey('caller_id_number', $statistics[0]);
     }
 
+    public function test_agent_availability_keeps_only_latest_safe_status_per_agent(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'private-agent-1' => [
+                    '63800000000' => [
+                        'status' => 'ready',
+                        'timestamp' => 63800000000,
+                        'caller_id_number' => '+15551234567',
+                        'call_id' => 'private-call-id',
+                    ],
+                    '63800000010' => [
+                        'status' => 'connected',
+                        'timestamp' => 63800000010,
+                        'queue_id' => 'private-queue-id',
+                    ],
+                ],
+            ]]),
+        ]);
+
+        $availability = (new AgentResourceClient($switch))->availability('account-1')->toArray();
+
+        self::assertSame('/v2/accounts/account-1/agents/status', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame([[
+            'agent_id' => 'private-agent-1',
+            'status' => 'connected',
+            'timestamp' => 63800000010,
+        ]], $availability);
+        self::assertArrayNotHasKey('call_id', $availability[0]);
+        self::assertArrayNotHasKey('caller_id_number', $availability[0]);
+        self::assertArrayNotHasKey('queue_id', $availability[0]);
+    }
+
+    public function test_agent_availability_rejects_unknown_statuses(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'private-agent-1' => [[
+                    'status' => 'future-status',
+                    'timestamp' => 63800000000,
+                ]],
+            ]]),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+
+        (new AgentResourceClient($switch))->availability('account-1');
+    }
+
     public function test_agent_statistics_reject_inconsistent_counts(): void
     {
         $switch = $this->switchWithResponses([

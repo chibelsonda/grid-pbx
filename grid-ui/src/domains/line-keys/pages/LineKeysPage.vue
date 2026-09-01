@@ -75,7 +75,7 @@ async function save(keys: LineKeyInput[]): Promise<void> {
         <div>
           <p class="text-lg font-semibold text-slate-700">{{ lineKeys.records.length }}</p>
           <p class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
-            Projected devices
+            Provisionable devices
           </p>
         </div>
       </article>
@@ -142,7 +142,7 @@ async function save(keys: LineKeyInput[]): Promise<void> {
           </tr>
           <tr v-else-if="!lineKeys.records.length">
             <td colspan="5" class="px-5 py-14 text-center text-slate-400">
-              No projected devices are available. Synchronize extensions and devices first.
+              No provisionable devices are available. Add or synchronize a physical device first.
             </td>
           </tr>
           <tr

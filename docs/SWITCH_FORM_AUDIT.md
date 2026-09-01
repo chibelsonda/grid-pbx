@@ -147,13 +147,13 @@ tab visibility are therefore intentional corrections, not regressions.
 | Caller ID | External and E911-capable emergency selectors; internal/presence controls are commented out | Internal, external, emergency, and asserted identities with account-owned choices and E911 enforcement | Keep current schema-backed superset |
 | SIP credentials | Server-generated username and password buttons plus password/IP auth | Write-only username/password fields with stronger validation, but no guided generate/rotate control | Add secure generate/rotate workflow; never return an existing password |
 | Audio/video | Fixed codec lists | Ordered codec editor with the legacy values plus connected-schema compatibility | Keep current ordered controls |
-| Options | Ringtones, T.38, forwarding flags, contact-list exclusion, and ignore-completed-elsewhere | Same behaviors plus current schema-backed routing, locale, recording, formatter, metaflow, and notification controls | Keep current superset and type conditions |
+| Options | Ringtones, T.38, forwarding flags, contact-list exclusion, and ignore-completed-elsewhere | Matches the Kazoo per-type Options workflow; broader schema values remain typed and preserved without becoming generic browser controls | Keep the audited Kazoo presentation matrix and preserve non-presented JSON values on edit |
 | Restrictions | Seven hard-coded classifiers with Inherit/Allow/Deny and a separate `extra.closed_groups` flag | Connected classifier discovery with current-schema Inherit/Deny and bounded closed-group behavior | Do not restore `allow` unless the connected schema advertises it |
 | Provisioning catalog | MySQL `prov_brand`, family, and model records; family is implicit in the selected model | Authenticated external `/api/phones` catalog with explicit brand/family/model and Zod/Laravel branch validation | Support provider adapters; do not make legacy MySQL tables the universal contract |
 | Provisioning model metadata | Model supplies main key count, expansion-module count, and keys per module | Catalog DTO and API now expose bounded optional capacities, supported key types, safe value-source identifiers, and manufacturer provider | Completed at the contract boundary; real-provider values still require client access |
 | Provisioning selection on edit | Brand and model are locked after create | Values may be changed or cleared and followed by explicit sync/reprovision | Keep mutability, but require confirmation, audit, and provider-safe compensation |
 | Vendor ZTP | Create calls manufacturer APIs for Polycom, Yealink, Grandstream, or Snom and creates local provisioner credentials | Catalog discovery and Switch sync/reprovision exist; manufacturer enrollment is not implemented | Real client provider/ZTP adapters remain required |
-| Line keys | Model-sized main panel plus expansion-module panels; values come from model-specific metadata | Typed Switch replacement now groups main/expansion sections, enforces model capacity/types, and provides account-scoped suggestions through fixed API providers | Real provider metadata and live physical-phone verification remain |
+| Line keys | Model-sized main panel plus expansion-module panels; values come from model-specific metadata | Typed Switch replacement now lists only provisionable physical Device types, groups main/expansion sections, enforces model capacity/types, and provides account-scoped suggestions through fixed API providers | Softphones and forwarding-only endpoints are excluded; real provider metadata and live physical-phone verification remain |
 | Validation/security | Several nested payloads receive shallow validation; line-key option sources can be stored as executable SQL; provisioning passwords are readable application data | Zod, Laravel, DTO allowlists, secret redaction, and public-ID boundaries | Do not copy the legacy validation, executable SQL, or plaintext-secret design |
 
 #### Legacy provisioning behavior that must be preserved as requirements
@@ -220,7 +220,7 @@ The audit covers all eight supported types: `sip_device`, `cellphone`,
 | --- | --- | --- |
 | Type-dependent tabs and fields | Current schema, legacy source, and authenticated side-by-side browser walkthrough | Implemented and interactively verified for all eight Device types |
 | SIP URI workflow | Legacy form semantics, Device schema, focused Vue/API contracts, and live disposable lifecycle | Basic exposes the required route; Options exposes only contact-list visibility; create/edit/clear uses a minimal Switch payload and removes the temporary record |
-| Cellphone and Landline workflows | Legacy templates, current Device schema, focused Vue/API contracts, and live disposable lifecycle | Basic enabled state is synchronized with forwarding; Kazoo-primary Options remain visible; four current-schema extensions are grouped under Advanced forwarding; create/edit/disable-clear verified for both types |
+| Cellphone and Landline workflows | Legacy templates, current Device schema, focused Vue/API contracts, and live disposable lifecycle | Basic enabled state is synchronized with forwarding; Options exposes require-keypress, caller-ID retention, and contact-list visibility; additional schema values are preserved without expanding the Kazoo form; create/edit/disable-clear verified for both types |
 | Registered endpoint capabilities | Legacy templates, current schema, payload-capability tests, browser matrix, and disposable live lifecycle | T.38 is shown for SIP Device, Softphone, Fax, and ATA; Ignore completed elsewhere is limited to SIP Device and Softphone; the required `fax` outbound flag is preserved; create/edit/clear verified across all five registered endpoint types |
 | Version compatibility | Live `GET /v2/schemas/devices` plus current upstream Device schema | API publishes a safe matrix; Vue, Zod, Laravel, and DTO payloads conditionally support current SIP/provisioning fields, dynamic forwarding limits, and legacy `check_sync_*` fields |
 | Number classifiers | Live `GET /accounts/{id}/phone_numbers/classifiers` | Verified locally |
@@ -238,26 +238,24 @@ The audit covers all eight supported types: `sip_device`, `cellphone`,
 | Secrets | Central redaction plus response assertions | Implemented |
 | SIP Device create/edit/clear pilot | Sanitized local runtime capture | Verified for the audited fields; all temporary upstream records removed |
 
-### Device Advanced-tab drift re-audit (2026-08-31)
+### Device Advanced-tab presentation correction (2026-09-01)
 
-A field-by-field re-audit against the installed `devices`, `endpoint.media`,
-`call_recording`, `call_waiting`, `caller_id`, `dialplans`, `formatters`, and
-`metaflows` schemas found a presentation regression rather than a Switch/API
-gap. The typed Vue configuration, Zod contract, Laravel request, Switch DTOs,
-and unknown-field-preserving write boundary still supported the documented
-fields, but a UI refactor had disconnected the shared recording and routing
-editors and stopped the payload builder from submitting those visible
-schema-backed groups.
+The generic Device schema accepts considerably more data than Kazoo presents
+in each Device workflow. Rendering every accepted schema group in Options was
+a presentation regression: it exposed endpoint behavior, recording,
+locale/notification, routing, formatter, metaflow, and SIP-header editors that
+do not appear in the corresponding Kazoo Options tab.
 
-The Device Advanced Options tab again exposes the bounded endpoint-behavior,
-recording, locale/notification, forwarding, routing, formatter, metaflow,
-custom-SIP-header, and compatible provisioning-event controls. The existing
-capability matrix remains authoritative: Cellphone and Landline receive only
-their complete eight-field forwarding contract plus contact-list visibility;
-SIP URI remains minimal; and registered endpoints receive the applicable
-schema-backed groups. Duplicate music-on-hold and outbound-flag controls were
-avoided by keeping music on hold in Audio and routing flags in the shared
-routing disclosure.
+The Options tab now follows the audited per-type Kazoo matrix. SIP Device shows
+ringtone headers, T.38, contact-list visibility, and
+ignore-completed-elsewhere; Softphone omits only the ringtone fields; Fax and
+ATA show T.38 plus contact-list visibility; forwarding devices show
+require-keypress, caller-ID retention, and contact-list visibility; SIP URI
+shows contact-list visibility only. The broader typed configuration, Zod
+contract, Laravel request, Switch DTOs, and unknown-field-preserving write
+boundary remain available so non-presented values survive ordinary edits.
+Music on hold stays in Audio; schema-only routing flags and nested settings
+remain protected by the typed payload and read-merge-write boundary.
 
 Public references remain account-scoped UUIDs. Media, Callflow, Device, and
 Extension selections are resolved to raw Switch identifiers only in Laravel,
@@ -267,42 +265,38 @@ read-merge-write preservation boundary for unknown Switch properties. A new
 reactive-metaflow regression test also prevents Vue proxy objects from reaching
 the plain request payload.
 
-Focused verification passed with 15 Switch SDK tests / 58 assertions, 44
-Laravel Device feature tests / 292 assertions, 72 Device Vue tests, Vue
-typecheck, and isolated E2E TypeScript typecheck. Isolated headless Playwright
-passed the 11-case Device capability matrix and a disposable create/edit/clear
-lifecycle for public Media music-on-hold selection and outbound flags; the
-temporary Device and Media were removed by the lifecycle cleanup. An
-independent read-only MySQL check found zero matching active Device projections
-and zero matching active Media projections afterward.
+Focused verification for the presentation correction passed 53 Device Vue
+tests across the Options capability matrix, form helpers, and payload builder,
+plus Vue TypeScript checking, E2E TypeScript checking, targeted lint, and three
+isolated headless workflow checks covering SIP URI, forwarding devices, and
+registered endpoints. Live mutation was not repeated because this correction
+changes visibility only; existing payload-boundary tests continue to cover
+preserved schema values.
 
 Basic and Advanced now follow the upstream workflow semantics: Basic hides the
 detailed tab strip and shows the core form, while Advanced reveals a Basic tab
-plus the tabs supported by the selected Device type. Recording and notification
-controls remain available inside Options where supported, avoiding extra top-level
-tabs that do not exist in the Kazoo workflow.
+plus the tabs supported by the selected Device type. Options follows Kazoo's
+per-type controls instead of adding generic recording, notification, or routing
+sections that do not exist in that workflow.
 
 A final per-type presentation comparison corrected stale UI capability entries:
 Smartphone again exposes Caller ID, Audio, and Video inside Advanced, while Fax
 and ATA again expose Audio. Monster includes those sections, the installed
 generic Device schema validates their Caller ID and endpoint-media fields, and
 the installed Crossbar Device path does not reject them by `device_type`.
-GridPBX keeps its additional schema-backed SIP and Options controls. Three
-focused Device Vue files passed 56 tests, both typechecks passed, and the one
-isolated non-mutating registered-endpoint browser case verified the corrected
-tab matrix for VoIP Phone, Smartphone, Softphone, Fax, and ATA.
+GridPBX keeps connected-schema SIP compatibility in the SIP tab while retaining
+the Kazoo Options presentation matrix.
 
-The live Monster form and its source define the familiar tab composition, but
-the current Switch schema remains authoritative for fields and allowed values.
-This creates several intentional differences: GridPBX exposes newer schema-backed
-call waiting, DND, locale, recording, routing, formatter, metaflow, and
-provisioning controls inside the established tabs; it uses the schema default of
-300 seconds for SIP expiry; it supports both SRTP and ZRTP methods; and its
-restriction actions are limited to the current schema values `inherit` and
+The live Monster form and its source define the familiar tab composition, while
+the current Switch schema remains authoritative for validation, allowed values,
+and transport preservation. Intentional differences remain where the current
+schema is explicit: GridPBX uses the 300-second SIP expiry default, supports
+both SRTP and ZRTP methods, and limits restriction actions to `inherit` and
 `deny`. Monster's legacy `allow` restriction option and `media.webrtc` field are
-not copied because they are absent from the current schema. Credential policy is
-also intentionally stricter, with a 12-character minimum. These are compatibility
-and security decisions, not missing form controls.
+not copied because they are absent from the current schema. Credential policy
+is also intentionally stricter, with a 12-character minimum. Schema values that
+are not part of Kazoo's Device form remain preserved rather than appearing as
+extra generic Options controls.
 
 One non-intentional mismatch found during the browser comparison was corrected:
 Device names are now limited to the schema's 128 characters in both Zod and
@@ -954,6 +948,36 @@ UI message. Command acceptance remains explicit and is not substituted for an
 observed status because Kazoo can defer pause, resume, and logout while an
 Agent is on a call. An isolated headless test verified open, periodic refresh,
 and cleanup without sending a live command.
+
+Per-Agent Queue membership uses Kazoo's separate `queue_status` contract.
+Membership reads require Queue configuration only, so the Agent panel remains
+available when live Agent status is not. Join and leave additionally require
+live Agent controls, accept only public account-scoped Queue UUIDs, reconcile
+the projected roster only after Switch accepts the command, and expose
+unprojected assignments only as a count. Three focused Vue files passed 17
+tests, Vue and E2E TypeScript checks passed, and two isolated headless cases
+verified the read-only unavailable-status view plus an accepted public-UUID
+leave command and polling cleanup. The accepted command used an intercepted
+Switch boundary; no real Agent membership was changed because the connected
+deployment reports live controls unavailable.
+
+The installed Kazoo 7.0.4.1 BEAM runtime confirms that account-wide Agent
+status is an Agent-ID keyed object containing timestamp-keyed histories. Its
+only emitted states are `ready`, `logged_in`, `logged_out`, `connecting`,
+`connected`, `wrapup`, `paused`, and `outbound`; individual entries can also
+contain call, caller, Queue, wait, pause, alias, and internal record IDs.
+GridPBX keeps only the latest recognized state and timestamp per Agent in the
+typed Switch client. Laravel resolves private Agent IDs to account-scoped
+public Extension UUIDs, represents a projected Agent without history as
+`unknown`, counts unmatched rows without identifying them, and discards all
+call and Queue details. The Agents table presents compact availability labels
+and refreshes every ten seconds only while that tab and the browser document
+are visible, retaining the last safe snapshot after a failure. Two focused SDK
+tests passed with six assertions, two focused API tests passed with sixteen
+assertions, three Vue files passed twenty tests, and the focused Vue/E2E type,
+lint, and isolated headless polling checks passed. The connected deployment
+still reports live Agent controls unavailable, so this is installed-runtime
+and intercepted-boundary evidence rather than a live availability claim.
 
 Queue capability discovery is now explicit rather than inferred from whether
 configuration documents exist. The installed runtime has `cb_queues` and

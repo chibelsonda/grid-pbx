@@ -6,6 +6,9 @@ use App\Domains\Organizations\Models\SwitchAccount;
 
 interface SwitchAgentGateway
 {
+    /** @return list<array{agent_id: string, status: string, timestamp: int}> */
+    public function availability(SwitchAccount $account): array;
+
     /** @return list<string> */
     public function queueIds(SwitchAccount $account, string $switchUserId): array;
 

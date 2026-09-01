@@ -14,6 +14,7 @@ export const agentQueueMembershipSchema = z.object({
   assigned_queues: z.array(queueReferenceSchema),
   available_queues: z.array(queueReferenceSchema),
   unresolved_queues: z.number().int().nonnegative(),
+  agent_active: z.boolean(),
   observed_at: z.string().datetime({ offset: true }),
 })
 
@@ -21,6 +22,7 @@ export const agentQueueMembershipInputSchema = z
   .object({
     action: z.enum(['login', 'logout']),
     queue_id: z.string().uuid('Select a projected Queue.'),
+    confirm_last_queue: z.boolean().optional(),
   })
   .strict()
 

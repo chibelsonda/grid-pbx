@@ -18,6 +18,7 @@ class UpdateAgentQueueMembershipRequest extends FormRequest
         return [
             'action' => ['required', Rule::in(['login', 'logout'])],
             'queue_id' => ['required', 'uuid'],
+            'confirm_last_queue' => ['sometimes', 'boolean'],
         ];
     }
 }

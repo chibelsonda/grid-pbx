@@ -226,11 +226,7 @@ test('matches Cellphone and Landline forwarding workflows', async ({ page }) => 
     await expect(page.getByRole('switch', { name: 'Hide from contact list' })).toBeVisible()
     await expect(page.getByRole('switch', { name: 'Enable call forwarding' })).toHaveCount(0)
     await expect(page.getByText('Forwarding number', { exact: true })).toHaveCount(0)
-    await page.getByRole('button', { name: /Advanced forwarding/ }).click()
-    await expect(page.getByRole('switch', { name: 'Direct calls only' })).toBeVisible()
-    await expect(page.getByRole('switch', { name: 'Forward only when offline' })).toBeVisible()
-    await expect(page.getByRole('switch', { name: 'Ignore early media' })).toBeVisible()
-    await expect(page.getByRole('switch', { name: 'Replace this device' })).toBeVisible()
+    await expect(page.getByRole('button', { name: /Advanced forwarding/ })).toHaveCount(0)
   }
 })
 
@@ -284,6 +280,12 @@ test('matches registered-endpoint T.38 and completed-elsewhere capabilities', as
     await expect(page.getByRole('switch', { name: 'Ignore completed elsewhere' })).toHaveCount(
       endpoint.completedElsewhere ? 1 : 0,
     )
+    await expect(page.getByRole('switch', { name: 'Call waiting' })).toHaveCount(0)
+    await expect(page.getByRole('switch', { name: 'Do not disturb' })).toHaveCount(0)
+    await expect(page.getByRole('switch', { name: 'Exclude from queues' })).toHaveCount(0)
+    await expect(page.getByText('Call recording', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Notifications and locale', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Routing and endpoint behavior', { exact: true })).toHaveCount(0)
 
     await page
       .getByRole('tab', { name: endpoint.label === 'Smartphone' ? 'Wi-Fi calling' : 'SIP' })

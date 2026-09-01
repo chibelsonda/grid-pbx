@@ -38,6 +38,14 @@ class LineKeyControllerTest extends TestCase
             'endpoint_family' => 'T5',
             'model' => 'T54W',
         ]);
+        SwitchDevice::factory()->for($account)->create([
+            'name' => 'Browser softphone',
+            'device_type' => 'softphone',
+            'make' => null,
+            'endpoint_family' => null,
+            'model' => null,
+            'mac_address' => null,
+        ]);
         $extension = SwitchExtension::factory()->for($account)->create([
             'switch_resource_id' => 'switch-user-support',
         ]);
@@ -59,12 +67,38 @@ class LineKeyControllerTest extends TestCase
             ->assertJsonPath('data.0.endpoint_family', 'T5')
             ->assertJsonPath('data.0.line_keys.0.label', 'Support')
             ->assertJsonPath('data.0.line_keys.0.value', $extension->id)
+            ->assertJsonCount(1, 'data')
             ->assertJsonPath('meta.sync.status', 'stale')
             ->assertJsonPath('meta.sync.last_successful_at', null)
             ->assertJsonMissingPath('data.0.device_id')
             ->assertJsonMissingPath('data.0.line_keys.0.line_key_id')
             ->assertJsonMissingPath('data.0.line_keys.0.switch_json')
+            ->assertJsonMissing(['name' => 'Browser softphone'])
             ->assertDontSee('switch-user-support');
+    }
+
+    public function test_it_rejects_line_key_operations_for_non_provisionable_device_types(): void
+    {
+        config()->set('switch.line_key_mutations_enabled', true);
+        [$user, $account] = $this->accessibleAccount();
+        $device = SwitchDevice::factory()->for($account)->create([
+            'device_type' => 'softphone',
+            'make' => null,
+            'endpoint_family' => null,
+            'model' => null,
+            'mac_address' => null,
+        ]);
+        $this->mock(SwitchLineKeyGateway::class)->shouldNotReceive('update');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys/preview")
+            ->assertConflict()
+            ->assertJsonPath('message', 'Line keys are not supported for this device type.');
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/line-keys", ['line_keys' => []])
+            ->assertConflict()
+            ->assertJsonPath('message', 'Line keys are not supported for this device type.');
     }
 
     public function test_preview_is_safe_and_explains_when_apply_is_disabled(): void

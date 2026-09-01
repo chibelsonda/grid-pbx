@@ -56,6 +56,7 @@ class AgentController extends Controller
             $agent,
             $validated['queue_id'],
             $validated['action'],
+            (bool) ($validated['confirm_last_queue'] ?? false),
             $user,
             $request->ip(),
         ));

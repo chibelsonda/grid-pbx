@@ -9,17 +9,13 @@ import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import { useVisibilityAwarePolling } from '@/shared/composables/useVisibilityAwarePolling'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
+import AgentAvailabilityBadge from '../components/AgentAvailabilityBadge.vue'
 import AgentStatisticsPanel from '../components/AgentStatisticsPanel.vue'
 import AgentStatusPanel from '../components/AgentStatusPanel.vue'
 import QueueFormPanel from '../components/QueueFormPanel.vue'
 import QueueStatisticsPanel from '../components/QueueStatisticsPanel.vue'
 import { useQueueStore } from '../stores/queueStore'
-import type {
-  Agent,
-  AgentQueueMembershipInput,
-  AgentStatusInput,
-  QueueInput,
-} from '../types/queue'
+import type { Agent, AgentQueueMembershipInput, AgentStatusInput, QueueInput } from '../types/queue'
 
 const accounts = useAccountStore()
 const queues = useQueueStore()
@@ -44,6 +40,12 @@ const statisticsPollingPaused = computed(
 const agentStatisticsPollingPaused = computed(
   () => queues.loading || queues.agentStatisticsLoading || queues.agentStatisticsRefreshing,
 )
+const agentAvailabilityPollingPaused = computed(
+  () => queues.loading || queues.agentAvailabilityLoading || queues.agentAvailabilityRefreshing,
+)
+const agentAvailabilityById = computed(
+  () => new Map(queues.agentAvailability?.agents.map((agent) => [agent.id, agent.status]) ?? []),
+)
 
 async function refreshAgentStatus(): Promise<void> {
   if (!accounts.selectedId || !agentPanel.value || !liveAgentControlsAvailable.value) return
@@ -61,6 +63,21 @@ useVisibilityAwarePolling({
   paused: agentStatusPollingPaused,
   intervalMs: 5_000,
   task: refreshAgentStatus,
+})
+
+async function refreshAgentAvailability(): Promise<void> {
+  if (!accounts.selectedId || !liveAgentControlsAvailable.value) return
+  await queues.refreshAgentAvailability(accounts.selectedId)
+}
+
+useVisibilityAwarePolling({
+  active: computed(
+    () =>
+      accounts.selectedId !== null && tab.value === 'agents' && liveAgentControlsAvailable.value,
+  ),
+  paused: agentAvailabilityPollingPaused,
+  intervalMs: 10_000,
+  task: refreshAgentAvailability,
 })
 
 async function refreshAgentStatistics(): Promise<void> {
@@ -107,9 +124,9 @@ async function openQueue(id?: string): Promise<void> {
   queuePanel.value = true
 }
 async function openAgent(agent: Agent): Promise<void> {
-  if (!accounts.selectedId || !liveAgentControlsAvailable.value) return
+  if (!accounts.selectedId || !configurationAvailable.value) return
   agentPanel.value = true
-  await queues.prepareAgent(accounts.selectedId, agent)
+  await queues.prepareAgent(accounts.selectedId, agent, liveAgentControlsAvailable.value)
 }
 async function save(input: QueueInput): Promise<void> {
   if (accounts.selectedId && (await queues.save(accounts.selectedId, input)))
@@ -369,8 +386,26 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
             The connected Switch did not report aggregate agent statistics as available. Agent
             inventory and any separately available live status controls remain accessible.
           </div>
+          <div
+            v-if="queues.agentAvailabilityError"
+            class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"
+            role="alert"
+          >
+            {{ queues.agentAvailabilityError }} The last observed availability remains displayed.
+          </div>
+          <div
+            v-if="queues.agentAvailability?.unresolved_agents"
+            class="mb-4 rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-600"
+            role="status"
+          >
+            {{ queues.agentAvailability.unresolved_agents }} live Agent state<span
+              v-if="queues.agentAvailability.unresolved_agents !== 1"
+              >s</span
+            >
+            could not be matched to projected Queue Agents.
+          </div>
           <div class="card-surface overflow-x-auto">
-            <table class="w-full min-w-[620px] text-left" :aria-busy="queues.loading">
+            <table class="w-full min-w-[720px] text-left" :aria-busy="queues.loading">
               <caption class="sr-only">
                 Queue agents for the selected Switch account
               </caption>
@@ -380,23 +415,24 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                 <tr>
                   <th scope="col" class="px-5 py-3.5">Agent</th>
                   <th scope="col" class="px-5 py-3.5">Extension</th>
+                  <th scope="col" class="px-5 py-3.5">Availability</th>
                   <th scope="col" class="px-5 py-3.5">Queue assignments</th>
                   <th scope="col" class="w-12" aria-label="Open agent status"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 text-xs">
                 <tr v-if="queues.loading">
-                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
                     <span role="status">Loading agents…</span>
                   </td>
                 </tr>
                 <tr v-else-if="!accounts.selectedId">
-                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
                     Select an account to inspect its queue agents.
                   </td>
                 </tr>
                 <tr v-else-if="!queues.agents.length">
-                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
                     No agents are assigned to projected queues.
                   </td>
                 </tr>
@@ -404,12 +440,12 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                   v-for="agent in queues.agents"
                   v-else
                   :key="agent.id"
-                  :class="liveAgentControlsAvailable ? 'hover:bg-slate-50' : 'opacity-60'"
+                  :class="configurationAvailable ? 'hover:bg-slate-50' : 'opacity-60'"
                 >
                   <td class="px-5 py-4">
                     <button
                       type="button"
-                      :disabled="!liveAgentControlsAvailable"
+                      :disabled="!configurationAvailable"
                       class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
                       @click="openAgent(agent)"
                     >
@@ -417,6 +453,9 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                     </button>
                   </td>
                   <td class="px-5 py-4 text-slate-500">{{ agent.extension ?? '—' }}</td>
+                  <td class="px-5 py-4">
+                    <AgentAvailabilityBadge :status="agentAvailabilityById.get(agent.id) ?? null" />
+                  </td>
                   <td class="px-5 py-4 text-slate-500">
                     {{ agent.queues.map(({ name }) => name).join(', ') }}
                   </td>
@@ -455,6 +494,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
     :membership-saving="queues.membershipSaving"
     :membership-error="queues.membershipError"
     :membership-command-accepted="queues.membershipCommandAccepted"
+    :status-available="liveAgentControlsAvailable"
     :error="queues.mutationError"
     :field-errors="queues.fieldErrors"
     :can-manage="canManage && liveAgentControlsAvailable"

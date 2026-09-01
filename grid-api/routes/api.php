@@ -63,6 +63,7 @@ use App\Domains\Payments\Controllers\SandboxRefundController;
 use App\Domains\Payments\Controllers\SandboxVoidController;
 use App\Domains\PhoneNumbers\Controllers\PhoneNumberController;
 use App\Domains\PhoneNumbers\Controllers\PhoneNumberSyncController;
+use App\Domains\Queues\Controllers\AgentAvailabilityController;
 use App\Domains\Queues\Controllers\AgentController;
 use App\Domains\Queues\Controllers\AgentStatisticsController;
 use App\Domains\Queues\Controllers\QueueController;
@@ -173,6 +174,7 @@ Route::prefix('v1')->group(function (): void {
             Route::put('/queues/{queue}', [QueueController::class, 'update']);
             Route::delete('/queues/{queue}', [QueueController::class, 'destroy']);
             Route::get('/agents', [AgentController::class, 'index']);
+            Route::get('/agents/availability', AgentAvailabilityController::class);
             Route::get('/agents/statistics', AgentStatisticsController::class);
             Route::get('/agents/{agent}/queues', [AgentController::class, 'queueMemberships']);
             Route::post('/agents/{agent}/queues', [AgentController::class, 'updateQueueMembership']);

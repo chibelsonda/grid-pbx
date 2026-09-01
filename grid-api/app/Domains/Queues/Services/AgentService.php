@@ -83,6 +83,7 @@ class AgentService
         string $agentId,
         string $queueId,
         string $action,
+        bool $confirmLastQueue,
         User $actor,
         ?string $ipAddress = null,
     ): array {
@@ -97,6 +98,25 @@ class AgentService
         }
 
         try {
+            $removesLastQueue = false;
+
+            if ($action === 'logout') {
+                $currentQueueIds = array_values(array_unique($this->gateway->queueIds(
+                    $account,
+                    $agent->switch_resource_id,
+                )));
+                $removesLastQueue = count($currentQueueIds) === 1
+                    && $currentQueueIds[0] === $queue->switch_resource_id;
+
+                if ($removesLastQueue && ! $confirmLastQueue) {
+                    throw ValidationException::withMessages([
+                        'confirm_last_queue' => [
+                            'Leaving this final Queue removes the User from the Switch Agent list. Confirm the final Queue removal to continue.',
+                        ],
+                    ]);
+                }
+            }
+
             $queueIds = $this->gateway->updateQueueMembership(
                 $account,
                 $agent->switch_resource_id,
@@ -110,7 +130,12 @@ class AgentService
                 'agent.queue_membership_requested',
                 'succeeded',
                 $agent->switch_resource_id,
-                ['agent_id' => $agent->id, 'queue_id' => $queue->id, 'action' => $action],
+                [
+                    'agent_id' => $agent->id,
+                    'queue_id' => $queue->id,
+                    'action' => $action,
+                    'removed_last_queue' => $removesLastQueue,
+                ],
                 $ipAddress,
                 'agent',
             );
@@ -202,6 +227,7 @@ class AgentService
             'unresolved_queues' => collect($switchQueueIds)
                 ->reject(fn (string $switchQueueId): bool => $knownByResourceId->has($switchQueueId))
                 ->count(),
+            'agent_active' => $switchQueueIds !== [],
             'observed_at' => now()->toIso8601String(),
         ];
     }

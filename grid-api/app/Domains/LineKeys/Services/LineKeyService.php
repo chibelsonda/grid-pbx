@@ -4,14 +4,17 @@ namespace App\Domains\LineKeys\Services;
 
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Devices\Services\ProvisioningModelCapabilitiesService;
+use App\Domains\Devices\Services\StarterDevicePolicy;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Database\Eloquent\Collection;
+use Symfony\Component\HttpKernel\Exception\ConflictHttpException;
 
 class LineKeyService
 {
     public function __construct(
         private readonly ProvisioningModelCapabilitiesService $modelCapabilities,
         private readonly LineKeyReferenceResolver $references,
+        private readonly StarterDevicePolicy $devicePolicy,
     ) {}
 
     /** @return Collection<int, SwitchDevice> */
@@ -19,6 +22,7 @@ class LineKeyService
     {
         $devices = $account->devices()
             ->with(['lineKeys' => fn ($query) => $query->orderBy('category')->orderBy('position')])
+            ->whereIn('device_type', StarterDevicePolicy::PROVISIONABLE_TYPES)
             ->when($search, fn ($query, string $search) => $query->where(function ($query) use ($search): void {
                 $query->where('name', 'like', "%{$search}%")
                     ->orWhere('make', 'like', "%{$search}%")
@@ -42,6 +46,10 @@ class LineKeyService
     /** @return array<string, mixed> */
     public function preview(SwitchDevice $device): array
     {
+        if (! $this->devicePolicy->isProvisionable($device->device_type)) {
+            throw new ConflictHttpException('Line keys are not supported for this device type.');
+        }
+
         $device->load(['lineKeys' => fn ($query) => $query->orderBy('category')->orderBy('position')]);
         $synchronized = $device->switch_resource_id !== null;
         $enabled = (bool) config('switch.line_key_mutations_enabled', false);

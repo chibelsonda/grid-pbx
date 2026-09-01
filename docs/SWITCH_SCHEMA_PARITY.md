@@ -172,14 +172,14 @@ no per-type rejection for them. GridPBX now exposes those fields in the
 matching Advanced sub-tabs and includes them in the typed payload. Raw resource
 IDs and SIP secrets remain outside the public form contract.
 
-The form uses a device capability matrix rather than rendering every property
-accepted by the generic Device schema for every type. `contact_list.exclude` is
-available to all eight types. Registered endpoints (`sip_device`, `smartphone`,
-`softphone`, `fax`, and `ata`) additionally receive endpoint-behavior and
-advanced-routing controls. `cellphone` and `landline` receive their forwarding
-workflow. `sip_uri` deliberately sends only `sip.invite_format`, `sip.route`, and
-its contact-list option; SIP credentials, media, Caller ID, provisioning,
-restrictions, and endpoint routing controls do not belong to that workflow.
+The form uses a Kazoo-audited device capability matrix rather than rendering
+every property accepted by the generic Device schema. `contact_list.exclude`
+is available to all eight types. SIP Device exposes ringtone headers, T.38,
+and ignore-completed-elsewhere; Softphone exposes T.38 and
+ignore-completed-elsewhere; Fax and ATA expose T.38; forwarding devices expose
+require-keypress and caller-ID retention; SIP URI remains minimal. Broader
+schema-backed values remain typed at the transport boundary and are preserved
+when already present, but are not promoted to generic Options controls.
 
 ### 5.1.1 Version-aware compatibility matrix
 
@@ -732,7 +732,10 @@ Line keys are positions inside a Device's `provision.combo_keys` and
 `provision.feature_keys` maps; they are not independent Switch documents.
 GridPBX uses a standalone MySQL projection and public UUIDs for UI workflows,
 but applies changes as one bounded replacement to the owning Device provisioning
-subtree.
+subtree. The catalog and preview/update endpoints accept only provisionable
+physical Device types (`sip_device`, `fax`, and `ata`). Softphones do not use a
+hardware catalog or MAC-based line-key provisioning and are therefore excluded
+instead of being shown with an impossible hardware requirement.
 
 | Schema path or variant | Treatment | Current status |
 | --- | --- | --- |
@@ -907,7 +910,9 @@ the verified payload.
 | `cdr_url`, `recording_url`, runtime `call_recording_url` | Hidden pending outbound URL/SSRF allowlist policy. The installed schema exposes `recording_url`, but the installed ACDc queue FSM reads `call_recording_url`; existing values under both keys are preserved and never returned | Intentionally policy-gated |
 | safe unknown Queue fields | Authoritative pre-update GET merges unknown top-level, `announcements`, and nested prompt metadata; modeled fields win, while IDs, revisions, private/redacted values, and raw roster IDs are discarded | Implemented and focused-tested |
 | queue roster | Public Extension UUIDs resolved to Switch User identifiers and replaced separately | Implemented |
+| per-Agent Queue membership | Kazoo `queue_status` is kept separate from bulk roster replacement. Reads require Queue configuration and expose only projected public Queue UUIDs plus an unresolved count; join/leave additionally requires live Agent controls and resolves public Agent/Queue UUIDs server-side before reconciliation | Implemented and focused/isolated tested; live mutation remains unavailable in the connected deployment |
 | live agent status | Login, logout, pause, resume, and end-wrapup commands with conditional pause timeout and audit logging. The open panel refreshes every five seconds only while visible/capable, pauses during commands, prevents overlap, and retains the last observation on a background failure | Implemented; isolated polling lifecycle verified, with no automated live mutation of real agents |
+| account Agent availability | Installed `agents/status` returns Agent-ID and timestamp-keyed histories for eight known states plus private call, caller, Queue, pause, and record details. The SDK retains only the latest recognized state/timestamp; Laravel maps private IDs to account-scoped public Extension UUIDs, returns `unknown` for projected Agents without history, and exposes unmatched rows only as a count. The Agents tab polls every ten seconds only while visible | Implemented behind `live_agent_controls_available`; installed-runtime/privacy boundary and isolated polling are verified, while the connected live feed remains unavailable |
 | runtime capability discovery | Safe account-level reads probe Queue configuration, aggregate Agent status, Agent statistics, and Queue statistics independently; only four booleans enter the public contract, with a one-minute account cache | Implemented and live verified as configuration available, live controls unavailable, Agent statistics unavailable, and Queue statistics unavailable |
 | account Queue statistics | Kazoo queues/stats exposes a deployment-configured recent window and raw call, caller, Agent, and Queue identifiers. The SDK retains only Queue/status/timing fields internally; Laravel resolves projected Queues and returns counts, average wait/talk, and longest current wait under public UUIDs. Unresolved rows are counted but never identified | Implemented behind statistics_available; privacy boundary and 15-second visibility-aware UI polling are focused/isolated tested, while the local live feed remains unavailable |
 | account Agent statistics | Kazoo agents/stats returns a compressed object keyed by private Agent ID, with total/answered/missed counts and a nested private Queue-ID breakdown. The SDK validates only the three aggregate counts and discards Queue keys and unknown fields; Laravel resolves account-scoped projected Agents and returns public UUIDs, display data, answer rates, aggregate totals, and only an unresolved-Agent count | Implemented behind agent_statistics_available; privacy boundary, manual refresh, last-good retention, and 15-second visibility-aware UI polling are focused/isolated tested, while the local live feed remains unavailable |

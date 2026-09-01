@@ -19,6 +19,7 @@ describe('agentQueueMembershipSchema', () => {
       ],
       available_queues: [],
       unresolved_queues: 0,
+      agent_active: true,
       observed_at: '2026-09-01T04:05:06+00:00',
     })
 

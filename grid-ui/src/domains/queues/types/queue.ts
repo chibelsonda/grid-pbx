@@ -63,6 +63,7 @@ export type QueueInput = {
 }
 
 export type { QueueOption, QueueOptions } from '../schemas/queueOptionsSchema'
+export type { AgentAvailability, AgentAvailabilityStatus } from '../schemas/agentAvailabilitySchema'
 export type { AgentStatistics, AgentStatisticsMetrics } from '../schemas/agentStatisticsSchema'
 export type {
   AgentQueueMembership,

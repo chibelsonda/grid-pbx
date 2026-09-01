@@ -73,10 +73,96 @@ test('separates available Queue configuration from unavailable live ACDc control
   expect(issues).toEqual([])
 })
 
-test('polls an open live agent panel and stops after it closes', async ({ page }) => {
+test('keeps Queue memberships readable when live Agent controls are unavailable', async ({
+  page,
+}) => {
   const issues = collectPageIssues(page)
   const agentId = '11111111-1111-4111-8111-111111111111'
+  const queueId = '22222222-2222-4222-8222-222222222222'
   let statusFetches = 0
+
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/options$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          agents: [],
+          media: [],
+          capabilities: {
+            configuration_available: true,
+            live_agent_controls_available: false,
+            agent_statistics_available: false,
+            statistics_available: false,
+          },
+        },
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/agents$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: agentId,
+            name: 'Isolated Agent',
+            extension: '1001',
+            queues: [{ id: queueId, name: 'Support' }],
+          },
+        ],
+      }),
+    })
+  })
+  await page.route(
+    new RegExp(`/api/v1/accounts/[^/]+/agents/${agentId}/status$`),
+    async (route) => {
+      statusFetches += 1
+      await route.fulfill({ status: 503 })
+    },
+  )
+  await page.route(
+    new RegExp(`/api/v1/accounts/[^/]+/agents/${agentId}/queues$`),
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            agent: { id: agentId, name: 'Isolated Agent', extension: '1001' },
+            assigned_queues: [{ id: queueId, name: 'Support' }],
+            available_queues: [],
+            unresolved_queues: 0,
+            agent_active: true,
+            observed_at: '2026-09-01T04:05:06+00:00',
+          },
+        }),
+      })
+    },
+  )
+
+  await page.goto('/queues')
+  await page.getByRole('tab', { name: 'Agents' }).click()
+  await page.getByRole('button', { name: 'Isolated Agent' }).click()
+  const panel = page.getByRole('dialog', { name: 'Agent status' }).getByTestId('slide-over-panel')
+
+  await expect(panel.getByText('Live Agent status unavailable')).toBeVisible()
+  await expect(panel.getByRole('heading', { name: 'Queue memberships' })).toBeVisible()
+  await expect(panel.getByText('Support', { exact: true })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'Leave' })).toHaveCount(0)
+  await expect(panel.getByRole('button', { name: 'Send command' })).toHaveCount(0)
+  expect(statusFetches).toBe(0)
+  expect(issues).toEqual([])
+})
+
+test('polls privacy-safe Agent availability only while the Agents tab is active', async ({
+  page,
+}) => {
+  test.setTimeout(35_000)
+  const issues = collectPageIssues(page)
+  const agentId = '11111111-1111-4111-8111-111111111111'
+  let availabilityFetches = 0
 
   await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/options$/, async (route) => {
     await route.fulfill({
@@ -106,9 +192,101 @@ test('polls an open live agent panel and stops after it closes', async ({ page }
             id: agentId,
             name: 'Isolated Agent',
             extension: '1001',
-            queues: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Support' }],
+            queues: [],
           },
         ],
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/agents\/availability$/, async (route) => {
+    availabilityFetches += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          observed_at: '2026-09-01T04:05:06+00:00',
+          agents: [
+            {
+              id: agentId,
+              status: availabilityFetches > 1 ? 'connected' : 'ready',
+              changed_at: 63800000000 + availabilityFetches,
+            },
+          ],
+          unresolved_agents: 0,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/queues')
+  await page.getByRole('tab', { name: 'Agents' }).click()
+  await expect(page.getByText('Available', { exact: true })).toBeVisible()
+  await expect.poll(() => availabilityFetches, { timeout: 12_000 }).toBeGreaterThanOrEqual(2)
+  await expect(page.getByText('On call', { exact: true })).toBeVisible()
+
+  await page.getByRole('tab', { name: 'Queues' }).click()
+  const fetchesAfterLeavingAgents = availabilityFetches
+  await page.waitForTimeout(10_500)
+
+  expect(availabilityFetches).toBe(fetchesAfterLeavingAgents)
+  expect(issues).toEqual([])
+})
+
+test('polls an open live agent panel and stops after it closes', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const agentId = '11111111-1111-4111-8111-111111111111'
+  const supportQueueId = '22222222-2222-4222-8222-222222222222'
+  const salesQueueId = '33333333-3333-4333-8333-333333333333'
+  let statusFetches = 0
+  let availabilityFetches = 0
+  const membershipWrites: Array<{ action: string; queue_id: string }> = []
+
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/options$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          agents: [],
+          media: [],
+          capabilities: {
+            configuration_available: true,
+            live_agent_controls_available: true,
+            agent_statistics_available: false,
+            statistics_available: false,
+          },
+        },
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/agents$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: agentId,
+            name: 'Isolated Agent',
+            extension: '1001',
+            queues: [{ id: supportQueueId, name: 'Support' }],
+          },
+        ],
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/agents\/availability$/, async (route) => {
+    availabilityFetches += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          observed_at: '2026-09-01T04:05:06+00:00',
+          agents: [{ id: agentId, status: 'ready', changed_at: 63800000000 }],
+          unresolved_agents: 0,
+        },
       }),
     })
   })
@@ -125,9 +303,43 @@ test('polls an open live agent panel and stops after it closes', async ({ page }
       })
     },
   )
+  await page.route(
+    new RegExp(`/api/v1/accounts/[^/]+/agents/${agentId}/queues$`),
+    async (route) => {
+      const input = route.request().postDataJSON() as {
+        action: string
+        queue_id: string
+        confirm_last_queue?: boolean
+      } | null
+      if (input) membershipWrites.push(input)
+      const assigned = input?.action === 'logout' ? [] : [{ id: supportQueueId, name: 'Support' }]
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            agent: { id: agentId, name: 'Isolated Agent', extension: '1001' },
+            assigned_queues: assigned,
+            available_queues:
+              input?.action === 'logout'
+                ? [
+                    { id: supportQueueId, name: 'Support' },
+                    { id: salesQueueId, name: 'Sales' },
+                  ]
+                : [{ id: salesQueueId, name: 'Sales' }],
+            unresolved_queues: 0,
+            agent_active: input?.action !== 'logout',
+            observed_at: '2026-09-01T04:05:06+00:00',
+          },
+        }),
+      })
+    },
+  )
 
   await page.goto('/queues')
   await page.getByRole('tab', { name: 'Agents' }).click()
+  await expect(page.getByText('Available', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Isolated Agent' }).click()
   const dialog = page.getByRole('dialog', { name: 'Agent status' })
   const panel = dialog.getByTestId('slide-over-panel')
@@ -135,7 +347,20 @@ test('polls an open live agent panel and stops after it closes', async ({ page }
   await expect(panel).toBeVisible()
   await expect(panel.getByText('connected')).toBeVisible()
   await expect(panel.getByText('Auto-refresh · 5s', { exact: false })).toBeVisible()
+  await expect(panel.getByRole('heading', { name: 'Queue memberships' })).toBeVisible()
+  await expect(panel.getByText('Support', { exact: true })).toBeVisible()
+  await panel.getByRole('button', { name: 'Leave' }).click()
+  await expect(panel.getByText('Remove the final Queue?')).toBeVisible()
+  expect(membershipWrites).toEqual([])
+  await panel.getByRole('button', { name: 'Leave final Queue' }).click()
+  await expect(
+    panel.getByText('Switch saved the Queue membership and accepted the live Agent command.'),
+  ).toBeVisible()
+  expect(membershipWrites).toEqual([
+    { action: 'logout', queue_id: supportQueueId, confirm_last_queue: true },
+  ])
   await expect.poll(() => statusFetches, { timeout: 7_000 }).toBeGreaterThanOrEqual(2)
+  expect(availabilityFetches).toBeGreaterThanOrEqual(1)
 
   await dialog.getByRole('button', { name: 'Close panel' }).click()
   const fetchesAfterClose = statusFetches

@@ -4,6 +4,7 @@ import type { PaginatedResponse } from '@/shared/api/http'
 import { queueApi } from '../api/queueApi'
 import type {
   Agent,
+  AgentAvailability,
   AgentQueueMembership,
   AgentStatistics,
   AgentStatus,
@@ -22,6 +23,7 @@ vi.mock('../api/queueApi', () => ({
     options: vi.fn<() => Promise<QueueOptions>>(),
     statistics: vi.fn<() => Promise<QueueStatistics>>(),
     agentStatistics: vi.fn<() => Promise<AgentStatistics>>(),
+    agentAvailability: vi.fn<() => Promise<AgentAvailability>>(),
     create: vi.fn<() => Promise<Queue>>(),
     update: vi.fn<() => Promise<Queue>>(),
     remove: vi.fn<() => Promise<void>>(),
@@ -132,13 +134,23 @@ const agentStatistics: AgentStatistics = {
   agents: [],
   unresolved_agents: 0,
 }
+const agentAvailability: AgentAvailability = {
+  observed_at: '2026-09-01T04:05:06+00:00',
+  agents: [
+    {
+      id: '11111111-1111-4111-8111-111111111111',
+      status: 'ready',
+      changed_at: 63800000000,
+    },
+  ],
+  unresolved_agents: 0,
+}
 const agentQueueMembership: AgentQueueMembership = {
   agent: { id: agent.id, name: agent.name, extension: agent.extension },
   assigned_queues: agent.queues,
-  available_queues: [
-    { id: '22222222-2222-4222-8222-222222222222', name: 'Sales' },
-  ],
+  available_queues: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Sales' }],
   unresolved_queues: 0,
+  agent_active: true,
   observed_at: '2026-09-01T04:05:06+00:00',
 }
 
@@ -218,6 +230,16 @@ describe('queue store', () => {
     expect(store.statusLastObservedAt).not.toBeNull()
     expect(store.statusRefreshing).toBe(false)
   })
+  it('loads Queue memberships without requesting unavailable live Agent status', async () => {
+    vi.mocked(queueApi.agentQueueMemberships).mockResolvedValue(agentQueueMembership)
+    const store = useQueueStore()
+
+    await store.prepareAgent('account-1', agent, false)
+
+    expect(queueApi.agentStatus).not.toHaveBeenCalled()
+    expect(queueApi.agentQueueMemberships).toHaveBeenCalledWith('account-1', agent.id)
+    expect(store.agentQueueMembership).toEqual(agentQueueMembership)
+  })
   it('keeps the last observed state when a background refresh fails', async () => {
     vi.mocked(queueApi.agentStatus).mockRejectedValue(new Error('private provider failure'))
     const store = useQueueStore()
@@ -244,7 +266,10 @@ describe('queue store', () => {
   it('reconciles the selected Agent after Switch accepts a Queue membership change', async () => {
     const updatedMembership: AgentQueueMembership = {
       ...agentQueueMembership,
-      assigned_queues: [...agentQueueMembership.assigned_queues, agentQueueMembership.available_queues[0]!],
+      assigned_queues: [
+        ...agentQueueMembership.assigned_queues,
+        agentQueueMembership.available_queues[0]!,
+      ],
       available_queues: [],
     }
     vi.mocked(queueApi.updateAgentQueueMembership).mockResolvedValue(updatedMembership)
@@ -258,13 +283,32 @@ describe('queue store', () => {
         queue_id: '22222222-2222-4222-8222-222222222222',
       }),
     ).toBe(true)
-    expect(queueApi.updateAgentQueueMembership).toHaveBeenCalledWith(
-      'account-1',
-      agent.id,
-      { action: 'login', queue_id: '22222222-2222-4222-8222-222222222222' },
-    )
+    expect(queueApi.updateAgentQueueMembership).toHaveBeenCalledWith('account-1', agent.id, {
+      action: 'login',
+      queue_id: '22222222-2222-4222-8222-222222222222',
+    })
     expect(store.selectedAgent.queues).toEqual(updatedMembership.assigned_queues)
     expect(store.membershipCommandAccepted).toBe(true)
+  })
+  it('removes a User from the Agent list after the final Queue is removed', async () => {
+    vi.mocked(queueApi.updateAgentQueueMembership).mockResolvedValue({
+      ...agentQueueMembership,
+      assigned_queues: [],
+      agent_active: false,
+    })
+    const store = useQueueStore()
+    store.selectedAgent = { ...agent, queues: [...agent.queues] }
+    store.agents = [store.selectedAgent]
+
+    expect(
+      await store.updateAgentQueueMembership('account-1', {
+        action: 'logout',
+        queue_id: '11111111-1111-4111-8111-111111111111',
+        confirm_last_queue: true,
+      }),
+    ).toBe(true)
+    expect(store.agents).toEqual([])
+    expect(store.selectedAgent.queues).toEqual([])
   })
   it('refreshes an available Queue statistics snapshot', async () => {
     vi.mocked(queueApi.statistics).mockResolvedValue(statistics)
@@ -299,5 +343,17 @@ describe('queue store', () => {
     expect(store.agentStatistics).toEqual(agentStatistics)
     expect(store.agentStatisticsError).toBe('Unable to refresh live agent performance.')
     expect(store.agentStatisticsRefreshing).toBe(false)
+  })
+  it('refreshes live Agent availability and retains its last safe snapshot', async () => {
+    vi.mocked(queueApi.agentAvailability).mockResolvedValueOnce(agentAvailability)
+    const store = useQueueStore()
+
+    expect(await store.refreshAgentAvailability('account-1', true)).toBe(true)
+    expect(store.agentAvailability).toEqual(agentAvailability)
+
+    vi.mocked(queueApi.agentAvailability).mockRejectedValueOnce(new Error('private Switch failure'))
+    expect(await store.refreshAgentAvailability('account-1')).toBe(false)
+    expect(store.agentAvailability).toEqual(agentAvailability)
+    expect(store.agentAvailabilityError).toBe('Unable to refresh live Agent availability.')
   })
 })

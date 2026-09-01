@@ -5,6 +5,7 @@ namespace App\Domains\LineKeys\Services;
 use App\Domains\Auditing\Services\AuditService;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Devices\Services\ProvisioningModelCapabilitiesService;
+use App\Domains\Devices\Services\StarterDevicePolicy;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\LineKeys\Contracts\SwitchLineKeyGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
@@ -23,11 +24,16 @@ class LineKeyMutationService
         private readonly AuditService $audit,
         private readonly ProvisioningModelCapabilitiesService $modelCapabilities,
         private readonly LineKeyReferenceResolver $references,
+        private readonly StarterDevicePolicy $devicePolicy,
     ) {}
 
     /** @param list<array{category: string, position: int, type: string, value: string|int|null, label: string|null}> $keys */
     public function update(SwitchAccount $account, SwitchDevice $device, User $actor, array $keys, ?string $ipAddress): SwitchDevice
     {
+        if (! $this->devicePolicy->isProvisionable($device->device_type)) {
+            throw new ConflictHttpException('Line keys are not supported for this device type.');
+        }
+
         if (! config('switch.line_key_mutations_enabled', false)) {
             throw new ConflictHttpException('Line-key mutations are disabled by server configuration.');
         }

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, watch } from 'vue'
 import { ArrowPathIcon, BoltIcon, UserCircleIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormInput from '@/shared/components/FormInput.vue'
@@ -9,6 +9,10 @@ import FormListbox, {
 } from '@/shared/components/FormListbox.vue'
 import AgentQueueMembershipPanel from './AgentQueueMembershipPanel.vue'
 import { useAgentStatusForm } from '../composables/useAgentStatusForm'
+import {
+  recommendedAgentStatusActions,
+  type AgentStatusAction,
+} from '../support/agentStatusActions'
 import type {
   Agent,
   AgentQueueMembership,
@@ -30,6 +34,7 @@ const props = defineProps<{
   membershipSaving: boolean
   membershipError: string | null
   membershipCommandAccepted: boolean
+  statusAvailable: boolean
   error: string | null
   fieldErrors: Record<string, string[]>
   canManage: boolean
@@ -43,13 +48,29 @@ const emit = defineEmits<{
 }>()
 const { form, validate, validationErrors } = useAgentStatusForm()
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
-const statusOptions: ListboxOptionValue[] = [
-  { value: 'login', label: 'Log in' },
-  { value: 'logout', label: 'Log out' },
-  { value: 'pause', label: 'Pause' },
-  { value: 'resume', label: 'Resume' },
-  { value: 'end_wrapup', label: 'End wrap-up' },
-]
+const actionLabels: Record<AgentStatusAction, string> = {
+  login: 'Log in',
+  logout: 'Log out',
+  pause: 'Pause',
+  resume: 'Resume',
+  end_wrapup: 'End wrap-up',
+}
+const allActions = Object.keys(actionLabels) as AgentStatusAction[]
+const recommendedActions = computed(() => recommendedAgentStatusActions(props.current?.status))
+const statusOptions = computed<ListboxOptionValue[]>(() => [
+  ...recommendedActions.value.map((action) => ({
+    value: action,
+    label: actionLabels[action],
+    description: `Recommended for ${props.current?.status ?? 'unknown'} status`,
+  })),
+  ...allActions
+    .filter((action) => !recommendedActions.value.includes(action))
+    .map((action) => ({
+      value: action,
+      label: actionLabels[action],
+      description: 'Other asynchronous Switch command',
+    })),
+])
 const lastObservedLabel = computed(() =>
   props.lastObservedAt
     ? new Intl.DateTimeFormat(undefined, {
@@ -58,6 +79,14 @@ const lastObservedLabel = computed(() =>
         second: '2-digit',
       }).format(new Date(props.lastObservedAt))
     : null,
+)
+
+watch(
+  () => [props.agent.id, props.current?.status] as const,
+  () => {
+    form.status = recommendedActions.value[0] ?? 'logout'
+  },
+  { immediate: true },
 )
 
 function setStatus(value: ListboxValue): void {
@@ -119,6 +148,7 @@ function submit(): void {
               </p>
             </div>
             <button
+              v-if="statusAvailable"
               type="button"
               :disabled="loading || refreshing"
               class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-[11px] font-semibold text-slate-600 disabled:opacity-50"
@@ -131,7 +161,13 @@ function submit(): void {
             class="mt-1 text-sm font-semibold text-slate-700"
             :role="loading || refreshing ? 'status' : undefined"
           >
-            {{ loading ? 'Loading…' : (current?.status ?? 'Unknown') }}
+            {{
+              !statusAvailable
+                ? 'Live Agent status unavailable'
+                : loading
+                  ? 'Loading…'
+                  : (current?.status ?? 'Unknown')
+            }}
           </p>
         </div>
       </article>
@@ -160,13 +196,14 @@ function submit(): void {
       >
         {{ refreshError }} The last observed status remains displayed.
       </div>
-      <article v-if="canManage" class="card-surface overflow-hidden">
+      <article v-if="canManage && statusAvailable" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <BoltIcon class="size-5 text-amber-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Request status change</h2>
             <p class="text-[10px] text-slate-400">
-              Commands can be deferred by Switch while an agent is on a call.
+              Recommended actions follow the observed state. Other REST commands remain available
+              because Switch can defer them while an Agent is on a call.
             </p>
           </div>
         </header>
@@ -201,9 +238,9 @@ function submit(): void {
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
           @click="emit('close')"
         >
-          {{ canManage ? 'Cancel' : 'Close' }}</button
+          {{ canManage && statusAvailable ? 'Cancel' : 'Close' }}</button
         ><button
-          v-if="canManage"
+          v-if="canManage && statusAvailable"
           type="submit"
           :disabled="loading"
           class="h-10 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white disabled:opacity-50"

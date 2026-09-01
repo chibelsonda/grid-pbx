@@ -1,10 +1,12 @@
 import { http, unwrapApiData, type ApiResponse, type PaginatedResponse } from '@/shared/api/http'
+import { agentAvailabilitySchema } from '../schemas/agentAvailabilitySchema'
 import { agentQueueMembershipSchema } from '../schemas/agentQueueMembershipSchema'
 import { agentStatisticsSchema } from '../schemas/agentStatisticsSchema'
 import { queueOptionsSchema } from '../schemas/queueOptionsSchema'
 import { queueStatisticsSchema } from '../schemas/queueStatisticsSchema'
 import type {
   Agent,
+  AgentAvailability,
   AgentQueueMembership,
   AgentQueueMembershipInput,
   AgentStatistics,
@@ -51,6 +53,15 @@ export const queueApi = {
       unwrapApiData(
         await http.get<ApiResponse<AgentStatistics>>(
           `/api/v1/accounts/${accountId}/agents/statistics`,
+        ),
+      ),
+    )
+  },
+  async agentAvailability(accountId: string): Promise<AgentAvailability> {
+    return agentAvailabilitySchema.parse(
+      unwrapApiData(
+        await http.get<ApiResponse<AgentAvailability>>(
+          `/api/v1/accounts/${accountId}/agents/availability`,
         ),
       ),
     )
