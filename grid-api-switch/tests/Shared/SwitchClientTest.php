@@ -6,6 +6,7 @@ namespace GridPbx\Switch\Tests;
 
 use GridPbx\Switch\Shared\Authentication\ApiKeyTokenProvider;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -112,5 +113,42 @@ final class SwitchClientTest extends TestCase
         self::assertSame('account-id', $payload['data']['id']);
         self::assertSame('test-token-1', $history[0]['request']->getHeaderLine('X-Auth-Token'));
         self::assertSame('test-token-2', $history[1]['request']->getHeaderLine('X-Auth-Token'));
+    }
+
+    public function test_it_preserves_structured_switch_error_details_without_using_them_as_the_message(): void
+    {
+        $responses = new MockHandler([
+            new Response(400, [], json_encode([
+                'status' => 'error',
+                'message' => 'validation failed',
+                'data' => [
+                    'profile' => ['nicknames' => ['type' => 'array']],
+                ],
+            ], JSON_THROW_ON_ERROR)),
+        ]);
+        $http = new Client(['handler' => HandlerStack::create($responses)]);
+        $config = new SwitchConfig('http://switch:8000/v2', 'test-api-key');
+        $tokens = new class implements TokenProvider
+        {
+            public function token(): string
+            {
+                return 'test-token';
+            }
+
+            public function invalidate(): void {}
+        };
+
+        try {
+            (new SwitchClient($http, $config, $tokens))->request('PUT', 'accounts/account-id/users');
+            self::fail('Expected the Switch request to fail.');
+        } catch (SwitchRequestException $exception) {
+            self::assertSame('Switch request failed.', $exception->getMessage());
+            self::assertSame(400, $exception->statusCode);
+            self::assertSame('validation failed', $exception->payload['message']);
+            self::assertSame(
+                ['type' => 'array'],
+                $exception->payload['data']['profile']['nicknames'],
+            );
+        }
     }
 }

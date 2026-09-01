@@ -58,7 +58,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
+      <div
+        v-if="error"
+        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
+      >
         {{ error }}
       </div>
       <article class="card-surface p-5">
@@ -75,7 +79,10 @@ function submit(): void {
           <p class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
             Current Switch status
           </p>
-          <p class="mt-1 text-sm font-semibold text-slate-700">
+          <p
+            class="mt-1 text-sm font-semibold text-slate-700"
+            :role="loading ? 'status' : undefined"
+          >
             {{ loading ? 'Loading…' : (current?.status ?? 'Unknown') }}
           </p>
         </div>

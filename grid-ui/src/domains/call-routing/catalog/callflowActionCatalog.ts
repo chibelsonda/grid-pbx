@@ -369,6 +369,14 @@ export function callflowActionDestinationType(module: string): CallflowDestinati
   return guidedDestinationTypes[module] ?? null
 }
 
+export function callflowDestinationModule(type: CallflowDestinationType): string | null {
+  return (
+    Object.entries(guidedDestinationTypes).find(
+      ([, destinationType]) => destinationType === type,
+    )?.[0] ?? null
+  )
+}
+
 const operationModules = new Set([
   'temporal_route',
   'ring_group_toggle',

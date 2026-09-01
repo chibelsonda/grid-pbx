@@ -9,9 +9,7 @@ export function useGroupForm(record: Group | null) {
     music_on_hold_media_id: record?.music_on_hold_media?.id ?? null,
     members:
       record?.members?.flatMap((member) =>
-        member.target
-          ? [{ type: member.type, id: member.target.id, weight: member.weight }]
-          : [],
+        member.target ? [{ type: member.type, id: member.target.id, weight: member.weight }] : [],
       ) ?? [],
   })
   const validationErrors = ref<FormErrors>({})
@@ -31,4 +29,3 @@ export function useGroupForm(record: Group | null) {
 
   return { form, validate, validationErrors }
 }
-

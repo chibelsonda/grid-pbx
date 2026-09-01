@@ -2,11 +2,16 @@
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { Menu, MenuButton, MenuItem, MenuItems, TransitionRoot } from '@headlessui/vue'
-import { Bars3Icon, ChevronDownIcon } from '@heroicons/vue/24/outline'
+import {
+  ArrowRightStartOnRectangleIcon,
+  Bars3Icon,
+  ChevronDownIcon,
+} from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import { accountRoleLabel } from '@/domains/accounts/accountRole'
+import AccountSwitcher from '@/domains/accounts/components/AccountSwitcher.vue'
 import { useAuthStore } from '@/domains/auth/stores/authStore'
 import GlobalSearch from '@/domains/global-search/components/GlobalSearch.vue'
-import FormListbox, { type ListboxOptionValue } from '@/shared/components/FormListbox.vue'
 
 defineProps<{ sidebarCollapsed: boolean; themeId: string }>()
 defineEmits<{ toggleMobile: [] }>()
@@ -22,15 +27,12 @@ const initials = computed(() =>
     .slice(0, 2)
     .toUpperCase(),
 )
-const accountOptions = computed<ListboxOptionValue[]>(() =>
-  accounts.accounts.length
-    ? accounts.accounts.map((account) => ({
-        value: account.id,
-        label: account.name,
-        description: account.enabled ? null : 'Disabled',
-      }))
-    : [{ value: null, label: 'No mapped account', disabled: true }],
-)
+const userContext = computed(() => {
+  const role = accounts.selected?.organization_role
+  if (!role) return auth.user?.email ?? 'Signed in'
+
+  return accountRoleLabel(role)
+})
 
 async function signOut(): Promise<void> {
   await auth.logout()
@@ -45,7 +47,7 @@ async function signOut(): Promise<void> {
     :class="sidebarCollapsed ? 'lg:left-20' : 'lg:left-[280px]'"
     :data-theme="themeId"
   >
-    <div class="flex h-full items-center gap-3 px-4 sm:px-6">
+    <div class="flex h-full items-center gap-2 px-4 sm:gap-3 sm:px-6">
       <button
         type="button"
         class="app-header-action grid size-9 place-items-center rounded-full lg:hidden"
@@ -55,53 +57,73 @@ async function signOut(): Promise<void> {
         <Bars3Icon class="size-5" />
       </button>
 
-      <div class="w-9 sm:w-full sm:max-w-sm">
+      <div class="w-9 min-w-0 sm:w-auto sm:min-w-48 sm:max-w-md sm:flex-1">
         <GlobalSearch :account-id="accounts.selectedId" :user-id="auth.user?.id ?? null" />
       </div>
 
-      <div class="ml-auto flex items-center gap-3">
-        <div class="hidden min-w-48 md:block">
-          <FormListbox
-            :model-value="accounts.selectedId"
-            :options="accountOptions"
-            aria-label="Current account"
-            size="small"
-            @update:model-value="accounts.select(typeof $event === 'string' ? $event : null)"
-          />
-        </div>
+      <div class="ml-auto flex h-10 shrink-0 items-center gap-1 sm:gap-2">
+        <AccountSwitcher
+          :accounts="accounts.accounts"
+          :selected-id="accounts.selectedId"
+          @select="accounts.select"
+        />
 
-        <Menu as="div" class="relative">
-          <MenuButton class="app-header-action flex items-center gap-2 rounded-md p-1 text-left">
+        <span class="app-header-divider hidden h-7 w-px md:block" aria-hidden="true" />
+
+        <Menu v-slot="{ open }" as="div" class="relative">
+          <MenuButton
+            class="app-header-action flex min-h-10 items-center gap-2 rounded-lg px-1.5 text-left transition xl:px-2"
+            :class="open && 'app-header-action-active'"
+            :aria-label="`Open user menu for ${auth.user?.name ?? 'Grid Admin'}`"
+          >
             <span
-              class="app-header-avatar grid size-8 place-items-center rounded-full text-xs font-bold text-white"
+              class="app-header-avatar grid size-8 place-items-center rounded-full text-xs font-bold text-white shadow-sm ring-2 ring-white/80"
               >{{ initials }}</span
             >
-            <span class="hidden sm:block">
-              <span class="app-header-foreground block text-xs font-semibold">{{
+            <span class="hidden min-w-0 xl:block">
+              <span class="app-header-foreground block max-w-36 truncate text-xs font-semibold">{{
                 auth.user?.name
               }}</span>
-              <span class="app-header-muted block text-[10px]">Account menu</span>
+              <span class="app-header-muted block max-w-36 truncate text-[10px]">
+                {{ userContext }}
+              </span>
             </span>
-            <ChevronDownIcon class="app-header-muted hidden size-3.5 sm:block" />
+            <ChevronDownIcon class="app-header-muted hidden size-3.5 xl:block" />
           </MenuButton>
           <TransitionRoot
+            as="template"
+            enter="transition ease-out duration-150"
+            enter-from="opacity-0 -translate-y-1 scale-[0.98]"
+            enter-to="opacity-100 translate-y-0 scale-100"
             leave="transition ease-in duration-100"
-            leave-from="opacity-100"
-            leave-to="opacity-0"
+            leave-from="opacity-100 translate-y-0 scale-100"
+            leave-to="opacity-0 -translate-y-1 scale-[0.98]"
           >
             <MenuItems
-              class="absolute right-0 z-40 mt-2 w-44 origin-top-right rounded-md border border-slate-200 bg-white p-1 shadow-xl focus:outline-none"
+              class="absolute right-0 z-40 mt-2 w-64 origin-top-right overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl ring-1 ring-slate-900/5 focus:outline-none"
             >
-              <MenuItem v-slot="{ active }">
-                <button
-                  type="button"
-                  class="w-full rounded px-3 py-2 text-left text-xs font-semibold"
-                  :class="active ? 'bg-red-50 text-danger' : 'text-slate-600'"
-                  @click="signOut"
-                >
-                  Sign out
-                </button>
-              </MenuItem>
+              <div class="border-b border-slate-100 px-3 py-3">
+                <p class="truncate text-xs font-semibold text-slate-700">
+                  {{ auth.user?.name ?? 'Grid Admin' }}
+                </p>
+                <p class="mt-0.5 truncate text-[10px] text-slate-500">
+                  {{ auth.user?.email ?? 'Signed in to GridPBX' }}
+                </p>
+              </div>
+
+              <div class="p-1.5">
+                <MenuItem v-slot="{ active }">
+                  <button
+                    type="button"
+                    class="flex w-full items-center gap-2 rounded-md px-2 py-2 text-left text-xs font-semibold transition"
+                    :class="active ? 'bg-red-50 text-danger' : 'text-slate-600'"
+                    @click="signOut"
+                  >
+                    <ArrowRightStartOnRectangleIcon class="size-4" aria-hidden="true" />
+                    Sign out
+                  </button>
+                </MenuItem>
+              </div>
             </MenuItems>
           </TransitionRoot>
         </Menu>

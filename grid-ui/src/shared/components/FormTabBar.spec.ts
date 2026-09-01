@@ -29,6 +29,13 @@ describe('FormTabBar', () => {
     await wrapper.setProps({ modelValue: 1 })
 
     expect(tabs[1]!.attributes('aria-selected')).toBe('true')
+    expect(tabs[1]!.classes()).toContain('border-brand-500')
     expect(wrapper.emitted('update:modelValue')).toEqual([[1]])
+
+    await wrapper.setProps({ modelValue: 0 })
+
+    expect(tabs[0]!.attributes('aria-selected')).toBe('true')
+    expect(tabs[0]!.classes()).toContain('border-brand-500')
+    expect(tabs[1]!.classes()).toContain('border-transparent')
   })
 })

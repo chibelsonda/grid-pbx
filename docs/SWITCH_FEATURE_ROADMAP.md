@@ -1,7 +1,7 @@
 # Switch Feature Implementation Roadmap
 
 Status: Active delivery roadmap
-Last updated: 2026-08-30
+Last updated: 2026-09-01
 
 ## 1. Purpose
 
@@ -531,11 +531,25 @@ reconciliation refreshes callflows and resolves
 references together with their extension, voicemail, device, callflow, and
 projected media dependencies. Guided creation now opens in the full main-page
 callflow workspace rather than a slide-over. Its installed-palette catalog can
-select a resource-backed root action, while the reused Zod form collects the
-route name, public phone-number UUIDs, and public destination UUID. The server
-still builds the new single-root phone-number route in Switch before projecting
-it; raw Switch identifiers never enter the browser. Inline actions become
-available through their typed node forms after that authoritative root exists.
+select a resource-backed root action or the bounded Extension/Device/Group Ring Group root,
+while the reused Zod form collects the route name, public phone-number UUIDs,
+and public destination UUIDs. The root popup can also author Menu key routes,
+the Temporal Rule Set `rule_set` match route, and the wildcard `_` fallback
+before the first save, and previews those branches on the canvas. The server
+still builds the new phone-number route in Switch before projecting it; raw
+Switch identifiers never enter the browser. The empty `_` continuation
+also accepts guided resource-backed palette drops, opens the existing public
+fallback selector, and rejects inline actions that the bounded create contract
+cannot represent safely. A Menu root also accepts those resource-backed drops
+on its first unused schema-editable key, then opens the same typed Menu form
+with the projected public UUID selected. Raw Switch identifiers and arbitrary
+node JSON never enter either draft path. Other inline actions become available
+through their typed node forms after that authoritative root exists. The focused
+create-workspace component test and one
+isolated headless browser scenario verify fallback enable/disable, canvas
+preview, root replacement, Menu keys, the `rule_set` match branch, guided
+Voicemail fallback and Menu-key drag-and-drop, restricted inline-drop rejection,
+and inline validation without a mutation.
 Deletion is available only
 for ordinary routes with no extension, phone-number, feature-code, resolved
 callflow, or unresolved callflow dependencies; the API rechecks these guards
@@ -625,22 +639,24 @@ Device mapping, `one-way`-to-`two-way`, `skip_module`, preservation of Kazoo's
 materialized timing defaults, MySQL soft deletion, and no remaining active
 Switch callflow. No media-leg page was originated, so this is not yet the
 globally complete Page Group feature.
-Ring Group now has a verified guided Device-only foundation. GridPBX accepts
-one to twenty ordered account-scoped public Device UUIDs and resolves raw
-Kazoo endpoint IDs only at the server boundary. The public form exposes
+Ring Group now has a verified guided relationship foundation. GridPBX accepts
+one to twenty distinct ordered account-scoped public Extension, Device, or
+Group UUIDs and resolves raw Kazoo `user`, `device`, or `group` endpoint IDs
+only at the server boundary. The public form exposes
 `simultaneous`, `single`, and `weighted_random` strategies, endpoint delay and
 timeout, one to three attempts, `ignore_forward`, `fail_on_single_reject`, and
 `skip_module`; weighted-random requires an explicit `1`–`100` weight for every
-Device. `ignore_forward` defaults to `true` and makes endpoint forwarding fatal,
+member. `ignore_forward` defaults to `true` and makes endpoint forwarding fatal,
 while `fail_on_single_reject` defaults to `false` and stops the remaining legs
 after one rejection when enabled. Laravel computes Kazoo's top-level attempt
 `timeout` and enforces a 120-second cap. Sequential strategies cannot use delay.
 The installed Monster form has no weighted-random or bridge-flag controls, so
 the installed schema and compiled runtime are authoritative: each weighted
 attempt orders all endpoints without replacement and each retry reshuffles.
-Existing user/group expansion, unresolved endpoints, unsafe timings, and
-malformed legacy flag values remain private and read-only unless the
-configuration fits the guided subset. Ringback is guided only through an
+Unresolved endpoints, unsafe timings, and malformed legacy flag values remain
+private and read-only unless the configuration fits the guided subset. User
+and Group membership expands dynamically at call time, so the form describes
+its limit as configured members rather than resolved Devices. Ringback is guided only through an
 account-scoped public UUID for synchronized streamable `audio/*` Media; raw
 Media IDs are mapped only at the Switch boundary. Arbitrary URLs, special
 streams, system paths, unresolved Media, and non-audio Media are rejected or
@@ -867,8 +883,8 @@ call was created because the missing supervisor entitlement, immutable audit,
 privacy/consent policy, and bounded monitoring controls are the reasons the
 capability is gated.
 
-The default Basic Ring Group User/Group expansion audit is complete and remains
-capability-gated. The installed runtime resolves Users through the caller
+The default Basic Ring Group User/Group expansion audit is complete and the
+account-scoped relationship choices are enabled. The installed runtime resolves Users through the caller
 account's ownership view and opens Groups only in the caller account database,
 so identifier scope is account-local. It then expands memberships dynamically
 at call time: Users become every currently owned Device, Groups recursively
@@ -883,13 +899,14 @@ unconstrained endpoint object and Crossbar does not reject recursive membership;
 `cf_ring_group` recurses before recording the parent Group, so externally
 created cycles have no visited-set guard. Monster offers User/Device/Group tabs
 and a direct User-versus-owned-Device warning, but it does not preview nested
-fan-out, Group overlap, cycles, or later membership changes. GridPBX therefore
-keeps creation Device-only, rejects public and direct SDK User/Group writes,
-and redacts existing expanded endpoint IDs while preserving those nodes
-read-only. Focused SDK, Laravel validator/resolver, Zod, and component
-regressions enforce that boundary. No disposable Switch node or media call was
-created because unbounded dynamic expansion is the reason the capability is
-gated.
+fan-out, Group overlap, cycles, or later membership changes. GridPBX accepts
+only synchronized account-scoped public Extension and Group UUIDs, maps them
+to raw Kazoo IDs at the Switch boundary, and maps authoritative results back
+without exposure. Managed Group mutations reject direct and nested cycles;
+unresolved or malformed legacy nodes remain read-only. Focused SDK, Laravel
+validator/mutation/resolver, Zod, and component regressions protect the mixed
+relationship boundary. Dynamic fan-out remains an explicit runtime caveat and
+is not falsely represented as capped by the 20 configured-member limit.
 
 The exact next callflow priority remains within the default Basic Ring Group
 palette node: perform a controlled media-leg verification of audible ringback
@@ -1064,8 +1081,8 @@ anti-spoofing audit and rate limits, and live carrier-level verification.
 | Time-of-day                        | Rules, holidays, rule sets, enable/disable/reset                                                                                                                                                                                  | Temporal rules and rule sets                                                           | Complete installed Rule fields, ordered public-UUID Rule Set membership, Monster/schema-aligned Basic-only compact forms, recursive PATCH preservation, explicit nullable-field clearing, projection/sync, safe deletion, effective status and audited controls, plus schema-correct `rule_set`/`_` guided routing delivered. Focused checks and a disposable Rule/Rule Set create/edit/reopen/control/delete lifecycle passed                                                                                                                                                                                                                                     | Foundation  |
 | Media and music on hold            | Upload, stream, rename, delete, assignment                                                                                                                                                                                        | Media and account settings                                                             | Validated shared Basic/Advanced upload form, protected range streaming, dependency-safe deletion, non-clipping account-default choice, hidden/unknown safe-field preservation, and metadata-only MySQL projection delivered. A disposable live upload/edit/delete lifecycle verified public/raw identity separation, nested unknown-field preservation, and zero active MySQL or Switch leftovers                                                                                                                                                                                                                                                                  | Foundation  |
 | Directories                        | CRUD and user membership                                                                                                                                                                                                          | Directories and users                                                                  | Monster-aligned shared Basic/Advanced tabs, Directory membership projection with public Extension UUID input, private User/Callflow mapping, schema-correct empty-object clearing, external-flag retention, safe unknown-field preservation across installed full-update behavior, guarded delete confirmation, and a disposable create/edit/reopen/final-member-clear/delete lifecycle with independent zero-active cleanup evidence                                                                                                                                                                                                                                            | Foundation  |
-| Groups and ring groups             | CRUD, membership, endpoints, ring strategy                                                                                                                                                                                        | Groups, users, devices, callflows                                                      | Public-UUID Group/member relationships, private Switch-ID resolution, external-flag retention, safe unknown Group-field preservation, and Device-only bounded inline ring-group routing are delivered; broader recursive ring-group expansion remains capability-gated                                                                                                                                                                                                                                                                                                                                                                                             | Foundation  |
-| Conferences                        | CRUD, role numbers, write-only multi-PIN replacement/removal, participant behavior, advanced named profile references, and runtime summary                                                                                        | Conferences and callflows                                                              | Normalized role-number projection, public Extension UUID/private owner-reference mapping, redacted source snapshot, Device-style outer Basic/Advanced disclosure plus Monster's inner Basic/Options/Conference Server workflow, native recursive PATCH preservation for unknown/opaque fields and unchanged PINs, dependency-safe deletion, guided routing, and right-side panel delivered. Focused and disposable live create/edit/reopen/delete evidence passed; lock and participant mute/deaf/kick commands remain planned                                                                                                                                     | Foundation  |
+| Groups and ring groups             | CRUD, membership, endpoints, ring strategy                                                                                                                                                                                        | Groups, users, devices, callflows                                                      | Public-UUID Group/member relationships, private Switch-ID resolution, external-flag retention, safe unknown Group-field preservation, live create/edit/clear/delete Group verification, and Kazoo-aligned ordered Extension/Device/Group Ring Group members are delivered. Dynamic expanded-device fan-out is documented as Switch runtime behavior rather than falsely bounded by the 20 configured-member UI limit                                                                                                                                                                                                                                                     | Foundation  |
+| Conferences                        | CRUD, role numbers, write-only multi-PIN replacement/removal, participant behavior, advanced named profile references, runtime summary, and room operations                                                                        | Conferences and callflows                                                              | Normalized role-number projection, public Extension UUID/private owner-reference mapping, redacted source snapshot, Device-style outer Basic/Advanced disclosure plus Monster's inner Basic/Options/Conference Server workflow, native recursive PATCH preservation for unknown/opaque fields and unchanged PINs, dependency-safe deletion, guided routing, and right-side panel delivered. Focused and disposable live create/edit/reopen/delete evidence passed. Active-room lock/unlock uses a fresh Switch runtime preflight, accepted/failed audit records, safe asynchronous response, and post-command reconciliation. The live-room panel supports single-participant mute/unmute, deaf/undeaf, kick, and confirmed bounded media playback through account/Conference-bound short-lived encrypted participant handles. Native room-wide mute/unmute and deaf/undeaf require an eligible-member preview, explicit confirmation, locked live-state revalidation, safe aggregate audits, atomic Kazoo submission, and four bounded post-command live observations; the UI distinguishes fully observed, partially/pending, and changed-room status. Moderators are excluded and bulk kick remains disabled. Playback accepts only projected account-owned streamable `audio/*` Media UUIDs, requires confirmation in strict Zod and Laravel request contracts, resolves raw identifiers server-side, revalidates current room membership, records safe audit metadata, and treats Kazoo 202 only as acceptance; raw URLs and identifiers are never public or persisted. Focused and isolated headless command coverage passed, while audible live-room playback remains externally blocked without a media server. Dial-out remains disabled because Kazoo can originate billable raw-number/SIP legs and needs destination, caller-ID, limit, confirmation, idempotency, and reconciliation policy                                                                                                                     | Foundation  |
 | Fax boxes                          | CRUD, owner assignment, inbound/outbound message metadata, protected document access, and guided callflow destinations                                                                                                            | Fax boxes, faxes, users, and callflows                                                 | Normalized fax-box/message projections, redacted `switch_json`, bounded import window, dependency-safe deletion, Monster-aligned shared Basic/Advanced presentation, right-side panels, audited document streaming, and a strict five-operation capability matrix delivered. Send, Forward, Resubmit, message deletion, and document deletion remain disabled after installed-runtime/security and live read-only audit                                                                                                                                                                                                                                            | Foundation  |
 | Blacklists                         | CRUD, number entries, anonymous-caller policy, and account activation                                                                                                                                                             | Blacklists and account settings                                                        | Normalized entries, redacted source snapshot, safe activation/deactivation, sync, and right-side UI panel delivered                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | Foundation  |
 | Caller-ID Lists                    | Reusable number/pattern lists for conditional routing                                                                                                                                                                             | Lists, list entries, and `cidlistmatch` callflows                                      | Account-scoped list and entry projection, separate redacted `switch_json`, queued sync, public UUID selector, private Switch-ID resolution, compensated API mutations, and schema-aligned shared Basic/Advanced slide-over delivered. Basic contains name and match entries; Advanced contains optional description/organization metadata. Focused component, type, and isolated non-mutating browser checks pass. Authenticated create, edit, authoritative reopen, entry clear, and delete were previously verified against the local Switch; the deployment must autoload `cb_lists`                                                                            | Foundation  |
@@ -1206,7 +1223,7 @@ but their sequence still requires deployment discovery and dependency design.
 | Fax message operations         | Send, Forward, Resubmit, message deletion, and document deletion                        | Installed schema/runtime and Monster history workflows audited. Send can fetch operator-directed HTTP GET/POST content without a proven SSRF boundary or accept broad upload types, then returns 202 before background conversion/storage completes. Forward/Resubmit create random new jobs and are not retry-safe; message and attachment deletion are separate permanent commands. Live Fax Box/inbox/outbox collections are empty and available, but outgoing jobs return HTTP 503. All five operations are explicit public policy gates pending content/malware controls, hardened egress, authorization, destination confirmation, retention/legal hold, billing, rate limits, idempotency, immutable audit, and reconciliation                                                                                                                                                                                                                |
 | Connectivity/trunks            | Resources, gateways, limits, routing and failover                                       | Installed schemas combine SIP credentials, servers/routes, arbitrary SIP headers and invite parameters, codecs/media, classifiers, flags, emergency routing, weighting, purchased limits/credits, restrictions, DIDs, and SIP/E.164 failover. Monster's Trunks workflow directly updates potentially billable limits, while its carrier callflow action accepts a raw account ID. GridPBX exposes only a validated carrier-endpoint boolean and keeps Resource/Gateway/Trunk documents, carrier actions, and all mutations unavailable pending a dedicated administrator threat model, secret vaulting, public account/resource identities, final-destination authorization, emergency/failover policy, quotes/confirmation, immutable audit, rollback/reconciliation, and representative live tests |
 | Account administration         | Create/update accounts, descendants, limits, service plans                              | Installed Account, Limits, and Services schemas plus Kazoo runtime and Monster workflows audited. Existing typed account settings/status updates and confirmed onboarding of an existing descendant remain the only writable slices. Account creation, move/delete, reseller promotion/demotion, limits, service-plan assignment/removal/overrides, manual quantities, Kazoo billing-side synchronization/reconciliation commands, top-up, and quote acceptance remain unavailable pending operation-specific reseller/platform authority, public-reference contracts, billing/charge confirmation, idempotency, compensation/recovery, immutable audit, and disposable live verification. Monster's account wizard is explicitly non-atomic: after Account creation it independently creates users, a no-match Callflow, app restrictions, limits, plans, and credit, and can leave a partially configured account when a later step fails |
-| White-labeling                 | Brand, domain, logo, colors, email identity                                             | Installed Whitelabel and SSO-provider schemas, Crossbar runtime, and Monster's domain-consumption workflow audited. GridPBX currently owns only a fixed-palette personal shell theme stored in the current browser; it is not tenant branding and performs no API/Switch write. Switch company/domain metadata, public logo/icon/welcome attachments, DNS generation/testing, navigation and Porting links, display-only trunk prices, SSO providers, document deletion, and all tenant-brand mutations remain unavailable. Enable only after platform/reseller authority, verified hostname ownership, deployment-managed DNS/TLS, strict public metadata reduction, hardened DNS egress, safe HTTPS-link policy, image verification/re-encoding, raw-HTML prohibition or sanitization/CSP, SSO/IAM review, public-UUID Port authority mapping, immutable audit, and recoverable asset/domain rollout are approved. Switch has no tenant color or outbound email-sender identity field, so those remain GridPBX deployment/notification concerns rather than invented Whitelabel fields |
+| White-labeling                 | Brand, domain, logo, colors, email identity                                             | Installed Whitelabel and SSO-provider schemas, Crossbar runtime, and Monster's domain-consumption workflow audited. A deliberately separate GridPBX-local organization-logo slice is delivered: settings-authorized administrators upload PNG/JPEG/WebP files up to 2 MB and 2048×2048 pixels, Laravel decode/re-encodes them to a bounded PNG, stores them privately, serves them through authenticated account scope, audits replace/remove, and exposes only the organization public UUID plus availability/timestamp metadata. The selected organization logo is used in the sidebar with the GridPBX mark as fallback. This performs no Switch write and does not claim Kazoo Whitelabel parity. Switch company/domain metadata, public logo/icon/welcome attachments, DNS generation/testing, navigation and Porting links, display-only trunk prices, SSO providers, document deletion, tenant colors, and all Switch tenant-brand mutations remain unavailable pending their existing authority, ownership, egress, IAM, content, rollout, and reconciliation gates. Switch has no tenant color or outbound email-sender identity field, so those remain GridPBX deployment/notification concerns rather than invented Whitelabel fields |
 | Provisioning templates         | Global/local templates, model capabilities, zero-touch provisioning                     | Installed Crossbar runtime and the current GridPBX catalog/Device/LineKey boundary audited. Kazoo stores global templates in the shared Provisioner database and local templates in the Account database, while the large arbitrary JSON template is a separate attachment saved through a non-atomic second operation. Global reads are broadly authenticated but mutations require system-administrator authority; local mutations follow account-tree authorization. The referenced `provisioner_templates` validation schema is absent from this installed checkout and generated documentation publishes no field contract, so GridPBX will not invent a generic template form. Existing bounded catalog discovery, model-capability validation, public-UUID line-key resolution, redacted Device projection, and explicitly disabled manufacturer enrollment remain the only delivered foundation. Template CRUD, images, inheritance/precedence, firmware, dependency-safe deletion, and zero-touch enrollment remain unavailable pending a typed public-UUID model, dedicated roles, credential isolation, hardened fixed-destination egress and secret-safe logging, verified/re-encoded assets, versioned atomic staging, affected-Device preview, canary rollout/rollback, and authoritative reconciliation |
 | Notifications                  | Template and destination management                                                     | Installed Notification schema, Crossbar inheritance/mutation runtime, Teletype rendering and SMTP delivery/logging, failed-notification persistence, and Monster SDK surface audited. GridPBX has no Notification Template entity, route, projection, or form; existing Fax, Voicemail, and Device notification controls remain resource-specific settings. System templates, per-account/ancestor overrides, HTML/plain attachments, dynamic `original`/`admins` recipients, specified addresses, previews, customer-update sending, SMTP logs, and bulk reset/force operations remain unavailable. Enable only after dedicated platform/reseller/account roles, public identities, verified sender domains, destination policy, a strict macro allowlist, safe structured or sanitized HTML authoring, inheritance/effective-source preview, multi-step versioning and rollback, non-delivering render preview plus explicitly confirmed test delivery, sensitive-log retention/redaction, encrypted retry payloads, idempotency/deduplication, hardened attachment egress, mandatory secure SMTP transport, immutable audit, and authoritative delivery reconciliation are approved |
 | Security controls              | Access lists, IP authentication, MFA, token restrictions                                | Installed Access List, ACL, IP-authentication, auth-module, MFA/Duo, token-restriction, login-attempt, and password-recovery schemas/runtime plus Monster's opt-in Access List and legacy Duo workflows audited. These are separate trust boundaries: Frontier SIP ACLs can lock out or bypass endpoint authentication; source-IP auth can mint a user token without credentials; MFA provider documents contain secrets; token restrictions authorize API paths; and recovery can become an authentication bypass. GridPBX currently uses its own Laravel/Sanctum session and a private server-to-server Switch token provider; it has no public Security Controls domain. All Switch security mutations remain unavailable pending an approved proxy/client-IP contract, strict CIDR and safe user-agent validation, uniqueness and expiry of IP grants, public Account/User/Device UUID mapping, dedicated least-privilege and step-up roles, secret vaulting/rotation, modern provider integration, enrollment and break-glass recovery, deny-by-default token policy with simulation, actor-bound session inventory and revocation, enumeration-resistant single-use recovery, minimized/redacted attempt logs, lockout preview/canary/rollback, immutable audit, and independent authoritative reconciliation. Raw IDs, API keys, provider secrets, auth tokens, reset IDs, full headers, and private ACL documents must never reach projections or the browser |
@@ -1318,7 +1335,48 @@ one group is expanded at a time, the active route reopens its owning group,
 collapsed mode retains labelled icon controls, and mobile route selection
 closes the overlay. Business and Workspace remain direct-link sections so
 billing, services, account, reseller, system-status, and settings destinations
-stay immediately available.
+stay immediately available. The main-header account control now follows the
+useful part of Monster's Account Jump workflow: a `Browsing` summary, focused
+search field, safe account context, keyboard navigation, disabled-account
+handling, and responsive access. Monster first filters loaded rows and can then
+call Kazoo `search/multi` by name, realm, and raw account ID before
+masquerading. GridPBX deliberately does neither remote search nor
+masquerading: it filters only the authenticated user's already-loaded projected
+accounts by name, realm, or organization and persists only the selected public
+Account UUID. Two focused Vue files / five tests, Vue and isolated-E2E
+typechecks, focused lint, and two isolated desktop/mobile headless Playwright
+checks cover search, autofocus, selection, disabled state, responsive access,
+and identifier redaction. The Settings destination is no longer a
+placeholder: it presents application identity and account-scoped
+role/capability context, reuses the public-UUID account switcher and shared
+theme controls, persists the compact-sidebar preference in the current browser,
+and links to the owning Account, System Status, and authorized Reseller
+workspaces. Its only identity mutation is a self-service display-name update
+through an authenticated, validated, six-per-minute, account-neutral audited
+Laravel endpoint. The endpoint returns the User public UUID, accepts no email or
+internal-key mutation, and never writes to Switch. Login-email changes,
+verification, password changes, MFA, and session controls remain gated pending
+dedicated security contracts. Eight focused Laravel tests / 41 assertions, five
+Vue files / 16 tests, Vue and isolated-E2E typechecks, focused lint, and one
+isolated desktop/mobile headless Playwright scenario verify the boundary. The
+browser scenario intercepts and asserts the exact `{ name }` payload so it does
+not alter the live administrator.
+
+Organization branding is now a separate GridPBX-local Settings capability.
+The organization row stores only a generated private logo path and update
+timestamp; account resources reduce that to the organization public UUID,
+`logo_available`, and `logo_updated_at`. The upload endpoint is scoped by a
+public Account UUID, uses existing account-settings authorization, rejects SVG
+and other non-raster formats, and decode/re-encodes bounded PNG/JPEG/WebP input
+as PNG before private storage. Replacement/removal are audited and clean up the
+previous asset. Authenticated reads return `image/png` with private/no-store
+and no-sniff headers; neither storage paths, numeric keys, nor raw Switch IDs
+reach the UI. The selected organization's logo is shown in desktop/mobile
+sidebar branding with the GridPBX mark as fallback. Focused verification passed
+four Laravel tests / 56 assertions, four Vue files / 15 tests, Vue and isolated
+E2E typechecks, and one intercepted isolated headless Playwright lifecycle. The
+browser test submits real multipart file data but intercepts upload/read/delete,
+so it changes no live organization or Switch document.
 Webhook enrollment/live delivery and every production provider request remain
 disabled and must not be marked complete.
 

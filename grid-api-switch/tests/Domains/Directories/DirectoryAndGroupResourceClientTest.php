@@ -118,7 +118,7 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
         self::assertSame(['external-managed'], $body['data']['flags']);
     }
 
-    public function test_group_client_encodes_cleared_music_on_hold_as_an_object(): void
+    public function test_group_client_encodes_cleared_endpoints_and_music_on_hold_as_objects(): void
     {
         $switch = $this->switchWithResponses([
             $this->response(['data' => [
@@ -133,6 +133,8 @@ final class DirectoryAndGroupResourceClientTest extends TestCase
         $client->update('account-1', 'group-1', new GroupWriteData('Support team', []));
         $body = json_decode((string) $this->history[0]['request']->getBody(), flags: JSON_THROW_ON_ERROR);
 
+        self::assertIsObject($body->data->endpoints);
+        self::assertSame([], get_object_vars($body->data->endpoints));
         self::assertIsObject($body->data->music_on_hold);
         self::assertSame([], get_object_vars($body->data->music_on_hold));
     }

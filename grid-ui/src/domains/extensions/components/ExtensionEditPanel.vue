@@ -198,6 +198,20 @@ function updateAdvancedCalling(
   Object.assign(advancedCalling, value)
 }
 
+function updateExtendedAdvanced(value: Partial<ExtensionUpdate>): void {
+  Object.assign(advancedCalling, value)
+}
+
+function updateCallRecording(value: ExtensionUpdate['call_recording']): void {
+  advancedCalling.call_recording = value
+}
+
+function updateMetaflows(
+  value: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>,
+): void {
+  Object.assign(metaflows, value)
+}
+
 function isAdvancedField(field: string): boolean {
   return extensionAdvancedSectionForField(field) !== null
 }
@@ -338,6 +352,7 @@ function submit(): void {
       <div
         v-if="error"
         class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+        role="alert"
       >
         {{ error }}
       </div>
@@ -500,8 +515,9 @@ function submit(): void {
           class="contents"
         >
           <ExtensionCallRecordingSettings
-            v-model="advancedCalling.call_recording"
+            :model-value="advancedCalling.call_recording"
             :field-errors="displayErrors"
+            @update:model-value="updateCallRecording"
           />
         </div>
 
@@ -544,9 +560,10 @@ function submit(): void {
           class="contents"
         >
           <ExtensionMediaSettings
-            v-model="advancedCalling"
+            :model-value="advancedCalling"
             :field-errors="displayErrors"
             :media-options="options.media"
+            @update:model-value="updateExtendedAdvanced"
           />
         </div>
 
@@ -556,10 +573,11 @@ function submit(): void {
           class="contents"
         >
           <ExtensionRoutingProfileSettings
-            v-model="advancedCalling"
+            :model-value="advancedCalling"
             :field-errors="displayErrors"
             :media-options="options.media"
             :policy="extension.configuration.policy"
+            @update:model-value="updateExtendedAdvanced"
           />
         </div>
 
@@ -569,10 +587,11 @@ function submit(): void {
           class="contents"
         >
           <ExtensionMetaflowSettings
-            v-model="metaflows"
+            :model-value="metaflows"
             :current="extension.configuration.metaflows"
             :resources="options.metaflow_resources"
             :field-errors="displayErrors"
+            @update:model-value="updateMetaflows"
           />
         </div>
       </div>

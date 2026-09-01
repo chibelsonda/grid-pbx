@@ -12,7 +12,10 @@ const routes = [
   { path: '/:pathMatch(.*)*', component: { template: '<div />' } },
 ]
 
-async function mountNavigation(path: string, props: { collapsed: boolean; mobile?: boolean }) {
+async function mountNavigation(
+  path: string,
+  props: { collapsed: boolean; mobile?: boolean; logoUrl?: string | null },
+) {
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push(path)
   await router.isReady()
@@ -82,5 +85,21 @@ describe('SidebarNavigation', () => {
     await wrapper.get('a[href="/devices"]').trigger('click')
 
     expect(wrapper.emitted('close')).toHaveLength(1)
+  })
+
+  it('uses an organization logo when one is available and keeps the default fallback', async () => {
+    const { wrapper } = await mountNavigation('/', {
+      collapsed: false,
+      logoUrl: 'blob:organization-logo',
+    })
+
+    expect(wrapper.get('img[alt="Organization logo"]').attributes('src')).toBe(
+      'blob:organization-logo',
+    )
+    expect(wrapper.find('span.sidebar-accent-bg').exists()).toBe(false)
+
+    await wrapper.setProps({ logoUrl: null })
+    expect(wrapper.find('img[alt="Organization logo"]').exists()).toBe(false)
+    expect(wrapper.find('span.sidebar-accent-bg').exists()).toBe(true)
   })
 })

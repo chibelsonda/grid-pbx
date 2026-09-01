@@ -122,6 +122,101 @@ final class ConferenceResourceClientTest extends TestCase
         new ConferenceWriteData(name: 'Standup', maxParticipants: 10001);
     }
 
+    public function test_sends_room_lock_and_unlock_commands_to_the_conference_resource(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => []], 202),
+            $this->response(['data' => []], 202),
+        ]);
+        $client = new ConferenceResourceClient($switch);
+
+        $client->setLocked('account-1', 'conference-1', true);
+        $client->setLocked('account-1', 'conference-1', false);
+
+        $lock = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $unlock = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('PUT', $this->history[0]['request']->getMethod());
+        self::assertSame('/v2/accounts/account-1/conferences/conference-1', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame(['data' => ['action' => 'lock']], $lock);
+        self::assertSame(['data' => ['action' => 'unlock']], $unlock);
+    }
+
+    public function test_maps_a_safe_participant_snapshot_and_sends_a_participant_command(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [[
+                'participant_id' => 42,
+                'caller_id_name' => 'Ada Lovelace',
+                'caller_id_number' => '1001',
+                'duration' => 37,
+                'conference_channel_vars' => [
+                    'is_moderator' => true,
+                    'speak' => false,
+                    'hear' => true,
+                    'call_id' => 'private-call-id',
+                ],
+                'switch_hostname' => 'private-switch-node',
+            ]]]),
+            $this->response(['data' => []], 202),
+        ]);
+        $client = new ConferenceResourceClient($switch);
+
+        $participant = $client->participants('account-1', 'conference-1')[0]->toArray();
+        $client->controlParticipant('account-1', 'conference-1', '42', 'mute');
+
+        self::assertSame([
+            'id' => '42',
+            'display_name' => 'Ada Lovelace',
+            'number' => '1001',
+            'is_moderator' => true,
+            'can_speak' => false,
+            'can_hear' => true,
+            'duration_seconds' => 37,
+        ], $participant);
+        self::assertArrayNotHasKey('call_id', $participant);
+        self::assertArrayNotHasKey('switch_hostname', $participant);
+
+        $command = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        self::assertSame('/v2/accounts/account-1/conferences/conference-1/participants/42', $this->history[1]['request']->getUri()->getPath());
+        self::assertSame(['data' => ['action' => 'mute']], $command);
+    }
+
+    public function test_sends_a_kazoo_room_wide_participant_command(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => []], 202),
+        ]);
+        $client = new ConferenceResourceClient($switch);
+
+        $client->controlParticipants('account-1', 'conference-1', 'deaf');
+
+        $command = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('/v2/accounts/account-1/conferences/conference-1/participants', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame(['data' => ['action' => 'deaf']], $command);
+    }
+
+    public function test_plays_media_to_a_room_or_one_participant_using_the_kazoo_command_shape(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => []], 202),
+            $this->response(['data' => []], 202),
+        ]);
+        $client = new ConferenceResourceClient($switch);
+
+        $client->playMedia('account-1', 'conference-1', 'media-1');
+        $client->playMedia('account-1', 'conference-1', 'media-1', '42');
+
+        $roomCommand = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+        $participantCommand = json_decode((string) $this->history[1]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame('/v2/accounts/account-1/conferences/conference-1', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame('/v2/accounts/account-1/conferences/conference-1/participants/42', $this->history[1]['request']->getUri()->getPath());
+        self::assertSame(['data' => ['action' => 'play', 'data' => ['media_id' => 'media-1']]], $roomCommand);
+        self::assertSame($roomCommand, $participantCommand);
+    }
+
     /** @param list<Response> $responses */
     private function switchWithResponses(array $responses): SwitchClient
     {
@@ -140,8 +235,8 @@ final class ConferenceResourceClientTest extends TestCase
     }
 
     /** @param array<string, mixed> $payload */
-    private function response(array $payload): Response
+    private function response(array $payload, int $status = 200): Response
     {
-        return new Response(200, [], json_encode($payload + ['status' => 'success'], JSON_THROW_ON_ERROR));
+        return new Response($status, [], json_encode($payload + ['status' => 'success'], JSON_THROW_ON_ERROR));
     }
 }

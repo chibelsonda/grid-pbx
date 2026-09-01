@@ -451,7 +451,18 @@ class CallflowReferenceResolver
             $resourceId = is_array($endpoint) && is_string($endpoint['id'] ?? null)
                 ? $endpoint['id']
                 : null;
-            $device = $resourceId === null ? null : ($targets['device'][$resourceId] ?? null);
+            $endpointType = is_array($endpoint) && is_string($endpoint['endpoint_type'] ?? null)
+                ? $endpoint['endpoint_type']
+                : null;
+            $publicType = match ($endpointType) {
+                'device' => 'device',
+                'user' => 'extension',
+                'group' => 'group',
+                default => null,
+            };
+            $target = $resourceId === null || $publicType === null
+                ? null
+                : ($targets[$publicType][$resourceId] ?? null);
             $delay = is_array($endpoint) && is_int($endpoint['delay'] ?? null)
                 ? $endpoint['delay']
                 : 0;
@@ -463,7 +474,7 @@ class CallflowReferenceResolver
                 : null;
 
             if (! is_array($endpoint)
-                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || $publicType === null
                 || $delay < 0
                 || $delay > RingGroupPolicy::MAX_ENDPOINT_DELAY
                 || $timeout < 1
@@ -471,15 +482,19 @@ class CallflowReferenceResolver
                 || (in_array($strategy, ['single', 'weighted_random'], true) && $delay !== 0)
                 || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
                 || ($strategy === 'weighted_random' && $weight === null)
-                || $device === null
-                || isset($seen[$resourceId])) {
+                || $target === null
+                || isset($seen[$endpointType.':'.$resourceId])) {
                 $supported = false;
                 break;
             }
 
-            $seen[$resourceId] = true;
+            $seen[$endpointType.':'.$resourceId] = true;
             $publicEndpoints[] = [
-                'device_id' => $device['id'],
+                match ($publicType) {
+                    'device' => 'device_id',
+                    'extension' => 'extension_id',
+                    'group' => 'group_id',
+                } => $target['id'],
                 'delay' => $delay,
                 'timeout' => $timeout,
                 ...($strategy === 'weighted_random' ? ['weight' => $weight] : []),

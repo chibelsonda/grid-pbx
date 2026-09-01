@@ -64,10 +64,7 @@ function positionOptions(): void {
     96,
     Math.min(preferredMaxHeight, openAbove ? roomAbove : roomBelow),
   )
-  const width = Math.min(
-    Math.max(triggerRect.width, 192),
-    window.innerWidth - viewportPadding * 2,
-  )
+  const width = Math.min(Math.max(triggerRect.width, 192), window.innerWidth - viewportPadding * 2)
   const left = Math.min(
     Math.max(triggerRect.left, viewportPadding),
     Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
@@ -125,11 +122,7 @@ onBeforeUnmount(stopPositioning)
         :aria-label="ariaLabel"
         :aria-invalid="invalid || undefined"
         class="relative w-full rounded-md border border-slate-300 bg-white pr-9 pl-3 text-left text-xs text-slate-700 shadow-sm transition hover:border-slate-400 focus:border-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60"
-        :class="[
-          size === 'small' ? 'h-9' : 'h-10',
-          buttonClass,
-          validationControlClass(invalid),
-        ]"
+        :class="[size === 'small' ? 'h-9' : 'h-10', buttonClass, validationControlClass(invalid)]"
         @click="startPositioning"
         @keydown="startPositioning"
       >
@@ -167,10 +160,7 @@ onBeforeUnmount(stopPositioning)
                   isDisabled ? 'opacity-40' : 'cursor-pointer',
                 ]"
               >
-                <span
-                  class="block truncate"
-                  :class="isSelected ? 'font-semibold' : 'font-normal'"
-                >
+                <span class="block truncate" :class="isSelected ? 'font-semibold' : 'font-normal'">
                   {{ option.label }}
                 </span>
                 <span

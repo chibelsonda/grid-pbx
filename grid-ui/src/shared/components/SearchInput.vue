@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { MagnifyingGlassIcon } from '@heroicons/vue/24/outline'
+import { onBeforeUnmount } from 'vue'
 import FormInput from './FormInput.vue'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue: string
     label?: string
@@ -10,6 +11,8 @@ withDefaults(
     error?: string | string[] | null
     disabled?: boolean
     inputClass?: string
+    live?: boolean
+    debounceMs?: number
   }>(),
   {
     label: 'Search',
@@ -17,10 +20,32 @@ withDefaults(
     error: null,
     disabled: false,
     inputClass: '',
+    live: false,
+    debounceMs: 300,
   },
 )
 
-defineEmits<{ 'update:modelValue': [value: string] }>()
+const emit = defineEmits<{
+  'update:modelValue': [value: string]
+  search: [value: string]
+}>()
+let searchTimer: ReturnType<typeof window.setTimeout> | null = null
+
+function update(value: string | number): void {
+  const search = String(value)
+  emit('update:modelValue', search)
+  if (!props.live) return
+
+  if (searchTimer !== null) window.clearTimeout(searchTimer)
+  searchTimer = window.setTimeout(() => {
+    searchTimer = null
+    emit('search', search)
+  }, props.debounceMs)
+}
+
+onBeforeUnmount(() => {
+  if (searchTimer !== null) window.clearTimeout(searchTimer)
+})
 </script>
 
 <template>
@@ -33,7 +58,7 @@ defineEmits<{ 'update:modelValue': [value: string] }>()
     :error="error"
     :disabled="disabled"
     :input-class="inputClass"
-    @update:model-value="$emit('update:modelValue', String($event))"
+    @update:model-value="update"
   >
     <template #leading>
       <MagnifyingGlassIcon class="size-4 text-slate-500" />

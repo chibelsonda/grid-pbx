@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { findShellTheme, type ShellThemeRegion } from '@/app/theme/themeCatalog'
 
 const themeStorageKey = 'gridpbx.shell-theme.v1'
+const sidebarStorageKey = 'gridpbx.sidebar-collapsed.v1'
 const defaultThemeId = 'light'
 
 type StoredThemePreferences = {
@@ -28,12 +29,16 @@ function readThemePreferences(): StoredThemePreferences {
   }
 }
 
+function readSidebarCollapsed(): boolean {
+  return typeof window !== 'undefined' && window.localStorage.getItem(sidebarStorageKey) === 'true'
+}
+
 export const useUiStore = defineStore('ui', {
   state: () => {
     const storedThemes = readThemePreferences()
 
     return {
-      sidebarCollapsed: false,
+      sidebarCollapsed: readSidebarCollapsed(),
       mobileSidebarOpen: false,
       themePanelOpen: false,
       headerTheme: storedThemes.header,
@@ -94,7 +99,13 @@ export const useUiStore = defineStore('ui', {
       )
     },
     toggleSidebar(): void {
-      this.sidebarCollapsed = !this.sidebarCollapsed
+      this.setSidebarCollapsed(!this.sidebarCollapsed)
+    },
+    setSidebarCollapsed(collapsed: boolean): void {
+      this.sidebarCollapsed = collapsed
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(sidebarStorageKey, String(collapsed))
+      }
     },
     toggleMobileSidebar(): void {
       this.mobileSidebarOpen = !this.mobileSidebarOpen

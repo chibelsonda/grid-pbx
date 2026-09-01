@@ -465,8 +465,8 @@ recording direction/network matrix. Account/Endpoint recording branches remain
 exclusive to the Account schema. Asserted identity, recording URLs,
 and unknown nested properties remain server-owned and are preserved without
 returning private Switch identifiers or raw JSON to Vue. Creation intentionally
-keeps the smaller aggregate bootstrap so account inheritance is not replaced by
-unseen default values.
+uses the same tabbed contract and sends explicit typed values only; inherited
+or unresolved values remain omitted or require an explicit preserve state.
 
 The following advanced-User batch now covers the current `endpoint.media`
 schema, `music_on_hold.media_id`, and ringtone headers. Audio and video codec
@@ -499,8 +499,9 @@ A fresh field-by-field comparison of the installed `users` schema and its
 `formatters`, `metaflows`, and `profile` references found no disconnected or
 missing managed-edit controls. Monster's User feature screens still support the
 current grouping and conditional behavior, while the installed schemas remain
-the payload authority. The smaller create aggregate remains intentional so it
-does not replace inherited advanced values with unseen defaults.
+the payload authority. Create and edit now expose the same ten Advanced
+sections; defaults remain typed and inheritance-safe instead of being hidden in
+a smaller create-only contract.
 
 The public boundary remains unchanged: caller-ID and Media choices use
 account-scoped public UUIDs, raw Switch identifiers are resolved only in
@@ -537,9 +538,9 @@ keeps the token out of URLs, storage state, reports, and traces.
 GridPBX now applies the result of that walkthrough to both create and edit. The
 Extension drawer has an outer Basic/Advanced selector and a shared inner
 Advanced tab bar for Caller ID, Options, Call Forward, Password, Recording, Hot
-Desking, and Restrictions. Edit adds separate Media, Routing & Profile, and
-Metaflows tabs for current-schema controls that are not represented by the
-older Monster screen. Portal identity remains in Basic while write-only
+Desking, Restrictions, Media, Routing & Profile, and Metaflows. The last three
+are current-schema controls that are not represented by the older Monster
+screen. Portal identity remains in Basic while write-only
 password management is isolated under Advanced. Caller ID, forwarding, and
 restriction views share one typed form model rather than duplicating controls.
 Client and server validation select the outer Advanced view and the exact inner
@@ -565,6 +566,28 @@ This parity is a presentation and safe-contract improvement, not evidence that
 every Monster field should be copied blindly. The installed schema and runtime
 remain authoritative for payload validity, clear behavior, security ownership,
 and current-version fields.
+
+The 2026-09-01 create-parity follow-through submitted the complete tabbed User
+contract through an isolated disposable lifecycle. Switch initially rejected
+an empty `call_restriction` encoded as JSON `[]`; the typed DTO now emits `{}`
+for an empty restriction object. The rerun created and synchronized Media,
+ringtone, Profile, and Metaflow values, read them back through the public
+projection, and removed all disposable resources successfully. Structured
+Switch validation details are retained only inside the server adapter and
+redacted operational logs; the browser continues to receive a safe error.
+
+The lifecycle is now fully UI-driven rather than using an API-only setup step.
+The authenticated drawer creates the User through Media, Routing & Profile,
+and Metaflows, reopens the same shared controls to edit them, clears every
+optional value, synchronizes after each mutation, and verifies the public
+projection before guarded cleanup. Clearing optional numeric inputs exposed a
+shared form-normalization defect: native number controls produce an empty
+string when cleared. The shared Zod integer helper now converts only that empty
+form value to `null` and is used by User, Device, Account recording, and
+Metaflow schemas. The clear request sends a null Metaflow binding override;
+after synchronization Switch correctly reports its effective default `*`.
+The focused run passed in 7.8 seconds without console errors or HTTP 5xx
+responses.
 
 The same batch replaces Voicemail's native timezone/datalist and assignment
 select with API-backed Headless UI listboxes. Account inheritance is `null`,
@@ -709,6 +732,17 @@ responses used only the account-scoped Extension UUID. Independent cleanup
 checks found zero active matching MySQL projections and zero active Switch
 Directories; all six focused-attempt projections are soft-deleted.
 
+The 2026-09-01 responsive and accessibility pass kept the Directory payload
+and public/raw mapping unchanged. The inventory now has an accessible table
+name, scoped headers, announced loading and failure states, keyboard-operable
+Directory names, and table-local horizontal scrolling. Header, search,
+Basic/Advanced, member-group, listbox, and slide-over controls remain inside a
+390-pixel viewport. The pass also corrected the shared controlled tab bar so a
+programmatic validation return to Basic cannot leave Advanced visually marked.
+Five focused component/shared-control tests and one isolated non-mutating
+headless run verified inline validation, tab semantics and classes, zero
+Directory or sync writes, and clean browser/server state.
+
 The 2026-08-31 Line Key drift re-audit then compared the editor with the
 installed `devices.combo_key.json` and Device update runtime. The category,
 position, type, optional value, conditional parking range, and labeled-value
@@ -789,11 +823,26 @@ empty music value now serializes as `{}` rather than `[]`. Hidden preservation
 input and unknown member keys are rejected, and Laravel now repeats Zod's
 100-member cap.
 
-Focused checks passed with three SDK tests / 14 assertions, three Laravel
-tests / 27 assertions, isolated E2E TypeScript typecheck, and one non-mutating
-isolated headless Group form check. The browser reverified inline validation
-and the shared non-clipping music selector; no new live Group mutation was
-necessary or claimed.
+Focused SDK, Laravel, Zod/composable, component, and E2E type checks cover the
+Group boundary. An authenticated isolated-headless lifecycle created a
+disposable Group with synchronized User, Device, and nested Group members plus
+optional Media, edited it, cleared all members and the modeled hold-media
+reference, reopened the authoritative result, and deleted it. This exposed and
+fixed the required empty-object encoding for cleared `endpoints`; final MySQL
+inspection found no active disposable Group projection. Delete confirmation is
+owned by the page rather than nested inside the Headless UI slide-over, so
+confirmation reliably reaches the store/API mutation.
+
+The 2026-09-01 responsive and accessibility pass kept that installed-schema
+contract and public/raw mapping unchanged. The inventory now has an accessible
+table name, scoped headers, announced loading and failure states,
+keyboard-operable Group names, and table-local horizontal scrolling. Header,
+search, member selection, music listbox, and slide-over controls remain inside
+a 390-pixel viewport, and the ordered member collection has an accessible group
+name. The validation-only isolated scenario no longer deletes stale live Groups;
+it verified inline errors with zero Group or synchronization writes and clean
+browser/server state. Ring Group audible-media verification remains a separate
+externally blocked acceptance item.
 
 Menu applies the same baseline to every numeric, PIN, pattern, toggle, and
 media control. Its current schema supports custom invalid, transfer, and exit
@@ -921,6 +970,18 @@ files passed five tests, the isolated E2E TypeScript check passed, and isolated
 headless checks passed the non-mutating schema form plus a disposable Queue
 create/edit/announcement-clear/delete lifecycle. No live Agent state command
 was sent because the connected capability remains unavailable.
+
+The 2026-09-01 responsive and accessibility follow-through retained those
+payload boundaries while hardening both inventories and the Queue form. Queue
+and Agent tables now have accessible names, scoped headers, loading state, and
+keyboard-operable record controls; unavailable Agent controls remain disabled.
+The Extension roster is a labelled group, form and page errors are announced,
+and in-flight saves disable the fieldset. A focused two-test component run,
+Vue and isolated E2E TypeScript checks, focused lint, and one isolated
+headless Playwright check passed. The browser exercised validation and tab
+routing, then verified the form and page actions at a 390-pixel viewport. It
+sent zero Queue, Agent, or Queue-sync mutations and reported no browser errors,
+so no live Agent capability is claimed by this presentation-only check.
 
 ### Presence and parked-call status follow-through (2026-08-31)
 
@@ -1216,6 +1277,89 @@ Kazoo's direct deleted-resource GET materializes a schema-default skeleton, so
 active-collection absence—not that synthetic skeleton—is the active-resource
 cleanup assertion.
 
+The 2026-09-01 operational slice adds Kazoo-compatible room `lock` and
+`unlock` commands without treating an asynchronous command as completed
+state. Laravel performs a fresh private Switch Conference read first, projects
+that authoritative runtime snapshot, rejects a lock when no participants are
+active, and permits unlocking a room Switch still reports as locked. The
+public command response contains only `accepted`, the requested action, and a
+safe message; raw Switch identifiers and command payloads remain server-side.
+Accepted and failed attempts are audited, and the Vue inventory invokes the
+existing queued Conference reconciliation after acceptance. Focused SDK tests
+assert the exact Kazoo `PUT` command payload, API tests cover active lock,
+inactive rejection, inactive unlock, authorization and audit behavior, and
+the Pinia test verifies command-followed-by-sync orchestration.
+
+The same operational boundary now supports live single-participant controls.
+Participants are requested directly from Kazoo's Conference participant
+endpoint and are never projected into MySQL. The Switch SDK reduces every
+participant to a strict public allowlist before Laravel replaces the raw
+participant ID with an encrypted, account-and-Conference-bound handle that
+expires after five minutes by default. Mute/unmute, deaf/undeaf, and kick
+requests decrypt that handle only on the server, fetch the current room again,
+and reject a participant that has already left before sending the Kazoo
+command. Audit metadata contains neither caller identity nor the raw
+participant ID. The Headless UI live-room drawer derives the inverse control
+from current speak/hear state, uses inline confirmation for kick, and refreshes
+the authoritative participant list after acceptance. Focused verification
+passed with focused Switch SDK, Laravel, Vue, and type checks. Native room-wide
+mute/unmute and deaf/undeaf now use a separate high-impact workflow: the UI
+previews the eligible non-moderator count, requires explicit confirmation, and
+sends the observed room and target counts. Laravel re-reads the room under the
+same command lock and rejects a stale preview before issuing Kazoo's atomic
+participants command. Kazoo itself skips moderators and participants already
+in the requested state. Accepted/failed attempts contain only safe aggregate
+audit counts, and the live room refreshes afterward. Kazoo does not expose a
+reliable per-participant completion result for this command, so the response
+correctly reports asynchronous acceptance rather than fabricated partial
+success. Vue follows acceptance with at most four live-room observations over
+750 ms. It reports fully observed, partially/pending, or changed-room status
+using aggregate counts and never exposes participant identifiers in the
+result. Focused store coverage exercises both immediate observation and the
+complete bounded pending path, and the isolated headless walkthrough verifies
+the observed-state notice. Bulk kick and dial-out remain intentionally
+disabled.
+
+An isolated authenticated headless walkthrough now exercises the live-room
+drawer with a simulated active Switch feed. It verified the participant status
+presentation, opaque-handle-only mute and undeaf requests, authoritative
+post-command refresh, and absence of raw participant/call markers without
+originating a call or mutating Switch. The focused scenario passed in 1.3
+seconds with no console, page, or HTTP 5xx errors. Compose startup also exposed
+that private organization-logo runtime uploads were entering Docker's build
+context; `grid-api/storage/app/private` is now excluded without weakening the
+directory's private permissions.
+
+The follow-up command audit compared the installed `cb_conferences` runtime,
+generated Conference documentation, and `conferences.dial` schema. Kazoo media
+play accepts a Media ID or a URL for a whole room or individual participant.
+GridPBX prohibits URLs and accepts only a projected account Media UUID,
+resolves it server-side, requires a streamable `audio/*` asset, refreshes the
+active room or participant, requires confirmation in both its strict Zod and
+Laravel request contracts, rejects raw URL fields, audits safe metadata, and
+treats the HTTP 202 response only as acceptance. The bounded
+whole-room and single-participant playback slice is implemented end-to-end.
+Focused SDK coverage verifies the exact nested Kazoo payload and paths; API
+coverage verifies account scope, media capability, active membership, opaque
+participant resolution, authorization, safe responses, and audit metadata.
+Vue component/store coverage and the isolated authenticated headless scenario
+verify the confirmation workflow and that only a public Media UUID plus opaque
+participant handle cross the browser boundary. No audible live-room command
+was sent during isolated acceptance. The 2026-09-01 confirmation follow-up
+passed one focused SDK test with 4 assertions, 5 Laravel playback tests with 38
+assertions, 2 Vue files with 6 tests, Vue and isolated E2E TypeScript checks,
+and one isolated headless scenario covering both room and participant targets.
+
+Kazoo dial-out is materially different and stays disabled. It accepts raw
+Device/User IDs, phone numbers, arbitrary SIP URIs, participant flags, caller
+ID values, profiles, target call IDs, and timeouts. The installed documentation
+explicitly states that phone-number legs pass through normal billing and
+limits. GridPBX will not expose this generic contract until destinations are
+public/account-scoped, external numbers and caller ID are authorized, billing
+and limits are preflighted, rate limits and explicit confirmation are present,
+requests are idempotent, and call results can be reconciled without exposing
+raw call/job/endpoint identifiers.
+
 ### Temporal Rule and Rule Set follow-through (2026-08-29)
 
 Temporal Rules now follow the current `temporal_rules.json` contract rather
@@ -1303,6 +1447,14 @@ control. GridPBX therefore keeps each compact workflow together and does not
 add an empty Advanced screen. The two focused panel tests now lock this
 intentional absence while retaining inline validation.
 
+The 2026-09-01 responsive and accessibility pass kept that payload and form
+scope unchanged. The Rules and Rule Sets inventories now have accessible table
+names, scoped headers, announced loading and failure states, keyboard-operable
+record names, and table-local horizontal scrolling. Header and search actions
+remain inside a 390-pixel viewport. One isolated non-mutating headless scenario
+rechecked the schema-conditional fields, Cycle/Every alignment, inline errors,
+both inventories, zero temporal writes, and absence of browser or server errors.
+
 ### Blacklist follow-through (2026-08-29)
 
 Blacklist now uses the shared domain composable, Zod, inline-only error, and
@@ -1332,6 +1484,14 @@ name, anonymous blocking, and number membership together. The installed schema
 adds only external `flags`, which remain hidden and preserved; GridPBX's
 account activation switch coordinates a separate account setting. An empty
 Advanced tab would not represent a Switch or Monster workflow.
+
+The 2026-09-01 responsive and accessibility pass left that contract unchanged.
+The inventory now has an accessible table name, scoped headers, announced
+loading and failure states, keyboard-operable Blacklist names, and table-local
+horizontal scrolling. Header, search, and slide-over controls remain inside a
+390-pixel viewport. A stubbed public-UUID isolated headless run verified edit
+opening by keyboard, shared inline validation, zero Blacklist or sync writes,
+and no browser or server errors.
 
 ### Fax Box follow-through (2026-08-29)
 
@@ -1699,6 +1859,15 @@ browser confirmed the Basic/Advanced field placement, return to Basic for
 name/pattern errors, viewport-safe match-type listbox, and clean console and
 server-response state without mutating a live List.
 
+The 2026-09-01 responsive and accessibility pass kept the installed-schema
+mapping unchanged. The inventory now has an accessible table name, scoped
+headers, announced loading and failure states, keyboard-operable List names,
+and table-local horizontal scrolling. Header, search, entry-add, tab, and
+slide-over controls remain inside a 390-pixel viewport. A stubbed public-UUID
+isolated run verified keyboard edit opening, Basic/Advanced visibility, inline
+safe-regex errors, zero List or synchronization writes, and clean browser and
+server state.
+
 ### Call activity follow-through (2026-08-29)
 
 Call History and Recordings are read/display workflows rather than artificial
@@ -1873,19 +2042,19 @@ mutations; it is not presented as a complete visual implementation of every
 | Unsupported or unresolved root | module catalog and current projection | Locked in the editor response and API mutation path; no silent fallback target is selected | Implemented |
 | Wildcard fallback branch | `children._` | Optional Headless UI selectors resolve public UUIDs server-side; create/replace/clear preserves sibling branches and same-module data | Implemented |
 | Unsafe fallback subtree | nested, unsupported, or unresolved `children._` | Locked in the editor response and API mutation path and preserved losslessly | Implemented |
-| Menu key branches | `children.timeout`, `children.0`–`children.9`, and `children.*` | Typed per-key operations with public UUID targets; add/replace/clear does not replace the full child map | Implemented |
+| Menu key branches | `children.timeout`, `children.0`–`children.9`, and `children.*` | Typed per-key operations with public UUID targets; add/replace/clear does not replace the full child map. Before the first save, a Menu root accepts a guided resource-backed palette drop on the first unused schema-editable key and reopens the same typed form with its projected public UUID selected | Implemented; focused component and isolated-headless create-workspace checks pass |
 | Legacy and unsafe Menu branches | `children.#`, unknown keys, nested or unresolved key nodes | Displayed as preserved read-only state; `#` cannot be newly created | Implemented |
 | Numeric branch JSON shape | numeric child object properties | Normalized as JSON objects in Switch writes, MySQL JSON, and API resources so `{"0": ...}` never becomes a list | Implemented and tested |
-| Temporal Rule Set match | `data.rule_set`, `children.rule_set`, and `children._` | Shows ordered public Rule UUIDs for context; create/replace/clear resolves only public destination UUIDs and preserves additional temporal keys | Implemented and tested |
+| Temporal Rule Set match | `data.rule_set`, `children.rule_set`, and `children._` | Shows ordered public Rule UUIDs for context; create/replace/clear resolves only public destination UUIDs and preserves additional temporal keys. The full-page create workspace previews the literal `rule_set` match branch before the first save | Implemented; focused component and isolated-headless create-workspace checks pass |
 | Direct Temporal Rules | ordered `data.rules[]`, `children.<rule_id>`, and `children._` | Selects and reorders public Rule UUIDs, requires one public match destination per rule, maps raw branch keys only on the server, and explicitly clears removed rules while preserving unrelated children | Implemented; SDK, API, Zod, and isolated-headless tested |
-| Callflow entry node | Document-level `numbers[]`, `patterns[]`, and `name` above `flow` | A distinct Kazoo-aligned top card displays the primary number/pattern and additional-entry count, then connects to the actual root action. Entry data is never synthesized into `flow` | Implemented and isolated-headless verified |
+| Callflow entry node | Document-level `numbers[]`, `patterns[]`, and `name` above `flow` | A distinct Kazoo-aligned top card displays the primary number/pattern and additional-entry count, then connects to the actual root action. New routes are authored in the full-page canvas rather than a create slide-over; the root popup uses public UUID selectors and can preview Menu keys plus the wildcard `_` fallback before the first save. Empty `_` and schema-editable Menu-key positions accept only guided resource-backed palette drops and reopen their existing public selectors; inline modules are rejected rather than accepted as arbitrary draft node JSON. Entry data is never synthesized into `flow` | Implemented; focused component and isolated-headless create-workspace checks pass |
 | Visual route map | Recursive `flow.children` tree | Scroll-bounded connected nodes with semantic branch badges, centralized module-specific icons, and keyboard-accessible selection; unknown child keys become numbered preserved labels in the public contract while internal keys remain lossless | Interactive foundation implemented and headless-tested |
 | Main-page editor placement | Full route graph and action palette | The graph uses the full available Callflow content width inside small responsive gutters rather than a narrow centered maximum. A compact categorized palette starts in a sticky Kazoo-style right rail, can be moved within the viewport, and has an explicit Dock control; typed mutation forms remain in right-side panels | Implemented and isolated-headless verified |
 | Tree mutations | Recursive node and branch operations | Pointer drag-and-drop and the keyboard workflow move guided subtrees into empty public `_`, Menu digit/Star/timeout, and Temporal Rule Set branches. Guided palette cards are also draggable onto eligible nodes; a drop opens the same validated form and never writes until explicit submission. The node modal supports insert-before when the source default continuation is empty and swapping two disjoint subtrees. Guided public child subtrees can be removed only after explicit confirmation; root, preserved, unsupported, unresolved, no-op, and cyclic operations are rejected. Every mutation starts from the latest raw Switch document and preserves unrelated document, node-data, sibling, and child fields | Safe move, palette drop, occupied-position reorder, and child-subtree deletion boundaries implemented |
 | Selected-node information | Public safe tree contract | An accessible modal shows public branch breadcrumbs, module, resolved label, reference state, child count, honest editability status, and safe move/reorder controls; it never displays raw node data or upstream IDs | Implemented and headless-tested |
 | Guided reference action forms | Resource-backed `callflows.*.json` modules | Palette actions add User/Extension, Device, Voicemail, Callflow, Media, Directory, Group, Queue Member, Menu, Conference, Fax Box, and Temporal Rule Set nodes only to empty schema-valid branches. The selected-node modal retargets the same modules while preserving module data and complete children | Implemented across SDK, API, Zod, Vue, and isolated headless tests |
 | Schema-backed inline action forms | `callflows.sleep`, `tts`, `collect_dtmf`, `send_dtmf`, `flush_dtmf`, `dead_air`, `language`, `manual_presence`, `group_pickup`, `page_group`, `receive_fax`, `ring_group_toggle`, `hotdesk`, `do_not_disturb`, `conference` service mode, `voicemail` check mode, `record_call`, `record_caller`, `missed_call_alert`, `set_cid`, `prepend_cid`, `set_alert_info`, `response`, `hangup`, `set_variable`, `set_variables`, `branch_variable`, and `branch_bnumber` | Zod and Laravel validate current schema fields plus defensive operational bounds in a right-side panel. Manual Presence accepts a bounded local presence ID or one explicit realm, the schema statuses `idle`, `ringing`, and `busy`, and `skip_module`; the visible create default is Monster's explicit `busy`, while omitted legacy status is read as the Kazoo schema default `idle`. Group Pickup follows Monster's single-target workflow and accepts exactly one account-scoped public Device, Extension, or Group UUID; the server resolves it to Kazoo's mutually exclusive `device_id`, `user_id`, or `group_id`, while private `approved_*` restrictions and unknown properties remain hidden and losslessly preserved. Ambiguous or unresolved existing targets stay read-only. Page Group accepts one to twenty distinct account-scoped public Device UUIDs, maps raw Kazoo endpoint IDs only on the server, and exposes only one-way/two-way audio plus `skip_module`; materialized timing values and unknown endpoint fields stay private and preserved, while user/group expansion, barge, unsafe timings, and unresolved endpoints remain read-only. Receive Fax accepts one account-scoped public Extension UUID, resolves it server-side to Kazoo's raw `owner_id`, writes `media.fax_option` as `auto`, `true`, or `false`, and supports `skip_module`; unknown nested `media` fields remain private and losslessly preserved, while unresolved owners remain read-only. Ring Group Toggle accepts only an account-scoped public Callflow UUID whose synchronized module summary contains `ring_group`; Laravel resolves the raw `callflow_id` only for Switch writes, while feature-code or non-ring-group targets are rejected and unavailable targets are read-only. Login, logout, and `skip_module` are the only public fields, and unknown node data remains private and losslessly preserved by the Switch DTO. Hotdesking is resource-free at design time and exposes only `action` (`login`, `logout`, or `toggle`) plus `skip_module`; raw or server-owned `id`, `interdigit_timeout`, and unknown node properties remain private and are preserved by typed edits. Do Not Disturb is also resource-free publicly and accepts only `action` (`activate`, `deactivate`, or `toggle`) plus `skip_module`; raw `id` and unknown node data remain private and lossless, with no public target mapping. Conference Service uses a public-only `service_mode: true` discriminator which Laravel removes before writing `conference` without a raw `id`; the configured Conference action remains a separate account-scoped public-UUID workflow. Only `skip_module` is managed, while unknown discovery settings stay private and lossless. Check Voicemail writes only resource-free `action: check` and `skip_module`, never accepts or exposes a mailbox `id`, and keeps Kazoo's caller-ID and single-mailbox auto-login flags private and server-owned. Missed Call Alert accepts public extension UUIDs or validated email addresses and maps extension recipients to Switch IDs only on the server. Alert-Info rejects CR/LF header injection. Response accepts final SIP error codes and optional cause text while preserving existing Switch-managed media. Hangup exposes only the schema-defined skip behavior. Set Variable is restricted to Kazoo's mapped `call_priority` variable, values `0`–`255`, and schema-supported channel choices; unsupported existing variable names are redacted, preserved, and read-only. Set CAV uses repeatable virtual key/value rows in the form but writes the exact schema-defined `custom_application_vars` object, with bounded safe keys, duplicate rejection, `export`, and `skip_module`; unsupported existing maps remain redacted and lossless. Branch Variable is restricted to `custom_channel_vars.call_priority`, exposes only the default and priority `0`–`255` result branches, and renders those branches as conditions rather than generic keys. Branch Bnumber exposes Kazoo's `hunt`, optional safe `hunt_allow`/`hunt_deny`, and `skip_module` fields; branch mode accepts exact dial-string children, while hunt mode is blocked until those exact branches are removed. The Switch DTO merges only managed public properties into existing node data and preserves the complete subtree. Recording URLs, HTTP methods, origins, media names, and other server-owned values are never exposed or accepted | Implemented across SDK, API, Zod, Vue, focused tests, and isolated headless walkthroughs; disposable live Call Priority, Branch Bnumber, Set CAV, Manual Presence, Group Pickup, Page Group, Receive Fax, Ring Group Toggle, Hotdesking, Do Not Disturb, Conference Service, and Check Voicemail create/edit/reopen/delete verification runs against Switch |
-| Ring Group guided form | `callflows.ring_group` strategy, ordered endpoints, repeats, computed timeout, `ignore_forward`, `fail_on_single_reject`, `ringback`, `ringtones.internal`, `ringtones.external`, and `skip_module` | Accepts 1–20 ordered account-scoped public Device UUIDs, simultaneous, in-order, or weighted-random strategy, bounded endpoint delay/timeout, and 1–3 attempts. Weighted-random requires an explicit `1`–`100` weight for every Device and zero delay. The two bridge flags are strict booleans: ignore forwarding defaults to `true`, while stop-on-one-rejection defaults to `false`. `ringback_media_id` accepts only an account-scoped public UUID for synchronized streamable `audio/*` Media; Laravel maps its raw resource ID only at the Switch boundary. Arbitrary URL, special-stream, system-path, unresolved, and non-audio values are rejected or make existing nodes read-only. Internal/external phone alerts are bounded `Alert-Info` strings and reject CR, LF, and NUL. Unknown nested `ringtones` keys remain private and losslessly preserved, and media deletion detects Ring Group ringback dependencies. Laravel maps raw Device IDs and computes the hidden top-level attempt timeout with a 120-second cap. User/Group selection remains gated because Kazoo dynamically expands mutable memberships without a cycle-safe or resolved-device cap | Device-only form and safe account-audio/phone-alert subset implemented across SDK, API, Zod, Vue, focused tests, and disposable live create/edit/reopen/delete verification. The live raw observer confirmed public/raw Media and Device mapping plus unknown nested preservation; no unsafe expanded node or media-leg call was created |
+| Ring Group guided form | `callflows.ring_group` strategy, ordered endpoints, repeats, computed timeout, `ignore_forward`, `fail_on_single_reject`, `ringback`, `ringtones.internal`, `ringtones.external`, and `skip_module` | Accepts 1–20 distinct ordered account-scoped public Extension, Device, or Group UUIDs and maps them privately to Kazoo `user`, `device`, or `group` endpoints. Supports simultaneous, in-order, and weighted-random strategies, bounded delay/timeout, and 1–3 attempts; weighted-random requires an explicit `1`–`100` weight and zero delay for every member. Bridge flags are strict booleans. `ringback_media_id` accepts only synchronized streamable account audio; internal/external phone alerts are bounded CR/LF/NUL-safe `Alert-Info` strings. Unknown nested values remain private and preserved. Laravel computes the hidden attempt timeout with a 120-second cap. User/Group fan-out remains dynamic Kazoo behavior and the configured 20-member cap is not presented as a resolved-device cap | Mixed relationship contract implemented across SDK, API, resolver, Zod, Vue, and focused tests. Existing disposable live configuration evidence covers the Device/Media path; account-scoped User/Group public-to-raw mapping is protected by focused API tests |
 | Caller-ID condition branches | `check_cid` and `cidlistmatch` `children.match` / `children.nomatch` | Regex-mode Check CID has safe-regex validation, stable public result branches, and optional all-or-none identity override fields. The public Extension UUID is resolved server-side into Kazoo's nested `caller_id.external` and `user_id` values. Existing absolute caller-number branches are numbered preserved branches; their nodes and destinations cannot be rewritten. Caller-ID List Match selects an account-scoped projected List by public UUID; Laravel resolves the private List ID and exposes only stable `match`/`nomatch` branches. Lists and entries retain separate redacted `switch_json` snapshots and are never confused with account Blacklists. Standalone list metadata and number/pattern entries use account-scoped API CRUD and a shared-control slide-over editor with safe-regex validation. The Switch adapter hydrates summary-only entry collections and supplies the schema-required parent `list_id` internally | Regex-mode Check CID, Caller-ID List Match, and standalone Caller-ID List CRUD implemented; absolute Check CID mode intentionally read-only; authenticated local Switch create/edit/reopen/clear/delete verified |
 | Captured-number branches | `branch_bnumber` exact child keys, `hunt`, `hunt_allow`, `hunt_deny`, and `_` continuation | Branch mode accepts bounded dial strings (`0`–`9`, `*`, `#`, and `+`) as typed condition branches. Hunt mode exposes safe optional allow/deny regexes and only the default continuation; enabling it with exact children is rejected. Existing data and subtrees remain lossless | Implemented across SDK, API, Zod, Vue, focused tests, and disposable live Switch verification |
 | Module reference palette | Installed Kazoo palette registry plus connected-version-safe current-schema actions | Expanded categories use the exact installed Kazoo section names, membership, and order, without an invented “Schema extensions” category. Supported current-schema actions that are absent from the installed palette are search-only, so existing guided workflows remain reachable without changing the visible native registry. All entries and diagram/editor nodes use one centralized corresponding icon map. Guided resource and supported inline actions open their schema-appropriate right-side form; planned and restricted entries remain non-mutating | Implemented and headless-tested |
@@ -1903,9 +2072,11 @@ the MySQL projection independently returned the same 17 active feature-code
 callflows for account `4bb372131dddafedcdb142ea3a0ccf2f`: four Call Forward,
 Directed Extension Pickup, three Hotdesk, Intercom, Call Move, three Parking,
 Privacy, and three Voicemail routes. The browser verified the public UUID/code
-inventory, search, responsive containment, keyboard search, explicit
-read-only state, raw-ID redaction, and zero mutations. No Switch resource was
-created, changed, or deleted during this audit.
+inventory, search, responsive containment, keyboard search, explicit read-only
+state, raw-ID redaction, and zero mutations. A focused 2026-09-01 rerun
+additionally verified the accessible table name and column headers, loading
+semantics, mobile action containment, and absence of browser or server errors.
+No Switch resource was created, changed, or deleted during this audit.
 
 Focused verification passed with one Laravel API test and 9 assertions, three
 Vue unit files with 5 tests, Vue and isolated-E2E TypeScript checks, and one
@@ -1919,7 +2090,7 @@ then used Monster only to confirm the intended operator workflows.
 | Action | Installed schema and runtime behavior | Security and product decision |
 | --- | --- | --- |
 | ACDC Queue | `callflows.acdc_queue` permits `action` (`login` or `logout`), requires raw Queue `id`, and permits `skip_module`. Installed `cf_acdc_queue` answers the call, derives the raw Agent ID from the authorizing endpoint's single Hotdesk user or owner, adds or removes the raw Queue ID in that account-local User's `queues` list, publishes the matching Queue membership event, plays the result prompt, and continues. It does not accept a design-time Agent and has no PIN challenge | Guided and search-only as `{ action, queue_id, skip_module }`. The public Queue UUID is resolved account-locally to raw `id` only at the Switch boundary; unsynchronized and cross-account Queues are rejected. Public readback returns the Queue UUID/label and never the raw ID. Existing unresolved targets are read-only, and unknown node fields remain private and losslessly preserved. The editor warns that the no-PIN behavior belongs behind a trusted feature-code route. Focused SDK/API/resolver/Zod/component tests and a disposable isolated lifecycle verified both actions, mapping, redaction, reopen, cleanup, soft deletion, and zero active Switch matches. No media leg was originated, so Agent inference and live membership mutation remain compiled-runtime evidence |
-| Ring Group User/Group expansion | User members resolve through `kz_attributes:owned_by(UserId, device, Call)` in the caller account database. Group members open the raw Group in that same account database and recursively expand its Device, User, and nested Group endpoints. Exact raw Device/delay/timeout triples are deduplicated; differing timing remains duplicated. Only top-level `disable_until` is filtered before expansion, while endpoint building later rejects deleted, disabled, self, or do-not-disturb Devices. The Group schema accepts an unconstrained endpoints object, Crossbar has no cycle validation, expansion records a Group only after recursion, and no final Device cap exists | Capability-gated. GridPBX exposes only direct account-scoped Device UUIDs. Public and SDK User/Group writes are rejected; existing expanded nodes are redacted, preserved, and read-only. Monster's User/Device overlap prompt does not cover nested Groups, cycles, final fan-out, or later membership changes. Focused SDK, validator, resolver, Zod, and component regressions enforce the gate. No disposable Switch mutation or media call was attempted because unbounded recursion and fan-out are the reasons for the gate |
+| Ring Group User/Group expansion | User members resolve through `kz_attributes:owned_by(UserId, device, Call)` in the caller account database. Group members open the raw Group in that account and recursively expand Device, User, and nested Group members. Exact raw Device/delay/timeout triples are deduplicated; differing timing remains duplicated. Device eligibility is evaluated later and no final resolved-device cap exists | Enabled for synchronized account-scoped public Extension and Group UUIDs to match installed Kazoo/Monster semantics. Raw identifiers are resolved server-side and never returned. GridPBX's managed Group writer prevents direct/nested cycles, while externally authored legacy cycles or unresolved members keep a node read-only. The UI explicitly describes 1–20 configured members, not resolved Devices, because membership can change at call time |
 | Ring Group bridge flags | `callflows.ring_group.ignore_forward` is a boolean with schema default `true`; installed `cf_ring_group` passes its binary boolean to the bridge as `Ignore-Forward`, which maps to FreeSWITCH's fatal outbound-redirect behavior. `fail_on_single_reject` is an optional boolean passed as `Fail-On-Single-Reject`; absence leaves the FreeSWITCH behavior disabled | Guided as two strict shared-checkbox controls with public defaults `true` and `false`. Neither field accepts a URL, identifier, or untrusted nested payload. Malformed legacy values make the node read-only. A disposable isolated lifecycle verified both defaults, the `false`/`true` edit, authoritative reopen, raw values, public raw-ID/private-field redaction, private ringtone and unknown-field preservation through the production DTO path, browser cleanup, MySQL soft deletion, and zero active Switch matches. No media leg was originated, so the installed runtime establishes live bridge semantics |
 | Ring Group ringback and phone alerts | `callflows.ring_group.ringback` is a string passed through `kz_media_util:media_path` and then to the bridge. Plain raw Media IDs become account-scoped media paths, but arbitrary HTTP/HTTPS and special stream values are also runtime-capable. `ringtones.internal` is chosen for calls without inception and `ringtones.external` otherwise; the selected string becomes SIP `Alert-Info`, not audio | Guided only as account-scoped `ringback_media_id` for synchronized streamable `audio/*` Media plus optional bounded internal/external `Alert-Info` text. Raw Media IDs are resolved only at the Switch boundary and never returned publicly. URL/special-stream/system-path ringback is rejected to avoid SSRF and availability risk; unsafe legacy values are redacted and read-only. CR/LF/NUL phone-alert values are rejected. Unknown nested ringtone keys are preserved privately. A disposable isolated lifecycle verified public/raw Media mapping, create/edit/reopen, skip, nested unknown preservation, cleanup, MySQL soft deletion, and zero active Switch matches. No media leg was originated, so audible playback and emitted SIP headers remain installed-runtime evidence |
 | Ring Group Toggle | `callflows.ring_group_toggle` requires `action` (`login` or `logout`) and `callflow_id`, with optional `skip_module`. Installed `cf_ring_group_toggle` answers the call, opens that target only in the caller's account database, recursively visits every `ring_group`, and changes `disable_until` only on `user` endpoints whose raw ID equals `kapps_call:owner_id(Call)`. Login writes `0`; logout writes `66269664000`. Device/group endpoints and other users are unchanged. The module plays logged-in, logged-out, or invalid-choice prompts, saves the complete callflow with bounded conflict retries, and continues | Guided for synchronized non-feature callflows containing a Ring Group. The public API/UI use only the account-scoped target Callflow UUID; Laravel maps the raw target at the Switch boundary and rejects cross-account or non-ring-group targets. Focused SDK coverage proves unknown node fields survive typed edits and remain absent publicly. Disposable live configuration verified both actions, edits, reopen, raw/public mapping, cleanup, and public redaction. Crossbar sanitized the attempted unknown marker, so live preservation is not claimed. No media leg was originated, so compiled-runtime inspection rather than a live call proves the owner-only membership rule and prompts |
@@ -1982,6 +2153,15 @@ dialog exists, the root palette is visible, choosing User opens the root-action
 configuration modal, validation remains inline, and listboxes remain inside
 the viewport. Focused component tests and both Vue and isolated E2E TypeScript
 checks passed.
+
+A focused 2026-09-01 create-workspace pass added pre-save Menu-key palette
+drops without broadening the write contract. Dropping Voicemail on a Menu root
+selected the first unused schema-editable key, reopened the existing Menu form,
+and selected the projected account-scoped public Voicemail UUID; no raw Switch
+identifier or arbitrary node JSON entered the draft. Thirteen focused component
+tests, Vue typecheck, isolated E2E TypeScript typecheck, focused ESLint, and the
+single isolated headless create-workspace scenario passed. The browser scenario
+did not submit the draft, so it made no live route mutation.
 
 The 2026-08-31 disposable route `E2E Node Delete 133359` used number `87133359`
 to verify child-subtree deletion against the connected Switch. Its User root
@@ -2219,11 +2399,14 @@ User ownership expansion, recursive Group expansion without a visited set,
 deduplication only for equal Device/delay/timeout triples, and no final fan-out
 cap. The installed Group schema and Crossbar validation do not reject recursive
 membership, while Monster's direct User/Device warning does not cover nested
-Group overlap or future membership changes. Focused SDK, Laravel
-validator/resolver, Zod, and component regressions now prove that the public
-Device-only boundary rejects User/Group selection and never exposes their raw
-identifiers. No live write or media call was appropriate because the missing
-cycle and fan-out controls are the capability gate.
+Group overlap or future membership changes. The subsequent parity
+follow-through enabled synchronized account-scoped public Extension and Group
+choices, maps them to Kazoo `user` and `group` endpoints only at the Switch
+boundary, and maps authoritative results back to public UUIDs. Managed Group
+writes reject cycles. Focused SDK, Laravel validator/mutation/resolver, Zod,
+and component regressions prove the mixed contract and raw-identifier
+boundary. The 20-member limit applies to configured entries, not the dynamic
+resolved Device fan-out.
 
 The 2026-08-31 ringback/phone-alert lifecycle used disposable route
 `E2E Ring Group Media 1788127297`, unique number `88127297`, and a disposable

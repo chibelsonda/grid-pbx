@@ -74,6 +74,16 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
         .array(z.uuid('Select a valid phone number.'))
         .max(25, 'Select no more than 25 phone numbers.')
         .refine(unique, 'Select each phone number once.'),
+      extension_numbers: z
+        .array(
+          z
+            .string()
+            .trim()
+            .regex(/^[0-9]{2,15}$/, 'Use 2 to 15 digits for an internal extension number.'),
+        )
+        .max(25, 'Add no more than 25 extension numbers.')
+        .refine(unique, 'Add each extension number once.')
+        .default([]),
     })
     .strict()
     .superRefine((input, context) => {
@@ -244,11 +254,18 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
         })
       }
 
-      if (editor.mode === 'create' && input.phone_number_ids.length === 0) {
+      if (
+        (editor.mode === 'create' || editor.requires_entry_number === true) &&
+        input.phone_number_ids.length === 0 &&
+        input.extension_numbers.length === 0
+      ) {
         context.addIssue({
           code: 'custom',
-          path: ['phone_number_ids'],
-          message: 'Select at least one phone number.',
+          path: ['extension_numbers'],
+          message:
+            editor.mode === 'create'
+              ? 'Add at least one extension or phone number.'
+              : 'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
         })
       }
 

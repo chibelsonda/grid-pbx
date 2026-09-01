@@ -2,13 +2,16 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
+  ArrowLeftIcon,
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
   BoltIcon,
   ChevronRightIcon,
   PhoneArrowDownLeftIcon,
+  PencilSquareIcon,
   QueueListIcon,
   PlusIcon,
+  XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
@@ -65,7 +68,31 @@ const workspaceOpen = computed(
     (!callflows.editorOpen &&
       (callflows.detailLoading || callflows.detail !== null || callflows.detailError !== null)),
 )
+const viewingRoute = computed(() => workspaceOpen.value && !creatingRoute.value)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const pageEyebrow = computed(() =>
+  creatingRoute.value
+    ? 'GridPBX / Callflows / Create'
+    : viewingRoute.value
+      ? 'GridPBX / Callflows / Detail'
+      : 'GridPBX / Callflows',
+)
+const pageTitle = computed(() =>
+  creatingRoute.value
+    ? 'Create callflow'
+    : viewingRoute.value && callflows.detail
+      ? routeTitle(callflows.detail)
+      : viewingRoute.value
+        ? 'Callflow workspace'
+        : 'Callflows',
+)
+const pageDescription = computed(() =>
+  creatingRoute.value
+    ? 'Create a phone-number route using safe public GridPBX references.'
+    : viewingRoute.value
+      ? 'The full-width route map stays on the main page; select a node to inspect it in a modal.'
+      : 'Understand incoming entry points and the safe structural path each call follows.',
+)
 const freshnessLabel = computed(() =>
   callflows.sync.last_successful_at
     ? `PBX projection synchronized ${new Date(callflows.sync.last_successful_at).toLocaleString()}`
@@ -214,18 +241,28 @@ function routeTitle(route: {
 </script>
 
 <template>
-  <section class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8">
+  <section
+    data-callflow-page-header
+    class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8"
+  >
     <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
-      <div>
-        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Callflows</p>
-        <h1 class="text-xl font-semibold tracking-tight text-slate-800">Callflows</h1>
-        <p class="mt-1 text-xs text-slate-500">
-          Understand incoming entry points and the safe structural path each call follows.
-        </p>
+      <button
+        v-if="viewingRoute"
+        type="button"
+        aria-label="Back to callflows"
+        class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+        @click="closeWorkspace"
+      >
+        <ArrowLeftIcon class="size-4" />
+      </button>
+      <div class="min-w-0 flex-1">
+        <p class="mb-1 text-[11px] font-medium text-slate-400">{{ pageEyebrow }}</p>
+        <h1 class="text-xl font-semibold tracking-tight text-slate-800">{{ pageTitle }}</h1>
+        <p class="mt-1 text-xs text-slate-500">{{ pageDescription }}</p>
       </div>
-      <div class="flex gap-3 sm:ml-auto">
+      <div class="flex w-full flex-wrap justify-end gap-3 sm:ml-auto sm:w-auto">
         <button
-          v-if="canManage"
+          v-if="canManage && !workspaceOpen"
           type="button"
           :disabled="!accounts.selectedId"
           class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
@@ -234,6 +271,7 @@ function routeTitle(route: {
           <PlusIcon class="size-4" /> Create callflow
         </button>
         <button
+          v-if="!workspaceOpen"
           type="button"
           :disabled="!accounts.selectedId || callflows.synchronizing"
           class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50"
@@ -242,17 +280,43 @@ function routeTitle(route: {
           <ArrowPathIcon class="size-4" :class="callflows.synchronizing && 'animate-spin'" />
           {{ callflows.synchronizing ? 'Synchronizing…' : 'Synchronize routing' }}
         </button>
+        <template v-else-if="viewingRoute">
+          <button
+            type="button"
+            aria-label="Refresh callflow nodes"
+            title="Refresh callflow nodes"
+            :disabled="callflows.detailLoading || callflows.synchronizing || !callflows.detail"
+            class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-wait disabled:text-slate-300"
+            @click="refreshCallflowNodes"
+          >
+            <ArrowPathIcon
+              class="size-4"
+              :class="(callflows.detailLoading || callflows.synchronizing) && 'animate-spin'"
+            />
+          </button>
+          <button
+            v-if="canManage && callflows.detail"
+            type="button"
+            class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
+            @click="openEditor"
+          >
+            <PencilSquareIcon class="size-4" /> Edit callflow
+          </button>
+        </template>
+        <button
+          v-else
+          type="button"
+          class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
+          aria-label="Close create callflow"
+          @click="closeWorkspace"
+        >
+          <XMarkIcon class="size-5" />
+        </button>
       </div>
     </div>
   </section>
 
-  <div
-    :class="
-      workspaceOpen
-        ? 'w-full px-4 py-4 sm:px-6 sm:py-5'
-        : 'mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8'
-    "
-  >
+  <div :class="workspaceOpen ? 'w-full' : 'mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8'">
     <template v-if="workspaceOpen">
       <CallflowEditorPanel
         v-if="creatingRoute"
@@ -278,13 +342,8 @@ function routeTitle(route: {
           :tree-moving="callflows.treeMoving"
           :tree-deleting="callflows.treeDeleting"
           :tree-mutation-error="callflows.treeMutationError"
-          can-refresh
-          :refreshing="callflows.detailLoading"
-          :synchronizing="callflows.synchronizing"
-          @close="closeWorkspace"
-          @refresh="refreshCallflowNodes"
-          @edit="openEditor"
           @delete="deleteRoute"
+          @edit-entry="openEditor"
           @move-node="moveTreeNode"
           @reorder-nodes="reorderTreeNodes"
           @delete-node="deleteTreeNode"
@@ -351,6 +410,8 @@ function routeTitle(route: {
           label="Search callflows"
           placeholder="Search route, number, pattern, feature code…"
           input-class="h-10 bg-white text-xs shadow-sm"
+          live
+          @search="applyFilters"
         />
         <FormSelect
           v-model="callflows.filters.type"
@@ -383,6 +444,7 @@ function routeTitle(route: {
 
       <div
         v-if="callflows.error"
+        role="alert"
         class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
       >
         {{ callflows.error }}
@@ -396,23 +458,26 @@ function routeTitle(route: {
 
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[900px] text-left">
+          <table class="w-full min-w-[900px] text-left" :aria-busy="callflows.loading">
+            <caption class="sr-only">
+              Projected callflows for the selected Switch account
+            </caption>
             <thead
               class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
             >
               <tr>
-                <th class="px-5 py-3.5">Route</th>
-                <th class="px-5 py-3.5">Entry points</th>
-                <th class="px-5 py-3.5">Type</th>
-                <th class="px-5 py-3.5">Path</th>
-                <th class="px-5 py-3.5">Assignment</th>
-                <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+                <th scope="col" class="px-5 py-3.5">Route</th>
+                <th scope="col" class="px-5 py-3.5">Entry points</th>
+                <th scope="col" class="px-5 py-3.5">Type</th>
+                <th scope="col" class="px-5 py-3.5">Path</th>
+                <th scope="col" class="px-5 py-3.5">Assignment</th>
+                <th scope="col" aria-label="View callflow" class="w-12 px-5 py-3.5" />
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
               <tr v-if="callflows.loading">
                 <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                  Loading projected callflows…
+                  <span role="status">Loading projected callflows…</span>
                 </td>
               </tr>
               <tr v-else-if="callflows.records.length === 0">
@@ -429,7 +494,13 @@ function routeTitle(route: {
                 @click="openDetail(route.id)"
               >
                 <td class="px-5 py-3.5">
-                  <p class="font-semibold text-slate-700">{{ routeTitle(route) }}</p>
+                  <button
+                    type="button"
+                    class="font-semibold text-slate-700 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                    @click.stop="openDetail(route.id)"
+                  >
+                    {{ routeTitle(route) }}
+                  </button>
                   <p class="mt-1 font-mono text-[10px] text-slate-400">
                     {{ route.root_module ?? 'No root module' }}
                   </p>
@@ -481,7 +552,7 @@ function routeTitle(route: {
 
       <div
         v-if="callflows.lastPage > 1"
-        class="mt-4 flex items-center justify-between text-xs text-slate-500"
+        class="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500"
       >
         <button
           :disabled="callflows.page <= 1"

@@ -1,11 +1,42 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { conferenceApi } from '../api/conferenceApi'
-import type { Conference, ConferenceInput, ConferenceOptions } from '../types/conference'
+import type {
+  Conference,
+  ConferenceBulkControlObservation,
+  ConferenceBulkParticipantAction,
+  ConferenceControlAction,
+  ConferenceInput,
+  ConferenceOptions,
+  ConferenceParticipant,
+  ConferenceParticipantAction,
+} from '../types/conference'
 
-const emptyOptions: ConferenceOptions = { owners: [], media: [] }
+const emptyOptions: ConferenceOptions = { owners: [], media: [], playable_media: [] }
+const bulkReconciliationAttempts = 4
+const bulkReconciliationDelayMs = 250
+
 function message(error: unknown, fallback: string): string {
   return axios.isAxiosError(error) ? (error.response?.data?.message ?? fallback) : fallback
+}
+
+function bulkTargetCount(
+  participants: ConferenceParticipant[],
+  action: ConferenceBulkParticipantAction,
+): number {
+  return participants.filter((participant) => {
+    if (participant.is_moderator) return false
+
+    if (action === 'mute') return participant.can_speak
+    if (action === 'unmute') return !participant.can_speak
+    if (action === 'deaf') return participant.can_hear
+
+    return !participant.can_hear
+  }).length
+}
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
 }
 
 export const useConferenceStore = defineStore('conferences', {
@@ -21,6 +52,14 @@ export const useConferenceStore = defineStore('conferences', {
     loading: false,
     saving: false,
     synchronizing: false,
+    controllingId: null as string | null,
+    participants: [] as ConferenceParticipant[],
+    participantsLoading: false,
+    participantControlId: null as string | null,
+    bulkControllingAction: null as ConferenceBulkParticipantAction | null,
+    bulkControlObservation: null as ConferenceBulkControlObservation | null,
+    playingMedia: false,
+    participantError: null as string | null,
     error: null as string | null,
     mutationError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
@@ -31,6 +70,10 @@ export const useConferenceStore = defineStore('conferences', {
       this.detail = null
       this.options = { ...emptyOptions }
       this.total = 0
+      this.participants = []
+      this.bulkControllingAction = null
+      this.bulkControlObservation = null
+      this.participantError = null
       this.error = null
       this.clearMutationError()
     },
@@ -72,6 +115,13 @@ export const useConferenceStore = defineStore('conferences', {
         this.error = message(error, 'Unable to prepare the conference panel.')
       } finally {
         this.loading = false
+      }
+    },
+    async loadOptions(accountId: string): Promise<void> {
+      try {
+        this.options = await conferenceApi.options(accountId)
+      } catch (error) {
+        this.participantError = message(error, 'Unable to load conference media options.')
       }
     },
     replace(record: Conference): void {
@@ -117,6 +167,175 @@ export const useConferenceStore = defineStore('conferences', {
         return false
       } finally {
         this.saving = false
+      }
+    },
+    async control(
+      accountId: string,
+      conference: Conference,
+      action: ConferenceControlAction,
+    ): Promise<boolean> {
+      this.controllingId = conference.id
+      this.error = null
+      try {
+        await conferenceApi.control(accountId, conference.id, action)
+        await this.synchronize(accountId)
+
+        return true
+      } catch (error) {
+        this.error = message(error, `Unable to ${action} conference.`)
+
+        return false
+      } finally {
+        this.controllingId = null
+      }
+    },
+    async loadParticipants(accountId: string, conferenceId: string): Promise<void> {
+      this.participantsLoading = true
+      this.participantError = null
+      try {
+        this.participants = await conferenceApi.participants(accountId, conferenceId)
+      } catch (error) {
+        this.participantError = message(error, 'Unable to load active conference participants.')
+      } finally {
+        this.participantsLoading = false
+      }
+    },
+    async controlParticipant(
+      accountId: string,
+      conference: Conference,
+      participant: ConferenceParticipant,
+      action: ConferenceParticipantAction,
+    ): Promise<boolean> {
+      this.participantControlId = participant.id
+      this.participantError = null
+      try {
+        await conferenceApi.controlParticipant(accountId, conference.id, participant.id, action)
+        await this.synchronize(accountId)
+        await this.loadParticipants(accountId, conference.id)
+
+        return true
+      } catch (error) {
+        this.participantError = message(error, `Unable to ${action} participant.`)
+
+        return false
+      } finally {
+        this.participantControlId = null
+      }
+    },
+    async controlParticipants(
+      accountId: string,
+      conference: Conference,
+      action: ConferenceBulkParticipantAction,
+      expectedParticipantCount: number,
+      expectedTargetCount: number,
+    ): Promise<boolean> {
+      this.bulkControllingAction = action
+      this.bulkControlObservation = null
+      this.participantError = null
+      try {
+        const result = await conferenceApi.controlParticipants(
+          accountId,
+          conference.id,
+          action,
+          expectedParticipantCount,
+          expectedTargetCount,
+        )
+        this.bulkControlObservation = await this.reconcileBulkControl(
+          accountId,
+          conference.id,
+          action,
+          expectedParticipantCount,
+          result.targeted_participants,
+        )
+
+        return true
+      } catch (error) {
+        const errorMessage = message(error, `Unable to ${action} room participants.`)
+        await this.loadParticipants(accountId, conference.id)
+        this.participantError = errorMessage
+
+        return false
+      } finally {
+        this.bulkControllingAction = null
+      }
+    },
+    async reconcileBulkControl(
+      accountId: string,
+      conferenceId: string,
+      action: ConferenceBulkParticipantAction,
+      expectedParticipantCount: number,
+      expectedTargetCount: number,
+    ): Promise<ConferenceBulkControlObservation> {
+      let observedParticipants = 0
+
+      for (let attempt = 0; attempt < bulkReconciliationAttempts; attempt += 1) {
+        if (attempt > 0) await wait(bulkReconciliationDelayMs)
+
+        try {
+          this.participants = await conferenceApi.participants(accountId, conferenceId)
+        } catch {
+          return {
+            action,
+            status: 'pending',
+            targeted_participants: expectedTargetCount,
+            observed_participants: observedParticipants,
+            message:
+              'Switch accepted the command, but GridPBX could not refresh the live room. Refresh to verify the result.',
+          }
+        }
+
+        if (this.participants.length !== expectedParticipantCount) {
+          return {
+            action,
+            status: 'room_changed',
+            targeted_participants: expectedTargetCount,
+            observed_participants: observedParticipants,
+            message:
+              'Switch accepted the command, but room membership changed during verification. Review the refreshed participants.',
+          }
+        }
+
+        const remainingTargets = bulkTargetCount(this.participants, action)
+        observedParticipants = Math.max(0, expectedTargetCount - remainingTargets)
+
+        if (remainingTargets === 0) {
+          return {
+            action,
+            status: 'observed',
+            targeted_participants: expectedTargetCount,
+            observed_participants: expectedTargetCount,
+            message: `Observed the requested state for all ${expectedTargetCount} targeted participant(s).`,
+          }
+        }
+      }
+
+      return {
+        action,
+        status: 'pending',
+        targeted_participants: expectedTargetCount,
+        observed_participants: observedParticipants,
+        message: `Switch accepted the command; ${observedParticipants} of ${expectedTargetCount} targeted participant(s) are currently observed in the requested state.`,
+      }
+    },
+    async playMedia(
+      accountId: string,
+      conference: Conference,
+      mediaId: string,
+      participantId: string | null,
+    ): Promise<boolean> {
+      this.playingMedia = true
+      this.participantError = null
+      try {
+        await conferenceApi.playMedia(accountId, conference.id, mediaId, participantId)
+        await this.loadParticipants(accountId, conference.id)
+
+        return true
+      } catch (error) {
+        this.participantError = message(error, 'Unable to play media in the conference.')
+
+        return false
+      } finally {
+        this.playingMedia = false
       }
     },
     async synchronize(accountId: string): Promise<void> {

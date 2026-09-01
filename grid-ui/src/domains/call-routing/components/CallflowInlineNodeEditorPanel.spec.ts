@@ -875,7 +875,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
     expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-page-device')
   })
 
-  it('orders bounded public Device UUIDs for a Ring Group', async () => {
+  it('orders bounded public endpoint UUIDs for a Ring Group', async () => {
     const deviceId = '44444444-4444-4444-8444-444444444444'
     const ringbackId = '77777777-7777-4777-8777-777777777777'
     const context: CallflowNodeEditorContext = {
@@ -928,31 +928,31 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
 
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.text()).toContain('Select at least one device.')
+    expect(wrapper.text()).toContain('Select at least one endpoint.')
 
     const strategy = wrapper
       .findAllComponents(FormListbox)
       .find((listbox) => listbox.props('ariaLabel') === 'Ring strategy')
-    const addDevice = wrapper
+    const addMember = wrapper
       .findAllComponents(FormListbox)
-      .find((listbox) => listbox.props('ariaLabel') === 'Add Ring Group device')
+      .find((listbox) => listbox.props('ariaLabel') === 'Add Ring Group member')
     const ringback = wrapper
       .findAllComponents(FormListbox)
       .find((listbox) => listbox.props('ariaLabel') === 'Ringback audio')
     expect(strategy?.props('options')).toHaveLength(3)
-    expect(addDevice?.props('options')).toHaveLength(1)
+    expect(addMember?.props('options')).toHaveLength(3)
     expect(ringback?.props('options')).toHaveLength(2)
     expect(JSON.stringify(ringback?.props('options'))).toContain('Support ringback')
     expect(JSON.stringify(ringback?.props('options'))).not.toContain('Private document')
-    expect(JSON.stringify(addDevice?.props('options'))).not.toContain('Reception user')
-    expect(JSON.stringify(addDevice?.props('options'))).not.toContain('Support group')
+    expect(JSON.stringify(addMember?.props('options'))).toContain('Reception user')
+    expect(JSON.stringify(addMember?.props('options'))).toContain('Support group')
 
     strategy!.vm.$emit('update:modelValue', 'weighted_random')
-    addDevice!.vm.$emit('update:modelValue', deviceId)
+    addMember!.vm.$emit('update:modelValue', `device:${deviceId}`)
     ringback!.vm.$emit('update:modelValue', ringbackId)
     await wrapper.vm.$nextTick()
-    expect(wrapper.get('input[aria-label="Device 1 delay"]').attributes('disabled')).toBeDefined()
-    await wrapper.get('input[aria-label="Device 1 weight"]').setValue('75')
+    expect(wrapper.get('input[aria-label="Member 1 delay"]').attributes('disabled')).toBeDefined()
+    await wrapper.get('input[aria-label="Member 1 weight"]').setValue('75')
     await wrapper.get('input[aria-label="Attempts"]').setValue('2')
     expect(
       (wrapper.get('input[aria-label="Ignore device forwarding"]').element as HTMLInputElement)

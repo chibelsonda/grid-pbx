@@ -51,7 +51,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
+      <div
+        v-if="error"
+        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
+      >
         {{ error }}
       </div>
       <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">

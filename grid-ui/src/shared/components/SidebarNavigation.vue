@@ -19,7 +19,7 @@ import {
   type SidebarItem,
 } from '@/shared/navigation/sidebarNavigation'
 
-const props = defineProps<{ collapsed: boolean; mobile?: boolean }>()
+const props = defineProps<{ collapsed: boolean; mobile?: boolean; logoUrl?: string | null }>()
 const emit = defineEmits<{ collapse: []; close: [] }>()
 const route = useRoute()
 
@@ -65,11 +65,20 @@ function itemKey(item: SidebarItem): string {
 
 <template>
   <div class="sidebar-border flex h-[60px] items-center border-b px-5">
-    <span class="sidebar-accent-bg grid size-9 shrink-0 place-items-center rounded-md text-white">
+    <img
+      v-if="logoUrl"
+      :src="logoUrl"
+      alt="Organization logo"
+      class="size-9 shrink-0 rounded-md object-contain"
+    />
+    <span
+      v-else
+      class="sidebar-accent-bg grid size-9 shrink-0 place-items-center rounded-md text-white"
+    >
       <Squares2X2Icon class="size-5" />
     </span>
     <div v-if="!collapsed" class="ml-3 min-w-0 flex-1">
-      <div class="sidebar-foreground text-[15px] font-bold">GridPBX</div>
+      <div class="sidebar-foreground truncate text-[15px] font-bold">GridPBX</div>
       <div class="sidebar-muted text-[10px] font-semibold tracking-widest uppercase">
         Phone system
       </div>

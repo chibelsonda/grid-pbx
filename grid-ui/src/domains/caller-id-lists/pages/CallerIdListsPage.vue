@@ -98,26 +98,26 @@ function clearCallerIdListQuery(): void {
 
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
-    <div class="page-container flex items-center gap-4">
-      <div>
+    <div class="page-container flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-500">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold text-slate-800">Caller-ID Lists</h1>
         <p class="mt-1 text-xs text-slate-500">
           Reusable caller-number and pattern matches for visual Callflow branches.
         </p>
       </div>
-      <div class="ml-auto flex gap-2">
+      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
         <button
           v-if="canManage"
           :disabled="lists.synchronizing"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
+          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
           @click="accounts.selectedId && lists.synchronize(accounts.selectedId)"
         >
           <ArrowPathIcon class="size-4" :class="lists.synchronizing && 'animate-spin'" />Sync
         </button>
         <button
           v-if="canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
           @click="open()"
         >
           <PlusIcon class="size-4" />New list
@@ -155,12 +155,13 @@ function clearCallerIdListQuery(): void {
     <div
       v-if="lists.error"
       class="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger"
+      role="alert"
     >
       {{ lists.error }}
     </div>
 
     <form
-      class="mb-4 flex gap-3"
+      class="mb-4 flex flex-col gap-3 sm:flex-row"
       @submit.prevent="accounts.selectedId && lists.load(accounts.selectedId)"
     >
       <SearchInput
@@ -169,64 +170,76 @@ function clearCallerIdListQuery(): void {
         class="min-w-0 flex-1"
         placeholder="Search Caller-ID Lists…"
         input-class="h-10 bg-white text-xs shadow-sm"
+        live
+        @search="accounts.selectedId && lists.load(accounts.selectedId)"
       />
       <button
-        class="h-10 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-600"
+        class="h-10 w-full rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-600 sm:w-auto"
       >
         Search
       </button>
     </form>
 
     <div class="card-surface overflow-hidden">
-      <table class="w-full text-left">
-        <thead
-          class="border-b border-slate-200 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-500 uppercase"
-        >
-          <tr>
-            <th class="px-5 py-3.5">List</th>
-            <th class="px-5 py-3.5">Organization</th>
-            <th class="px-5 py-3.5">Entries</th>
-            <th class="px-5 py-3.5">Sync status</th>
-            <th class="w-12"></th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-slate-200 text-xs">
-          <tr v-if="lists.loading">
-            <td colspan="5" class="px-5 py-14 text-center text-slate-500">
-              Loading Caller-ID Lists…
-            </td>
-          </tr>
-          <tr v-else-if="!lists.records.length">
-            <td colspan="5" class="px-5 py-14 text-center text-slate-500">
-              No Caller-ID Lists are projected.
-            </td>
-          </tr>
-          <tr
-            v-for="record in lists.records"
-            v-else
-            :key="record.id"
-            class="cursor-pointer hover:bg-slate-50"
-            @click="open(record.id)"
+      <div class="overflow-x-auto">
+        <table class="w-full min-w-[700px] text-left" :aria-busy="lists.loading">
+          <caption class="sr-only">
+            Caller-ID Lists for the selected Switch account
+          </caption>
+          <thead
+            class="border-b border-slate-200 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-500 uppercase"
           >
-            <td class="px-5 py-4">
-              <p class="font-semibold text-slate-700">{{ record.name }}</p>
-              <p v-if="record.description" class="mt-1 text-[10px] text-slate-500">
-                {{ record.description }}
-              </p>
-            </td>
-            <td class="px-5 py-4 text-slate-600">{{ record.organization || '—' }}</td>
-            <td class="px-5 py-4 text-slate-600">{{ record.entry_count ?? 0 }}</td>
-            <td class="px-5 py-4">
-              <span
-                class="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600"
-              >
-                {{ record.sync_status ?? 'unknown' }}
-              </span>
-            </td>
-            <td><ChevronRightIcon class="size-4 text-slate-500" /></td>
-          </tr>
-        </tbody>
-      </table>
+            <tr>
+              <th scope="col" class="px-5 py-3.5">List</th>
+              <th scope="col" class="px-5 py-3.5">Organization</th>
+              <th scope="col" class="px-5 py-3.5">Entries</th>
+              <th scope="col" class="px-5 py-3.5">Sync status</th>
+              <th scope="col" class="w-12" aria-label="Open Caller-ID List"></th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-200 text-xs">
+            <tr v-if="lists.loading">
+              <td colspan="5" class="px-5 py-14 text-center text-slate-500">
+                <span role="status">Loading Caller-ID Lists…</span>
+              </td>
+            </tr>
+            <tr v-else-if="!accounts.selectedId">
+              <td colspan="5" class="px-5 py-14 text-center text-slate-500">
+                Select an account to inspect its Caller-ID Lists.
+              </td>
+            </tr>
+            <tr v-else-if="!lists.records.length">
+              <td colspan="5" class="px-5 py-14 text-center text-slate-500">
+                No Caller-ID Lists are projected.
+              </td>
+            </tr>
+            <tr v-for="record in lists.records" v-else :key="record.id" class="hover:bg-slate-50">
+              <td class="px-5 py-4">
+                <button
+                  type="button"
+                  class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                  @click="open(record.id)"
+                >
+                  {{ record.name }}
+                </button>
+                <p v-if="record.description" class="mt-1 text-[10px] text-slate-500">
+                  {{ record.description }}
+                </p>
+              </td>
+              <td class="px-5 py-4 text-slate-600">{{ record.organization || '—' }}</td>
+              <td class="px-5 py-4 text-slate-600">{{ record.entry_count ?? 0 }}</td>
+              <td class="px-5 py-4">
+                <span
+                  class="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600"
+                >
+                  {{ record.sync_status ?? 'unknown' }}
+                </span>
+              </td>
+              <td><ChevronRightIcon class="size-4 text-slate-500" aria-hidden="true" /></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 

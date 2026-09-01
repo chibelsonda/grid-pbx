@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace GridPbx\Switch\Domains\Groups\Dto;
 
 use InvalidArgumentException;
+use stdClass;
 
 final readonly class GroupWriteData
 {
@@ -75,7 +76,7 @@ final readonly class GroupWriteData
 
         return array_merge($preserved, [
             'name' => $this->name,
-            'endpoints' => $endpoints,
+            'endpoints' => $endpoints === [] ? new stdClass : $endpoints,
             'music_on_hold' => $musicOnHold === [] ? (object) [] : $musicOnHold,
             'flags' => array_values($this->flags),
         ]);

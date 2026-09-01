@@ -144,7 +144,7 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
     }
 
     #[Test]
-    public function it_accepts_only_bounded_public_device_ring_groups(): void
+    public function it_accepts_only_bounded_public_ring_group_endpoints(): void
     {
         $validator = app(CallflowInlineNodeDataValidator::class);
         $deviceId = '11111111-1111-4111-8111-111111111111';
@@ -177,6 +177,25 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
         ];
 
         $this->assertSame($weighted, $validator->validate('ring_group', $weighted));
+        $extension = [
+            ...$settings,
+            'endpoints' => [[
+                'extension_id' => '22222222-2222-4222-8222-222222222222',
+                'delay' => 5,
+                'timeout' => 20,
+            ]],
+        ];
+        $group = [
+            ...$settings,
+            'endpoints' => [[
+                'group_id' => '33333333-3333-4333-8333-333333333333',
+                'delay' => 5,
+                'timeout' => 20,
+            ]],
+        ];
+
+        $this->assertSame($extension, $validator->validate('ring_group', $extension));
+        $this->assertSame($group, $validator->validate('ring_group', $group));
 
         foreach ([
             [...$weighted, 'endpoints' => [[
@@ -203,11 +222,7 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
                 'timeout' => 20,
             ]]],
             [...$settings, 'endpoints' => [[
-                'extension_id' => '22222222-2222-4222-8222-222222222222',
-                'delay' => 5,
-                'timeout' => 20,
-            ]]],
-            [...$settings, 'endpoints' => [[
+                'device_id' => $deviceId,
                 'group_id' => '33333333-3333-4333-8333-333333333333',
                 'delay' => 5,
                 'timeout' => 20,

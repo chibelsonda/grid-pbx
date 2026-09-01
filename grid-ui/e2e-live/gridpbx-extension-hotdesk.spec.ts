@@ -1261,3 +1261,218 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
     }
   }
 })
+
+test('creates a Switch user with the complete tabbed advanced schema', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const listResponsePromise = page.waitForResponse((response) =>
+    /\/api\/v1\/accounts\/[^/]+\/extensions$/.test(new URL(response.url()).pathname),
+  )
+  await page.goto('/extensions')
+  const listResponse = await listResponsePromise
+  const listUrl = new URL(listResponse.url())
+  const accountId = listUrl.pathname.match(/\/accounts\/([^/]+)\/extensions/)?.[1]
+  if (!accountId) throw new Error('Unable to resolve the selected account.')
+
+  const number = Date.now().toString().slice(-8)
+  const apiOrigin = listUrl.origin
+  let created: DisposableExtension | null = null
+
+  await page.getByRole('button', { name: 'Create extension' }).click()
+  const drawer = page.getByRole('dialog', { name: 'Create extension' })
+  await drawer.getByLabel('First name').fill('GridPBX')
+  await drawer.getByLabel('Last name').fill('Advanced Create')
+  await drawer.getByLabel('Extension number').fill(number)
+  await drawer
+    .locator('article')
+    .filter({ hasText: 'Voicemail fallback' })
+    .getByRole('switch', { name: 'Create' })
+    .click()
+
+  await drawer.getByRole('tab', { name: 'Advanced' }).click()
+  const advancedTabs = drawer.getByRole('tablist', { name: 'Extension advanced sections' })
+  await expect(advancedTabs.getByRole('tab', { name: 'Media' })).toBeVisible()
+  await expect(advancedTabs.getByRole('tab', { name: 'Routing & Profile' })).toBeVisible()
+  await expect(advancedTabs.getByRole('tab', { name: 'Metaflows' })).toBeVisible()
+
+  try {
+    await advancedTabs.getByRole('tab', { name: 'Media' }).click()
+    await drawer.getByRole('button', { name: 'Codec, transport, and ringtone controls' }).click()
+    await drawer.getByLabel('Progress timeout (seconds)').fill('30')
+    await drawer.getByLabel(/internal ringtone header/i).fill('GridPBX-internal')
+    await drawer.getByLabel(/external ringtone header/i).fill('GridPBX-external')
+
+    await advancedTabs.getByRole('tab', { name: 'Routing & Profile' }).click()
+    await drawer.getByRole('button', { name: 'Directory profile and spoken name' }).click()
+    await drawer.getByLabel('Title').fill('Advanced Create Verification')
+    await drawer.getByLabel('Profile role').fill('Operator')
+    await drawer.getByLabel('Nicknames').fill('Advanced')
+    await drawer.getByLabel('Profile note').fill('Created through the GridPBX user interface.')
+
+    await advancedTabs.getByRole('tab', { name: 'Metaflows' }).click()
+    await drawer.getByRole('button', { name: 'User metaflow binding digit' }).click()
+    await page.getByRole('option', { name: '#', exact: true }).click()
+    await drawer.getByLabel('Digit timeout (ms)').fill('2500')
+    await drawer.getByRole('button', { name: 'User metaflow listen on' }).click()
+    await page.getByRole('option', { name: 'Originating leg', exact: true }).click()
+
+    const createResponse = page.waitForResponse(
+      (response) =>
+        response.request().method() === 'POST' &&
+        /\/api\/v1\/accounts\/[^/]+\/extensions$/.test(new URL(response.url()).pathname),
+    )
+    await drawer.getByRole('button', { name: 'Create extension', exact: true }).click()
+    const response = await createResponse
+    if (response.status() !== 201) {
+      throw new Error(`Advanced Extension creation failed: ${await response.text()}`)
+    }
+
+    const result = (await response.json()) as { data: { id: string } }
+    created = {
+      deleteUrl: `${apiOrigin}/api/v1/accounts/${accountId}/extensions/${result.data.id}`,
+      number,
+    }
+    await synchronizeExtensions(page, apiOrigin, accountId)
+
+    const readConfiguration = async () => {
+      const detail = await authenticatedJson<{
+        data: {
+          configuration: {
+            media: { progress_timeout: number | null }
+            ringtones: { internal: string | null; external: string | null }
+            profile: {
+              title: string | null
+              role: string | null
+              nicknames: string[]
+              note: string | null
+            }
+            metaflows: {
+              binding_digit: string | null
+              digit_timeout: number | null
+              listen_on: string | null
+            }
+          }
+        }
+      }>(page, created!.deleteUrl)
+      expect(detail.status).toBe(200)
+
+      return detail.data.data.configuration
+    }
+
+    expect(await readConfiguration()).toMatchObject({
+      media: { progress_timeout: 30 },
+      ringtones: { internal: 'GridPBX-internal', external: 'GridPBX-external' },
+      profile: {
+        title: 'Advanced Create Verification',
+        role: 'Operator',
+        nicknames: ['Advanced'],
+        note: 'Created through the GridPBX user interface.',
+      },
+      metaflows: { binding_digit: '#', digit_timeout: 2500, listen_on: 'self' },
+    })
+
+    await page.goto(`/extensions/${result.data.id}`)
+    await page.getByRole('button', { name: 'Edit' }).click()
+    const editDrawer = page.getByRole('dialog', { name: 'Edit extension' })
+    await editDrawer.getByRole('tab', { name: 'Advanced' }).click()
+    const editTabs = editDrawer.getByRole('tablist', { name: 'Extension advanced sections' })
+
+    await editTabs.getByRole('tab', { name: 'Media' }).click()
+    await editDrawer
+      .getByRole('button', { name: 'Codec, transport, and ringtone controls' })
+      .click()
+    await expect(editDrawer.getByLabel('Progress timeout (seconds)')).toHaveValue('30')
+    await editDrawer.getByLabel('Progress timeout (seconds)').fill('45')
+    await editDrawer.getByLabel(/internal ringtone header/i).fill('GridPBX-internal-edited')
+    await editDrawer.getByLabel(/external ringtone header/i).fill('GridPBX-external-edited')
+
+    await editTabs.getByRole('tab', { name: 'Routing & Profile' }).click()
+    await editDrawer.getByRole('button', { name: 'Directory profile and spoken name' }).click()
+    await expect(editDrawer.getByLabel('Title')).toHaveValue('Advanced Create Verification')
+    await editDrawer.getByLabel('Title').fill('Advanced Edit Verification')
+    await editDrawer.getByLabel('Profile role').fill('Supervisor')
+    await editDrawer.getByLabel('Nicknames').fill('Advanced, Live')
+    await editDrawer.getByLabel('Profile note').fill('Edited through the GridPBX user interface.')
+
+    await editTabs.getByRole('tab', { name: 'Metaflows' }).click()
+    await editDrawer.getByRole('button', { name: 'User metaflow binding digit' }).click()
+    await page.getByRole('option', { name: '*', exact: true }).click()
+    await editDrawer.getByLabel('Digit timeout (ms)').fill('3000')
+    await editDrawer.getByRole('button', { name: 'User metaflow listen on' }).click()
+    await page.getByRole('option', { name: 'Both call legs', exact: true }).click()
+
+    const updateResponse = page.waitForResponse(
+      (candidate) => candidate.request().method() === 'PUT' && candidate.url() === created!.deleteUrl,
+    )
+    await editDrawer.getByRole('button', { name: 'Save changes' }).click()
+    expect((await updateResponse).status()).toBe(200)
+    await synchronizeExtensions(page, apiOrigin, accountId)
+    expect(await readConfiguration()).toMatchObject({
+      media: { progress_timeout: 45 },
+      ringtones: {
+        internal: 'GridPBX-internal-edited',
+        external: 'GridPBX-external-edited',
+      },
+      profile: {
+        title: 'Advanced Edit Verification',
+        role: 'Supervisor',
+        nicknames: ['Advanced', 'Live'],
+        note: 'Edited through the GridPBX user interface.',
+      },
+      metaflows: { binding_digit: '*', digit_timeout: 3000, listen_on: 'both' },
+    })
+
+    await page.reload()
+    await page.getByRole('button', { name: 'Edit' }).click()
+    const clearDrawer = page.getByRole('dialog', { name: 'Edit extension' })
+    await clearDrawer.getByRole('tab', { name: 'Advanced' }).click()
+    const clearTabs = clearDrawer.getByRole('tablist', { name: 'Extension advanced sections' })
+
+    await clearTabs.getByRole('tab', { name: 'Media' }).click()
+    await clearDrawer
+      .getByRole('button', { name: 'Codec, transport, and ringtone controls' })
+      .click()
+    await clearDrawer.getByLabel('Progress timeout (seconds)').fill('')
+    await clearDrawer.getByLabel(/internal ringtone header/i).fill('')
+    await clearDrawer.getByLabel(/external ringtone header/i).fill('')
+
+    await clearTabs.getByRole('tab', { name: 'Routing & Profile' }).click()
+    await clearDrawer.getByRole('button', { name: 'Directory profile and spoken name' }).click()
+    await clearDrawer.getByLabel('Title').fill('')
+    await clearDrawer.getByLabel('Profile role').fill('')
+    await clearDrawer.getByLabel('Nicknames').fill('')
+    await clearDrawer.getByLabel('Profile note').fill('')
+
+    await clearTabs.getByRole('tab', { name: 'Metaflows' }).click()
+    await clearDrawer.getByRole('button', { name: 'User metaflow binding digit' }).click()
+    await page.getByRole('option', { name: 'Use Switch default (*)', exact: true }).click()
+    await clearDrawer.getByLabel('Digit timeout (ms)').fill('')
+    await clearDrawer.getByRole('button', { name: 'User metaflow listen on' }).click()
+    await page.getByRole('option', { name: 'Use Switch default', exact: true }).click()
+
+    const clearResponse = page.waitForResponse(
+      (candidate) => candidate.request().method() === 'PUT' && candidate.url() === created!.deleteUrl,
+    )
+    await clearDrawer.getByRole('button', { name: 'Save changes' }).click()
+    const clearedResponse = await clearResponse
+    expect(clearedResponse.status()).toBe(200)
+    expect(
+      (clearedResponse.request().postDataJSON() as {
+        metaflows: {
+          binding_digit: string | null
+          digit_timeout: number | null
+          listen_on: string | null
+        }
+      }).metaflows,
+    ).toMatchObject({ binding_digit: null, digit_timeout: null, listen_on: null })
+    await synchronizeExtensions(page, apiOrigin, accountId)
+    expect(await readConfiguration()).toMatchObject({
+      media: { progress_timeout: null },
+      ringtones: { internal: null, external: null },
+      profile: { title: null, role: null, nicknames: [], note: null },
+      metaflows: { binding_digit: '*', digit_timeout: null, listen_on: null },
+    })
+    expect(issues).toEqual([])
+  } finally {
+    if (created) await deleteDisposableExtension(page, created)
+  }
+})

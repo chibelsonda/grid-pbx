@@ -133,8 +133,10 @@ class CallflowInlineNodeDataValidator
                 'data' => ['required', 'array:strategy,endpoints,repeats,ignore_forward,fail_on_single_reject,ringback_media_id,ringtone_internal,ringtone_external,skip_module'],
                 'data.strategy' => ['required', 'string', Rule::in(['simultaneous', 'single', 'weighted_random'])],
                 'data.endpoints' => ['required', 'array', 'min:1', 'max:'.RingGroupPolicy::MAX_ENDPOINTS],
-                'data.endpoints.*' => ['required', 'array:device_id,delay,timeout,weight'],
-                'data.endpoints.*.device_id' => ['required', 'uuid', 'distinct:strict'],
+                'data.endpoints.*' => ['required', 'array:device_id,extension_id,group_id,delay,timeout,weight'],
+                'data.endpoints.*.device_id' => ['nullable', 'uuid'],
+                'data.endpoints.*.extension_id' => ['nullable', 'uuid'],
+                'data.endpoints.*.group_id' => ['nullable', 'uuid'],
                 'data.endpoints.*.delay' => ['required', 'integer', 'min:0', 'max:'.RingGroupPolicy::MAX_ENDPOINT_DELAY],
                 'data.endpoints.*.timeout' => ['required', 'integer', 'min:1', 'max:'.RingGroupPolicy::MAX_ENDPOINT_TIMEOUT],
                 'data.endpoints.*.weight' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -322,6 +324,18 @@ class CallflowInlineNodeDataValidator
         }
 
         foreach ($settings['endpoints'] as $index => $endpoint) {
+            $targets = array_filter([
+                'device' => $endpoint['device_id'] ?? null,
+                'extension' => $endpoint['extension_id'] ?? null,
+                'group' => $endpoint['group_id'] ?? null,
+            ], static fn (mixed $id): bool => is_string($id) && $id !== '');
+
+            if (count($targets) !== 1) {
+                $errors["data.endpoints.$index"] = [
+                    'Select exactly one synchronized Device, Extension, or Group.',
+                ];
+            }
+
             $weight = $endpoint['weight'] ?? null;
 
             if ($settings['strategy'] === 'weighted_random' && $weight === null) {
@@ -333,6 +347,20 @@ class CallflowInlineNodeDataValidator
                     'Weights are available only for weighted-random routing.',
                 ];
             }
+        }
+
+        $identities = array_map(static function (array $endpoint): string {
+            foreach (['device_id' => 'device', 'extension_id' => 'extension', 'group_id' => 'group'] as $key => $type) {
+                if (is_string($endpoint[$key] ?? null) && $endpoint[$key] !== '') {
+                    return $type.':'.$endpoint[$key];
+                }
+            }
+
+            return 'invalid';
+        }, $settings['endpoints']);
+
+        if (count(array_unique($identities)) !== count($identities)) {
+            $errors['data.endpoints'] = ['Choose each endpoint once.'];
         }
 
         if (RingGroupPolicy::attemptTimeout($settings['strategy'], $settings['endpoints'])

@@ -352,6 +352,8 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
                   label="Search voicemail messages"
                   placeholder="Search caller or transcript…"
                   input-class="h-9 text-[11px]"
+                  live
+                  @search="loadMessages(1)"
                 />
               </form>
               <FormSelect

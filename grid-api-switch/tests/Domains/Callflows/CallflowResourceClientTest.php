@@ -44,7 +44,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Main line',
             destinationModule: 'user',
             destinationResourceId: 'user-1',
-            phoneNumbers: ['+15550000100'],
+            entryNumbers: ['+15550000100'],
         ));
 
         self::assertSame('callflow-created', $snapshot->id);
@@ -79,7 +79,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Support line',
             destinationModule: 'ring_group',
             destinationResourceId: null,
-            phoneNumbers: ['+15550000101'],
+            entryNumbers: ['+15550000101'],
             destinationSettings: [
                 'strategy' => 'simultaneous',
                 'endpoints' => [[
@@ -119,7 +119,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Invalid support line',
             destinationModule: 'ring_group',
             destinationResourceId: null,
-            phoneNumbers: ['+15550000101'],
+            entryNumbers: ['+15550000101'],
             destinationSettings: [
                 'strategy' => 'simultaneous',
                 'endpoints' => [[
@@ -200,7 +200,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Alice Operator',
             destinationModule: 'user',
             destinationResourceId: 'user-1',
-            phoneNumbers: ['1001'],
+            entryNumbers: ['1001'],
             fallbackModule: 'voicemail',
             fallbackResourceId: 'voicemail-1',
         ));
@@ -262,8 +262,8 @@ final class CallflowResourceClientTest extends TestCase
             destinationModule: 'user',
             destinationResourceId: 'user-2',
             name: 'Reception route',
-            assignedPhoneNumbers: ['+15550000002'],
-            knownPhoneNumbers: ['+15550000001', '+15550000002'],
+            assignedEntryNumbers: ['+15550000002'],
+            knownEntryNumbers: ['+15550000001', '+15550000002'],
         ));
 
         self::assertSame('callflow-1', $snapshot->id);
@@ -403,7 +403,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Main IVR',
             destinationModule: 'menu',
             destinationResourceId: 'menu-1',
-            phoneNumbers: ['+15550000100'],
+            entryNumbers: ['+15550000100'],
             branchRoutes: [
                 new CallflowBranchWriteData('0', 'user', 'sales-user'),
                 new CallflowBranchWriteData('timeout', 'voicemail', 'operator-mailbox'),
@@ -473,7 +473,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Office hours',
             destinationModule: 'temporal_route',
             destinationResourceId: 'set-1',
-            phoneNumbers: ['+15550000100'],
+            entryNumbers: ['+15550000100'],
             fallbackModule: 'voicemail',
             fallbackResourceId: 'closed-mailbox',
             branchRoutes: [
@@ -500,7 +500,7 @@ final class CallflowResourceClientTest extends TestCase
             name: 'Direct office hours',
             destinationModule: 'temporal_route',
             destinationResourceId: null,
-            phoneNumbers: ['+15550000101'],
+            entryNumbers: ['+15550000101'],
             destinationTemporalRuleIds: ['rule-1', 'rule-2'],
             branchRoutes: [
                 new CallflowBranchWriteData('rule-1', 'user', 'weekday-user'),
@@ -1652,7 +1652,7 @@ final class CallflowResourceClientTest extends TestCase
         );
     }
 
-    public function test_it_writes_bounded_device_ring_groups_and_preserves_private_fields(): void
+    public function test_it_writes_bounded_ring_group_endpoints_and_preserves_private_fields(): void
     {
         $base = [
             'flow' => [
@@ -1859,21 +1859,50 @@ final class CallflowResourceClientTest extends TestCase
             self::assertTrue(true);
         }
 
-        foreach (['user', 'group'] as $expandedEndpointType) {
-            try {
-                CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group', [
-                    ...$settings,
-                    'endpoints' => [[
-                        'endpoint_type' => $expandedEndpointType,
-                        'id' => $expandedEndpointType.'-1',
-                        'delay' => 5,
-                        'timeout' => 20,
-                    ]],
-                ]);
-                self::fail('Ring Group must reject dynamically expanded endpoints.');
-            } catch (InvalidArgumentException) {
-                self::assertTrue(true);
-            }
+        $mixedEndpoints = [
+            [
+                'endpoint_type' => 'device',
+                'id' => 'shared-endpoint-id',
+                'delay' => 0,
+                'timeout' => 20,
+            ],
+            [
+                'endpoint_type' => 'user',
+                'id' => 'shared-endpoint-id',
+                'delay' => 5,
+                'timeout' => 20,
+            ],
+            [
+                'endpoint_type' => 'group',
+                'id' => 'group-1',
+                'delay' => 10,
+                'timeout' => 20,
+            ],
+        ];
+        $mixed = CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group', [
+            ...$settings,
+            'endpoints' => $mixedEndpoints,
+            'timeout' => 30,
+        ])->toSwitchData();
+
+        self::assertSame(
+            $mixedEndpoints,
+            ((array) $mixed['flow']['children'])['_']['data']['endpoints'],
+        );
+
+        try {
+            CallflowInlineNodeWriteData::create($base, [], '_', 'ring_group', [
+                ...$settings,
+                'endpoints' => [[
+                    'endpoint_type' => 'account',
+                    'id' => 'account-1',
+                    'delay' => 5,
+                    'timeout' => 20,
+                ]],
+            ]);
+            self::fail('Ring Group must reject unsupported endpoint types.');
+        } catch (InvalidArgumentException) {
+            self::assertTrue(true);
         }
 
         $this->expectException(InvalidArgumentException::class);

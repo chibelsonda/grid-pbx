@@ -11,8 +11,16 @@ const props = withDefaults(
     width?: 'medium' | 'wide'
     scrollKey?: string | number
     embedded?: boolean
+    embeddedHeader?: boolean
   }>(),
-  { eyebrow: 'GridPBX', description: '', width: 'wide', scrollKey: '', embedded: false },
+  {
+    eyebrow: 'GridPBX',
+    description: '',
+    width: 'wide',
+    scrollKey: '',
+    embedded: false,
+    embeddedHeader: true,
+  },
 )
 
 const emit = defineEmits<{ close: [] }>()
@@ -29,7 +37,7 @@ watch(
 
 <template>
   <section v-if="embedded" data-testid="embedded-crud-panel" :aria-label="title" class="grid gap-5">
-    <header class="card-surface flex items-start gap-4 px-5 py-5 sm:px-7">
+    <header v-if="embeddedHeader" class="card-surface flex items-start gap-4 px-5 py-5 sm:px-7">
       <div class="min-w-0">
         <p class="mb-1 text-[11px] font-medium text-slate-400">{{ eyebrow }}</p>
         <h2 class="text-xl font-semibold tracking-tight text-slate-800">{{ title }}</h2>
@@ -79,7 +87,7 @@ watch(
             >
               <DialogPanel
                 data-testid="slide-over-panel"
-                class="pointer-events-auto flex w-screen flex-col bg-slate-50 shadow-2xl"
+                class="pointer-events-auto flex min-w-0 w-screen flex-col bg-slate-50 shadow-2xl"
                 :class="width === 'medium' ? 'max-w-2xl' : 'max-w-5xl'"
               >
                 <header

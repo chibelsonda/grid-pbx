@@ -2,10 +2,7 @@ import { computed, type ComputedRef } from 'vue'
 import type { ListboxOptionValue } from '@/shared/components/FormListbox.vue'
 import type { VoicemailFormOptions } from '../types/voicemail'
 
-function retainCurrent(
-  options: ListboxOptionValue[],
-  value: string | null,
-): ListboxOptionValue[] {
+function retainCurrent(options: ListboxOptionValue[], value: string | null): ListboxOptionValue[] {
   if (!value || options.some((option) => option.value === value)) return options
 
   return [{ value, label: `${value} — Current projected value` }, ...options]

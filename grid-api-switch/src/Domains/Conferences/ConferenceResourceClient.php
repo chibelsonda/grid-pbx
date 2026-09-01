@@ -6,6 +6,7 @@ namespace GridPbx\Switch\Domains\Conferences;
 
 use Generator;
 use GridPbx\Switch\Domains\Conferences\Dto\ConferenceSnapshot;
+use GridPbx\Switch\Domains\Conferences\Dto\ConferenceParticipantSnapshot;
 use GridPbx\Switch\Domains\Conferences\Dto\ConferenceWriteData;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
@@ -94,6 +95,85 @@ final readonly class ConferenceResourceClient
     public function delete(string $accountId, string $conferenceId): void
     {
         $this->client->request('DELETE', $this->path($accountId, $conferenceId));
+    }
+
+    public function setLocked(string $accountId, string $conferenceId, bool $locked): void
+    {
+        $this->client->request('PUT', $this->path($accountId, $conferenceId), [
+            'json' => ['data' => ['action' => $locked ? 'lock' : 'unlock']],
+        ]);
+    }
+
+    /** @return list<ConferenceParticipantSnapshot> */
+    public function participants(string $accountId, string $conferenceId): array
+    {
+        $payload = $this->client->request('GET', $this->path($accountId, $conferenceId).'/participants');
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data) || ! array_is_list($data)) {
+            throw new InvalidSwitchPayloadException('Switch conference participant response data must be an array.');
+        }
+
+        return array_map(
+            fn (mixed $participant): ConferenceParticipantSnapshot => is_array($participant)
+                ? new ConferenceParticipantSnapshot($participant)
+                : throw new InvalidSwitchPayloadException('Switch conference participant must be an object.'),
+            $data,
+        );
+    }
+
+    public function controlParticipant(
+        string $accountId,
+        string $conferenceId,
+        string $participantId,
+        string $action,
+    ): void {
+        if (! ctype_digit($participantId) || (int) $participantId < 1) {
+            throw new InvalidArgumentException('Switch conference participant identifier must be a positive integer.');
+        }
+
+        if (! in_array($action, ['mute', 'unmute', 'deaf', 'undeaf', 'kick'], true)) {
+            throw new InvalidArgumentException('Unsupported Switch conference participant action.');
+        }
+
+        $this->client->request('PUT', sprintf(
+            '%s/participants/%s',
+            $this->path($accountId, $conferenceId),
+            rawurlencode($participantId),
+        ), ['json' => ['data' => ['action' => $action]]]);
+    }
+
+    public function controlParticipants(string $accountId, string $conferenceId, string $action): void
+    {
+        if (! in_array($action, ['mute', 'unmute', 'deaf', 'undeaf'], true)) {
+            throw new InvalidArgumentException('Unsupported Switch conference bulk participant action.');
+        }
+
+        $this->client->request('PUT', $this->path($accountId, $conferenceId).'/participants', [
+            'json' => ['data' => ['action' => $action]],
+        ]);
+    }
+
+    public function playMedia(
+        string $accountId,
+        string $conferenceId,
+        string $mediaId,
+        ?string $participantId = null,
+    ): void {
+        $mediaId = $this->requiredIdentifier($mediaId, 'media');
+        $path = $this->path($accountId, $conferenceId);
+
+        if ($participantId !== null) {
+            if (! ctype_digit($participantId) || (int) $participantId < 1) {
+                throw new InvalidArgumentException('Switch conference participant identifier must be a positive integer.');
+            }
+
+            $path = sprintf('%s/participants/%s', $path, rawurlencode($participantId));
+        }
+
+        $this->client->request('PUT', $path, [
+            'json' => ['data' => ['action' => 'play', 'data' => ['media_id' => $mediaId]]],
+        ]);
     }
 
     private function path(string $accountId, string $conferenceId): string

@@ -434,6 +434,10 @@ test('renders and changes the account-timezone dashboard call trend', async ({ p
     .locator('xpath=ancestor::section[1]')
   await expect(quickActions).toBeInViewport()
   await expect(quickActions.getByRole('link', { name: 'Create extension' })).toBeVisible()
+  const quickActionsIcon = quickActions.locator('svg').first()
+  await expect(quickActionsIcon).toBeVisible()
+  await expect(quickActionsIcon).toHaveCSS('color', 'rgb(50, 85, 173)')
+  await expect(quickActionsIcon).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)')
 
   const chart = page
     .getByRole('heading', { name: 'Call activity trend' })

@@ -144,6 +144,8 @@ function humanize(value: string | null): string {
         label="Search phone numbers"
         placeholder="Search number, carrier, CNAM, route…"
         input-class="h-10 bg-white text-xs shadow-sm"
+        live
+        @search="search"
       />
       <FormSelect
         v-model="phoneNumbers.filters.state"

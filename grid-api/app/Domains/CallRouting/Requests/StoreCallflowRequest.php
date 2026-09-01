@@ -41,8 +41,10 @@ class StoreCallflowRequest extends FormRequest
             'manage_temporal_match' => ['sometimes', 'boolean'],
             'temporal_match_destination_type' => ['nullable', 'required_with:temporal_match_destination_id', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set'])],
             'temporal_match_destination_id' => ['nullable', 'required_with:temporal_match_destination_type', 'uuid'],
-            'phone_number_ids' => ['required', 'array', 'min:1', 'max:25'],
+            'phone_number_ids' => ['present', 'array', 'required_without:extension_numbers', 'max:25'],
             'phone_number_ids.*' => ['uuid', 'distinct'],
+            'extension_numbers' => ['sometimes', 'array', 'required_without:phone_number_ids', 'max:25'],
+            'extension_numbers.*' => ['required', 'string', 'regex:/^[0-9]{2,15}$/', 'distinct'],
         ];
     }
 }

@@ -26,4 +26,5 @@ return [
         'batch_size' => (int) env('SWITCH_EXTENSION_POLL_BATCH_SIZE', 10),
     ],
     'line_key_mutations_enabled' => (bool) env('SWITCH_LINE_KEY_MUTATIONS_ENABLED', false),
+    'conference_participant_token_ttl' => (int) env('SWITCH_CONFERENCE_PARTICIPANT_TOKEN_TTL', 300),
 ];

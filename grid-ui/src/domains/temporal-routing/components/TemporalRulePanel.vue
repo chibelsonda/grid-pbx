@@ -111,6 +111,7 @@ function setOrdinal(value: ListboxValue): void {
       <div
         v-if="error && Object.keys(fieldErrors).length === 0"
         class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
       >
         {{ error }}
       </div>
@@ -222,6 +223,8 @@ function setOrdinal(value: ListboxValue): void {
                 class="flex flex-wrap gap-2 rounded-md border border-slate-300 p-2"
                 :class="validationControlClass(fieldError('weekdays'))"
                 :aria-invalid="Boolean(fieldError('weekdays'))"
+                role="group"
+                aria-label="Weekdays"
               >
                 <FormCheckbox
                   v-for="day in weekdays"

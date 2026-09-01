@@ -102,6 +102,8 @@ async function remove(): Promise<void> {
         class="min-w-0 flex-1"
         placeholder="Search menus…"
         input-class="h-10 bg-white text-xs shadow-sm"
+        live
+        @search="accounts.selectedId && menus.load(accounts.selectedId)"
       /><button
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
       >

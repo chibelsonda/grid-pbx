@@ -147,12 +147,24 @@ const extensionOptions = computed<ListboxOptionValue[]>(() =>
   })),
 )
 const deviceOptions = computed(() => props.editor?.destinations.device ?? [])
-const ringGroupDeviceOptions = computed<ListboxOptionValue[]>(() => {
-  const selected = new Set((form.data.endpoints ?? []).map(({ device_id }) => device_id))
+const ringGroupTargetOptions = computed<ListboxOptionValue[]>(() => {
+  const selected = new Set((form.data.endpoints ?? []).map(ringGroupEndpointIdentity))
 
-  return deviceOptions.value
-    .filter(({ id }) => !selected.has(id))
-    .map(({ id, label, detail }) => ({ value: id, label, description: detail }))
+  return (
+    [
+      ['extension', 'Extension'],
+      ['device', 'Device'],
+      ['group', 'Group'],
+    ] as const
+  ).flatMap(([type, typeLabel]) =>
+    (props.editor?.destinations[type] ?? [])
+      .filter(({ id }) => !selected.has(`${type}:${id}`))
+      .map(({ id, label, detail }) => ({
+        value: `${type}:${id}`,
+        label,
+        description: detail ? `${typeLabel} · ${detail}` : typeLabel,
+      })),
+  )
 })
 const ringGroupRingbackOptions = computed<ListboxOptionValue[]>(() => [
   { value: null, label: 'Switch default' },
@@ -243,7 +255,7 @@ const lockedReason = computed<string | null>(() => {
     module.value === 'ring_group' &&
     props.context.node.settings?.supported_configuration !== true
   ) {
-    return 'This Ring Group uses unresolved or expanded endpoints, unsafe timing or weight values, more than 20 devices, unsupported ringback, or unsafe phone-alert values. GridPBX preserves its complete configuration without exposing or rewriting raw resource IDs.'
+    return 'This Ring Group uses unresolved endpoints, unsafe timing or weight values, more than 20 members, unsupported ringback, or unsafe phone-alert values. GridPBX preserves its complete configuration without exposing or rewriting raw resource IDs.'
   }
   if (
     module.value === 'receive_fax' &&
@@ -338,16 +350,21 @@ function ringGroupEndpoints(): CallflowRingGroupEndpoint[] {
 }
 
 function addRingGroupEndpoint(value: ListboxValue): void {
-  if (
-    typeof value !== 'string' ||
-    ringGroupEndpoints().some(({ device_id }) => device_id === value)
-  ) {
-    return
-  }
+  if (typeof value !== 'string') return
+
+  const separator = value.indexOf(':')
+  const type = value.slice(0, separator)
+  const id = value.slice(separator + 1)
+  if (!['device', 'extension', 'group'].includes(type) || !id) return
+  if (ringGroupEndpoints().some((endpoint) => ringGroupEndpointIdentity(endpoint) === value)) return
 
   if (ringGroupEndpoints().length < 20) {
     ringGroupEndpoints().push({
-      device_id: value,
+      ...(type === 'device'
+        ? { device_id: id }
+        : type === 'extension'
+          ? { extension_id: id }
+          : { group_id: id }),
       delay: 0,
       timeout: 20,
       ...(form.data.strategy === 'weighted_random' ? { weight: 20 } : {}),
@@ -394,8 +411,30 @@ function removeRingGroupEndpoint(index: number): void {
   ringGroupEndpoints().splice(index, 1)
 }
 
-function ringGroupDeviceLabel(deviceId: string): string {
-  return deviceOptions.value.find(({ id }) => id === deviceId)?.label ?? 'Unavailable device'
+function ringGroupEndpointIdentity(endpoint: CallflowRingGroupEndpoint): string {
+  if (endpoint.device_id) return `device:${endpoint.device_id}`
+  if (endpoint.extension_id) return `extension:${endpoint.extension_id}`
+  if (endpoint.group_id) return `group:${endpoint.group_id}`
+  return 'unavailable:'
+}
+
+function ringGroupEndpointLabel(endpoint: CallflowRingGroupEndpoint): string {
+  const [type, id] = ringGroupEndpointIdentity(endpoint).split(':', 2)
+  const target =
+    type === 'extension'
+      ? props.editor?.destinations.extension.find((item) => item.id === id)
+      : type === 'device'
+        ? props.editor?.destinations.device.find((item) => item.id === id)
+        : props.editor?.destinations.group.find((item) => item.id === id)
+
+  return target?.label ?? 'Unavailable endpoint'
+}
+
+function ringGroupEndpointType(endpoint: CallflowRingGroupEndpoint): string {
+  if (endpoint.extension_id) return 'Extension'
+  if (endpoint.device_id) return 'Device'
+  if (endpoint.group_id) return 'Group'
+  return 'Endpoint'
 }
 
 function setRingGroupRingtone(
@@ -1048,19 +1087,20 @@ watch(
 
             <section class="grid gap-3">
               <div>
-                <h3 class="text-xs font-semibold text-slate-700">Devices</h3>
+                <h3 class="text-xs font-semibold text-slate-700">Members</h3>
                 <p class="mt-1 text-[10px] leading-4 text-slate-500">
-                  Add 1–20 synchronized devices. In-order strategy follows the displayed order.
+                  Add 1–20 synchronized Extensions, Devices, or Groups. In-order strategy follows
+                  the displayed order.
                 </p>
               </div>
               <FormListbox
                 :model-value="null"
-                :options="ringGroupDeviceOptions"
-                aria-label="Add Ring Group device"
-                placeholder="Add a device"
+                :options="ringGroupTargetOptions"
+                aria-label="Add Ring Group member"
+                placeholder="Add an extension, device, or group"
                 :disabled="
                   loading ||
-                  ringGroupDeviceOptions.length === 0 ||
+                  ringGroupTargetOptions.length === 0 ||
                   ringGroupEndpoints().length >= 20
                 "
                 :invalid="Boolean(fieldError('data.endpoints'))"
@@ -1071,12 +1111,12 @@ watch(
                 v-if="ringGroupEndpoints().length === 0"
                 class="rounded-md border border-dashed border-slate-300 bg-slate-50 p-4 text-center text-[10px] text-slate-600"
               >
-                No devices selected.
+                No members selected.
               </p>
 
               <div
                 v-for="(endpoint, index) in ringGroupEndpoints()"
-                :key="endpoint.device_id"
+                :key="ringGroupEndpointIdentity(endpoint)"
                 class="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3"
               >
                 <div class="flex items-center gap-2">
@@ -1086,12 +1126,15 @@ watch(
                     {{ index + 1 }}
                   </span>
                   <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">
-                    {{ ringGroupDeviceLabel(endpoint.device_id) }}
+                    {{ ringGroupEndpointLabel(endpoint) }}
+                  </span>
+                  <span class="text-[10px] font-semibold text-slate-500 uppercase">
+                    {{ ringGroupEndpointType(endpoint) }}
                   </span>
                   <button
                     type="button"
                     :disabled="index === 0"
-                    :aria-label="`Move ${ringGroupDeviceLabel(endpoint.device_id)} up`"
+                    :aria-label="`Move ${ringGroupEndpointLabel(endpoint)} up`"
                     class="rounded p-1.5 text-slate-500 hover:bg-white disabled:opacity-20"
                     @click="moveRingGroupEndpoint(index, -1)"
                   >
@@ -1100,7 +1143,7 @@ watch(
                   <button
                     type="button"
                     :disabled="index === ringGroupEndpoints().length - 1"
-                    :aria-label="`Move ${ringGroupDeviceLabel(endpoint.device_id)} down`"
+                    :aria-label="`Move ${ringGroupEndpointLabel(endpoint)} down`"
                     class="rounded p-1.5 text-slate-500 hover:bg-white disabled:opacity-20"
                     @click="moveRingGroupEndpoint(index, 1)"
                   >
@@ -1108,7 +1151,7 @@ watch(
                   </button>
                   <button
                     type="button"
-                    :aria-label="`Remove ${ringGroupDeviceLabel(endpoint.device_id)}`"
+                    :aria-label="`Remove ${ringGroupEndpointLabel(endpoint)}`"
                     class="rounded p-1.5 text-danger hover:bg-red-50"
                     @click="removeRingGroupEndpoint(index)"
                   >
@@ -1123,8 +1166,8 @@ watch(
                 >
                   <FormInput
                     :model-value="endpoint.delay"
-                    :label="`Device ${index + 1} delay`"
-                    description="Seconds before this device starts ringing."
+                    :label="`Member ${index + 1} delay`"
+                    description="Seconds before this member starts ringing."
                     type="number"
                     min="0"
                     max="60"
@@ -1136,8 +1179,8 @@ watch(
                   />
                   <FormInput
                     :model-value="endpoint.timeout"
-                    :label="`Device ${index + 1} timeout`"
-                    description="Ring this device for 1–60 seconds."
+                    :label="`Member ${index + 1} timeout`"
+                    description="Ring this member for 1–60 seconds."
                     type="number"
                     min="1"
                     max="60"
@@ -1149,7 +1192,7 @@ watch(
                   <FormInput
                     v-if="form.data.strategy === 'weighted_random'"
                     :model-value="endpoint.weight ?? 20"
-                    :label="`Device ${index + 1} weight`"
+                    :label="`Member ${index + 1} weight`"
                     description="Relative chance of being tried earlier, from 1–100."
                     type="number"
                     min="1"
@@ -1176,14 +1219,14 @@ watch(
               <FormCheckbox
                 :model-value="Boolean(form.data.ignore_forward)"
                 label="Ignore device forwarding"
-                description="Do not follow SIP redirects from devices in this Ring Group. This is Kazoo's safe default."
+                description="Do not follow SIP redirects from endpoints in this Ring Group. This is Kazoo's safe default."
                 variant="compact"
                 @update:model-value="form.data.ignore_forward = Boolean($event)"
               />
               <FormCheckbox
                 :model-value="Boolean(form.data.fail_on_single_reject)"
                 label="Stop when one device rejects"
-                description="Cancel the remaining ringing devices when any one device rejects the call."
+                description="Cancel the remaining ringing members when any one endpoint rejects the call."
                 variant="compact"
                 @update:model-value="form.data.fail_on_single_reject = Boolean($event)"
               />
@@ -1235,10 +1278,9 @@ watch(
             <div
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
-              GridPBX computes Kazoo's overall attempt timeout from the Device rows. Weighted random
-              tries every device sequentially in a newly shuffled weighted order per attempt. Raw
-              media IDs, URL/special-stream ringback values, unknown fields, and expanded user/group
-              endpoints remain private and read-only.
+              GridPBX computes Kazoo's overall attempt timeout from the member rows. Weighted random
+              tries every member sequentially in a newly shuffled weighted order per attempt. Raw
+              resource IDs, URL/special-stream ringback values, and unknown fields remain private.
             </div>
           </template>
 

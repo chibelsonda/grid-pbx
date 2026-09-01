@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   callflowActionCatalog,
   callflowActionDestinationType,
+  callflowDestinationModule,
   callflowInlineModuleNeedsEditorCatalog,
   callflowNodeLabel,
   findCallflowAction,
@@ -11,6 +12,13 @@ import {
 } from './callflowActionCatalog'
 
 describe('callflowActionCatalog', () => {
+  it('maps public destination types back to their guided canvas modules', () => {
+    expect(callflowDestinationModule('extension')).toBe('user')
+    expect(callflowDestinationModule('media')).toBe('play')
+    expect(callflowDestinationModule('queue')).toBe('acdc_member')
+    expect(callflowDestinationModule('menu')).toBe('menu')
+  })
+
   it('mirrors the installed Switch palette taxonomy and action membership', () => {
     expect(callflowActionCatalog.slice(0, 9).map((category) => category.label)).toEqual([
       'Basic',

@@ -41,7 +41,13 @@ describe('useGroupForm', () => {
 
     expect(result.success).toBe(false)
     expect(Object.keys(result.errors)).toEqual(
-      expect.arrayContaining(['name', 'members.0.id', 'members.0.weight', 'members.1.id', 'members']),
+      expect.arrayContaining([
+        'name',
+        'members.0.id',
+        'members.0.weight',
+        'members.1.id',
+        'members',
+      ]),
     )
   })
 })

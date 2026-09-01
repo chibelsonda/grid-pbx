@@ -20,6 +20,7 @@ type CallflowFormState = {
   temporal_rule_ids: string[]
   temporal_rule_routes: CallflowTemporalRuleRouteInput[]
   phone_number_ids: string[]
+  extension_numbers: string[]
   manage_fallback: boolean
   fallback_enabled: boolean
   fallback_destination_type: CallflowDestinationType
@@ -43,6 +44,7 @@ export function useCallflowForm(
     temporal_rule_ids: [],
     temporal_rule_routes: [],
     phone_number_ids: [],
+    extension_numbers: [],
     manage_fallback: true,
     fallback_enabled: false,
     fallback_destination_type: 'voicemail',
@@ -93,6 +95,7 @@ export function useCallflowForm(
     form.phone_number_ids = editor.phone_numbers
       .filter(({ selected }) => selected)
       .map(({ id }) => id)
+    form.extension_numbers = [...(editor.extension_numbers ?? [])]
     const fallbackType = editor.fallback.target?.type
     const firstFallbackType = editor.destination_types.find(
       ({ value }) => value !== 'temporal_rules' && editor.destinations[value].length > 0,
@@ -180,6 +183,7 @@ export function useCallflowForm(
       destination_type: form.destination_type as CallflowDestinationType,
       root_action: rootAction,
       phone_number_ids: [...form.phone_number_ids],
+      extension_numbers: [...form.extension_numbers],
     })
     validationErrors.value = result.errors
 

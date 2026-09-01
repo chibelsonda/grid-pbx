@@ -11,10 +11,12 @@ const dateFilter = z
   )
 const durationFilter = z.preprocess(
   (value) => (typeof value === 'number' ? String(value) : value),
-  z.string().refine(
-    (value) => value === '' || (/^\d+$/.test(value) && Number(value) <= 86_400),
-    'Enter a duration from 0 to 86400 seconds.',
-  ),
+  z
+    .string()
+    .refine(
+      (value) => value === '' || (/^\d+$/.test(value) && Number(value) <= 86_400),
+      'Enter a duration from 0 to 86400 seconds.',
+    ),
 )
 
 export const recordingFilterSchema: z.ZodType<RecordingFilters> = z

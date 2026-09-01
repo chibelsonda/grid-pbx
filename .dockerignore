@@ -9,6 +9,10 @@
 **/tmp
 *.log
 
+# Private runtime uploads are mounted at runtime and must never enter an image
+# build context. They may also be owned by the container's unprivileged user.
+grid-api/storage/app/private
+
 # The new application images do not need the local legacy reference sources.
 src/monster-ui
 config/kazoo

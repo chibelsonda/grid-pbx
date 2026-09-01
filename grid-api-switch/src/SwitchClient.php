@@ -62,7 +62,12 @@ final class SwitchClient
                 return $this->send($method, $path, $options, false);
             }
 
-            throw new SwitchRequestException('Switch request failed.', $status, previous: $exception);
+            throw new SwitchRequestException(
+                'Switch request failed.',
+                $status,
+                $this->errorPayload($exception),
+                $exception,
+            );
         } catch (JsonException $exception) {
             throw new SwitchRequestException('Switch returned invalid JSON.', 502, previous: $exception);
         } catch (GuzzleException $exception) {
@@ -78,6 +83,24 @@ final class SwitchClient
         }
 
         return $payload;
+    }
+
+    /** @return array<string, mixed> */
+    private function errorPayload(RequestException $exception): array
+    {
+        $body = $exception->getResponse()?->getBody();
+
+        if ($body === null) {
+            return [];
+        }
+
+        try {
+            $payload = json_decode((string) $body, true, flags: JSON_THROW_ON_ERROR);
+
+            return is_array($payload) ? $payload : [];
+        } catch (JsonException) {
+            return [];
+        }
     }
 
     /** @param array<string, mixed> $options */

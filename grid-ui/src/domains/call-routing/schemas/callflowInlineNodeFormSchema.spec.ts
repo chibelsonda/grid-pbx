@@ -515,7 +515,7 @@ describe('callflow inline node form schema', () => {
     ).toBe(false)
   })
 
-  it('requires bounded public Ring Group devices and attempt timing', () => {
+  it('requires bounded public Ring Group endpoints and attempt timing', () => {
     const schema = createCallflowInlineNodeFormSchema('ring_group', ['_'], true)
     const deviceId = '11111111-1111-4111-8111-111111111111'
     const base = {
@@ -539,6 +539,22 @@ describe('callflow inline node form schema', () => {
     ).toBe(false)
     expect(
       schema.safeParse({ ...base, data: { ...base.data, fail_on_single_reject: 1 } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [
+            {
+              device_id: deviceId,
+              extension_id: '22222222-2222-4222-8222-222222222222',
+              delay: 5,
+              timeout: 20,
+            },
+          ],
+        },
+      }).success,
     ).toBe(false)
     expect(
       schema.safeParse({ ...base, data: { ...base.data, ringback_media_id: 'raw-media' } }).success,
@@ -569,7 +585,7 @@ describe('callflow inline node form schema', () => {
           ],
         },
       }).success,
-    ).toBe(false)
+    ).toBe(true)
     expect(
       schema.safeParse({
         ...base,
@@ -584,7 +600,7 @@ describe('callflow inline node form schema', () => {
           ],
         },
       }).success,
-    ).toBe(false)
+    ).toBe(true)
     expect(
       schema.safeParse({
         ...base,

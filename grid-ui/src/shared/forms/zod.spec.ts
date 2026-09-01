@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { validateForm } from './zod'
+import { nullableInteger, validateForm } from './zod'
 
 describe('validateForm', () => {
   it('returns parsed data for a valid form', () => {
@@ -17,5 +17,10 @@ describe('validateForm', () => {
 
     expect(result.success).toBe(false)
     expect(result.errors).toEqual({ 'sip.password': ['Use at least 12 characters.'] })
+  })
+
+  it('normalizes cleared optional integer controls to null', () => {
+    expect(nullableInteger(0, 3600).parse('')).toBeNull()
+    expect(nullableInteger(0, 3600).parse(30)).toBe(30)
   })
 })

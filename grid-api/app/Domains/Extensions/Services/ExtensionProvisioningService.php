@@ -23,8 +23,10 @@ use App\Domains\Voicemail\Models\SwitchVoicemailBox;
 use App\Domains\Voicemail\Services\VoicemailMutationDataFactory;
 use App\Shared\Switch\MetaflowPolicy;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
+use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 use Throwable;
 use UnexpectedValueException;
@@ -148,6 +150,15 @@ class ExtensionProvisioningService
                 return $extension->load(['devices', 'voicemailBoxes', 'callflows']);
             });
         } catch (Throwable $exception) {
+            if ($exception instanceof SwitchRequestException && $exception->payload !== []) {
+                Log::warning('Switch rejected an Extension provisioning request.', [
+                    'operation_id' => $operation->id,
+                    'step' => $currentStep,
+                    'status_code' => $exception->statusCode,
+                    'switch_response' => $this->redactSensitiveData->handle($exception->payload),
+                ]);
+            }
+
             $compensationFailures = $this->compensate($account, $created);
             $operation->forceFill([
                 'status' => $compensationFailures === [] ? 'rolled_back' : 'failed',
@@ -379,7 +390,25 @@ class ExtensionProvisioningService
         SwitchAccount $account,
         array $data,
     ): array {
-        return $this->resolveCallerIdNumbers($account, null, $data);
+        $data = $this->resolveCallerIdNumbers($account, null, $data);
+        $data = $this->resolveMediaReference($account, null, $data, 'music_on_hold');
+        $data = $this->resolveMediaReference($account, null, $data, 'pronounced_name');
+
+        if (! isset($data['metaflows']) || ! is_array($data['metaflows'])) {
+            return $data;
+        }
+
+        $actions = is_array($data['metaflows']['actions'] ?? null)
+            ? $data['metaflows']['actions']
+            : [];
+        $maps = $this->metaflowPolicy->merge([], $actions, $account);
+        $data['metaflows']['preserved_options'] = [
+            'numbers' => $maps['numbers'],
+            'patterns' => $maps['patterns'],
+        ];
+        unset($data['metaflows']['actions']);
+
+        return $data;
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */
@@ -429,7 +458,7 @@ class ExtensionProvisioningService
     /** @param array<string, mixed> $data @return array<string, mixed> */
     private function resolveMediaReference(
         SwitchAccount $account,
-        SwitchExtension $extension,
+        ?SwitchExtension $extension,
         array $data,
         string $field,
     ): array {
@@ -438,6 +467,12 @@ class ExtensionProvisioningService
         }
 
         if (($data[$field]['preserve_media'] ?? false) === true) {
+            if ($extension === null) {
+                throw ValidationException::withMessages([
+                    "{$field}.preserve_media" => 'A new Switch user has no existing media value to preserve.',
+                ]);
+            }
+
             $data[$field]['media_id'] = data_get(
                 $extension->switch_json,
                 "{$field}.media_id",

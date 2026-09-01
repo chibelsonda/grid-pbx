@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { sessionApi } from '../api/sessionApi'
+import type { ProfileInput } from '../schemas/profileFormSchema'
 import type { LoginCredentials, SessionUser } from '../types/session'
 
 export const useAuthStore = defineStore('auth', {
@@ -9,6 +10,9 @@ export const useAuthStore = defineStore('auth', {
     initialized: false,
     loading: false,
     error: null as string | null,
+    profileSaving: false,
+    profileError: null as string | null,
+    profileFieldErrors: {} as Record<string, string[]>,
   }),
   getters: {
     authenticated: (state) => state.user !== null,
@@ -48,6 +52,32 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.user = null
         this.initialized = true
+      }
+    },
+    clearProfileError(): void {
+      this.profileError = null
+      this.profileFieldErrors = {}
+    },
+    async updateProfile(input: ProfileInput): Promise<boolean> {
+      this.profileSaving = true
+      this.clearProfileError()
+
+      try {
+        this.user = (await sessionApi.updateProfile(input)).user
+        return true
+      } catch (error) {
+        this.profileFieldErrors = axios.isAxiosError(error)
+          ? (error.response?.data?.errors ?? {})
+          : {}
+        this.profileError =
+          Object.keys(this.profileFieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to update your profile.')
+              : 'Unable to update your profile.'
+        return false
+      } finally {
+        this.profileSaving = false
       }
     },
   },

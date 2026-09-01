@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import BasicAdvancedFormTabs from './BasicAdvancedFormTabs.vue'
 import BasicAdvancedTabSelector from './BasicAdvancedTabSelector.vue'
 
 describe('BasicAdvancedTabSelector', () => {
@@ -34,5 +35,22 @@ describe('BasicAdvancedTabSelector', () => {
     const tabList = wrapper.get('[role="tablist"]')
     expect(tabList.attributes('aria-label')).toBe('Device form sections')
     expect(tabList.classes()).toContain('sticky')
+  })
+})
+
+describe('BasicAdvancedFormTabs', () => {
+  it('keeps the visual selection aligned after a programmatic return to Basic', async () => {
+    const wrapper = mount(BasicAdvancedFormTabs, {
+      props: { modelValue: 1 },
+      slots: { basic: 'Basic fields', advanced: 'Advanced fields' },
+    })
+    const tabs = wrapper.findAll('[role="tab"]')
+
+    expect(tabs[1]!.classes()).toContain('border-brand-500')
+    await wrapper.setProps({ modelValue: 0 })
+
+    expect(tabs[0]!.attributes('aria-selected')).toBe('true')
+    expect(tabs[0]!.classes()).toContain('border-brand-500')
+    expect(tabs[1]!.classes()).toContain('border-transparent')
   })
 })

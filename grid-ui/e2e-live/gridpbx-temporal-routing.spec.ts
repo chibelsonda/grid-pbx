@@ -14,6 +14,16 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
+async function expectInsideViewport(
+  page: Page,
+  locator: ReturnType<Page['locator']>,
+): Promise<void> {
+  const bounds = await locator.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+}
+
 async function deleteApiResource(page: Page, url: string): Promise<number> {
   const xsrfCookie = (await page.context().cookies()).find((cookie) => cookie.name === 'XSRF-TOKEN')
   const uiOrigin = new URL(page.url()).origin
@@ -29,10 +39,21 @@ async function deleteApiResource(page: Page, url: string): Promise<number> {
   return response.status()
 }
 
-test('shows schema-aware Temporal fields, bounded listboxes, and inline validation', async ({
+test('shows accessible schema-aware Temporal fields and responsive inventories', async ({
   page,
-}) => {
+}, testInfo) => {
   const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/v1\/accounts\/[^/]+\/temporal-(?:rules|rule-sets)(?:\/|$)/.test(path)
+    ) {
+      mutations.push(`${request.method()} ${path}`)
+    }
+  })
+
   await page.goto('/business-hours')
   await expect(page.getByRole('heading', { name: 'Business Hours & Schedules' })).toBeVisible()
   await page.getByRole('button', { name: 'New rule' }).click()
@@ -73,6 +94,55 @@ test('shows schema-aware Temporal fields, bounded listboxes, and inline validati
   await page.getByRole('option', { name: 'Specific date' }).click()
   await expect(page.getByLabel('Days of month')).toHaveCount(0)
   await expect(page.getByText('Weekdays', { exact: true })).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('heading', { name: 'Create temporal rule' })).toHaveCount(0)
+  await page.setViewportSize({ width: 390, height: 844 })
+
+  for (const action of [
+    page.getByRole('button', { name: 'Sync', exact: true }),
+    page.getByRole('button', { name: 'New rule', exact: true }),
+    page.getByRole('button', { name: 'Search', exact: true }),
+  ]) {
+    await expect(action).toBeVisible()
+    await expectInsideViewport(page, action)
+  }
+
+  const rules = page.getByRole('table', {
+    name: 'Temporal rules for the selected Switch account',
+  })
+  await expect(rules).toBeVisible()
+  await expect(rules.getByRole('columnheader')).toHaveCount(5)
+  await expect(rules).toHaveAttribute('aria-busy', 'false')
+
+  const firstRule = rules.locator('tbody').getByRole('button').first()
+  await firstRule.focus()
+  await expect(firstRule).toBeFocused()
+  await page.keyboard.press('Enter')
+  const ruleDialog = page.getByRole('dialog', { name: 'Edit temporal rule' })
+  await expect(page.getByRole('heading', { name: 'Edit temporal rule' })).toBeVisible()
+  await ruleDialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('heading', { name: 'Edit temporal rule' })).toHaveCount(0)
+
+  await page.getByRole('tab', { name: 'Rule Sets' }).click()
+  const sets = page.getByRole('table', {
+    name: 'Temporal rule sets for the selected Switch account',
+  })
+  await expect(sets).toBeVisible()
+  await expect(sets.getByRole('columnheader')).toHaveCount(4)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true)
+  await page.screenshot({
+    path: testInfo.outputPath('business-hours-mobile.png'),
+    fullPage: true,
+  })
+
+  expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
 

@@ -24,12 +24,12 @@ const selectedIndex = defineModel<number>({ default: 0 })
       class="card-surface flex gap-1 overflow-x-auto px-4 pt-3"
       :class="{ 'sticky top-0 z-30 bg-white/95 backdrop-blur': sticky }"
     >
-      <Tab v-for="tab in tabs" :key="tab.key" v-slot="{ selected }" as="template">
+      <Tab v-for="(tab, index) in tabs" :key="tab.key" as="template">
         <button
           type="button"
           class="inline-flex h-10 shrink-0 items-center gap-2 border-b-2 px-3 text-xs font-semibold outline-none transition focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2"
           :class="
-            selected
+            index === selectedIndex
               ? 'border-brand-500 text-brand-700'
               : 'border-transparent text-slate-500 hover:text-slate-700'
           "

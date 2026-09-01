@@ -5,6 +5,7 @@ namespace App\Domains\Extensions\Requests;
 use App\Domains\Devices\Requests\SaveDeviceRequest;
 use App\Domains\Devices\Support\MacAddress;
 use App\Domains\Extensions\Validation\ExtensionCoreAdvancedRules;
+use App\Domains\Extensions\Validation\ExtensionSchemaAdvancedRules;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Voicemail\Requests\SaveVoicemailBoxRequest;
 use Illuminate\Foundation\Http\FormRequest;
@@ -107,7 +108,11 @@ class StoreExtensionRequest extends FormRequest
             ],
         ];
 
-        return array_merge($rules, ExtensionCoreAdvancedRules::rules());
+        return array_merge(
+            $rules,
+            ExtensionCoreAdvancedRules::rules(),
+            ExtensionSchemaAdvancedRules::rules(),
+        );
     }
 
     protected function prepareForValidation(): void
@@ -133,12 +138,26 @@ class StoreExtensionRequest extends FormRequest
             $this->validateVoicemailInput($validator);
             $this->validateDeviceInput($validator);
             ExtensionCoreAdvancedRules::validate($validator, $this->all());
+            ExtensionSchemaAdvancedRules::validate(
+                $validator,
+                $this->all(),
+                $this->accountModel(),
+            );
 
             foreach (['external', 'emergency'] as $scope) {
                 if ($this->boolean("caller_id.{$scope}.preserve_number")) {
                     $validator->errors()->add(
                         "caller_id.{$scope}.preserve_number",
                         'A new Switch user has no existing caller-ID number to preserve.',
+                    );
+                }
+            }
+
+            foreach (['music_on_hold', 'pronounced_name'] as $field) {
+                if ($this->boolean("{$field}.preserve_media")) {
+                    $validator->errors()->add(
+                        "{$field}.preserve_media",
+                        'A new Switch user has no existing media value to preserve.',
                     );
                 }
             }
@@ -276,5 +295,12 @@ class StoreExtensionRequest extends FormRequest
         return SwitchAccount::query()
             ->where('id', (string) $this->route('account'))
             ->value('account_id');
+    }
+
+    private function accountModel(): ?SwitchAccount
+    {
+        return SwitchAccount::query()
+            ->where('id', (string) $this->route('account'))
+            ->first();
     }
 }

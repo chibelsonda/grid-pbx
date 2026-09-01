@@ -49,6 +49,14 @@ class CallflowEditorService
             ->orderBy('name')
             ->get();
         $temporalRules = $account->temporalRules()->orderBy('name')->get();
+        $phoneNumbers = $account->phoneNumbers()
+            ->with('assignedCallflow:callflow_id,id,name')
+            ->orderBy('number')
+            ->get();
+        [$extensionNumbers, $preservedNumbers] = $this->entryNumbers(
+            $callflow,
+            $phoneNumbers->pluck('number')->filter(fn (mixed $number): bool => is_string($number))->all(),
+        );
 
         return [
             'mode' => $callflow === null ? 'create' : 'update',
@@ -168,22 +176,62 @@ class CallflowEditorService
                 ])->values()->all(),
                 'temporal_rules' => [],
             ],
-            'phone_numbers' => $account->phoneNumbers()
-                ->with('assignedCallflow:callflow_id,id,name')
-                ->orderBy('number')
-                ->get()
-                ->map(fn ($item): array => [
-                    'id' => $item->id,
-                    'number' => $item->number,
-                    'state' => $item->state,
-                    'selected' => $callflow !== null && $item->assigned_callflow_id === $callflow->getKey(),
-                    'available' => $item->assigned_callflow_id === null
-                        || ($callflow !== null && $item->assigned_callflow_id === $callflow->getKey()),
-                    'assigned_callflow' => $item->assignedCallflow === null ? null : [
-                        'id' => $item->assignedCallflow->id,
-                        'name' => $item->assignedCallflow->name,
-                    ],
-                ])->values()->all(),
+            'requires_entry_number' => $callflow === null || (
+                $preservedNumbers === []
+                && collect($callflow->patterns ?? [])->filter(
+                    fn (mixed $pattern): bool => is_string($pattern) && trim($pattern) !== '',
+                )->isEmpty()
+            ),
+            'extension_numbers' => $extensionNumbers,
+            'preserved_numbers' => $preservedNumbers,
+            'phone_numbers' => $phoneNumbers->map(fn ($item): array => [
+                'id' => $item->id,
+                'number' => $item->number,
+                'state' => $item->state,
+                'selected' => $callflow !== null && $item->assigned_callflow_id === $callflow->getKey(),
+                'available' => $item->assigned_callflow_id === null
+                    || ($callflow !== null && $item->assigned_callflow_id === $callflow->getKey()),
+                'assigned_callflow' => $item->assignedCallflow === null ? null : [
+                    'id' => $item->assignedCallflow->id,
+                    'name' => $item->assignedCallflow->name,
+                ],
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * Separate editable internal aliases from inventory-backed and workflow-owned entries.
+     *
+     * @param  list<string>  $knownPhoneNumbers
+     * @return array{list<string>, list<string>}
+     */
+    private function entryNumbers(?SwitchCallflow $callflow, array $knownPhoneNumbers): array
+    {
+        if ($callflow === null) {
+            return [[], []];
+        }
+
+        $primaryExtension = $callflow->extension?->extension;
+        $extensionNumbers = [];
+        $preservedNumbers = [];
+
+        foreach ($callflow->numbers ?? [] as $number) {
+            if (! is_string($number) || $number === '' || in_array($number, $knownPhoneNumbers, true)) {
+                continue;
+            }
+
+            if ($number !== $primaryExtension && preg_match('/^[0-9]{2,15}$/', $number) === 1) {
+                $extensionNumbers[] = $number;
+
+                continue;
+            }
+
+            $preservedNumbers[] = $number;
+        }
+
+        return [
+            array_values(array_unique($extensionNumbers)),
+            array_values(array_unique($preservedNumbers)),
         ];
     }
 

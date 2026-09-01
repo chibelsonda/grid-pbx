@@ -134,6 +134,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
         <button
           v-if="canManage && extension.is_managed"
           type="button"
+          aria-label="Edit extension"
           class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600"
           @click="openEditPanel"
         >
@@ -142,6 +143,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
         <button
           v-if="canManage"
           type="button"
+          aria-label="Review extension deletion"
           class="inline-flex h-9 items-center gap-2 rounded-md border border-amber-100 bg-amber-50 px-3 text-xs font-semibold text-amber-700 hover:bg-amber-100"
           @click="openDeletionPreview"
         >
@@ -168,6 +170,8 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
     <div
       v-if="extensions.detailLoading"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"
+      role="status"
+      aria-live="polite"
     >
       Loading extension details…
     </div>
@@ -175,6 +179,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
     <div
       v-else-if="extensions.detailError"
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
+      role="alert"
     >
       <div>
         <IdentificationIcon class="mx-auto size-10 text-slate-400" />

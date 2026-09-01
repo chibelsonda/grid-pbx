@@ -30,6 +30,16 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
+async function expectInsideViewport(
+  page: Page,
+  locator: ReturnType<Page['locator']>,
+): Promise<void> {
+  const bounds = await locator.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+}
+
 async function deleteDisposableExtension(
   page: Page,
   extension: DisposableExtension,
@@ -82,17 +92,50 @@ async function deleteDirectoryByUrl(page: Page, deleteUrl: string): Promise<void
   }
 }
 
-test('keeps Directory validation inline and its sort listbox inside the viewport', async ({
-  page,
-}) => {
+test('keeps the Directory inventory and form accessible on mobile', async ({ page }, testInfo) => {
   const issues = collectPageIssues(page)
+  const mutations: string[] = []
+
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/v1\/accounts\/[^/]+\/(?:directories|sync\/directories)(?:\/|$)/.test(path)
+    ) {
+      mutations.push(`${request.method()} ${path}`)
+    }
+  })
+
+  await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/directories')
   await expect(page.getByRole('heading', { name: 'Directories' })).toBeVisible()
+
+  for (const action of [
+    page.getByRole('button', { name: 'Sync', exact: true }),
+    page.getByRole('button', { name: 'New directory' }),
+    page.getByRole('button', { name: 'Search', exact: true }),
+  ]) {
+    await expect(action).toBeVisible()
+    await expectInsideViewport(page, action)
+  }
+
+  const table = page.getByRole('table', { name: 'Directories for the selected Switch account' })
+  await expect(table).toBeVisible()
+  await expect(table.getByRole('columnheader')).toHaveCount(5)
+  await expect(table).toHaveAttribute('aria-busy', 'false')
+
   await page.getByRole('button', { name: 'New directory' }).click()
   await expect(page.getByRole('heading', { name: 'Create directory' })).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: 'Create directory' })
+  const panel = dialog.getByTestId('slide-over-panel')
+  const closeButton = dialog.getByRole('button', { name: 'Close panel' })
+  await page.waitForTimeout(350)
+  await expectInsideViewport(page, panel)
+  await expectInsideViewport(page, closeButton)
+  await expect(dialog.getByRole('group', { name: 'Directory members' })).toBeVisible()
 
-  await page.getByRole('tab', { name: 'Advanced' }).click()
-  await page.getByRole('button', { name: 'Sort names by' }).click()
+  await dialog.getByRole('tab', { name: 'Advanced' }).click()
+  await dialog.getByRole('button', { name: 'Sort names by' }).click()
   const options = page.getByRole('listbox')
   await expect(options).toBeVisible()
   const box = await options.boundingBox()
@@ -105,12 +148,30 @@ test('keeps Directory validation inline and its sort listbox inside the viewport
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height)
   await page.getByRole('option', { name: 'Last name' }).click()
 
-  await page.getByRole('button', { name: 'Save directory' }).click()
-  const name = page.getByLabel('Name', { exact: true })
+  await dialog.getByRole('button', { name: 'Save directory' }).click()
+  const name = dialog.getByLabel('Name', { exact: true })
   await expect(name).toHaveAttribute('aria-invalid', 'true')
   await expect(name).toHaveClass(/border-red-400/)
   await expect(page.getByText('Enter a directory name.')).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
+  const basicTab = dialog.getByRole('tab', { name: 'Basic' })
+  const advancedTab = dialog.getByRole('tab', { name: 'Advanced' })
+  await expect(basicTab).toHaveAttribute('aria-selected', 'true')
+  await expect(basicTab).toHaveClass(/border-brand-500/)
+  await expect(advancedTab).toHaveClass(/border-transparent/)
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true)
+  await page.screenshot({
+    path: testInfo.outputPath('directory-create-mobile-validation.png'),
+    fullPage: true,
+  })
+
+  expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
 

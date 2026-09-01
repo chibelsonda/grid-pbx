@@ -33,7 +33,8 @@ class SessionControllerTest extends TestCase
 
         $this->getJson('/api/v1/session')
             ->assertOk()
-            ->assertJsonPath('data.user.id', $user->id);
+            ->assertJsonPath('data.user.id', $user->id)
+            ->assertJsonMissingPath('data.user.user_id');
 
     }
 

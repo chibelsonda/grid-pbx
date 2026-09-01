@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import {
-  ArrowLeftIcon,
-  ArrowPathIcon,
-  ArrowPathRoundedSquareIcon,
   ArrowsRightLeftIcon,
-  HashtagIcon,
-  LinkIcon,
   PencilSquareIcon,
   ShieldCheckIcon,
   TrashIcon,
@@ -25,6 +20,8 @@ import {
 import CallflowActionPalette from './CallflowActionPalette.vue'
 import CallflowDiagram from './CallflowDiagram.vue'
 import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
+import CallflowRouteSummary from './CallflowRouteSummary.vue'
+import CallflowWorkspaceLayout from './CallflowWorkspaceLayout.vue'
 import type {
   Callflow,
   CallflowNode,
@@ -47,24 +44,16 @@ const props = withDefaults(
     treeMoving?: boolean
     treeDeleting?: boolean
     treeMutationError?: string | null
-    canRefresh?: boolean
-    refreshing?: boolean
-    synchronizing?: boolean
   }>(),
   {
     treeMoving: false,
     treeDeleting: false,
     treeMutationError: null,
-    canRefresh: true,
-    refreshing: false,
-    synchronizing: false,
   },
 )
 const emit = defineEmits<{
-  close: []
-  refresh: []
-  edit: []
   delete: []
+  'edit-entry': []
   'move-node': [input: CallflowTreeMoveInput]
   'reorder-nodes': [input: CallflowTreeReorderInput]
   'create-node': [context: CallflowNodeEditorContext]
@@ -80,18 +69,7 @@ const dragSource = ref<CallflowNodeSelection | null>(null)
 const paletteAction = ref<CallflowAction | null>(null)
 const destinationBranch = ref<CallflowTreeBranchKey | null>(null)
 const nodeInfoOpen = ref(false)
-const paletteShell = ref<HTMLElement | null>(null)
-const paletteFloating = ref(false)
-const palettePosition = ref({ left: 0, top: 0, width: 304 })
-let palettePointerOffset = { x: 0, y: 0 }
 let paletteDragFrame: number | null = null
-const title = computed(
-  () =>
-    props.record?.name ??
-    props.record?.feature_code?.name ??
-    props.record?.numbers[0] ??
-    'Callflow details',
-)
 const deletionBlocker = computed(() => {
   if (props.record?.feature_code) return 'Feature-code routes cannot be deleted here.'
   if (props.record?.linked_extension) return 'This route belongs to an extension.'
@@ -323,57 +301,7 @@ function requestReorder(mode: CallflowTreeReorderInput['mode']): void {
   })
 }
 
-function movePalette(event: PointerEvent): void {
-  if (!paletteFloating.value) return
-  const margin = 8
-  const maxLeft = Math.max(margin, window.innerWidth - palettePosition.value.width - margin)
-  const maxTop = Math.max(margin, window.innerHeight - 120)
-
-  palettePosition.value = {
-    ...palettePosition.value,
-    left: Math.min(maxLeft, Math.max(margin, event.clientX - palettePointerOffset.x)),
-    top: Math.min(maxTop, Math.max(margin, event.clientY - palettePointerOffset.y)),
-  }
-}
-
-function stopMovingPalette(): void {
-  window.removeEventListener('pointermove', movePalette)
-  window.removeEventListener('pointerup', stopMovingPalette)
-  window.removeEventListener('pointercancel', stopMovingPalette)
-}
-
-function startMovingPalette(event: PointerEvent): void {
-  if (event.button !== 0 || !paletteShell.value) return
-  const bounds = paletteShell.value.getBoundingClientRect()
-  palettePosition.value = { left: bounds.left, top: bounds.top, width: bounds.width }
-  palettePointerOffset = { x: event.clientX - bounds.left, y: event.clientY - bounds.top }
-  paletteFloating.value = true
-  window.addEventListener('pointermove', movePalette)
-  window.addEventListener('pointerup', stopMovingPalette)
-  window.addEventListener('pointercancel', stopMovingPalette)
-  event.preventDefault()
-}
-
-function dockPalette(): void {
-  stopMovingPalette()
-  paletteFloating.value = false
-}
-
-const paletteStyle = computed(() =>
-  paletteFloating.value
-    ? {
-        left: `${palettePosition.value.left}px`,
-        top: `${palettePosition.value.top}px`,
-        width: `${palettePosition.value.width}px`,
-        maxHeight: 'calc(100vh - 16px)',
-      }
-    : undefined,
-)
-
-onBeforeUnmount(() => {
-  finishPaletteActionDrag()
-  stopMovingPalette()
-})
+onBeforeUnmount(finishPaletteActionDrag)
 
 function cancelMove(): void {
   moveSource.value = null
@@ -460,158 +388,70 @@ function humanize(value: string | null): string {
 
 <template>
   <section aria-label="Callflow workspace" class="grid gap-5">
-    <header class="card-surface flex flex-wrap items-center gap-4 p-5">
-      <button
-        type="button"
-        aria-label="Back to callflows"
-        class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-        @click="$emit('close')"
-      >
-        <ArrowLeftIcon class="size-4" />
-      </button>
-      <div class="min-w-0">
-        <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
-          Callflow workspace
-        </p>
-        <h2 class="mt-1 truncate text-lg font-semibold text-slate-800">{{ title }}</h2>
-        <p class="mt-1 text-xs text-slate-500">
-          The full-width route map stays on the main page; select a node to inspect it in a modal.
-        </p>
-      </div>
-      <div v-if="record" class="ml-auto flex items-center gap-2">
-        <button
-          v-if="canRefresh"
-          type="button"
-          aria-label="Refresh callflow nodes"
-          title="Refresh callflow nodes"
-          :disabled="refreshing || synchronizing"
-          class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-wait disabled:text-slate-300"
-          @click="$emit('refresh')"
-        >
-          <ArrowPathIcon class="size-4" :class="(refreshing || synchronizing) && 'animate-spin'" />
-        </button>
-        <button
-          v-if="canManage"
-          type="button"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
-          @click="$emit('edit')"
-        >
-          <PencilSquareIcon class="size-4" /> Edit callflow
-        </button>
-      </div>
-    </header>
-
-    <div v-if="loading" class="card-surface p-10 text-center text-xs text-slate-400">
+    <div v-if="loading" role="status" class="card-surface p-10 text-center text-xs text-slate-400">
       Loading callflow…
     </div>
     <div
       v-else-if="error"
+      role="alert"
       class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
     >
       {{ error }}
     </div>
     <div v-else-if="record" class="grid gap-5">
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_11.5rem] xl:items-start">
-        <article class="card-surface min-w-0 p-4 sm:p-5">
-          <header class="mb-4 flex flex-wrap items-center gap-2 border-b border-slate-100 pb-3">
-            <h2 class="mr-auto text-sm font-semibold text-slate-700">Route structure</h2>
-            <div class="flex flex-wrap items-center gap-2" aria-label="Route summary">
-              <div
-                class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5"
-              >
-                <HashtagIcon class="size-3.5 text-blue-600" />
-                <span class="text-xs font-semibold text-slate-700">{{ record.node_count }}</span>
-                <span class="text-[9px] font-bold tracking-wide text-slate-500 uppercase"
-                  >Nodes</span
-                >
-              </div>
-              <div
-                class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5"
-              >
-                <LinkIcon class="size-3.5 text-violet-600" />
-                <span class="text-xs font-semibold text-slate-700">{{ record.max_depth }}</span>
-                <span class="text-[9px] font-bold tracking-wide text-slate-500 uppercase">
-                  Max depth
-                </span>
-              </div>
-              <div
-                class="inline-flex h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5"
-              >
-                <ArrowPathRoundedSquareIcon class="size-3.5 text-emerald-600" />
-                <span class="text-xs font-semibold text-slate-700">{{
-                  record.modules.length
-                }}</span>
-                <span class="text-[9px] font-bold tracking-wide text-slate-500 uppercase">
-                  Modules
-                </span>
-              </div>
-              <div
-                class="inline-flex min-h-8 items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-2.5 py-1"
-              >
-                <ArrowPathRoundedSquareIcon class="size-3.5 shrink-0 text-brand-600" />
-                <span class="text-[10px] font-semibold text-slate-700">
-                  {{ humanize(record.route_type) }}
-                </span>
-                <span class="text-[9px] text-slate-500">
-                  Synchronized
-                  {{
-                    record.last_synced_at
-                      ? new Date(record.last_synced_at).toLocaleString()
-                      : 'never'
-                  }}
-                </span>
-              </div>
-            </div>
-          </header>
-          <CallflowDiagram
-            v-if="record.flow"
-            :node="record.flow"
-            :entry-name="record.name"
-            :numbers="record.numbers"
-            :patterns="record.patterns"
-            :selected-path="selectedPath"
-            :editable="canManage"
-            :moving="treeMoving"
-            :drag-source-path="dragSource?.path ?? null"
-            :palette-action="paletteAction"
-            @select="selectNode"
-            @drag-start="startDrag"
-            @drag-end="finishDrag"
-            @move="requestMove"
-            @add-action="
-              (selection, action, placement) => createNodeAt(action, selection, placement)
-            "
-            @remove="requestNodeDeletion"
+      <CallflowWorkspaceLayout>
+        <template #summary>
+          <CallflowRouteSummary
+            :node-count="record.node_count"
+            :max-depth="record.max_depth"
+            :module-count="record.modules.length"
+            :status-label="humanize(record.route_type)"
+            :status-detail="`Synchronized ${
+              record.last_synced_at ? new Date(record.last_synced_at).toLocaleString() : 'never'
+            }`"
           />
-          <p v-else class="text-xs text-slate-500">
-            Switch did not return a structural flow for this route.
-          </p>
-        </article>
+        </template>
 
-        <aside class="grid gap-4">
-          <div
-            ref="paletteShell"
-            :style="paletteStyle"
-            :class="
-              paletteFloating
-                ? 'fixed z-40 overflow-hidden rounded-lg shadow-2xl ring-1 ring-slate-300'
-                : 'xl:sticky xl:top-3'
-            "
-          >
-            <CallflowActionPalette
-              compact
-              movable
-              :floating="paletteFloating"
-              :enabled="selectedParentAddable"
-              :drag-enabled="canManage"
-              @choose="createNode"
-              @action-drag-start="startPaletteActionDrag"
-              @action-drag-end="finishPaletteActionDrag"
-              @drag-start="startMovingPalette"
-              @dock="dockPalette"
-            />
-          </div>
-          <article class="card-surface p-5">
+        <CallflowDiagram
+          v-if="record.flow"
+          :node="record.flow"
+          :entry-name="record.name"
+          :numbers="record.numbers"
+          :patterns="record.patterns"
+          :selected-path="selectedPath"
+          :editable="canManage"
+          :moving="treeMoving"
+          :drag-source-path="dragSource?.path ?? null"
+          :palette-action="paletteAction"
+          @select="selectNode"
+          @drag-start="startDrag"
+          @drag-end="finishDrag"
+          @move="requestMove"
+          @add-action="(selection, action, placement) => createNodeAt(action, selection, placement)"
+          @remove="requestNodeDeletion"
+          @edit-entry="emit('edit-entry')"
+        />
+        <p v-else class="text-xs text-slate-500">
+          Switch did not return a structural flow for this route.
+        </p>
+
+        <template #palette="{ floating, startMoving, dock }">
+          <CallflowActionPalette
+            compact
+            movable
+            :floating="floating"
+            :enabled="selectedParentAddable"
+            :drag-enabled="canManage"
+            @choose="createNode"
+            @action-drag-start="startPaletteActionDrag"
+            @action-drag-end="finishPaletteActionDrag"
+            @drag-start="startMoving"
+            @dock="dock"
+          />
+        </template>
+
+        <template #sidebar>
+          <article class="card-surface p-4">
             <h2 class="text-sm font-semibold text-slate-700">Entry points</h2>
             <div class="mt-4 grid gap-3 text-xs">
               <div>
@@ -638,7 +478,7 @@ function humanize(value: string | null): string {
             </div>
           </article>
 
-          <article class="card-surface p-5">
+          <article class="card-surface p-4">
             <h2 class="text-sm font-semibold text-slate-700">Assignments</h2>
             <div class="mt-4 grid gap-2 text-xs text-slate-600">
               <p v-if="record.linked_extension">
@@ -682,11 +522,11 @@ function humanize(value: string | null): string {
           <p v-if="canManage && deletionBlocker" class="text-[10px] text-amber-700">
             {{ deletionBlocker }}
           </p>
-          <p v-if="mutationError" class="text-xs font-semibold text-danger">
+          <p v-if="mutationError" role="alert" class="text-xs font-semibold text-danger">
             {{ mutationError }}
           </p>
-        </aside>
-      </div>
+        </template>
+      </CallflowWorkspaceLayout>
     </div>
   </section>
   <CallflowNodeInfoDialog
@@ -832,7 +672,7 @@ function humanize(value: string | null): string {
       <p v-else class="text-[10px] leading-4 text-slate-500">
         Root, preserved, unresolved, and not-yet-guided nodes remain read-only.
       </p>
-      <p v-if="treeMutationError" class="mt-3 text-xs font-semibold text-danger">
+      <p v-if="treeMutationError" role="alert" class="mt-3 text-xs font-semibold text-danger">
         {{ treeMutationError }}
       </p>
     </div>

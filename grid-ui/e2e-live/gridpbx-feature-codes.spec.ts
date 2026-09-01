@@ -13,9 +13,19 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
-test('shows the account feature-code inventory without exposing mutation controls or raw IDs', async ({
+async function expectInsideViewport(
+  page: Page,
+  locator: ReturnType<Page['locator']>,
+): Promise<void> {
+  const bounds = await locator.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+}
+
+test('shows an accessible account feature-code inventory without mutations or raw IDs', async ({
   page,
-}) => {
+}, testInfo) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
@@ -64,6 +74,13 @@ test('shows the account feature-code inventory without exposing mutation control
   await expect(page.getByText('*11', { exact: true })).toBeVisible()
   await expect(page.getByText('Voicemail Check')).toBeVisible()
 
+  const table = page.getByRole('table', {
+    name: 'Active feature codes projected for the selected Switch account',
+  })
+  await expect(table).toBeVisible()
+  await expect(table.getByRole('columnheader')).toHaveCount(6)
+  await expect(table).toHaveAttribute('aria-busy', 'false')
+
   const search = page.getByLabel('Search feature codes')
   await search.focus()
   await expect(search).toBeFocused()
@@ -76,6 +93,8 @@ test('shows the account feature-code inventory without exposing mutation control
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.getByRole('heading', { name: 'Feature Codes' })).toBeVisible()
   await expect(page.getByText('Read-only inventory.')).toBeVisible()
+  await expectInsideViewport(page, page.getByRole('button', { name: 'Refresh' }))
+  await expectInsideViewport(page, page.getByLabel('Search feature codes'))
   await expect
     .poll(() =>
       page.evaluate(
@@ -83,6 +102,10 @@ test('shows the account feature-code inventory without exposing mutation control
       ),
     )
     .toBe(true)
+  await page.screenshot({
+    path: testInfo.outputPath('feature-codes-mobile.png'),
+    fullPage: true,
+  })
 
   expect(mutations).toEqual([])
   expect(issues).toEqual([])

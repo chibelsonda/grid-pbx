@@ -1,10 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
-import {
-  deviceApi,
-  type DevicePage,
-  type DeviceProvisioningCommand,
-} from '../api/deviceApi'
+import { deviceApi, type DevicePage, type DeviceProvisioningCommand } from '../api/deviceApi'
 import type {
   Device,
   DeviceInput,
@@ -31,9 +27,7 @@ vi.mock('../api/deviceApi', () => ({
         ) => Promise<{ message: string; command: DeviceProvisioningCommand }>
       >(),
     provisioningEnrollment:
-      vi.fn<
-        (accountId: string, deviceId: string) => Promise<DeviceProvisioningEnrollment>
-      >(),
+      vi.fn<(accountId: string, deviceId: string) => Promise<DeviceProvisioningEnrollment>>(),
     enrollProvisioning:
       vi.fn<
         (accountId: string, deviceId: string) => Promise<DeviceProvisioningEnrollmentMutation>

@@ -14,6 +14,16 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
+async function expectInsideViewport(
+  page: Page,
+  locator: ReturnType<Page['locator']>,
+): Promise<void> {
+  const bounds = await locator.boundingBox()
+  expect(bounds).not.toBeNull()
+  expect(bounds!.x).toBeGreaterThanOrEqual(0)
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(390)
+}
+
 test('separates available Queue configuration from unavailable live ACDc controls', async ({
   page,
 }) => {
@@ -61,14 +71,32 @@ test('separates available Queue configuration from unavailable live ACDc control
   expect(issues).toEqual([])
 })
 
-test('shows schema-backed Queue announcements with inline validation and bounded listboxes', async ({
+test('keeps Queue inventories and the schema-backed form accessible on mobile', async ({
   page,
-}) => {
+}, testInfo) => {
   const issues = collectPageIssues(page)
+  const mutations: string[] = []
+
+  page.on('request', (request) => {
+    const path = new URL(request.url()).pathname
+    if (
+      ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method()) &&
+      /\/api\/v1\/accounts\/[^/]+\/(?:queues|agents|sync\/queues)(?:\/|$)/.test(path)
+    ) {
+      mutations.push(`${request.method()} ${path}`)
+    }
+  })
+
   await page.goto('/queues')
   await expect(page.getByRole('heading', { name: 'Queues & Agents' })).toBeVisible()
+  const queueTable = page.getByRole('table', { name: 'Queues for the selected Switch account' })
+  await expect(queueTable).toBeVisible()
+  await expect(queueTable.getByRole('columnheader')).toHaveCount(5)
+  await expect(queueTable).toHaveAttribute('aria-busy', 'false')
+
   await page.getByRole('button', { name: 'New queue' }).click()
   await expect(page.getByRole('heading', { name: 'Create queue' })).toBeVisible()
+  const dialog = page.getByRole('dialog', { name: 'Create queue' })
 
   await page.getByRole('button', { name: 'Queue strategy' }).click()
   const options = page.getByRole('listbox')
@@ -95,11 +123,52 @@ test('shows schema-backed Queue announcements with inline validation and bounded
   await expect(page.getByRole('button', { name: 'You are at position' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Save queue' }).click()
-  const name = page.getByLabel('Name', { exact: true })
+  const name = dialog.getByLabel('Name', { exact: true })
   await expect(name).toHaveAttribute('aria-invalid', 'true')
   await expect(name).toHaveClass(/border-red-400/)
   await expect(page.getByText('Enter a queue name.')).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
+  const basicTab = dialog.getByRole('tab', { name: 'Basic' })
+  await expect(basicTab).toHaveAttribute('aria-selected', 'true')
+  await expect(basicTab).toHaveClass(/border-brand-500/)
+  await expect(dialog.getByRole('group', { name: 'Agent roster' })).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.waitForTimeout(350)
+  await expectInsideViewport(page, dialog.getByTestId('slide-over-panel'))
+  await expectInsideViewport(page, dialog.getByRole('button', { name: 'Close panel' }))
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true)
+  await page.screenshot({
+    path: testInfo.outputPath('queue-create-mobile-validation.png'),
+    fullPage: true,
+  })
+
+  await dialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(page.getByRole('heading', { name: 'Create queue' })).toHaveCount(0)
+  for (const action of [
+    page.getByRole('button', { name: 'Sync', exact: true }),
+    page.getByRole('button', { name: 'New queue' }),
+    page.getByRole('button', { name: 'Search', exact: true }),
+  ]) {
+    await expect(action).toBeVisible()
+    await expectInsideViewport(page, action)
+  }
+
+  await page.getByRole('tab', { name: 'Agents' }).click()
+  const agentTable = page.getByRole('table', {
+    name: 'Queue agents for the selected Switch account',
+  })
+  await expect(agentTable).toBeVisible()
+  await expect(agentTable.getByRole('columnheader')).toHaveCount(4)
+  await expect(agentTable).toHaveAttribute('aria-busy', 'false')
+
+  expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
 
@@ -137,7 +206,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     expect(created.data.announcements).toMatchObject({ enabled: true, interval: 30 })
 
     await expect(page.getByRole('heading', { name: 'Create queue' })).toHaveCount(0)
-    await page.getByRole('cell', { name, exact: true }).click()
+    await page.getByRole('button', { name, exact: true }).click()
     await expect(page.getByRole('heading', { name: 'Edit queue' })).toBeVisible()
     await page.getByRole('tab', { name: 'Advanced' }).click()
     await expect(page.getByLabel('Maximum priority')).toBeDisabled()
@@ -155,7 +224,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
         .announcements.interval,
     ).toBe(45)
 
-    await page.getByRole('cell', { name, exact: true }).click()
+    await page.getByRole('button', { name, exact: true }).click()
     await page.getByRole('tab', { name: 'Advanced' }).click()
     await page.getByRole('switch', { name: 'Periodic announcements' }).click()
     const clearing = page.waitForResponse(
@@ -173,7 +242,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
   } finally {
     if (createdId !== null) {
       await page.goto('/queues')
-      const row = page.getByRole('cell', { name, exact: true })
+      const row = page.getByRole('button', { name, exact: true })
 
       if (await row.isVisible()) {
         await row.click()

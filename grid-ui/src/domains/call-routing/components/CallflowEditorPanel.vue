@@ -7,7 +7,6 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
-import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -17,6 +16,7 @@ import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
 import CallflowMenuBranchesField from './CallflowMenuBranchesField.vue'
 import CallflowCreateWorkspace from './CallflowCreateWorkspace.vue'
+import CallflowEntryPointsField from './CallflowEntryPointsField.vue'
 import CallflowTemporalRuleRoutesField from './CallflowTemporalRuleRoutesField.vue'
 import CallflowTemporalRulesField from './CallflowTemporalRulesField.vue'
 import { useCallflowForm } from '../composables/useCallflowForm'
@@ -161,12 +161,6 @@ function setTemporalMatchDestinationType(value: ListboxValue): void {
 function setTemporalMatchDestination(value: ListboxValue): void {
   if (typeof value === 'string') form.temporal_match_destination_id = value
 }
-
-function humanizePhoneState(state: string | null): string {
-  return state
-    ? state.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
-    : 'Available'
-}
 </script>
 
 <template>
@@ -180,10 +174,12 @@ function humanizePhoneState(state: string | null): string {
     "
     width="medium"
     :embedded="workspace"
+    :embedded-header="!(workspace && editor?.mode === 'create')"
     @close="emit('close')"
   >
     <div
       v-if="loading"
+      role="status"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"
     >
       Loading routing targets…
@@ -191,6 +187,7 @@ function humanizePhoneState(state: string | null): string {
 
     <div
       v-else-if="error && !editor"
+      role="alert"
       class="rounded-md border border-red-100 bg-red-50 p-5 text-xs text-danger"
     >
       {{ error }}
@@ -231,6 +228,7 @@ function humanizePhoneState(state: string | null): string {
       <div class="grid min-w-0 gap-5">
         <div
           v-if="error && Object.keys(fieldErrors).length === 0"
+          role="alert"
           class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
         >
           {{ error }}
@@ -272,44 +270,16 @@ function humanizePhoneState(state: string | null): string {
             </div>
           </article>
 
-          <article
-            class="card-surface overflow-hidden"
-            :class="validationControlClass(fieldError('phone_number_ids'))"
-            :aria-invalid="Boolean(fieldError('phone_number_ids'))"
-          >
-            <header class="border-b border-slate-100 px-5 py-4">
-              <h2 class="text-sm font-semibold text-slate-700">Phone-number entry points</h2>
-              <p class="mt-1 text-[10px] leading-4 text-slate-400">
-                Select the inventory numbers that should enter this route. Extensions and patterns
-                are preserved.
-              </p>
-            </header>
-            <div v-if="editor.phone_numbers.length" class="divide-y divide-slate-100 px-5">
-              <FormCheckbox
-                v-for="phoneNumber in editor.phone_numbers"
-                :key="phoneNumber.id"
-                :model-value="form.phone_number_ids"
-                :value="phoneNumber.id"
-                :label="phoneNumber.number"
-                :description="
-                  phoneNumber.available
-                    ? phoneNumber.selected
-                      ? 'Currently enters this route'
-                      : humanizePhoneState(phoneNumber.state)
-                    : `Assigned to ${phoneNumber.assigned_callflow?.name ?? 'another route'}`
-                "
-                :disabled="!phoneNumber.available"
-                variant="row"
-                @update:model-value="form.phone_number_ids = $event as string[]"
-              />
-            </div>
-            <p v-else class="p-5 text-xs text-slate-400">
-              No projected phone numbers are available for this account.
-            </p>
-            <p v-if="fieldError('phone_number_ids')" class="px-5 pb-4 text-[10px] text-danger">
-              {{ fieldError('phone_number_ids') }}
-            </p>
-          </article>
+          <CallflowEntryPointsField
+            :phone-numbers="editor.phone_numbers"
+            :phone-number-ids="form.phone_number_ids"
+            :extension-numbers="form.extension_numbers"
+            :preserved-numbers="editor.preserved_numbers ?? []"
+            :phone-error="fieldError('phone_number_ids')"
+            :extension-error="fieldError('extension_numbers')"
+            @update:phone-number-ids="form.phone_number_ids = $event"
+            @update:extension-numbers="form.extension_numbers = $event"
+          />
 
           <article class="card-surface overflow-hidden">
             <header class="border-b border-slate-100 px-5 py-4">

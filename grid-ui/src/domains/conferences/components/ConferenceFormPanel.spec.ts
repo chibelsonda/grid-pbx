@@ -7,7 +7,7 @@ describe('ConferenceFormPanel', () => {
     const wrapper = mount(ConferenceFormPanel, {
       props: {
         record: null,
-        options: { owners: [], media: [] },
+        options: { owners: [], media: [], playable_media: [] },
         saving: false,
         error: null,
         fieldErrors: {},
@@ -38,7 +38,7 @@ describe('ConferenceFormPanel', () => {
     const wrapper = mount(ConferenceFormPanel, {
       props: {
         record: null,
-        options: { owners: [], media: [] },
+        options: { owners: [], media: [], playable_media: [] },
         saving: false,
         error: null,
         fieldErrors: {},
@@ -103,7 +103,7 @@ describe('ConferenceFormPanel', () => {
     const wrapper = mount(ConferenceFormPanel, {
       props: {
         record: null,
-        options: { owners: [], media: [] },
+        options: { owners: [], media: [], playable_media: [] },
         saving: false,
         error: null,
         fieldErrors: { profile_name: ['Choose an installed profile.'] },

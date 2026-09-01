@@ -456,7 +456,7 @@ class CrossbarSwitchExtensionProvisioningGateway implements SwitchExtensionProvi
             name: $name,
             destinationModule: 'user',
             destinationResourceId: $userResourceId,
-            phoneNumbers: [$extension],
+            entryNumbers: [$extension],
             fallbackModule: $voicemailBoxResourceId === null ? null : 'voicemail',
             fallbackResourceId: $voicemailBoxResourceId,
         ))->toArray();

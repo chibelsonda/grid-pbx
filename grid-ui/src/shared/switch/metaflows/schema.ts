@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
+import { nullableInteger } from '@/shared/forms/zod'
 import type { MetaflowChild, MetaflowNode } from './types'
 
 export const metaflowModules = [
@@ -143,7 +144,7 @@ const actionSchema = z
 export const metaflowSettingsSchema = z
   .object({
     binding_digit: z.enum(['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '*', '#']).nullable(),
-    digit_timeout: z.number().int().min(0).max(60000).nullable(),
+    digit_timeout: nullableInteger(0, 60000),
     listen_on: z.enum(['both', 'self', 'peer']).nullable(),
     actions: z.array(actionSchema).max(50).default([]),
   })

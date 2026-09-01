@@ -1,13 +1,12 @@
 import { z } from 'zod'
 import { endpointAudioCodecs, endpointVideoCodecs } from '@/shared/switch/endpointMedia'
 import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
+import { nullableInteger } from '@/shared/forms/zod'
 import { metaflowSettingsSchema } from '@/shared/switch/metaflows/schema'
 import type { DeviceInput } from '@/domains/devices/types/device'
 import { voicemailBoxFormSchemaFor } from '@/domains/voicemail/schemas/voicemailBoxFormSchema'
 
 const nullableString = (maximum: number) => z.string().trim().max(maximum).nullable()
-const nullableInteger = (minimum: number, maximum: number) =>
-  z.number().int().min(minimum).max(maximum).nullable()
 const uniqueValues = (values: string[]) => new Set(values).size === values.length
 function voicemailAggregateSchema(editing: boolean, pinConfigured = false) {
   return z
@@ -431,6 +430,42 @@ export const extensionCreateSchema = z
     call_forward: advancedCallingFields.call_forward,
     call_restriction: advancedCallingFields.call_restriction,
     call_recording: advancedCallingFields.call_recording,
+    media: advancedCallingFields.media.default({
+      audio: { codecs: [] },
+      video: { codecs: [] },
+      bypass_media: false,
+      encryption: { enforce_security: false, methods: [] },
+      fax_option: false,
+      ignore_early_media: false,
+      progress_timeout: null,
+    }),
+    music_on_hold: advancedCallingFields.music_on_hold.default({
+      media_id: null,
+      preserve_media: false,
+    }),
+    ringtones: advancedCallingFields.ringtones.default({ internal: null, external: null }),
+    dial_plan: advancedCallingFields.dial_plan.default({ system: [], rules: [] }),
+    formatters: advancedCallingFields.formatters.default([]),
+    profile: advancedCallingFields.profile.default({
+      addresses: [],
+      assistant: null,
+      birthday: null,
+      nicknames: [],
+      note: null,
+      role: null,
+      sort_string: null,
+      title: null,
+    }),
+    pronounced_name: advancedCallingFields.pronounced_name.default({
+      media_id: null,
+      preserve_media: false,
+    }),
+    metaflows: metaflowSettingsSchema.default({
+      binding_digit: null,
+      digit_timeout: null,
+      listen_on: null,
+      actions: [],
+    }),
     voicemail: voicemailAggregateSchema(false),
     device: z
       .object({

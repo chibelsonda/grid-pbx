@@ -255,7 +255,9 @@ export type CallflowAlertRecipient = {
 }
 
 export type CallflowRingGroupEndpoint = {
-  device_id: string
+  device_id?: string
+  extension_id?: string
+  group_id?: string
   delay: number
   timeout: number
   weight?: number
@@ -418,6 +420,7 @@ export type CallflowEditor = {
   caller_id_lists: CallflowDestination[]
   destination_types: Array<{ value: CallflowDestinationType; label: string }>
   destinations: Record<CallflowDestinationType, CallflowDestination[]>
+  requires_entry_number?: boolean
   phone_numbers: Array<{
     id: string
     number: string
@@ -426,6 +429,8 @@ export type CallflowEditor = {
     available: boolean
     assigned_callflow: { id: string; name: string | null } | null
   }>
+  extension_numbers?: string[]
+  preserved_numbers?: string[]
 }
 
 export type CallflowUpdate = {
@@ -435,6 +440,7 @@ export type CallflowUpdate = {
   temporal_rule_ids?: string[]
   temporal_rule_routes?: CallflowTemporalRuleRouteInput[]
   phone_number_ids: string[]
+  extension_numbers?: string[]
   manage_fallback?: boolean
   fallback_destination_type?: CallflowDestinationType | null
   fallback_destination_id?: string | null

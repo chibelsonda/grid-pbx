@@ -3,6 +3,123 @@ import process from 'node:process'
 
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
+const isolatedAccountId = '90480cee-5663-4fd9-875d-f83d3f42ff5c'
+
+async function mockIsolatedAccount(page: Page): Promise<void> {
+  await page.route('**/api/v1/accounts', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: isolatedAccountId,
+            name: 'GridPBX test account',
+            realm: 'gridpbx.test',
+            timezone: 'UTC',
+            enabled: true,
+            organization: {
+              id: 'ecf5d6d0-afbf-4ab7-bd79-d083bc9ea11c',
+              name: 'GridPBX test organization',
+              branding: { logo_available: false, logo_updated_at: null },
+            },
+            organization_role: 'owner',
+            permissions: {
+              can_manage_extensions: true,
+              can_manage_devices: true,
+              can_manage_voicemail: true,
+              can_manage_call_routing: true,
+              can_manage_media: true,
+              can_sync_call_detail_records: true,
+              can_view_services: true,
+              can_manage_account_settings: true,
+              can_onboard_descendants: true,
+            },
+          },
+        ],
+      }),
+    })
+  })
+}
+
+function isolatedCreateEditor() {
+  const extensionId = '16f95ac5-243c-476a-b238-9f51108f82e1'
+  const voicemailId = '216fe383-b79f-45ee-a98e-a507ef3b2995'
+  const menuId = 'c48df137-8660-405d-bb64-eec23c394129'
+  const ruleSetId = 'd5149b3a-a4f9-4b68-b970-d1657886e92e'
+
+  return {
+    mode: 'create',
+    editable: true,
+    blocked_reason: null,
+    fallback: { editable: true, blocked_reason: null, target: null },
+    menu_branches: {
+      editable: true,
+      blocked_reason: null,
+      branches: ['timeout', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '*'].map((key) => ({
+        key,
+        label: key === 'timeout' ? 'Timeout' : key,
+        editable: true,
+        target: null,
+      })),
+      legacy_hash_present: false,
+      unknown_branch_keys: [],
+    },
+    temporal_match: {
+      editable: true,
+      blocked_reason: null,
+      target: null,
+      preserved_branch_count: 0,
+    },
+    direct_temporal_routes: [],
+    temporal_rule_sets: {
+      [ruleSetId]: [
+        {
+          id: '24af1546-200c-4431-8f96-e05aadd75569',
+          label: 'Weekdays',
+          position: 0,
+          resolved: true,
+        },
+      ],
+    },
+    temporal_rules: [],
+    caller_id_lists: [],
+    destination_types: [
+      { value: 'extension', label: 'Extension' },
+      { value: 'voicemail', label: 'Voicemail' },
+      { value: 'menu', label: 'Menu / IVR' },
+      { value: 'temporal_rule_set', label: 'Business Hours / Schedule' },
+    ],
+    destinations: {
+      extension: [{ id: extensionId, label: 'Reception', detail: '1001' }],
+      device: [],
+      voicemail: [{ id: voicemailId, label: 'Reception mailbox', detail: '1001' }],
+      callflow: [],
+      media: [],
+      directory: [],
+      group: [],
+      queue: [],
+      menu: [{ id: menuId, label: 'Main IVR', detail: 'Interactive voice menu' }],
+      conference: [],
+      fax_box: [],
+      temporal_rule_set: [{ id: ruleSetId, label: 'Office hours', detail: '1 schedule rule' }],
+      temporal_rules: [],
+    },
+    extension_numbers: [],
+    preserved_numbers: [],
+    phone_numbers: [
+      {
+        id: '1078f5f7-a8c4-4296-abf8-610612cac312',
+        number: '+15550001234',
+        state: 'in_service',
+        selected: false,
+        available: true,
+        assigned_callflow: null,
+      },
+    ],
+  }
+}
+
 function collectPageIssues(page: Page): string[] {
   const issues: string[] = []
   page.on('console', (message) => {
@@ -38,6 +155,8 @@ async function openMockedCallflowEditor(
   page: Page,
   { id, name, rootModule, target, temporalRules = [], editor }: MockedCallflowEditorOptions,
 ): Promise<Locator> {
+  await mockIsolatedAccount(page)
+
   const callflow = {
     id,
     name,
@@ -104,8 +223,7 @@ async function openMockedCallflowEditor(
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: `View ${name}` }).click()
-  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-  await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+  await page.getByRole('button', { name: 'Edit callflow', exact: true }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Edit callflow' })
   await expect(dialog.getByRole('heading', { name: 'Edit callflow', exact: true })).toBeVisible()
@@ -166,7 +284,7 @@ async function deleteCallflowRoute(page: Page, routeName: string): Promise<void>
   const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
 
   if (await deleteRoute.isDisabled()) {
-    await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+    await page.getByRole('button', { name: 'Edit callflow' }).click()
     const editRoute = page.getByRole('dialog', { name: 'Edit callflow' })
     const selectedNumbers = editRoute.getByRole('checkbox', { checked: true })
 
@@ -608,7 +726,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     }
 
     const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-    await expect(workspace.getByRole('heading', { name: routeName })).toBeVisible()
+    await expect(page.getByRole('heading', { name: routeName, exact: true })).toBeVisible()
     const diagram = workspace.getByRole('tree', { name: 'Callflow diagram' })
     await diagram.getByRole('treeitem').nth(1).click()
     const nodeInformation = page.getByRole('dialog')
@@ -2099,19 +2217,102 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   page,
 }) => {
   const issues = collectPageIssues(page)
+  await mockIsolatedAccount(page)
+  await page.route('**/api/v1/accounts/*/callflows?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: 0,
+          sync: { status: 'healthy', last_successful_at: null, error_message: null },
+        },
+      }),
+    })
+  })
+  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: isolatedCreateEditor() }),
+    })
+  })
   await page.goto('/call-routing')
   await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  await expect(page.getByRole('heading', { name: 'Create callflow' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create callflow', exact: true })).toHaveCount(1)
+  await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toHaveCount(0)
+  await expect(page.getByText('GridPBX / Callflows / Create', { exact: true })).toBeVisible()
+  await expect(
+    page.getByText('Create a phone-number route using safe public GridPBX references.', {
+      exact: true,
+    }),
+  ).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Close create callflow' })).toBeVisible()
   const workspace = page.getByRole('region', { name: 'Create callflow' })
   await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
   const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+  const workspaceLayout = workspace.locator('[data-callflow-workspace-layout]')
+  const actionPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  const headerBox = await page.locator('[data-callflow-page-header]').boundingBox()
+  const workspaceLayoutBox = await workspaceLayout.boundingBox()
+  const canvasBox = await canvas.boundingBox()
+  const paletteBox = await actionPalette.boundingBox()
+  expect(headerBox).not.toBeNull()
+  expect(workspaceLayoutBox).not.toBeNull()
+  expect(canvasBox).not.toBeNull()
+  expect(paletteBox).not.toBeNull()
+  expect(Math.abs(workspaceLayoutBox!.x - headerBox!.x)).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(workspaceLayoutBox!.x + workspaceLayoutBox!.width - (headerBox!.x + headerBox!.width)),
+  ).toBeLessThanOrEqual(1)
+  expect(canvasBox!.x).toBeGreaterThanOrEqual(workspaceLayoutBox!.x)
+  expect(paletteBox!.x).toBeGreaterThan(canvasBox!.x)
   await expect(canvas).toContainText('Click to add number')
+  await canvas
+    .getByRole('button', {
+      name: 'Click to add number. Edit callflow name and numbers',
+    })
+    .first()
+    .click()
+  const callflowMetadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
+  await expect(callflowMetadata.getByLabel('Callflow name')).toBeVisible()
+  await expect(callflowMetadata.getByText('Phone-number entry points')).toBeVisible()
+  await callflowMetadata.getByLabel('Internal extension number').fill('2999')
+  await callflowMetadata.getByRole('button', { name: 'Add', exact: true }).click()
+  await callflowMetadata.getByLabel('Internal extension number').fill('2999')
+  await callflowMetadata.getByRole('button', { name: 'Add', exact: true }).click()
+  await expect(callflowMetadata.getByLabel('Internal extension number')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  )
+  await expect(
+    callflowMetadata.getByText('This number is already configured on the callflow.'),
+  ).toBeVisible()
+  await callflowMetadata.getByRole('button', { name: 'Done' }).click()
+  await expect(callflowMetadata).toHaveCount(0)
+  await expect(canvas.getByRole('treeitem', { name: 'Callflow entry: 2999' })).toBeVisible()
+  await canvas.getByRole('button', { name: '2999. Edit callflow name and numbers' }).click()
+  await callflowMetadata.getByRole('button', { name: 'Remove extension number 2999' }).click()
+  await callflowMetadata.getByRole('button', { name: 'Done' }).click()
   await expect(workspace.getByText('Route identity')).toHaveCount(0)
   await expect(workspace.getByText('Root destination')).toHaveCount(0)
 
-  const rootPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  const rootPalette = actionPalette
   await expect(rootPalette).toBeVisible()
+  const movePalette = rootPalette.getByRole('button', { name: 'Move action palette' })
+  const dockPalette = rootPalette.getByRole('button', { name: 'Dock action palette' })
+  await movePalette.dispatchEvent('pointerdown', { button: 0, clientX: 1850, clientY: 280 })
+  await page.mouse.move(1600, 360)
+  await page.mouse.up()
+  await expect(dockPalette).toBeVisible()
+  await dockPalette.click()
+  await expect(dockPalette).toHaveCount(0)
   const rootAction = rootPalette.getByRole('button', { name: 'Use User as root action' })
   await expect(rootAction).toHaveAttribute('draggable', 'true')
   const dataTransfer = await page.evaluateHandle(() => new DataTransfer())
@@ -2136,14 +2337,202 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await page.getByRole('option').first().click()
   await actionDialog.getByRole('button', { name: 'Use action' }).click()
 
+  const fallbackTransfer = await page.evaluateHandle(() => new DataTransfer())
+  const voicemailAction = rootPalette.getByRole('button', {
+    name: 'Use Voicemail as root action',
+  })
+  const fallbackDropZone = canvas.getByRole('button', { name: 'Add fallback branch' })
+  await voicemailAction.dispatchEvent('dragstart', { dataTransfer: fallbackTransfer })
+  await fallbackDropZone.dispatchEvent('dragenter', { dataTransfer: fallbackTransfer })
+  await fallbackDropZone.dispatchEvent('dragover', { dataTransfer: fallbackTransfer })
+  await expect(fallbackDropZone).toHaveText('Drop Voicemail as fallback')
+  await fallbackDropZone.dispatchEvent('drop', { dataTransfer: fallbackTransfer })
+  const fallbackDialog = page.getByRole('dialog', { name: 'Configure fallback' })
+  await expect(fallbackDialog.getByRole('button', { name: 'Fallback type' })).toContainText(
+    'Voicemail',
+  )
+  await fallbackDialog.getByRole('button', { name: 'Use fallback' }).click()
+  await expect(canvas.locator('[data-callflow-create-branch-label]')).toHaveText('_')
+  await canvas.getByRole('button', { name: 'Configure fallback branch' }).click()
+  await page
+    .getByRole('dialog', { name: 'Configure fallback' })
+    .getByRole('button', { name: 'Remove fallback' })
+    .click()
+  await expect(canvas.locator('[data-callflow-create-branch-label]')).toHaveCount(0)
+
+  await rootPalette.getByRole('button', { name: 'Use Menu as root action' }).click()
+  const menuReplacement = page.getByRole('dialog', { name: 'Replace root action?' })
+  await menuReplacement.getByRole('button', { name: 'Replace root action' }).click()
+  const menuDialog = page.getByRole('dialog', { name: 'Configure Menu' })
+  await expect(menuDialog.getByText('Menu key routes')).toBeVisible()
+  await menuDialog.getByRole('button', { name: 'Use action' }).click()
+
+  const menuBranchTransfer = await page.evaluateHandle(() => new DataTransfer())
+  const menuBranchDropZone = canvas.getByRole('button', { name: 'Add menu key branch' })
+  await voicemailAction.dispatchEvent('dragstart', { dataTransfer: menuBranchTransfer })
+  await menuBranchDropZone.dispatchEvent('dragenter', { dataTransfer: menuBranchTransfer })
+  await menuBranchDropZone.dispatchEvent('dragover', { dataTransfer: menuBranchTransfer })
+  await expect(menuBranchDropZone).toHaveText(/^Drop Voicemail on /)
+  await menuBranchDropZone.dispatchEvent('drop', { dataTransfer: menuBranchTransfer })
+  const configuredMenuDialog = page.getByRole('dialog', { name: 'Configure Menu' })
+  await expect(
+    configuredMenuDialog.getByRole('button', { name: 'Menu branch type 1' }),
+  ).toContainText('Voicemail')
+  await expect(
+    configuredMenuDialog.getByRole('button', { name: 'Menu branch destination 1' }),
+  ).not.toHaveText('Select a destination')
+  await configuredMenuDialog.getByRole('button', { name: 'Use action' }).click()
+  await expect(canvas.locator('[data-callflow-create-branch-label]')).toHaveCount(1)
+  await expect(canvas).toContainText('Voicemail')
+
+  await rootPalette.getByRole('button', { name: /^Time of Day/ }).click()
+  await rootPalette.getByRole('button', { name: 'Use Time of Day as root action' }).click()
+  const replacement = page.getByRole('dialog', { name: 'Replace root action?' })
+  await replacement.getByRole('button', { name: 'Replace root action' }).click()
+  const scheduleDialog = page.getByRole('dialog', { name: 'Configure Time of Day' })
+  await expect(scheduleDialog.getByText('Schedule routes')).toBeVisible()
+  await expect(
+    scheduleDialog.getByRole('switch', { name: 'Route matching calls' }),
+  ).toHaveAttribute('aria-checked', 'true')
+  await scheduleDialog.getByRole('button', { name: 'Use action' }).click()
+  await expect(canvas.locator('[data-callflow-create-branch-label]')).toHaveText('rule_set')
+
   await workspace.getByRole('button', { name: 'Create callflow' }).click()
   const metadataDialog = page.getByRole('dialog', { name: 'Callflow' })
   const name = metadataDialog.getByLabel('Callflow name')
   await expect(name).toHaveAttribute('aria-invalid', 'true')
   await expect(name).toHaveClass(/border-red-400/)
   await expect(metadataDialog.getByText('Enter a route name.')).toBeVisible()
-  await expect(metadataDialog.getByText('Select at least one phone number.')).toBeVisible()
+  await expect(
+    metadataDialog.getByText('Add at least one extension or phone number.'),
+  ).toBeVisible()
   await expect(page.getByText('Check the highlighted fields and try again.')).toHaveCount(0)
+  expect(issues).toEqual([])
+})
+
+test('reopens callflow metadata and highlights an extension conflict rejected by the API', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  await mockIsolatedAccount(page)
+  await page.route('**/api/v1/accounts/*/callflows?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: 0,
+          sync: { status: 'healthy', last_successful_at: null, error_message: null },
+        },
+      }),
+    })
+  })
+  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: isolatedCreateEditor() }),
+    })
+  })
+  await page.route('**/api/v1/accounts/*/callflows', async (route) => {
+    await route.fulfill({
+      status: 422,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        message: 'The submitted callflow contains invalid entry numbers.',
+        errors: {
+          extension_numbers: ['Extension 2999 already enters another callflow.'],
+        },
+      }),
+    })
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+  await canvas
+    .getByRole('button', { name: 'Click to add number. Edit callflow name and numbers' })
+    .first()
+    .click()
+
+  let metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
+  await metadata.getByLabel('Callflow name').fill('Conflicting extension route')
+  await metadata.getByLabel('Internal extension number').fill('2999')
+  await metadata.getByRole('button', { name: 'Add', exact: true }).click()
+  await metadata.getByRole('button', { name: 'Done' }).click()
+  await expect(metadata).toHaveCount(0)
+
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('button', { name: 'Use User as root action' }).click()
+  const actionDialog = page.getByRole('dialog', { name: 'Configure User' })
+  await actionDialog.getByRole('button', { name: 'Root action destination' }).click()
+  await page.getByRole('option').first().click()
+  await actionDialog.getByRole('button', { name: 'Use action' }).click()
+
+  const rejected = page.waitForResponse(
+    (response) =>
+      response.request().method() === 'POST' &&
+      /\/api\/v1\/accounts\/[^/]+\/callflows$/.test(new URL(response.url()).pathname),
+  )
+  await workspace.getByRole('button', { name: 'Create callflow' }).click()
+  expect((await rejected).status()).toBe(422)
+
+  metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
+  const extensionInput = metadata.getByLabel('Internal extension number')
+  await expect(extensionInput).toHaveAttribute('aria-invalid', 'true')
+  await expect(extensionInput).toHaveClass(/border-red-400/)
+  await expect(metadata.getByText('Extension 2999 already enters another callflow.')).toBeVisible()
+  expect(issues.filter((issue) => !issue.includes('status of 422'))).toEqual([])
+})
+
+test('keeps the edit panel open when the final required entry number is removed', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  const extensionId = '16f95ac5-243c-476a-b238-9f51108f82e1'
+  const editor = {
+    ...isolatedCreateEditor(),
+    mode: 'update',
+    requires_entry_number: true,
+    extension_numbers: ['2999'],
+    preserved_numbers: [],
+    phone_numbers: [],
+  }
+  const dialog = await openMockedCallflowEditor(page, {
+    id: '55b6bcc4-7b70-4892-b49a-b07d989249d8',
+    name: 'Required entry route',
+    rootModule: 'user',
+    target: { type: 'extension', id: extensionId, label: 'Reception' },
+    editor,
+  })
+  page.on('request', (request) => {
+    if (
+      request.method() === 'PATCH' &&
+      /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(request.url()).pathname)
+    ) {
+      mutations.push(request.url())
+    }
+  })
+
+  await dialog.getByRole('button', { name: 'Remove extension number 2999' }).click()
+  await dialog.getByRole('button', { name: 'Save route' }).click()
+
+  const extensionInput = dialog.getByLabel('Internal extension number')
+  await expect(extensionInput).toHaveAttribute('aria-invalid', 'true')
+  await expect(extensionInput).toHaveClass(/border-red-400/)
+  await expect(
+    dialog.getByText(
+      'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
+    ),
+  ).toBeVisible()
+  expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
 
@@ -2187,7 +2576,7 @@ test('removes one live guided subtree without exposing Switch identifiers', asyn
   await expect(workspace.getByRole('treeitem', { name: /^Voicemail:/ })).toHaveCount(0)
   await expect(workspace.getByRole('treeitem', { name: /^User:/ })).toBeVisible()
 
-  await workspace.getByRole('button', { name: 'Back to callflows' }).click()
+  await page.getByRole('button', { name: 'Back to callflows' }).click()
   await page.getByRole('button', { name: `View ${routeName}` }).click()
   const reopened = page.getByRole('region', { name: 'Callflow workspace' })
   await expect(reopened.getByRole('treeitem', { name: /^Voicemail:/ })).toHaveCount(0)
@@ -2465,6 +2854,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   page,
 }) => {
   const issues = collectPageIssues(page)
+  await mockIsolatedAccount(page)
   let movePayload: unknown = null
   let createNodePayload: unknown = null
   let updateNodePayload: unknown = null
@@ -2783,10 +3173,36 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'View Visual diagram route' }).click()
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  await expect(
+    page.getByRole('heading', { name: 'Visual diagram route', exact: true }),
+  ).toHaveCount(1)
+  await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toHaveCount(0)
+  await expect(
+    page.getByText(
+      'The full-width route map stays on the main page; select a node to inspect it in a modal.',
+      { exact: true },
+    ),
+  ).toHaveCount(1)
+  await expect(page.getByRole('button', { name: 'Back to callflows' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Refresh callflow nodes' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Edit callflow', exact: true })).toBeVisible()
   await expect(workspace.getByRole('heading', { name: 'Visual route map' })).toBeVisible()
   await expect(
     workspace.getByRole('treeitem', { name: 'Callflow entry: +15550001234' }),
   ).toBeVisible()
+  await workspace
+    .getByRole('button', {
+      name: '+15550001234. Edit callflow entry numbers',
+    })
+    .click()
+  const callflowEditor = page.getByRole('dialog', { name: 'Edit callflow' })
+  await expect(
+    callflowEditor.getByRole('heading', { name: 'Edit callflow', exact: true }),
+  ).toBeVisible()
+  await expect(callflowEditor.getByText('Phone-number entry points')).toBeVisible()
+  await expect(callflowEditor.getByText('+15550001234', { exact: true })).toBeVisible()
+  await callflowEditor.getByRole('button', { name: 'Close panel' }).click()
+  await expect(callflowEditor).toHaveCount(0)
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(workspace.getByText('Schedule matches', { exact: true }).last()).toBeVisible()
   await expect(workspace.getByText('Preserved branch 1', { exact: true })).toHaveCount(0)
@@ -3070,10 +3486,8 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   expect(viewport).not.toBeNull()
   expect(mapBox!.x).toBeGreaterThanOrEqual(workspaceBox!.x)
   expect(paletteBox!.x).toBeGreaterThan(mapBox!.x)
-  expect(workspaceBox!.x).toBeGreaterThanOrEqual(mainBox!.x + 16)
-  expect(workspaceBox!.x + workspaceBox!.width).toBeLessThanOrEqual(
-    mainBox!.x + mainBox!.width - 16,
-  )
+  expect(Math.abs(workspaceBox!.x - mainBox!.x)).toBeLessThanOrEqual(1)
+  expect(workspaceBox!.x + workspaceBox!.width).toBeLessThanOrEqual(mainBox!.x + mainBox!.width)
 
   await workspace.getByRole('button', { name: 'Remove User' }).click()
   const removeDialog = page.getByRole('dialog', { name: 'Remove this callflow action?' })

@@ -71,6 +71,7 @@ function submit(): void {
       <div
         v-if="error && Object.keys(fieldErrors).length === 0"
         class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
       >
         {{ error }}
       </div>
@@ -99,6 +100,8 @@ function submit(): void {
                 class="grid gap-2 rounded-md border border-slate-300 p-2"
                 :class="validationControlClass(fieldError('rule_ids'))"
                 :aria-invalid="Boolean(fieldError('rule_ids'))"
+                role="group"
+                aria-label="Available schedule rules"
               >
                 <FormCheckbox
                   v-for="rule in options.rules"

@@ -61,7 +61,7 @@ watch(
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
     <div class="page-container flex flex-col gap-4 sm:flex-row sm:items-center">
-      <div>
+      <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Feature Codes</h1>
         <p class="mt-1 text-xs text-slate-500">
@@ -71,7 +71,7 @@ watch(
       <button
         type="button"
         :disabled="!accounts.selectedId || featureCodes.loading"
-        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50 sm:ml-auto"
+        class="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm disabled:opacity-50 sm:ml-auto sm:w-auto"
         @click="accounts.selectedId && featureCodes.load(accounts.selectedId)"
       >
         <ArrowPathIcon class="size-4" :class="featureCodes.loading && 'animate-spin'" />
@@ -137,7 +137,7 @@ watch(
         class="w-full sm:max-w-md"
       />
       <span
-        class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-500 sm:ml-auto"
+        class="max-w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold break-words text-slate-500 sm:ml-auto"
       >
         {{ freshnessLabel }}
       </span>
@@ -146,29 +146,33 @@ watch(
     <div
       v-if="featureCodes.error"
       class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+      role="alert"
     >
       {{ featureCodes.error }}
     </div>
 
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full min-w-[850px] text-left">
+        <table class="w-full min-w-[850px] text-left" :aria-busy="featureCodes.loading">
+          <caption class="sr-only">
+            Active feature codes projected for the selected Switch account
+          </caption>
           <thead
             class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
           >
             <tr>
-              <th class="px-5 py-3.5">Feature</th>
-              <th class="px-5 py-3.5">Code</th>
-              <th class="px-5 py-3.5">Category</th>
-              <th class="px-5 py-3.5">Runtime action</th>
-              <th class="px-5 py-3.5">Dependency summary</th>
-              <th class="px-5 py-3.5">State</th>
+              <th scope="col" class="px-5 py-3.5">Feature</th>
+              <th scope="col" class="px-5 py-3.5">Code</th>
+              <th scope="col" class="px-5 py-3.5">Category</th>
+              <th scope="col" class="px-5 py-3.5">Runtime action</th>
+              <th scope="col" class="px-5 py-3.5">Dependency summary</th>
+              <th scope="col" class="px-5 py-3.5">State</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
             <tr v-if="featureCodes.loading">
               <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                Loading active feature codes…
+                <span role="status">Loading active feature codes…</span>
               </td>
             </tr>
             <tr v-else-if="!accounts.selectedId">

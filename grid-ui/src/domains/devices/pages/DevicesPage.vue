@@ -60,7 +60,7 @@ function humanize(value: string): string {
           Desk phones, softphones, and SIP endpoints projected from Switch.
         </p>
       </div>
-      <div class="flex gap-2 sm:ml-auto">
+      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto sm:justify-end">
         <button
           type="button"
           :disabled="!accounts.selectedId || devices.loading"
@@ -150,6 +150,8 @@ function humanize(value: string): string {
             label="Search devices"
             placeholder="Search name, model, MAC, extension…"
             input-class="h-10 bg-white text-xs shadow-sm"
+            live
+            @search="search"
           />
         </form>
         <span
@@ -168,6 +170,7 @@ function humanize(value: string): string {
 
       <div
         v-if="devices.error"
+        role="alert"
         class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
       >
         {{ devices.error }}
@@ -175,23 +178,26 @@ function humanize(value: string): string {
 
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[900px] text-left">
+          <table class="w-full min-w-[900px] text-left" :aria-busy="devices.loading">
+            <caption class="sr-only">
+              Projected devices for the selected Switch account
+            </caption>
             <thead
               class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
             >
               <tr>
-                <th class="px-5 py-3.5">Device</th>
-                <th class="px-5 py-3.5">Type & model</th>
-                <th class="px-5 py-3.5">Assigned extension</th>
-                <th class="px-5 py-3.5">MAC address</th>
-                <th class="px-5 py-3.5">Status</th>
-                <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+                <th scope="col" class="px-5 py-3.5">Device</th>
+                <th scope="col" class="px-5 py-3.5">Type & model</th>
+                <th scope="col" class="px-5 py-3.5">Assigned extension</th>
+                <th scope="col" class="px-5 py-3.5">MAC address</th>
+                <th scope="col" class="px-5 py-3.5">Status</th>
+                <th scope="col" aria-label="View device" class="w-12 px-5 py-3.5" />
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
               <tr v-if="devices.loading">
                 <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                  Loading projected devices…
+                  <span role="status">Loading projected devices…</span>
                 </td>
               </tr>
               <tr v-else-if="devices.records.length === 0">
@@ -278,10 +284,10 @@ function humanize(value: string): string {
           </table>
         </div>
         <footer
-          class="flex items-center border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"
+          class="flex flex-wrap items-center gap-3 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"
         >
           <span>{{ devices.total }} devices</span>
-          <div class="ml-auto flex items-center gap-2">
+          <div class="ml-auto flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               :disabled="devices.page <= 1"

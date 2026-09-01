@@ -209,21 +209,29 @@ const activityChartMinimumWidth = computed(() => {
 
 watch(
   () => accounts.selectedId,
-  (accountId) => {
-    dashboard.reset()
-    activity.reset()
-    geography.reset()
-    quality.reset()
-    missedCalls.reset()
-    topDestinations.reset()
-    if (accountId) {
-      void dashboard.load(accountId)
-      void activity.load(accountId)
-      void geography.load(accountId, activity.range.value)
-      void quality.load(accountId, activity.range.value)
-      void missedCalls.load(accountId, activity.range.value)
-      void topDestinations.load(accountId, activity.range.value)
+  async (accountId) => {
+    if (!accountId) {
+      dashboard.reset()
+      activity.reset()
+      geography.reset()
+      quality.reset()
+      missedCalls.reset()
+      topDestinations.reset()
+
+      return
     }
+
+    const scrollPosition = window.scrollY
+    await Promise.all([
+      dashboard.load(accountId),
+      activity.load(accountId),
+      geography.load(accountId, activity.range.value),
+      quality.load(accountId, activity.range.value),
+      missedCalls.load(accountId, activity.range.value),
+      topDestinations.load(accountId, activity.range.value),
+    ])
+
+    if (accounts.selectedId === accountId) window.scrollTo({ top: scrollPosition })
   },
   { immediate: true },
 )
@@ -405,11 +413,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
       >
         <div class="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center">
           <div class="flex items-center gap-3">
-            <span
-              class="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-500 text-white shadow-sm"
-            >
-              <BoltIcon class="size-5" />
-            </span>
+            <BoltIcon class="size-5 shrink-0 text-brand-600" aria-hidden="true" />
             <div>
               <h2 id="dashboard-quick-actions" class="text-sm font-semibold text-slate-800">
                 Quick actions

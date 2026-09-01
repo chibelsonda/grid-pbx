@@ -79,7 +79,7 @@ function editor(mode: 'create' | 'update'): CallflowEditor {
 }
 
 describe('callflow form schema', () => {
-  it('requires a projected destination and a phone number when creating a route', () => {
+  it('requires a projected destination and at least one entry number when creating a route', () => {
     const result = createCallflowFormSchema(editor('create')).safeParse({
       name: '',
       destination_type: 'extension',
@@ -103,9 +103,33 @@ describe('callflow form schema', () => {
     expect(result.error.flatten().fieldErrors.destination_id).toEqual([
       'Select an available destination.',
     ])
-    expect(result.error.flatten().fieldErrors.phone_number_ids).toEqual([
-      'Select at least one phone number.',
+    expect(result.error.flatten().fieldErrors.extension_numbers).toEqual([
+      'Add at least one extension or phone number.',
     ])
+  })
+
+  it('accepts a valid internal extension without an inventory phone number', () => {
+    const result = createCallflowFormSchema(editor('create')).safeParse({
+      name: 'Internal support route',
+      destination_type: 'extension',
+      destination_id: destinationId,
+      manage_fallback: true,
+      fallback_enabled: false,
+      fallback_destination_type: 'voicemail',
+      fallback_destination_id: '',
+      manage_menu_branches: true,
+      menu_branches: [],
+      manage_temporal_match: true,
+      temporal_match_enabled: true,
+      temporal_match_destination_type: 'extension',
+      temporal_match_destination_id: destinationId,
+      phone_number_ids: [],
+      extension_numbers: ['2999'],
+    })
+
+    expect(result.success).toBe(true)
+    if (!result.success) return
+    expect(result.data.extension_numbers).toEqual(['2999'])
   })
 
   it('allows an update to clear projected phone-number assignments', () => {
@@ -127,6 +151,35 @@ describe('callflow form schema', () => {
         phone_number_ids: [],
       }).success,
     ).toBe(true)
+  })
+
+  it('prevents an update from removing the final required callflow entry number', () => {
+    const currentEditor = editor('update')
+    currentEditor.requires_entry_number = true
+
+    const result = createCallflowFormSchema(currentEditor).safeParse({
+      name: 'Standalone reception route',
+      destination_type: 'extension',
+      destination_id: destinationId,
+      manage_fallback: true,
+      fallback_enabled: false,
+      fallback_destination_type: 'voicemail',
+      fallback_destination_id: '',
+      manage_menu_branches: true,
+      menu_branches: [],
+      manage_temporal_match: true,
+      temporal_match_enabled: true,
+      temporal_match_destination_type: 'extension',
+      temporal_match_destination_id: destinationId,
+      phone_number_ids: [],
+      extension_numbers: [],
+    })
+
+    expect(result.success).toBe(false)
+    if (result.success) return
+    expect(result.error.flatten().fieldErrors.extension_numbers).toEqual([
+      'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
+    ])
   })
 
   it('requires an account-scoped target only when the fallback is enabled', () => {

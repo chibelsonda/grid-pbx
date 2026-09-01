@@ -1,10 +1,17 @@
-import type { ZodType } from 'zod'
+import { z, type ZodType } from 'zod'
 
 export type FormErrors = Record<string, string[]>
 
 export type FormValidationResult<T> =
   | { success: true; data: T; errors: FormErrors }
   | { success: false; data: null; errors: FormErrors }
+
+export function nullableInteger(minimum: number, maximum: number) {
+  return z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.number().int().min(minimum).max(maximum).nullable(),
+  )
+}
 
 export function validateForm<T>(schema: ZodType<T>, input: unknown): FormValidationResult<T> {
   const result = schema.safeParse(input)

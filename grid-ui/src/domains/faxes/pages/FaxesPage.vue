@@ -217,6 +217,8 @@ function clearFaxBoxQuery(): void {
           class="min-w-0 flex-1"
           placeholder="Search sender, recipient, or subject…"
           input-class="h-10 bg-white text-xs"
+          live
+          @search="accounts.selectedId && faxes.load(accounts.selectedId)"
         /><FormSelect
           v-model="faxes.folder"
           class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"

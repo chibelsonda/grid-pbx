@@ -2380,7 +2380,7 @@ class CallflowControllerTest extends TestCase
             ->assertJsonValidationErrors('data.device_ids');
     }
 
-    public function test_it_maps_public_ring_group_devices_without_exposing_switch_endpoint_ids(): void
+    public function test_it_maps_public_ring_group_members_without_exposing_switch_endpoint_ids(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $menu = SwitchMenu::factory()->for($account)->create([
@@ -2390,6 +2390,15 @@ class CallflowControllerTest extends TestCase
         $device = SwitchDevice::factory()->for($account)->create([
             'switch_resource_id' => 'switch-ring-group-device',
             'name' => 'Reception phone',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-ring-group-user',
+            'display_name' => 'Reception user',
+            'extension' => '2401',
+        ]);
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-ring-group-group',
+            'name' => 'Reception team',
         ]);
         $ringback = SwitchMedia::factory()->for($account)->create([
             'switch_resource_id' => 'switch-ring-group-media',
@@ -2408,12 +2417,26 @@ class CallflowControllerTest extends TestCase
         ]);
         $publicSettings = [
             'strategy' => 'weighted_random',
-            'endpoints' => [[
-                'device_id' => $device->id,
-                'delay' => 0,
-                'timeout' => 20,
-                'weight' => 75,
-            ]],
+            'endpoints' => [
+                [
+                    'device_id' => $device->id,
+                    'delay' => 0,
+                    'timeout' => 20,
+                    'weight' => 75,
+                ],
+                [
+                    'extension_id' => $extension->id,
+                    'delay' => 0,
+                    'timeout' => 20,
+                    'weight' => 60,
+                ],
+                [
+                    'group_id' => $group->id,
+                    'delay' => 0,
+                    'timeout' => 20,
+                    'weight' => 50,
+                ],
+            ],
             'repeats' => 2,
             'ignore_forward' => false,
             'fail_on_single_reject' => true,
@@ -2424,15 +2447,31 @@ class CallflowControllerTest extends TestCase
         ];
         $switchSettings = [
             'strategy' => 'weighted_random',
-            'endpoints' => [[
-                'endpoint_type' => 'device',
-                'id' => 'switch-ring-group-device',
-                'delay' => 0,
-                'timeout' => 20,
-                'weight' => 75,
-            ]],
+            'endpoints' => [
+                [
+                    'endpoint_type' => 'device',
+                    'id' => 'switch-ring-group-device',
+                    'delay' => 0,
+                    'timeout' => 20,
+                    'weight' => 75,
+                ],
+                [
+                    'endpoint_type' => 'user',
+                    'id' => 'switch-ring-group-user',
+                    'delay' => 0,
+                    'timeout' => 20,
+                    'weight' => 60,
+                ],
+                [
+                    'endpoint_type' => 'group',
+                    'id' => 'switch-ring-group-group',
+                    'delay' => 0,
+                    'timeout' => 20,
+                    'weight' => 50,
+                ],
+            ],
             'repeats' => 2,
-            'timeout' => 20,
+            'timeout' => 60,
             'ignore_forward' => false,
             'fail_on_single_reject' => true,
             'ringback' => 'switch-ring-group-media',
@@ -2474,10 +2513,14 @@ class CallflowControllerTest extends TestCase
                                     ...$switchSettings['ringtones'],
                                     'server_owned' => 'secret-ringtone',
                                 ],
-                                'endpoints' => [[
-                                    ...$switchSettings['endpoints'][0],
-                                    'server_owned' => 'secret',
-                                ]],
+                                'endpoints' => [
+                                    [
+                                        ...$switchSettings['endpoints'][0],
+                                        'server_owned' => 'secret',
+                                    ],
+                                    $switchSettings['endpoints'][1],
+                                    $switchSettings['endpoints'][2],
+                                ],
                             ],
                             'children' => [],
                         ],
@@ -2499,6 +2542,10 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.flow.children._.settings.endpoints.0.delay', 0)
             ->assertJsonPath('data.flow.children._.settings.endpoints.0.timeout', 20)
             ->assertJsonPath('data.flow.children._.settings.endpoints.0.weight', 75)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.1.extension_id', $extension->id)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.1.weight', 60)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.2.group_id', $group->id)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.2.weight', 50)
             ->assertJsonPath('data.flow.children._.settings.repeats', 2)
             ->assertJsonPath('data.flow.children._.settings.ignore_forward', false)
             ->assertJsonPath('data.flow.children._.settings.fail_on_single_reject', true)
@@ -2506,6 +2553,8 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.flow.children._.settings.ringtone_internal', 'internal-ring')
             ->assertJsonPath('data.flow.children._.settings.ringtone_external', 'external-ring')
             ->assertJsonMissing(['id' => 'switch-ring-group-device'])
+            ->assertJsonMissing(['id' => 'switch-ring-group-user'])
+            ->assertJsonMissing(['id' => 'switch-ring-group-group'])
             ->assertJsonMissing(['ringback' => 'switch-ring-group-media'])
             ->assertJsonMissing(['server_owned' => 'secret-ringtone'])
             ->assertJsonMissing(['server_owned' => 'secret']);
@@ -3382,6 +3431,192 @@ class CallflowControllerTest extends TestCase
             'phone_number_ids' => [$phoneNumber->id],
         ])->assertCreated()->assertJsonPath('data.root_module', 'acdc_member')
             ->assertJsonPath('data.flow.target.type', 'queue')->assertJsonPath('data.flow.target.id', $queue->id);
+    }
+
+    public function test_it_creates_a_callflow_with_a_server_validated_internal_extension_entry(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $destination = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-internal-entry-target',
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')
+            ->once()
+            ->withArgs(fn (
+                SwitchAccount $received,
+                string $name,
+                string $module,
+                string $resourceId,
+                array $numbers,
+            ): bool => $received->is($account)
+                && $name === 'Internal support route'
+                && $module === 'user'
+                && $resourceId === 'switch-user-internal-entry-target'
+                && $numbers === ['2999'])
+            ->andReturn([
+                'id' => 'switch-callflow-internal-entry',
+                'name' => 'Internal support route',
+                'numbers' => ['2999'],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'switch-user-internal-entry-target'],
+                    'children' => [],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Internal support route',
+                'destination_type' => 'extension',
+                'destination_id' => $destination->id,
+                'phone_number_ids' => [],
+                'extension_numbers' => ['2999'],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.numbers.0', '2999');
+    }
+
+    public function test_it_replaces_only_editable_extension_aliases_and_preserves_the_owned_extension(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $destination = SwitchExtension::factory()->for($account)->create([
+            'extension' => '2001',
+            'switch_resource_id' => 'switch-user-owned-entry-target',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_extension_id' => $destination->getKey(),
+            'switch_resource_id' => 'switch-callflow-owned-entry',
+            'name' => 'Owned extension route',
+            'numbers' => ['2001', '2999', '*97'],
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $destination->id,
+                    'label' => 'Owned extension',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('updateDestination')
+            ->once()
+            ->withArgs(fn (
+                SwitchAccount $received,
+                string $resourceId,
+                string $module,
+                string $resourceTarget,
+                ?string $name,
+                array $assignedNumbers,
+                array $knownNumbers,
+            ): bool => $received->is($account)
+                && $resourceId === 'switch-callflow-owned-entry'
+                && $module === 'user'
+                && $resourceTarget === 'switch-user-owned-entry-target'
+                && $name === 'Owned extension route'
+                && $assignedNumbers === ['3000']
+                && $knownNumbers === ['2999'])
+            ->andReturn([
+                'id' => 'switch-callflow-owned-entry',
+                'name' => 'Owned extension route',
+                'numbers' => ['2001', '*97', '3000'],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'user',
+                    'data' => ['id' => 'switch-user-owned-entry-target'],
+                    'children' => [],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.extension_numbers', ['2999'])
+            ->assertJsonPath('data.preserved_numbers', ['2001', '*97']);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
+                'name' => 'Owned extension route',
+                'destination_type' => 'extension',
+                'destination_id' => $destination->id,
+                'phone_number_ids' => [],
+                'extension_numbers' => ['3000'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.numbers', ['2001', '*97', '3000']);
+    }
+
+    public function test_it_rejects_removing_the_final_entry_number_from_a_standalone_callflow(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $destination = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-final-entry-target',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-final-entry',
+            'name' => 'Standalone internal route',
+            'numbers' => ['2999'],
+            'patterns' => [],
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $destination->id,
+                    'label' => 'Reception',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldNotReceive('updateDestination');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.requires_entry_number', true);
+
+        $this->actingAs($user)
+            ->putJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}", [
+                'name' => 'Standalone internal route',
+                'destination_type' => 'extension',
+                'destination_id' => $destination->id,
+                'phone_number_ids' => [],
+                'extension_numbers' => [],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('extension_numbers')
+            ->assertJsonPath(
+                'errors.extension_numbers.0',
+                'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
+            );
+    }
+
+    public function test_it_rejects_an_internal_entry_number_owned_by_another_callflow(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $destination = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-conflicting-entry-target',
+        ]);
+        SwitchCallflow::factory()->for($account)->create([
+            'name' => 'Existing internal route',
+            'numbers' => ['2999'],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldNotReceive('create');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Conflicting route',
+                'destination_type' => 'extension',
+                'destination_id' => $destination->id,
+                'phone_number_ids' => [],
+                'extension_numbers' => ['2999'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('extension_numbers');
     }
 
     public function test_it_creates_a_guided_menu_destination_with_the_menu_module(): void

@@ -334,6 +334,12 @@ class ExtensionControllerTest extends TestCase
             'number' => '+15550001911',
             'features' => ['e911'],
         ]);
+        $holdMusic = SwitchMedia::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-media-hold',
+        ]);
+        $referencedCallflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-reference',
+        ]);
         $gateway = $this->mock(SwitchExtensionProvisioningGateway::class);
         $gateway->shouldReceive('createUser')->once()->withArgs(
             fn ($providedAccount, array $data): bool => $providedAccount->is($account)
@@ -344,7 +350,18 @@ class ExtensionControllerTest extends TestCase
                 && ! array_key_exists('preserve_number', $data['caller_id']['external'])
                 && $data['call_forward']['number'] === '+15550001002'
                 && $data['call_restriction']['international']['action'] === 'deny'
-                && $data['call_recording']['outbound']['offnet']['format'] === 'mp3',
+                && $data['call_recording']['outbound']['offnet']['format'] === 'mp3'
+                && $data['media']['audio']['codecs'] === ['OPUS', 'PCMU']
+                && $data['music_on_hold']['media_id'] === 'switch-media-hold'
+                && $data['ringtones']['internal'] === 'Internal-ring'
+                && $data['dial_plan']['rules'][0]['pattern'] === '^9(.*)$'
+                && $data['formatters'][0]['field'] === 'request'
+                && $data['profile']['title'] === 'Support Engineer'
+                && $data['pronounced_name']['media_id'] === 'switch-media-hold'
+                && $data['metaflows']['binding_digit'] === '#'
+                && $data['metaflows']['preserved_options']['numbers']['4']['data']['id']
+                    === 'switch-callflow-reference'
+                && ! array_key_exists('actions', $data['metaflows']),
         )->andReturn([
             'id' => 'switch-user-1001',
             'first_name' => 'Alice',
@@ -400,6 +417,65 @@ class ExtensionControllerTest extends TestCase
         ];
         $payload['call_restriction'] = ['international' => ['action' => 'deny']];
         $payload['call_recording'] = $this->recordingPayload();
+        $payload['media'] = [
+            'audio' => ['codecs' => ['OPUS', 'PCMU']],
+            'video' => ['codecs' => ['H264']],
+            'bypass_media' => 'auto',
+            'encryption' => ['enforce_security' => true, 'methods' => ['srtp']],
+            'fax_option' => false,
+            'ignore_early_media' => true,
+            'progress_timeout' => 30,
+        ];
+        $payload['music_on_hold'] = [
+            'media_id' => $holdMusic->id,
+            'preserve_media' => false,
+        ];
+        $payload['ringtones'] = ['internal' => 'Internal-ring', 'external' => 'External-ring'];
+        $payload['dial_plan'] = [
+            'system' => ['north_america'],
+            'rules' => [[
+                'pattern' => '^9(.*)$',
+                'description' => 'Outside line',
+                'prefix' => '+1',
+                'suffix' => null,
+            ]],
+        ];
+        $payload['formatters'] = [[
+            'field' => 'request',
+            'direction' => 'outbound',
+            'match_invite_format' => false,
+            'prefix' => null,
+            'regex' => '^(.*)$',
+            'strip' => false,
+            'suffix' => null,
+            'value' => null,
+        ]];
+        $payload['profile'] = [
+            'addresses' => [['address' => '100 Main Street', 'types' => ['work']]],
+            'assistant' => null,
+            'birthday' => null,
+            'nicknames' => ['Ops'],
+            'note' => null,
+            'role' => null,
+            'sort_string' => null,
+            'title' => 'Support Engineer',
+        ];
+        $payload['pronounced_name'] = [
+            'media_id' => $holdMusic->id,
+            'preserve_media' => false,
+        ];
+        $payload['metaflows'] = [
+            'binding_digit' => '#',
+            'digit_timeout' => 2500,
+            'listen_on' => 'self',
+            'actions' => [[
+                'trigger_type' => 'number',
+                'trigger' => '4',
+                'module' => 'callflow',
+                'data' => ['callflow_id' => $referencedCallflow->id],
+                'children' => [],
+            ]],
+        ];
 
         $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/extensions", $payload)

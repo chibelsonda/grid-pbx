@@ -168,7 +168,7 @@ const confirmation = computed(() => {
 
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
-    <div class="page-container flex items-center gap-4">
+    <div class="page-container flex flex-wrap items-start gap-4 sm:items-center">
       <RouterLink
         to="/devices"
         class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
@@ -176,7 +176,7 @@ const confirmation = computed(() => {
       >
         <ArrowLeftIcon class="size-4" />
       </RouterLink>
-      <div class="min-w-0">
+      <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] font-medium text-slate-400">
           <RouterLink to="/devices" class="hover:text-brand-600">GridPBX / Devices</RouterLink>
           / Detail
@@ -190,7 +190,7 @@ const confirmation = computed(() => {
       </div>
       <div
         v-if="device && accounts.selected?.permissions.can_manage_devices"
-        class="ml-auto flex flex-wrap items-center justify-end gap-2"
+        class="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto sm:justify-end"
       >
         <RouterLink
           :to="{ name: 'device-edit', params: { deviceId: device.id } }"
@@ -252,24 +252,29 @@ const confirmation = computed(() => {
   <div class="page-container py-4 sm:py-6 lg:py-8">
     <p
       v-if="devices.operationMessage"
+      role="status"
+      aria-live="polite"
       class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
     >
       {{ devices.operationMessage }}
     </p>
     <p
       v-if="devices.mutationError"
+      role="alert"
       class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
     >
       {{ devices.mutationError }}
     </p>
     <p
       v-if="lineKeys.mutationError && !lineKeyPanelOpen"
+      role="alert"
       class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
     >
       {{ lineKeys.mutationError }}
     </p>
     <div
       v-if="devices.detailLoading"
+      role="status"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"
     >
       Loading device details…
@@ -277,6 +282,7 @@ const confirmation = computed(() => {
 
     <div
       v-else-if="devices.detailError"
+      role="alert"
       class="card-surface grid min-h-72 place-items-center p-8 text-center"
     >
       <div>

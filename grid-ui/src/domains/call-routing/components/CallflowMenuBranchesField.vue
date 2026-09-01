@@ -23,10 +23,12 @@ const editableDefinitions = computed(() =>
   props.editor.menu_branches.branches.filter(({ editable }) => editable),
 )
 const lockedDefinitions = computed(() =>
-  props.editor.menu_branches.branches.filter(({ editable, target }) => !editable && target === null),
+  props.editor.menu_branches.branches.filter(
+    ({ editable, target }) => !editable && target === null,
+  ),
 )
-const canAdd = computed(
-  () => editableDefinitions.value.some(({ key }) => !props.branches.some((row) => row.key === key)),
+const canAdd = computed(() =>
+  editableDefinitions.value.some(({ key }) => !props.branches.some((row) => row.key === key)),
 )
 
 function fieldError(index: number, field: string): string | null {
@@ -187,7 +189,11 @@ function removeBranch(index: number): void {
     </button>
 
     <div
-      v-if="lockedDefinitions.length || editor.menu_branches.legacy_hash_present || editor.menu_branches.unknown_branch_keys.length"
+      v-if="
+        lockedDefinitions.length ||
+        editor.menu_branches.legacy_hash_present ||
+        editor.menu_branches.unknown_branch_keys.length
+      "
       class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-800"
     >
       <p v-if="lockedDefinitions.length">

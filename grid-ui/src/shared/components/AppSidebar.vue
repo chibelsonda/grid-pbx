@@ -2,7 +2,12 @@
 import { Dialog, DialogPanel, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import SidebarNavigation from '@/shared/components/SidebarNavigation.vue'
 
-defineProps<{ collapsed: boolean; mobileOpen: boolean; themeId: string }>()
+defineProps<{
+  collapsed: boolean
+  mobileOpen: boolean
+  themeId: string
+  organizationLogoUrl?: string | null
+}>()
 const emit = defineEmits<{ collapse: []; closeMobile: [] }>()
 </script>
 
@@ -12,7 +17,11 @@ const emit = defineEmits<{ collapse: []; closeMobile: [] }>()
     :class="collapsed ? 'w-20' : 'w-[280px]'"
     :data-theme="themeId"
   >
-    <SidebarNavigation :collapsed="collapsed" @collapse="emit('collapse')" />
+    <SidebarNavigation
+      :collapsed="collapsed"
+      :logo-url="organizationLogoUrl"
+      @collapse="emit('collapse')"
+    />
   </aside>
 
   <TransitionRoot :show="mobileOpen" as="template">
@@ -42,7 +51,12 @@ const emit = defineEmits<{ collapse: []; closeMobile: [] }>()
             class="app-sidebar fixed inset-y-0 left-0 flex w-[280px] flex-col shadow-2xl"
             :data-theme="themeId"
           >
-            <SidebarNavigation :collapsed="false" mobile @close="emit('closeMobile')" />
+            <SidebarNavigation
+              :collapsed="false"
+              :logo-url="organizationLogoUrl"
+              mobile
+              @close="emit('closeMobile')"
+            />
           </DialogPanel>
         </TransitionChild>
       </div>

@@ -23,4 +23,31 @@ describe('FormFileInput', () => {
     await input.trigger('change')
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([file])
   })
+
+  it('accepts a file dropped on the optional dropzone', async () => {
+    const wrapper = mount(FormFileInput, {
+      props: {
+        modelValue: null,
+        label: 'Logo image',
+        dropzone: true,
+        dropPrompt: 'Drag and drop your logo here',
+        required: true,
+      },
+    })
+    const file = new File(['logo'], 'brand.png', { type: 'image/png' })
+    const input = wrapper.get('input')
+
+    expect(wrapper.text()).toContain('Drag and drop your logo here')
+    expect(input.attributes('required')).toBeDefined()
+    expect(input.attributes('aria-required')).toBe('true')
+    await wrapper.get('[data-testid="file-dropzone"]').trigger('drop', {
+      dataTransfer: { files: { item: () => file } },
+    })
+
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([file])
+    expect(wrapper.emitted('change')?.at(-1)).toEqual([file])
+    await wrapper.setProps({ modelValue: file })
+    expect(input.attributes('required')).toBeUndefined()
+    expect(input.attributes('aria-required')).toBe('true')
+  })
 })

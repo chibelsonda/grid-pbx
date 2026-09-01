@@ -13,6 +13,9 @@ describe('useAgentStatusForm', () => {
     })
 
     form.status = 'logout'
-    expect(validate()).toMatchObject({ success: true, data: { status: 'logout', pause_timeout: null } })
+    expect(validate()).toMatchObject({
+      success: true,
+      data: { status: 'logout', pause_timeout: null },
+    })
   })
 })

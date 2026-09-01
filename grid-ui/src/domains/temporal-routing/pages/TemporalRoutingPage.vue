@@ -102,26 +102,26 @@ function statusLabel(status: TemporalEffectiveStatus): string {
 
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
-    <div class="page-container flex items-center gap-4">
-      <div>
+    <div class="page-container flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Routing</p>
         <h1 class="text-xl font-semibold text-slate-800">Business Hours & Schedules</h1>
         <p class="mt-1 text-xs text-slate-500">
           Build recurring rules and reusable rule sets for time-based routing.
         </p>
       </div>
-      <div class="ml-auto flex gap-2">
+      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
         <button
           v-if="canManage"
           :disabled="temporal.synchronizing"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
+          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
           @click="accounts.selectedId && temporal.synchronize(accounts.selectedId)"
         >
           <ArrowPathIcon class="size-4" :class="temporal.synchronizing && 'animate-spin'" />Sync
         </button>
         <button
           v-if="canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
           @click="tab === 'rules' ? openRule() : openSet()"
         >
           <PlusIcon class="size-4" />New {{ tab === 'rules' ? 'rule' : 'rule set' }}
@@ -158,7 +158,10 @@ function statusLabel(status: TemporalEffectiveStatus): string {
       :selected-index="tab === 'rules' ? 0 : 1"
       @change="tab = $event === 0 ? 'rules' : 'sets'"
     >
-      <TabList class="mb-4 flex items-center gap-2 border-b border-slate-200">
+      <TabList
+        aria-label="Business hours sections"
+        class="mb-4 flex items-center gap-2 border-b border-slate-200"
+      >
         <Tab v-slot="{ selected }" as="template"
           ><button
             class="border-b-2 px-4 py-3 text-xs font-semibold outline-none"
@@ -188,16 +191,25 @@ function statusLabel(status: TemporalEffectiveStatus): string {
       <div
         v-if="temporal.error"
         class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
       >
         {{ temporal.error }}
       </div>
       <form
-        class="mb-4 flex gap-3"
+        class="mb-4 flex flex-col gap-3 sm:flex-row"
         @submit.prevent="accounts.selectedId && temporal.load(accounts.selectedId)"
       >
-        <SearchInput v-model="temporal.search" label="Search schedules" class="min-w-0 flex-1" placeholder="Search schedules…" input-class="h-10 bg-white text-xs shadow-sm" />
+        <SearchInput
+          v-model="temporal.search"
+          label="Search schedules"
+          class="min-w-0 flex-1"
+          placeholder="Search schedules…"
+          input-class="h-10 bg-white text-xs shadow-sm"
+          live
+          @search="accounts.selectedId && temporal.load(accounts.selectedId)"
+        />
         <button
-          class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
+          class="h-10 w-full rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 sm:w-auto"
         >
           Search
         </button>
@@ -205,102 +217,128 @@ function statusLabel(status: TemporalEffectiveStatus): string {
 
       <TabPanels>
         <TabPanel class="card-surface overflow-hidden focus:outline-none">
-          <table class="w-full text-left">
-            <thead
-              class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
-            >
-              <tr>
-                <th class="px-5 py-3.5">Rule</th>
-                <th class="px-5 py-3.5">Cycle</th>
-                <th class="px-5 py-3.5">Window</th>
-                <th class="px-5 py-3.5">Effective status</th>
-                <th class="w-12"></th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 text-xs">
-              <tr v-if="temporal.loading">
-                <td colspan="5" class="px-5 py-14 text-center text-slate-400">Loading rules…</td>
-              </tr>
-              <tr v-else-if="!temporal.rules.length">
-                <td colspan="5" class="px-5 py-14 text-center text-slate-400">
-                  No temporal rules are projected.
-                </td>
-              </tr>
-              <tr
-                v-for="rule in temporal.rules"
-                v-else
-                :key="rule.id"
-                class="cursor-pointer hover:bg-slate-50"
-                @click="openRule(rule.id)"
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[700px] text-left" :aria-busy="temporal.loading">
+              <caption class="sr-only">
+                Temporal rules for the selected Switch account
+              </caption>
+              <thead
+                class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
               >
-                <td class="px-5 py-4 font-semibold text-slate-700">{{ rule.name }}</td>
-                <td class="px-5 py-4 text-slate-500 capitalize">{{ rule.cycle }}</td>
-                <td class="px-5 py-4 text-slate-500">
-                  {{ formatWindow(rule.time_window_start, rule.time_window_stop) }}
-                </td>
-                <td class="px-5 py-4">
-                  <span
-                    class="rounded-full px-2 py-1 text-[10px] font-semibold"
-                    :class="
-                      rule.effective_status.is_active
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-slate-100 text-slate-600'
-                    "
-                    >{{ statusLabel(rule.effective_status) }}</span
-                  >
-                </td>
-                <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
-              </tr>
-            </tbody>
-          </table>
+                <tr>
+                  <th scope="col" class="px-5 py-3.5">Rule</th>
+                  <th scope="col" class="px-5 py-3.5">Cycle</th>
+                  <th scope="col" class="px-5 py-3.5">Window</th>
+                  <th scope="col" class="px-5 py-3.5">Effective status</th>
+                  <th scope="col" class="w-12" aria-label="Open rule"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-xs">
+                <tr v-if="temporal.loading">
+                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
+                    <span role="status">Loading rules…</span>
+                  </td>
+                </tr>
+                <tr v-else-if="!accounts.selectedId">
+                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
+                    Select an account to inspect its temporal rules.
+                  </td>
+                </tr>
+                <tr v-else-if="!temporal.rules.length">
+                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
+                    No temporal rules are projected.
+                  </td>
+                </tr>
+                <tr v-for="rule in temporal.rules" v-else :key="rule.id" class="hover:bg-slate-50">
+                  <td class="px-5 py-4">
+                    <button
+                      type="button"
+                      class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                      @click="openRule(rule.id)"
+                    >
+                      {{ rule.name }}
+                    </button>
+                  </td>
+                  <td class="px-5 py-4 text-slate-500 capitalize">{{ rule.cycle }}</td>
+                  <td class="px-5 py-4 text-slate-500">
+                    {{ formatWindow(rule.time_window_start, rule.time_window_stop) }}
+                  </td>
+                  <td class="px-5 py-4">
+                    <span
+                      class="rounded-full px-2 py-1 text-[10px] font-semibold"
+                      :class="
+                        rule.effective_status.is_active
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-100 text-slate-600'
+                      "
+                      >{{ statusLabel(rule.effective_status) }}</span
+                    >
+                  </td>
+                  <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </TabPanel>
         <TabPanel class="card-surface overflow-hidden focus:outline-none">
-          <table class="w-full text-left">
-            <thead
-              class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
-            >
-              <tr>
-                <th class="px-5 py-3.5">Rule set</th>
-                <th class="px-5 py-3.5">Rules</th>
-                <th class="px-5 py-3.5">Effective status</th>
-                <th class="w-12"></th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 text-xs">
-              <tr v-if="temporal.loading">
-                <td colspan="4" class="px-5 py-14 text-center text-slate-400">
-                  Loading rule sets…
-                </td>
-              </tr>
-              <tr v-else-if="!temporal.sets.length">
-                <td colspan="4" class="px-5 py-14 text-center text-slate-400">
-                  No rule sets are projected.
-                </td>
-              </tr>
-              <tr
-                v-for="set in temporal.sets"
-                v-else
-                :key="set.id"
-                class="cursor-pointer hover:bg-slate-50"
-                @click="openSet(set.id)"
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[560px] text-left" :aria-busy="temporal.loading">
+              <caption class="sr-only">
+                Temporal rule sets for the selected Switch account
+              </caption>
+              <thead
+                class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
               >
-                <td class="px-5 py-4 font-semibold text-slate-700">{{ set.name }}</td>
-                <td class="px-5 py-4 text-slate-500">{{ set.rule_count ?? 0 }}</td>
-                <td class="px-5 py-4">
-                  <span
-                    class="rounded-full px-2 py-1 text-[10px] font-semibold"
-                    :class="
-                      set.effective_status.is_active
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-slate-100 text-slate-600'
-                    "
-                    >{{ statusLabel(set.effective_status) }}</span
-                  >
-                </td>
-                <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
-              </tr>
-            </tbody>
-          </table>
+                <tr>
+                  <th scope="col" class="px-5 py-3.5">Rule set</th>
+                  <th scope="col" class="px-5 py-3.5">Rules</th>
+                  <th scope="col" class="px-5 py-3.5">Effective status</th>
+                  <th scope="col" class="w-12" aria-label="Open rule set"></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 text-xs">
+                <tr v-if="temporal.loading">
+                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                    <span role="status">Loading rule sets…</span>
+                  </td>
+                </tr>
+                <tr v-else-if="!accounts.selectedId">
+                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                    Select an account to inspect its temporal rule sets.
+                  </td>
+                </tr>
+                <tr v-else-if="!temporal.sets.length">
+                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                    No rule sets are projected.
+                  </td>
+                </tr>
+                <tr v-for="set in temporal.sets" v-else :key="set.id" class="hover:bg-slate-50">
+                  <td class="px-5 py-4">
+                    <button
+                      type="button"
+                      class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                      @click="openSet(set.id)"
+                    >
+                      {{ set.name }}
+                    </button>
+                  </td>
+                  <td class="px-5 py-4 text-slate-500">{{ set.rule_count ?? 0 }}</td>
+                  <td class="px-5 py-4">
+                    <span
+                      class="rounded-full px-2 py-1 text-[10px] font-semibold"
+                      :class="
+                        set.effective_status.is_active
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-slate-100 text-slate-600'
+                      "
+                      >{{ statusLabel(set.effective_status) }}</span
+                    >
+                  </td>
+                  <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </TabPanel>
       </TabPanels>
     </TabGroup>

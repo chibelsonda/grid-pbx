@@ -23,10 +23,10 @@ class AccountResource extends JsonResource
             'realm' => $this->realm,
             'timezone' => $this->timezone,
             'enabled' => $this->is_enabled,
-            'organization' => [
-                'id' => $this->whenLoaded('organization', fn () => $this->organization->id),
-                'name' => $this->whenLoaded('organization', fn () => $this->organization->name),
-            ],
+            'organization' => $this->whenLoaded(
+                'organization',
+                fn () => (new OrganizationResource($this->organization))->resolve($request),
+            ),
             'organization_role' => $role?->value,
             'permissions' => [
                 'can_manage_extensions' => $role?->canManageDevices() ?? false,

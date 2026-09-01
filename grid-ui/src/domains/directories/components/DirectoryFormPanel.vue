@@ -80,7 +80,11 @@ function submit(): void {
     @close="confirmDelete ? undefined : emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
+      <div
+        v-if="error"
+        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
+      >
         {{ error }}
       </div>
       <BasicAdvancedFormTabs v-model="selectedTab">
@@ -162,12 +166,14 @@ function submit(): void {
 
       <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
         <header class="border-b border-slate-100 px-5 py-4">
-          <h2 class="text-sm font-semibold text-slate-700">Directory members</h2>
+          <h2 id="directory-members-heading" class="text-sm font-semibold text-slate-700">
+            Directory members
+          </h2>
           <p class="mt-1 text-[10px] text-slate-400">
             Only extensions with a projected callflow are selectable.
           </p>
         </header>
-        <div class="grid gap-2 p-5">
+        <div class="grid gap-2 p-5" role="group" aria-labelledby="directory-members-heading">
           <FormCheckbox
             v-for="option in options.extensions"
             :key="option.id"

@@ -38,6 +38,8 @@ class UpdateCallflowRequest extends FormRequest
             'temporal_match_destination_id' => ['nullable', 'required_with:temporal_match_destination_type', 'uuid'],
             'phone_number_ids' => ['present', 'array', 'max:25'],
             'phone_number_ids.*' => ['uuid', 'distinct'],
+            'extension_numbers' => ['sometimes', 'array', 'max:25'],
+            'extension_numbers.*' => ['required', 'string', 'regex:/^[0-9]{2,15}$/', 'distinct'],
         ];
     }
 }

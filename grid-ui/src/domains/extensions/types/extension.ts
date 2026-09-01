@@ -230,6 +230,17 @@ export type ExtensionCoreAdvancedInput = {
   call_recording: ExtensionCallRecording
 }
 
+export type ExtensionAdvancedUserInput = ExtensionCoreAdvancedInput & {
+  media: ExtensionEndpointMedia
+  music_on_hold: ExtensionMusicOnHoldInput
+  ringtones: ExtensionRingtones
+  dial_plan: ExtensionDialPlan
+  formatters: ExtensionFormatter[]
+  profile: ExtensionProfile
+  pronounced_name: ExtensionPronouncedNameInput
+  metaflows: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
+}
+
 export type ExtensionDevice = {
   id: string
   name: string | null
@@ -287,7 +298,7 @@ export type ExtensionDetail = Extension & {
 }
 
 export type ExtensionCreate = ExtensionUserConfiguration &
-  ExtensionCoreAdvancedInput & {
+  ExtensionAdvancedUserInput & {
     first_name: string
     last_name: string
     extension: string
@@ -315,14 +326,6 @@ export type ExtensionUpdate = Omit<ExtensionCreate, 'device' | 'voicemail'> & {
     enabled: boolean
     input: VoicemailBoxInput | null
   }
-  metaflows: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
-  media: ExtensionEndpointMedia
-  music_on_hold: ExtensionMusicOnHoldInput
-  ringtones: ExtensionRingtones
-  dial_plan: ExtensionDialPlan
-  formatters: ExtensionFormatter[]
-  profile: ExtensionProfile
-  pronounced_name: ExtensionPronouncedNameInput
 }
 
 export type ExtensionDeletionPreview = {

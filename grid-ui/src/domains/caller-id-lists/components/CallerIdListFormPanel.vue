@@ -78,11 +78,15 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger">
+      <div
+        v-if="error"
+        class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
+      >
         {{ error }}
       </div>
 
-      <fieldset :disabled="!canManage" class="disabled:opacity-75">
+      <fieldset :disabled="!canManage || saving" class="disabled:opacity-75">
         <BasicAdvancedFormTabs v-model="selectedTab">
           <template #basic>
             <article class="card-surface overflow-hidden">
@@ -120,17 +124,17 @@ function submit(): void {
                     expressions.
                   </p>
                 </div>
-                <div v-if="canManage" class="ml-auto flex gap-2">
+                <div v-if="canManage" class="flex w-full gap-2 sm:ml-auto sm:w-auto">
                   <button
                     type="button"
-                    class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600"
+                    class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 sm:flex-none"
                     @click="addEntry('number')"
                   >
                     <PlusIcon class="size-4" />Number
                   </button>
                   <button
                     type="button"
-                    class="inline-flex h-9 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600"
+                    class="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-600 sm:flex-none"
                     @click="addEntry('pattern')"
                   >
                     <PlusIcon class="size-4" />Pattern

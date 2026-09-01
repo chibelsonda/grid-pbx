@@ -204,7 +204,8 @@ function toggleEncryptionMethod(method: string): void {
   <article class="card-surface overflow-visible">
     <TabGroup :selected-index="selectedTabIndex" @change="selectTab">
       <TabList
-        class="flex gap-1 overflow-x-auto border-b border-slate-100 bg-slate-50/70 px-4 pt-3"
+        aria-label="Device advanced sections"
+        class="flex gap-1 overflow-x-auto border-b border-slate-100 bg-slate-50/70 px-3 pt-3 sm:px-4"
       >
         <Tab v-for="tab in tabs" :key="tab.key" v-slot="{ selected }" as="template">
           <button
@@ -222,7 +223,7 @@ function toggleEncryptionMethod(method: string): void {
         </Tab>
       </TabList>
 
-      <TabPanels class="p-5">
+      <TabPanels class="p-4 sm:p-5">
         <TabPanel class="outline-none">
           <slot name="basic" />
         </TabPanel>

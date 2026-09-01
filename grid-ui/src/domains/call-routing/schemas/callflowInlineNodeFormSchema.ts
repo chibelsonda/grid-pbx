@@ -80,18 +80,34 @@ const ringGroupEndpoints = z
   .array(
     z
       .object({
-        device_id: z.string().uuid('Select a synchronized device.'),
+        device_id: z.string().uuid('Select a synchronized device.').optional(),
+        extension_id: z.string().uuid('Select a synchronized extension.').optional(),
+        group_id: z.string().uuid('Select a synchronized group.').optional(),
         delay: z.number().int().min(0).max(60),
         timeout: z.number().int().min(1).max(60),
         weight: z.number().int().min(1).max(100).optional(),
       })
-      .strict(),
+      .strict()
+      .refine(
+        ({ device_id, extension_id, group_id }) =>
+          [device_id, extension_id, group_id].filter(Boolean).length === 1,
+        'Select exactly one synchronized endpoint.',
+      ),
   )
-  .min(1, 'Select at least one device.')
-  .max(20, 'Select no more than 20 devices.')
+  .min(1, 'Select at least one endpoint.')
+  .max(20, 'Select no more than 20 endpoints.')
   .refine(
-    (endpoints) => new Set(endpoints.map(({ device_id }) => device_id)).size === endpoints.length,
-    'Choose each device once.',
+    (endpoints) =>
+      new Set(
+        endpoints.map(({ device_id, extension_id, group_id }) =>
+          device_id
+            ? `device:${device_id}`
+            : extension_id
+              ? `extension:${extension_id}`
+              : `group:${group_id}`,
+        ),
+      ).size === endpoints.length,
+    'Choose each endpoint once.',
   )
 
 const ringtoneHeader = z

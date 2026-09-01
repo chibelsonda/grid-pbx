@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { isSafeSwitchRegex } from '@/shared/forms/safeSwitchRegex'
+import { nullableInteger } from '@/shared/forms/zod'
 import { metaflowSettingsSchema } from '@/shared/switch/metaflows/schema'
 
 const optionalText = (maximum: number, minimum = 0) =>
@@ -22,9 +23,6 @@ const optionalRegex = (maximum: number) =>
       'Enter a supported regular expression.',
     )
     .transform((value) => value || null)
-
-const nullableInteger = (minimum: number, maximum: number) =>
-  z.number().int().min(minimum).max(maximum).nullable()
 
 const recordingParametersSchema = z
   .object({

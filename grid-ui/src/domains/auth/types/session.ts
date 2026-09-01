@@ -1,5 +1,5 @@
 export type SessionUser = {
-  id: number
+  id: string
   name: string
   email: string
 }

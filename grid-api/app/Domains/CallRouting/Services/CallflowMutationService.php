@@ -54,11 +54,21 @@ class CallflowMutationService
             null,
             $data,
         );
-        [$assignedPhoneNumbers] = $this->phoneNumberSelection(
+        [$assignedPhoneNumbers, $knownPhoneNumbers] = $this->phoneNumberSelection(
             $account,
             null,
             $data['phone_number_ids'],
         );
+        [$assignedExtensionNumbers] = $this->extensionNumberSelection(
+            $account,
+            null,
+            $data['extension_numbers'] ?? [],
+            $knownPhoneNumbers,
+        );
+        $assignedEntryNumbers = array_values(array_unique([
+            ...$assignedExtensionNumbers,
+            ...$assignedPhoneNumbers,
+        ]));
 
         try {
             $snapshot = new CallflowSnapshot($this->gateway->create(
@@ -66,7 +76,7 @@ class CallflowMutationService
                 $data['name'],
                 $module,
                 $resourceId,
-                $assignedPhoneNumbers,
+                $assignedEntryNumbers,
                 $fallbackModule,
                 $fallbackResourceId,
                 [
@@ -126,6 +136,25 @@ class CallflowMutationService
             $callflow,
             $data['phone_number_ids'],
         );
+        [$assignedExtensionNumbers, $knownExtensionNumbers] = $this->extensionNumberSelection(
+            $account,
+            $callflow,
+            $data['extension_numbers'] ?? [],
+            $knownPhoneNumbers,
+        );
+        $assignedEntryNumbers = array_values(array_unique([
+            ...$assignedExtensionNumbers,
+            ...$assignedPhoneNumbers,
+        ]));
+        $knownEntryNumbers = array_values(array_unique([
+            ...$knownExtensionNumbers,
+            ...$knownPhoneNumbers,
+        ]));
+        $this->assertEntryNumberOrPatternRemains(
+            $callflow,
+            $assignedEntryNumbers,
+            $knownEntryNumbers,
+        );
 
         try {
             $snapshot = new CallflowSnapshot($this->gateway->updateDestination(
@@ -134,8 +163,8 @@ class CallflowMutationService
                 $module,
                 $resourceId,
                 $data['name'],
-                $assignedPhoneNumbers,
-                $knownPhoneNumbers,
+                $assignedEntryNumbers,
+                $knownEntryNumbers,
                 $replaceFallback,
                 $fallbackModule,
                 $fallbackResourceId,
@@ -649,20 +678,29 @@ class CallflowMutationService
     private function ringGroupSettingsForSwitch(SwitchAccount $account, array $settings): array
     {
         $endpoints = collect($settings['endpoints']);
-        $publicIds = $endpoints->pluck('device_id')->unique()->values();
-        $resources = $account->devices()
-            ->whereIn('id', $publicIds)
-            ->get()
-            ->mapWithKeys(fn ($device): array => [(string) $device->id => $device->switch_resource_id]);
-        $missing = $publicIds->reject(
-            fn (string $id): bool => is_string($resources->get($id)) && $resources->get($id) !== '',
-        );
+        $resolvedEndpoints = $endpoints->map(function (array $endpoint) use ($account): array {
+            [$publicType, $publicId] = $this->ringGroupPublicTarget($endpoint);
+            [$relation, $switchType] = match ($publicType) {
+                'device' => [$account->devices(), 'device'],
+                'extension' => [$account->extensions(), 'user'],
+                'group' => [$account->groups(), 'group'],
+            };
+            $resourceId = $relation->where('id', $publicId)->value('switch_resource_id');
 
-        if ($missing->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'data.endpoints' => ['Select only synchronized devices in this account.'],
-            ]);
-        }
+            if (! is_string($resourceId) || $resourceId === '') {
+                throw ValidationException::withMessages([
+                    'data.endpoints' => ['Select only synchronized Devices, Extensions, or Groups in this account.'],
+                ]);
+            }
+
+            return [
+                'endpoint_type' => $switchType,
+                'id' => $resourceId,
+                'delay' => $endpoint['delay'],
+                'timeout' => $endpoint['timeout'],
+                ...(isset($endpoint['weight']) ? ['weight' => $endpoint['weight']] : []),
+            ];
+        });
 
         $ringback = null;
 
@@ -687,20 +725,7 @@ class CallflowMutationService
 
         return [
             'strategy' => $settings['strategy'],
-            'endpoints' => $endpoints->map(function (array $endpoint) use ($resources): array {
-                $mapped = [
-                    'endpoint_type' => 'device',
-                    'id' => $resources->get($endpoint['device_id']),
-                    'delay' => $endpoint['delay'],
-                    'timeout' => $endpoint['timeout'],
-                ];
-
-                if (isset($endpoint['weight'])) {
-                    $mapped['weight'] = $endpoint['weight'];
-                }
-
-                return $mapped;
-            })->all(),
+            'endpoints' => $resolvedEndpoints->all(),
             'repeats' => $settings['repeats'],
             'timeout' => RingGroupPolicy::attemptTimeout($settings['strategy'], $settings['endpoints']),
             'ignore_forward' => $settings['ignore_forward'],
@@ -712,6 +737,20 @@ class CallflowMutationService
             ],
             'skip_module' => $settings['skip_module'],
         ];
+    }
+
+    /** @param array<string, mixed> $endpoint @return array{string, string} */
+    private function ringGroupPublicTarget(array $endpoint): array
+    {
+        foreach (['device_id' => 'device', 'extension_id' => 'extension', 'group_id' => 'group'] as $key => $type) {
+            if (is_string($endpoint[$key] ?? null) && $endpoint[$key] !== '') {
+                return [$type, $endpoint[$key]];
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'data.endpoints' => ['Select exactly one synchronized Device, Extension, or Group.'],
+        ]);
     }
 
     /** @param array<string, mixed> $settings @return array<string, mixed> */
@@ -1483,6 +1522,118 @@ class CallflowMutationService
             $selected->pluck('number')->values()->all(),
             $account->phoneNumbers()->pluck('number')->values()->all(),
         ];
+    }
+
+    /**
+     * Resolve editable internal aliases while preserving workflow-owned and unsupported entries.
+     *
+     * @param  list<string>  $selectedNumbers
+     * @param  list<string>  $knownPhoneNumbers
+     * @return array{list<string>, list<string>}
+     */
+    private function extensionNumberSelection(
+        SwitchAccount $account,
+        ?SwitchCallflow $callflow,
+        array $selectedNumbers,
+        array $knownPhoneNumbers,
+    ): array {
+        $selectedNumbers = array_values(array_unique($selectedNumbers));
+
+        $managedExtensionConflict = $account->extensions()
+            ->when(
+                $callflow?->switch_extension_id !== null,
+                fn ($query) => $query->whereKeyNot($callflow->switch_extension_id),
+            )
+            ->whereIn('extension', $selectedNumbers)
+            ->pluck('extension')
+            ->all();
+
+        if ($managedExtensionConflict !== []) {
+            throw ValidationException::withMessages([
+                'extension_numbers' => [sprintf(
+                    'The following extension numbers are managed by another extension: %s.',
+                    implode(', ', $managedExtensionConflict),
+                )],
+            ]);
+        }
+
+        $inventoryConflicts = array_values(array_intersect($selectedNumbers, $knownPhoneNumbers));
+
+        if ($inventoryConflicts !== []) {
+            throw ValidationException::withMessages([
+                'extension_numbers' => [sprintf(
+                    'Use the phone-number inventory selector for: %s.',
+                    implode(', ', $inventoryConflicts),
+                )],
+            ]);
+        }
+
+        $routeConflict = $account->callflows()
+            ->when($callflow !== null, fn ($query) => $query->whereKeyNot($callflow->getKey()))
+            ->get(['callflow_id', 'name', 'numbers'])
+            ->first(fn (SwitchCallflow $candidate): bool => collect($candidate->numbers ?? [])
+                ->contains(fn (mixed $number): bool => is_string($number)
+                    && in_array($number, $selectedNumbers, true)));
+
+        if ($routeConflict !== null) {
+            $conflictingNumbers = array_values(array_intersect(
+                $selectedNumbers,
+                array_filter($routeConflict->numbers ?? [], fn (mixed $number): bool => is_string($number)),
+            ));
+
+            throw ValidationException::withMessages([
+                'extension_numbers' => [sprintf(
+                    'The following extension numbers already enter %s: %s.',
+                    $routeConflict->name ?? 'another callflow',
+                    implode(', ', $conflictingNumbers),
+                )],
+            ]);
+        }
+
+        if ($callflow === null) {
+            return [$selectedNumbers, []];
+        }
+
+        $primaryExtension = $callflow->extension?->extension;
+        $knownExtensionNumbers = collect($callflow->numbers ?? [])
+            ->filter(fn (mixed $number): bool => is_string($number)
+                && $number !== $primaryExtension
+                && ! in_array($number, $knownPhoneNumbers, true)
+                && preg_match('/^[0-9]{2,15}$/', $number) === 1)
+            ->values()
+            ->all();
+
+        return [$selectedNumbers, $knownExtensionNumbers];
+    }
+
+    /**
+     * Switch rejects callflows that have neither an entry number nor a pattern.
+     * Preserve workflow-owned entries, but fail locally before sending an invalid write.
+     *
+     * @param  list<string>  $assignedEntryNumbers
+     * @param  list<string>  $knownEntryNumbers
+     */
+    private function assertEntryNumberOrPatternRemains(
+        SwitchCallflow $callflow,
+        array $assignedEntryNumbers,
+        array $knownEntryNumbers,
+    ): void {
+        $hasPattern = collect($callflow->patterns ?? [])->contains(
+            fn (mixed $pattern): bool => is_string($pattern) && trim($pattern) !== '',
+        );
+        $hasPreservedEntry = collect($callflow->numbers ?? [])->contains(
+            fn (mixed $number): bool => is_string($number)
+                && trim($number) !== ''
+                && ! in_array($number, $knownEntryNumbers, true),
+        );
+
+        if ($assignedEntryNumbers === [] && ! $hasPattern && ! $hasPreservedEntry) {
+            throw ValidationException::withMessages([
+                'extension_numbers' => [
+                    'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
+                ],
+            ]);
+        }
     }
 
     /** @return list<string> */

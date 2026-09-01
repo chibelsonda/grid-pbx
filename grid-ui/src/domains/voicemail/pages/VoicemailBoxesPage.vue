@@ -139,6 +139,8 @@ function loadFirstPage(): void {
             label="Search voicemail boxes"
             placeholder="Search mailbox, name, owner, timezone…"
             input-class="h-10 bg-white text-xs shadow-sm"
+            live
+            @search="loadFirstPage"
           />
         </form>
         <span

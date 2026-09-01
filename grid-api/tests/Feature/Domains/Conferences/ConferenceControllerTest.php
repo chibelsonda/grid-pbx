@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Domains\Conferences;
 
+use App\Domains\Auditing\Models\AuditLog;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
 use App\Domains\Conferences\Models\SwitchConference;
@@ -17,6 +18,34 @@ use Tests\TestCase;
 class ConferenceControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    public function test_options_separate_all_media_from_streamable_audio_playback_choices(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $audio = SwitchMedia::factory()->for($account)->create([
+            'name' => 'Welcome prompt',
+            'content_type' => 'audio/mpeg',
+            'streamable' => true,
+        ]);
+        SwitchMedia::factory()->for($account)->create([
+            'name' => 'Private document',
+            'content_type' => 'application/pdf',
+            'streamable' => true,
+        ]);
+        SwitchMedia::factory()->for($account)->create([
+            'name' => 'Non-streamable audio',
+            'content_type' => 'audio/wav',
+            'streamable' => false,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/conferences/options")
+            ->assertOk()
+            ->assertJsonCount(3, 'data.media')
+            ->assertJsonCount(1, 'data.playable_media')
+            ->assertJsonPath('data.playable_media.0.id', $audio->id)
+            ->assertJsonMissingPath('data.playable_media.0.switch_resource_id');
+    }
 
     public function test_operator_creates_conference_with_owner_numbers_and_write_only_pins(): void
     {
@@ -129,6 +158,91 @@ class ConferenceControllerTest extends TestCase
 
         $this->actingAs($user)->deleteJson("/api/v1/accounts/{$account->id}/conferences/{$conference->id}")
             ->assertUnprocessable()->assertJsonValidationErrors('conference');
+    }
+
+    public function test_operator_can_request_a_lock_for_an_active_conference(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $conference = SwitchConference::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-conference-1',
+        ]);
+        $gateway = $this->mock(SwitchConferenceGateway::class);
+        $gateway->shouldReceive('get')->once()->withArgs(fn (SwitchAccount $received, string $resourceId): bool => $received->is($account)
+            && $resourceId === 'switch-conference-1')
+            ->andReturn($this->snapshot(['_read_only' => ['members' => 2, 'moderators' => 1, 'duration' => 90, 'is_locked' => false]]));
+        $gateway->shouldReceive('setLocked')->once()->withArgs(fn (SwitchAccount $received, string $resourceId, bool $locked): bool => $received->is($account)
+            && $resourceId === 'switch-conference-1' && $locked);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/conferences/{$conference->id}/commands", ['action' => 'lock'])
+            ->assertAccepted()
+            ->assertExactJson(['data' => [
+                'accepted' => true,
+                'action' => 'lock',
+                'message' => 'Switch accepted the conference lock request.',
+            ]]);
+
+        $this->assertDatabaseHas('switch_conferences', [
+            'conference_id' => $conference->getKey(),
+            'active_members' => 2,
+            'active_moderators' => 1,
+            'is_locked' => false,
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'conference.lock',
+            'outcome' => 'accepted',
+            'resource_type' => 'conference',
+            'resource_id' => 'switch-conference-1',
+        ]);
+    }
+
+    public function test_inactive_conference_cannot_be_locked(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $conference = SwitchConference::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-conference-1',
+        ]);
+        $gateway = $this->mock(SwitchConferenceGateway::class);
+        $gateway->shouldReceive('get')->once()->andReturn($this->snapshot());
+        $gateway->shouldNotReceive('setLocked');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/conferences/{$conference->id}/commands", ['action' => 'lock'])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('conference');
+
+        $this->assertSame('failed', AuditLog::query()->where('action', 'conference.lock')->value('outcome'));
+    }
+
+    public function test_operator_can_unlock_a_locked_conference_without_active_participants(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $conference = SwitchConference::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-conference-1',
+            'is_locked' => true,
+        ]);
+        $gateway = $this->mock(SwitchConferenceGateway::class);
+        $gateway->shouldReceive('get')->once()->andReturn($this->snapshot([
+            '_read_only' => ['members' => 0, 'moderators' => 0, 'duration' => 0, 'is_locked' => true],
+        ]));
+        $gateway->shouldReceive('setLocked')->once()->withArgs(fn (SwitchAccount $received, string $resourceId, bool $locked): bool => $received->is($account)
+            && $resourceId === 'switch-conference-1' && ! $locked);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/conferences/{$conference->id}/commands", ['action' => 'unlock'])
+            ->assertAccepted()
+            ->assertJsonPath('data.action', 'unlock');
+    }
+
+    public function test_read_only_user_cannot_control_a_conference(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $conference = SwitchConference::factory()->for($account)->create();
+        $this->mock(SwitchConferenceGateway::class)->shouldNotReceive('get');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/conferences/{$conference->id}/commands", ['action' => 'lock'])
+            ->assertForbidden();
     }
 
     /** @return array<string, mixed> */

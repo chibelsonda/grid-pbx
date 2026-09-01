@@ -108,7 +108,7 @@ function selectedTheme(region: ShellThemeRegion): ShellTheme {
                           <span
                             class="ml-auto text-[10px]"
                             :style="{ color: selectedTheme('header').tokens.muted }"
-                            >Account menu</span
+                            >Platform Admin</span
                           >
                         </div>
                       </div>

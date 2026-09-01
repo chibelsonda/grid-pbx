@@ -154,6 +154,7 @@ function close(): void {
 
     <div
       v-else-if="isEditing && devices.detailLoading"
+      role="status"
       class="card-surface grid min-h-72 place-items-center text-xs text-slate-400"
     >
       Loading device configuration…
@@ -161,6 +162,7 @@ function close(): void {
 
     <div
       v-else-if="isEditing && devices.detailError"
+      role="alert"
       class="card-surface p-8 text-center text-xs text-danger"
     >
       {{ devices.detailError }}
@@ -169,6 +171,7 @@ function close(): void {
     <form v-else class="grid gap-5" novalidate @submit.prevent="save">
       <div
         v-if="devices.mutationError && Object.keys(devices.fieldErrors).length === 0"
+        role="alert"
         class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
       >
         {{ devices.mutationError }}

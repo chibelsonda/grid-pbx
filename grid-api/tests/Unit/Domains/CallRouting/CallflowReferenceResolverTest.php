@@ -412,7 +412,7 @@ class CallflowReferenceResolverTest extends TestCase
     }
 
     #[Test]
-    public function it_resolves_safe_ring_group_devices_without_exposing_switch_endpoint_data(): void
+    public function it_resolves_safe_ring_group_endpoints_without_exposing_switch_endpoint_data(): void
     {
         $account = SwitchAccount::factory()->create();
         $device = SwitchDevice::factory()->for($account)->create([
@@ -583,10 +583,20 @@ class CallflowReferenceResolverTest extends TestCase
         ]);
 
         foreach ([
-            ['endpoint_type' => 'user', 'raw_id' => $extension->switch_resource_id],
-            ['endpoint_type' => 'group', 'raw_id' => $group->switch_resource_id],
+            [
+                'endpoint_type' => 'user',
+                'public_key' => 'extension_id',
+                'public_id' => (string) $extension->id,
+                'raw_id' => $extension->switch_resource_id,
+            ],
+            [
+                'endpoint_type' => 'group',
+                'public_key' => 'group_id',
+                'public_id' => (string) $group->id,
+                'raw_id' => $group->switch_resource_id,
+            ],
         ] as $expandedEndpoint) {
-            $unsupported = app(CallflowReferenceResolver::class)->resolve($account, [
+            $resolved = app(CallflowReferenceResolver::class)->resolve($account, [
                 'module' => 'ring_group',
                 'data' => [
                     'strategy' => 'simultaneous',
@@ -601,9 +611,9 @@ class CallflowReferenceResolverTest extends TestCase
                 'children' => [],
             ]);
 
-            $this->assertFalse($unsupported['settings']['supported_configuration']);
-            $this->assertSame([], $unsupported['settings']['endpoints']);
-            $this->assertStringNotContainsString($expandedEndpoint['raw_id'], json_encode($unsupported));
+            $this->assertTrue($resolved['settings']['supported_configuration']);
+            $this->assertSame($expandedEndpoint['public_id'], $resolved['settings']['endpoints'][0][$expandedEndpoint['public_key']]);
+            $this->assertStringNotContainsString($expandedEndpoint['raw_id'], json_encode($resolved));
         }
     }
 }

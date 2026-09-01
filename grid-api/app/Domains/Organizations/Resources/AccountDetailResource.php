@@ -30,10 +30,7 @@ class AccountDetailResource extends JsonResource
             'realm' => $this->realm,
             'timezone' => $this->timezone,
             'enabled' => $this->is_enabled,
-            'organization' => [
-                'id' => $this->organization->id,
-                'name' => $this->organization->name,
-            ],
+            'organization' => (new OrganizationResource($this->organization))->resolve($request),
             'resource_counts' => [
                 'extensions' => $this->extensions_count,
                 'devices' => $this->devices_count,

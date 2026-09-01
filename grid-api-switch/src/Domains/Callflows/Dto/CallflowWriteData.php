@@ -40,8 +40,8 @@ final readonly class CallflowWriteData
 
     /**
      * @param  array<string, mixed>  $current
-     * @param  list<string>|null  $assignedPhoneNumbers
-     * @param  list<string>  $knownPhoneNumbers
+     * @param  list<string>|null  $assignedEntryNumbers
+     * @param  list<string>  $knownEntryNumbers
      * @param  list<CallflowBranchWriteData>  $branchOperations
      * @param  list<string>  $destinationTemporalRuleIds
      */
@@ -50,8 +50,8 @@ final readonly class CallflowWriteData
         public string $destinationModule,
         public ?string $destinationResourceId,
         public ?string $name = null,
-        private ?array $assignedPhoneNumbers = null,
-        private array $knownPhoneNumbers = [],
+        private ?array $assignedEntryNumbers = null,
+        private array $knownEntryNumbers = [],
         private bool $replaceFallback = false,
         private ?string $fallbackModule = null,
         private ?string $fallbackResourceId = null,
@@ -220,17 +220,17 @@ final readonly class CallflowWriteData
 
         $data['flow'] = $this->normalizeNodeForJson($flow);
 
-        if ($this->assignedPhoneNumbers !== null) {
+        if ($this->assignedEntryNumbers !== null) {
             $currentNumbers = is_array($data['numbers'] ?? null) ? $data['numbers'] : [];
             $preservedNumbers = array_values(array_filter(
                 $currentNumbers,
                 fn (mixed $number): bool => is_string($number)
                     && $number !== ''
-                    && ! in_array($number, $this->knownPhoneNumbers, true),
+                    && ! in_array($number, $this->knownEntryNumbers, true),
             ));
             $data['numbers'] = array_values(array_unique([
                 ...$preservedNumbers,
-                ...$this->assignedPhoneNumbers,
+                ...$this->assignedEntryNumbers,
             ]));
         }
 

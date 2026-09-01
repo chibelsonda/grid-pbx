@@ -10,6 +10,9 @@ use App\Domains\CallerIdLists\Controllers\CallerIdListController;
 use App\Domains\CallerIdLists\Controllers\CallerIdListSyncController;
 use App\Domains\CallRouting\Controllers\CallflowController;
 use App\Domains\Conferences\Controllers\ConferenceController;
+use App\Domains\Conferences\Controllers\ConferenceOperationalControlController;
+use App\Domains\Conferences\Controllers\ConferenceParticipantController;
+use App\Domains\Conferences\Controllers\ConferencePlaybackController;
 use App\Domains\Conferences\Controllers\ConferenceSyncController;
 use App\Domains\Dashboard\Controllers\CallActivityTrendController;
 use App\Domains\Dashboard\Controllers\CallGeographyController;
@@ -33,6 +36,7 @@ use App\Domains\Faxes\Controllers\FaxSyncController;
 use App\Domains\GlobalSearch\Controllers\GlobalSearchController;
 use App\Domains\Groups\Controllers\GroupController;
 use App\Domains\Groups\Controllers\GroupSyncController;
+use App\Domains\IdentityAccess\Controllers\ProfileController;
 use App\Domains\IdentityAccess\Controllers\SessionController;
 use App\Domains\LineKeys\Controllers\LineKeyController;
 use App\Domains\Media\Controllers\MediaAudioController;
@@ -46,6 +50,7 @@ use App\Domains\Organizations\Controllers\AccountHierarchyController;
 use App\Domains\Organizations\Controllers\AccountSettingsOptionsController;
 use App\Domains\Organizations\Controllers\AccountStatusController;
 use App\Domains\Organizations\Controllers\DescendantOnboardingController;
+use App\Domains\Organizations\Controllers\OrganizationLogoController;
 use App\Domains\Payments\Controllers\AuthorizeNetWebhookController;
 use App\Domains\Payments\Controllers\PaymentAttemptController;
 use App\Domains\Payments\Controllers\PaymentCapabilityController;
@@ -89,10 +94,17 @@ Route::prefix('v1')->group(function (): void {
 
     Route::middleware('auth:sanctum')->group(function (): void {
         Route::get('/session', [SessionController::class, 'show']);
+        Route::patch('/profile', [ProfileController::class, 'update'])
+            ->middleware('throttle:6,1');
         Route::get('/accounts', AccountController::class);
 
         Route::prefix('accounts/{account}')->group(function (): void {
             Route::get('/', [AccountController::class, 'show']);
+            Route::get('/organization-logo', [OrganizationLogoController::class, 'show']);
+            Route::post('/organization-logo', [OrganizationLogoController::class, 'store'])
+                ->middleware('throttle:6,1');
+            Route::delete('/organization-logo', [OrganizationLogoController::class, 'destroy'])
+                ->middleware('throttle:6,1');
             Route::get('/search', GlobalSearchController::class)
                 ->middleware('throttle:global-search');
             Route::get('/dashboard', DashboardController::class);
@@ -227,6 +239,11 @@ Route::prefix('v1')->group(function (): void {
             Route::post('/conferences', [ConferenceController::class, 'store']);
             Route::get('/conferences/{conference}', [ConferenceController::class, 'show']);
             Route::put('/conferences/{conference}', [ConferenceController::class, 'update']);
+            Route::post('/conferences/{conference}/commands', ConferenceOperationalControlController::class);
+            Route::get('/conferences/{conference}/participants', [ConferenceParticipantController::class, 'index']);
+            Route::post('/conferences/{conference}/participants/commands', [ConferenceParticipantController::class, 'control']);
+            Route::post('/conferences/{conference}/participants/bulk-commands', [ConferenceParticipantController::class, 'controlAll']);
+            Route::post('/conferences/{conference}/playback', ConferencePlaybackController::class);
             Route::delete('/conferences/{conference}', [ConferenceController::class, 'destroy']);
             Route::post('/sync/conferences', [ConferenceSyncController::class, 'store']);
             Route::get('/sync/conferences/{run}', [ConferenceSyncController::class, 'show']);

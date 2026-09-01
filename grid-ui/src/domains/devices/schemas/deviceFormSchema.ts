@@ -1,12 +1,10 @@
 import { z } from 'zod'
+import { nullableInteger } from '@/shared/forms/zod'
 import { metaflowSettingsSchema } from '@/shared/switch/metaflows/schema'
 import { audioCodecs, isForwardingOnlyDevice, videoCodecs } from '../deviceForm'
 import type { DeviceProvisioningCatalog, DeviceSchemaCompatibility } from '../types/device'
 
 const nullableString = (maximum: number) => z.string().trim().max(maximum).nullable()
-const nullableInteger = (minimum: number, maximum: number) =>
-  z.number().int().min(minimum).max(maximum).nullable()
-
 const callerIdIdentitySchema = z
   .object({
     name: nullableString(35),

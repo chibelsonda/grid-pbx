@@ -78,4 +78,19 @@ describe('uiStore theme preferences', () => {
     expect(ui.headerTheme).toBe('coral')
     expect(ui.sidebarTheme).toBe('aurora')
   })
+
+  it('persists the compact desktop sidebar preference', () => {
+    const ui = useUiStore()
+
+    ui.setSidebarCollapsed(true)
+    expect(ui.sidebarCollapsed).toBe(true)
+    expect(window.localStorage.getItem('gridpbx.sidebar-collapsed.v1')).toBe('true')
+
+    setActivePinia(createPinia())
+    expect(useUiStore().sidebarCollapsed).toBe(true)
+
+    useUiStore().toggleSidebar()
+    expect(useUiStore().sidebarCollapsed).toBe(false)
+    expect(window.localStorage.getItem('gridpbx.sidebar-collapsed.v1')).toBe('false')
+  })
 })

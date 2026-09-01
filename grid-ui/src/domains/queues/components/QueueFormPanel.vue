@@ -130,10 +130,14 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
+      <div
+        v-if="error"
+        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
+      >
         {{ error }}
       </div>
-      <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">
+      <fieldset :disabled="!canManage || saving" class="grid gap-5 disabled:opacity-75">
         <BasicAdvancedFormTabs v-model="selectedTab">
           <template #basic>
             <article class="card-surface overflow-hidden">
@@ -189,14 +193,16 @@ function submit(): void {
               <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
                 <UsersIcon class="size-5 text-brand-500" />
                 <div>
-                  <h2 class="text-sm font-semibold text-slate-700">Agent roster</h2>
+                  <h2 id="queue-agent-roster-heading" class="text-sm font-semibold text-slate-700">
+                    Agent roster
+                  </h2>
                   <p class="text-[10px] text-slate-400">
                     Agents are existing extensions; Switch stores queue membership on their User
                     documents.
                   </p>
                 </div>
               </header>
-              <div class="grid gap-2 p-5">
+              <div class="grid gap-2 p-5" role="group" aria-labelledby="queue-agent-roster-heading">
                 <FormCheckbox
                   v-for="agent in options.agents"
                   :key="agent.id"

@@ -124,7 +124,7 @@ try {
         name: "GridPBX Hotdesk Audit Callflow {$stamp}",
         destinationModule: 'user',
         destinationResourceId: $userId,
-        phoneNumbers: [$extension],
+        entryNumbers: [$extension],
     ));
     $callflowId = $createdCallflow->id;
 

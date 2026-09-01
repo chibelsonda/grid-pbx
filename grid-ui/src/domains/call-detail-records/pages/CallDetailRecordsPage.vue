@@ -369,6 +369,8 @@ function humanize(value: string | null): string {
               placeholder="Search caller, callee, call, or interaction…"
               input-class="h-10 bg-white text-xs shadow-sm"
               :error="fieldError('search')"
+              live
+              @search="applyFilters"
             />
           </label>
           <p v-if="fieldError('search')" class="mt-1 text-[10px] text-danger">

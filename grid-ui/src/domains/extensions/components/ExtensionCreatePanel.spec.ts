@@ -85,6 +85,12 @@ describe('ExtensionCreatePanel', () => {
     expect(wrapper.findComponent(ExtensionAdvancedCallingSettings).exists()).toBe(true)
     expect(wrapper.findComponent(ExtensionAdvancedTabSelector).exists()).toBe(true)
     expect(
+      wrapper
+        .get('[aria-label="Extension advanced sections"]')
+        .findAll('[role="tab"]')
+        .map((tab) => tab.text()),
+    ).toEqual(expect.arrayContaining(['Media', 'Routing & Profile', 'Metaflows']))
+    expect(
       wrapper.get('[data-testid="extension-advanced-options"]').attributes('style') ?? '',
     ).not.toContain('display: none')
     expect(
@@ -97,6 +103,9 @@ describe('ExtensionCreatePanel', () => {
     ['password', 'extension-advanced-password'],
     ['hotdesk.id', 'extension-advanced-hot-desking'],
     ['call_restriction.international.action', 'extension-advanced-restrictions'],
+    ['media.audio.codecs', 'extension-advanced-media'],
+    ['profile.title', 'extension-advanced-routing-profile'],
+    ['metaflows.binding_digit', 'extension-advanced-metaflows'],
   ])('opens the matching Advanced tab for the server field %s', (field, testId) => {
     const wrapper = mount(ExtensionCreatePanel, {
       props: {

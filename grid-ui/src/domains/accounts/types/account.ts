@@ -9,6 +9,7 @@ export type Account = {
   organization: {
     id: string
     name: string
+    branding?: OrganizationBranding
   }
   organization_role: string | null
   permissions: {
@@ -22,6 +23,15 @@ export type Account = {
     can_manage_account_settings: boolean
     can_onboard_descendants: boolean
   }
+}
+
+export type OrganizationBranding = {
+  logo_available: boolean
+  logo_updated_at: string | null
+}
+
+export type OrganizationBrandingResult = OrganizationBranding & {
+  organization_id: string
 }
 
 export type AccountDetail = Pick<Account, 'id' | 'name' | 'realm' | 'timezone' | 'organization'> & {

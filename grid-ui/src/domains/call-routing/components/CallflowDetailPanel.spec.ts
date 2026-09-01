@@ -51,6 +51,30 @@ const record: Callflow = {
 }
 
 describe('CallflowDetailPanel', () => {
+  it('opens entry-point editing from the callflow parent node', async () => {
+    const wrapper = mount(CallflowDetailPanel, {
+      props: {
+        record,
+        loading: false,
+        error: null,
+        canManage: true,
+        deleting: false,
+        mutationError: null,
+      },
+      global: {
+        stubs: {
+          CallflowActionPalette: { template: '<div>Action catalog</div>' },
+          CallflowNodeInfoDialog: { template: '<div><slot /></div>' },
+          ConfirmDialog: true,
+        },
+      },
+    })
+
+    await wrapper.get('[aria-label="+15551234567. Edit callflow entry numbers"]').trigger('click')
+
+    expect(wrapper.emitted('edit-entry')).toEqual([[]])
+  })
+
   it('confirms subtree removal before emitting the public node path', async () => {
     const wrapper = mount(CallflowDetailPanel, {
       props: {
@@ -87,7 +111,7 @@ describe('CallflowDetailPanel', () => {
     expect(wrapper.emitted('delete-node')).toEqual([[['rule_set']]])
   })
 
-  it('renders the route map as an inline main-page workspace', async () => {
+  it('renders only the route map workspace so page-level details can live in the main header', () => {
     const wrapper = mount(CallflowDetailPanel, {
       props: {
         record,
@@ -109,40 +133,9 @@ describe('CallflowDetailPanel', () => {
     wrapper.get('[aria-label="Callflow workspace"]')
     wrapper.get('[aria-label="Callflow diagram"]')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('The full-width route map stays on the main page')
-
-    await wrapper.get('[aria-label="Back to callflows"]').trigger('click')
-    expect(wrapper.emitted('close')).toHaveLength(1)
-
-    await wrapper.get('[aria-label="Refresh callflow nodes"]').trigger('click')
-    expect(wrapper.emitted('refresh')).toHaveLength(1)
-  })
-
-  it('shows synchronization progress on the refresh control without emitting duplicate refreshes', async () => {
-    const wrapper = mount(CallflowDetailPanel, {
-      props: {
-        record,
-        loading: false,
-        error: null,
-        canManage: true,
-        deleting: false,
-        mutationError: null,
-        synchronizing: true,
-      },
-      global: {
-        stubs: {
-          CallflowActionPalette: { template: '<div>Action catalog</div>' },
-          CallflowNodeInfoDialog: { template: '<div><slot /></div>' },
-          ConfirmDialog: true,
-        },
-      },
-    })
-    const refresh = wrapper.get('[aria-label="Refresh callflow nodes"]')
-
-    expect(refresh.attributes('disabled')).toBeDefined()
-    expect(refresh.get('svg').classes()).toContain('animate-spin')
-    await refresh.trigger('click')
-    expect(wrapper.emitted('refresh')).toBeUndefined()
+    expect(wrapper.find('[aria-label="Back to callflows"]').exists()).toBe(false)
+    expect(wrapper.find('[aria-label="Refresh callflow nodes"]').exists()).toBe(false)
+    expect(wrapper.find('header.card-surface').exists()).toBe(false)
   })
 
   it('explains why Call Forwarding nodes are capability-gated', async () => {

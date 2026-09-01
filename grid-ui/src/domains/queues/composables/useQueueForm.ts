@@ -29,9 +29,8 @@ export function useQueueForm(record: Queue | null) {
       record?.announcements.media.the_estimated_wait_time_is?.id ?? null,
     announcement_position_media_id: record?.announcements.media.you_are_at_position?.id ?? null,
     agent_ids:
-      record?.agents?.flatMap((membership) =>
-        membership.agent ? [membership.agent.id] : [],
-      ) ?? [],
+      record?.agents?.flatMap((membership) => (membership.agent ? [membership.agent.id] : [])) ??
+      [],
   })
   const validationErrors = ref<FormErrors>({})
 

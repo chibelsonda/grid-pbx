@@ -13,7 +13,7 @@ class SwitchAccountService
     {
         $accounts = SwitchAccount::query()
             ->whereHas('organization.users', fn ($query) => $query->whereKey($user->getKey()))
-            ->with('organization:organization_id,id,name')
+            ->with('organization:organization_id,id,name,logo_path,logo_updated_at')
             ->orderByDesc('is_enabled')
             ->orderBy('name')
             ->get();
@@ -53,7 +53,7 @@ class SwitchAccountService
 
         $account
             ->load([
-                'organization:organization_id,id,name',
+                'organization:organization_id,id,name,logo_path,logo_updated_at',
                 'phoneNumbers' => fn ($query) => $query
                     ->select([
                         'phone_number_id',

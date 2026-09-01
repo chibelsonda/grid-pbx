@@ -34,6 +34,7 @@ import { extensionCreateSchema } from '../schemas/extensionFormSchema'
 import type {
   ExtensionCreate,
   ExtensionCredentialsInput,
+  ExtensionMetaflows,
   ExtensionHotdeskInput,
   ExtensionFormOptions,
   ExtensionUserConfiguration,
@@ -43,6 +44,9 @@ import ExtensionAdvancedCallingSettings from './ExtensionAdvancedCallingSettings
 import ExtensionAdvancedTabSelector from './ExtensionAdvancedTabSelector.vue'
 import ExtensionCallRecordingSettings from './ExtensionCallRecordingSettings.vue'
 import ExtensionHotdeskProfile from './ExtensionHotdeskProfile.vue'
+import ExtensionMediaSettings from './ExtensionMediaSettings.vue'
+import ExtensionMetaflowSettings from './ExtensionMetaflowSettings.vue'
+import ExtensionRoutingProfileSettings from './ExtensionRoutingProfileSettings.vue'
 import ExtensionUserOptions from './ExtensionUserOptions.vue'
 
 const props = withDefaults(
@@ -68,6 +72,20 @@ const advancedCalling = reactive(
 )
 const selectedFormSection = ref(0)
 const selectedAdvancedSection = ref<ExtensionAdvancedSection>('options')
+const metaflows = reactive<
+  Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>
+>({
+  binding_digit: null,
+  digit_timeout: null,
+  listen_on: null,
+  actions: [],
+})
+const emptyMetaflowConfiguration: ExtensionMetaflows = {
+  ...metaflows,
+  number_flow_count: 0,
+  pattern_flow_count: 0,
+  locked_action_count: 0,
+}
 const panelView = ref<'extension' | 'device' | 'voicemail'>('extension')
 const configuredDevice = ref<DeviceInput | null>(null)
 const configuredVoicemail = ref<VoicemailBoxInput | null>(null)
@@ -197,6 +215,20 @@ function updateAdvancedCalling(
   Object.assign(advancedCalling, value)
 }
 
+function updateExtendedAdvanced(value: Partial<ExtensionCreate>): void {
+  Object.assign(advancedCalling, value)
+}
+
+function updateCallRecording(value: ExtensionCreate['call_recording']): void {
+  advancedCalling.call_recording = value
+}
+
+function updateMetaflows(
+  value: Pick<ExtensionMetaflows, 'binding_digit' | 'digit_timeout' | 'listen_on' | 'actions'>,
+): void {
+  Object.assign(metaflows, value)
+}
+
 function isAdvancedField(field: string): boolean {
   return extensionAdvancedSectionForField(field) !== null
 }
@@ -254,6 +286,45 @@ function submit(): void {
     },
     call_restriction: advancedCalling.call_restriction,
     call_recording: advancedCalling.call_recording,
+    media: advancedCalling.media,
+    music_on_hold: advancedCalling.music_on_hold,
+    ringtones: {
+      internal: nullable(advancedCalling.ringtones.internal ?? ''),
+      external: nullable(advancedCalling.ringtones.external ?? ''),
+    },
+    dial_plan: {
+      system: [...advancedCalling.dial_plan.system],
+      rules: advancedCalling.dial_plan.rules.map((rule) => ({
+        pattern: rule.pattern.trim(),
+        description: nullable(rule.description ?? ''),
+        prefix: nullable(rule.prefix ?? ''),
+        suffix: nullable(rule.suffix ?? ''),
+      })),
+    },
+    formatters: advancedCalling.formatters.map((formatter) => ({
+      ...formatter,
+      field: formatter.field.trim(),
+      prefix: nullable(formatter.prefix ?? ''),
+      regex: nullable(formatter.regex ?? ''),
+      suffix: nullable(formatter.suffix ?? ''),
+      value: nullable(formatter.value ?? ''),
+    })),
+    profile: {
+      ...advancedCalling.profile,
+      addresses: advancedCalling.profile.addresses.map((address) => ({
+        address: address.address.trim(),
+        types: [...address.types],
+      })),
+      assistant: nullable(advancedCalling.profile.assistant ?? ''),
+      birthday: nullable(advancedCalling.profile.birthday ?? ''),
+      nicknames: advancedCalling.profile.nicknames.map((nickname) => nickname.trim()),
+      note: nullable(advancedCalling.profile.note ?? ''),
+      role: nullable(advancedCalling.profile.role ?? ''),
+      sort_string: nullable(advancedCalling.profile.sort_string ?? ''),
+      title: nullable(advancedCalling.profile.title ?? ''),
+    },
+    pronounced_name: advancedCalling.pronounced_name,
+    metaflows,
     hotdesk: {
       ...hotdesk,
       id: hotdesk.id ? hotdesk.id.trim() : null,
@@ -306,6 +377,7 @@ function submit(): void {
       <div
         v-if="error"
         class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+        role="alert"
       >
         {{ error }}
       </div>
@@ -390,7 +462,7 @@ function submit(): void {
         data-testid="extension-advanced-section"
         class="contents"
       >
-        <ExtensionAdvancedTabSelector v-model="selectedAdvancedSection" />
+        <ExtensionAdvancedTabSelector v-model="selectedAdvancedSection" extended />
 
         <div
           v-show="selectedAdvancedSection === 'caller-id'"
@@ -457,8 +529,9 @@ function submit(): void {
           class="contents"
         >
           <ExtensionCallRecordingSettings
-            v-model="advancedCalling.call_recording"
+            :model-value="advancedCalling.call_recording"
             :field-errors="displayErrors"
+            @update:model-value="updateCallRecording"
           />
         </div>
 
@@ -487,6 +560,52 @@ function submit(): void {
             :unresolved-numbers="{ external: null, emergency: null }"
             section="restrictions"
             @update:model-value="updateAdvancedCalling"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'media'"
+          data-testid="extension-advanced-media"
+          class="contents"
+        >
+          <ExtensionMediaSettings
+            :model-value="advancedCalling"
+            :field-errors="displayErrors"
+            :media-options="options.media"
+            @update:model-value="updateExtendedAdvanced"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'routing-profile'"
+          data-testid="extension-advanced-routing-profile"
+          class="contents"
+        >
+          <ExtensionRoutingProfileSettings
+            :model-value="advancedCalling"
+            :field-errors="displayErrors"
+            :media-options="options.media"
+            :policy="{
+              verified: false,
+              privilege: null,
+              feature_level: null,
+              external_flag_count: 0,
+            }"
+            @update:model-value="updateExtendedAdvanced"
+          />
+        </div>
+
+        <div
+          v-show="selectedAdvancedSection === 'metaflows'"
+          data-testid="extension-advanced-metaflows"
+          class="contents"
+        >
+          <ExtensionMetaflowSettings
+            :model-value="metaflows"
+            :current="emptyMetaflowConfiguration"
+            :resources="options.metaflow_resources"
+            :field-errors="displayErrors"
+            @update:model-value="updateMetaflows"
           />
         </div>
       </div>

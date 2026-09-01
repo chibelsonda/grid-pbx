@@ -88,7 +88,9 @@ export const mediaApi = {
     return response.data
   },
   async startSync(accountId: string): Promise<SyncRun> {
-    const response = await http.post<ApiResponse<SyncRun>>(`/api/v1/accounts/${accountId}/sync/media`)
+    const response = await http.post<ApiResponse<SyncRun>>(
+      `/api/v1/accounts/${accountId}/sync/media`,
+    )
     return unwrapApiData(response)
   },
   async syncStatus(accountId: string, runId: string): Promise<SyncRun> {

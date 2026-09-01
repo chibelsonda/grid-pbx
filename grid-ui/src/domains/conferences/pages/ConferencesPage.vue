@@ -4,6 +4,7 @@ import {
   ArrowPathIcon,
   ChevronRightIcon,
   LockClosedIcon,
+  LockOpenIcon,
   PlusIcon,
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
@@ -11,13 +12,21 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ConferenceFormPanel from '../components/ConferenceFormPanel.vue'
+import ConferenceParticipantsPanel from '../components/ConferenceParticipantsPanel.vue'
 import { useConferenceStore } from '../stores/conferenceStore'
-import type { ConferenceInput } from '../types/conference'
+import type {
+  Conference,
+  ConferenceBulkParticipantAction,
+  ConferenceInput,
+  ConferenceParticipant,
+  ConferenceParticipantAction,
+} from '../types/conference'
 
 const accounts = useAccountStore()
 const conferences = useConferenceStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
+const liveConference = ref<Conference | null>(null)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const activeParticipants = computed(() =>
   conferences.records.reduce(
@@ -47,6 +56,52 @@ async function save(input: ConferenceInput): Promise<void> {
 async function remove(): Promise<void> {
   if (accounts.selectedId && (await conferences.remove(accounts.selectedId)))
     panelOpen.value = false
+}
+async function control(record: Conference): Promise<void> {
+  if (!accounts.selectedId) return
+  await conferences.control(
+    accounts.selectedId,
+    record,
+    record.runtime.is_locked ? 'unlock' : 'lock',
+  )
+}
+async function manageParticipants(record: Conference): Promise<void> {
+  if (!accounts.selectedId) return
+  liveConference.value = record
+  await Promise.all([
+    conferences.loadOptions(accounts.selectedId),
+    conferences.loadParticipants(accounts.selectedId, record.id),
+  ])
+}
+async function controlParticipant(
+  participant: ConferenceParticipant,
+  action: ConferenceParticipantAction,
+): Promise<void> {
+  if (!accounts.selectedId || !liveConference.value) return
+  await conferences.controlParticipant(
+    accounts.selectedId,
+    liveConference.value,
+    participant,
+    action,
+  )
+}
+async function controlParticipants(
+  action: ConferenceBulkParticipantAction,
+  expectedParticipantCount: number,
+  expectedTargetCount: number,
+): Promise<void> {
+  if (!accounts.selectedId || !liveConference.value) return
+  await conferences.controlParticipants(
+    accounts.selectedId,
+    liveConference.value,
+    action,
+    expectedParticipantCount,
+    expectedTargetCount,
+  )
+}
+async function playMedia(mediaId: string, participantId: string | null): Promise<void> {
+  if (!accounts.selectedId || !liveConference.value) return
+  await conferences.playMedia(accounts.selectedId, liveConference.value, mediaId, participantId)
 }
 </script>
 
@@ -135,6 +190,8 @@ async function remove(): Promise<void> {
         class="min-w-0 flex-1"
         placeholder="Search conferences or access numbers…"
         input-class="h-10 bg-white text-xs shadow-sm"
+        live
+        @search="accounts.selectedId && conferences.load(accounts.selectedId)"
       /><FormSelect
         v-model="conferences.status"
         class="h-10 rounded-md border border-slate-200 bg-white px-3 text-xs"
@@ -207,6 +264,33 @@ async function remove(): Promise<void> {
                     : `${record.runtime.members + record.runtime.moderators} active`
                 }}</span
               >
+              <button
+                v-if="
+                  canManage &&
+                  (record.runtime.is_locked ||
+                    record.runtime.members + record.runtime.moderators > 0)
+                "
+                type="button"
+                class="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-brand-600 hover:text-brand-700 disabled:cursor-wait disabled:opacity-50"
+                :disabled="conferences.controllingId !== null"
+                @click.stop="control(record)"
+              >
+                <ArrowPathIcon
+                  v-if="conferences.controllingId === record.id"
+                  class="size-3 animate-spin"
+                />
+                <LockOpenIcon v-else-if="record.runtime.is_locked" class="size-3" />
+                <LockClosedIcon v-else class="size-3" />
+                {{ record.runtime.is_locked ? 'Unlock room' : 'Lock room' }}
+              </button>
+              <button
+                v-if="record.runtime.members + record.runtime.moderators > 0"
+                type="button"
+                class="mt-2 ml-3 inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-brand-700"
+                @click.stop="manageParticipants(record)"
+              >
+                <UserGroupIcon class="size-3" />Manage live room
+              </button>
             </td>
             <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
           </tr>
@@ -225,5 +309,25 @@ async function remove(): Promise<void> {
     @close="panelOpen = false"
     @save="save"
     @remove="remove"
+  />
+  <ConferenceParticipantsPanel
+    v-if="liveConference"
+    :conference="liveConference"
+    :participants="conferences.participants"
+    :loading="conferences.participantsLoading"
+    :controlling-id="conferences.participantControlId"
+    :playable-media="conferences.options.playable_media"
+    :playing-media="conferences.playingMedia"
+    :bulk-controlling-action="conferences.bulkControllingAction"
+    :bulk-control-observation="conferences.bulkControlObservation"
+    :error="conferences.participantError"
+    :can-manage="canManage"
+    @close="liveConference = null"
+    @refresh="
+      accounts.selectedId && conferences.loadParticipants(accounts.selectedId, liveConference.id)
+    "
+    @control="controlParticipant"
+    @bulk-control="controlParticipants"
+    @play-media="playMedia"
   />
 </template>

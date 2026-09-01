@@ -19,6 +19,14 @@ class Organization extends Model
 
     protected $fillable = ['name', 'slug'];
 
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return [
+            'logo_updated_at' => 'datetime',
+        ];
+    }
+
     /** @return BelongsToMany<User, $this> */
     public function users(): BelongsToMany
     {

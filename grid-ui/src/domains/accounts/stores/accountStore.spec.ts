@@ -6,12 +6,15 @@ import { useAccountStore } from './accountStore'
 
 vi.mock('../api/accountApi', () => ({
   accountApi: {
-    list: vi.fn(),
-    detail: vi.fn(),
-    settingsOptions: vi.fn(),
-    update: vi.fn(),
-    refresh: vi.fn(),
-    updateStatus: vi.fn(),
+    list: vi.fn<() => void>(),
+    detail: vi.fn<() => void>(),
+    settingsOptions: vi.fn<() => void>(),
+    update: vi.fn<() => void>(),
+    refresh: vi.fn<() => void>(),
+    updateStatus: vi.fn<() => void>(),
+    organizationLogo: vi.fn<() => void>(),
+    uploadOrganizationLogo: vi.fn<() => void>(),
+    removeOrganizationLogo: vi.fn<() => void>(),
   },
 }))
 
@@ -142,6 +145,14 @@ describe('account store', () => {
     localStorage.clear()
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn<(blob: Blob | MediaSource) => string>(() => 'blob:organization-logo'),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn<(url: string) => void>(),
+    })
   })
 
   it('loads a safe account detail projection by public UUID', async () => {
@@ -246,5 +257,60 @@ describe('account store', () => {
     expect(accountApi.updateStatus).toHaveBeenCalledWith(detail.id, false, detail.name)
     expect(store.detail?.enabled).toBe(false)
     expect(store.accounts[0]?.enabled).toBe(false)
+  })
+
+  it('loads, replaces, and removes organization branding without exposing storage details', async () => {
+    const store = useAccountStore()
+    store.accounts = [
+      {
+        id: detail.id,
+        name: detail.name,
+        realm: detail.realm,
+        timezone: detail.timezone,
+        enabled: true,
+        organization: {
+          ...detail.organization,
+          branding: { logo_available: true, logo_updated_at: '2026-09-01T00:00:00Z' },
+        },
+        organization_role: 'account_administrator',
+        permissions: {
+          can_manage_extensions: true,
+          can_manage_devices: true,
+          can_manage_voicemail: true,
+          can_manage_call_routing: true,
+          can_manage_media: true,
+          can_sync_call_detail_records: true,
+          can_view_services: true,
+          can_manage_account_settings: true,
+          can_onboard_descendants: true,
+        },
+      },
+    ]
+    store.selectedId = detail.id
+    vi.mocked(accountApi.organizationLogo).mockResolvedValue(new Blob(['logo']))
+    vi.mocked(accountApi.uploadOrganizationLogo).mockResolvedValue({
+      organization_id: detail.organization.id,
+      logo_available: true,
+      logo_updated_at: '2026-09-01T01:00:00Z',
+    })
+    vi.mocked(accountApi.removeOrganizationLogo).mockResolvedValue({
+      organization_id: detail.organization.id,
+      logo_available: false,
+      logo_updated_at: null,
+    })
+
+    await store.loadOrganizationLogo()
+    expect(accountApi.organizationLogo).toHaveBeenCalledWith(detail.id)
+    expect(store.organizationLogoUrl).toBe('blob:organization-logo')
+
+    expect(
+      await store.uploadOrganizationLogo(new File(['png'], 'logo.png', { type: 'image/png' })),
+    ).toBe(true)
+    expect(store.selected?.organization.branding?.logo_updated_at).toBe('2026-09-01T01:00:00Z')
+
+    expect(await store.removeOrganizationLogo()).toBe(true)
+    expect(store.selected?.organization.branding?.logo_available).toBe(false)
+    expect(store.organizationLogoUrl).toBeNull()
+    expect(URL.revokeObjectURL).toHaveBeenCalled()
   })
 })

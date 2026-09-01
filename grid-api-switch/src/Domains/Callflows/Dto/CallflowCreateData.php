@@ -43,7 +43,7 @@ final readonly class CallflowCreateData
     ];
 
     /**
-     * @param  list<string>  $phoneNumbers
+     * @param  list<string>  $entryNumbers
      * @param  list<CallflowBranchWriteData>  $branchRoutes
      * @param  list<string>  $destinationTemporalRuleIds
      * @param  array<string, mixed>|null  $destinationSettings
@@ -52,7 +52,7 @@ final readonly class CallflowCreateData
         public string $name,
         public string $destinationModule,
         public ?string $destinationResourceId,
-        public array $phoneNumbers,
+        public array $entryNumbers,
         public ?string $fallbackModule = null,
         public ?string $fallbackResourceId = null,
         public array $branchRoutes = [],
@@ -72,8 +72,8 @@ final readonly class CallflowCreateData
 
         $this->assertDestinationConfiguration();
 
-        if ($this->phoneNumbers === []) {
-            throw new InvalidArgumentException('A guided Switch callflow requires at least one phone number.');
+        if ($this->entryNumbers === []) {
+            throw new InvalidArgumentException('A guided Switch callflow requires at least one entry number.');
         }
 
         if (($this->fallbackModule === null) !== ($this->fallbackResourceId === null)) {
@@ -135,7 +135,7 @@ final readonly class CallflowCreateData
 
         return [
             'name' => trim($this->name),
-            'numbers' => array_values(array_unique($this->phoneNumbers)),
+            'numbers' => array_values(array_unique($this->entryNumbers)),
             'flow' => [
                 'module' => $this->destinationModule,
                 'data' => $this->rootDestinationData(),

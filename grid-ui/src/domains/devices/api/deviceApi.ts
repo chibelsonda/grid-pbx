@@ -64,10 +64,7 @@ export const deviceApi = {
   ): Promise<{ message: string; command: DeviceProvisioningCommand }> {
     const response = await http.post<
       ApiResponse<{ message: string; command: DeviceProvisioningCommand }>
-    >(
-      `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-sync`,
-      { command },
-    )
+    >(`/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-sync`, { command })
 
     return unwrapApiData(response)
   },

@@ -1,7 +1,7 @@
 # GridPBX Application Implementation Plan
 
 Status: Active
-Last updated: 2026-08-31
+Last updated: 2026-09-01
 
 Implemented checkpoint:
 
@@ -399,7 +399,8 @@ not as an independent copy that can diverge from Switch.
 | Data category                | Authoritative system       | Examples                                                   |
 | ---------------------------- | -------------------------- | ---------------------------------------------------------- |
 | PBX configuration            | Switch                     | Extensions, devices, numbers, voicemail, callflows         |
-| GridPBX application data     | MySQL                      | Users, roles, organizations, account mappings, preferences |
+| GridPBX application data     | MySQL                      | Users, roles, organizations, account mappings, preferences, organization-logo metadata |
+| Private GridPBX assets       | Private application storage | Sanitized organization logos served only through authenticated account scope |
 | Search/reporting projections | MySQL, derived from Switch | Extension directory, device summary, number assignments    |
 | Temporary operational state  | Redis                      | Sessions, locks, queues, token cache                       |
 
@@ -528,6 +529,12 @@ commercial template's source code or proprietary assets.
 ### Shell
 
 - Fixed 60px top header with a subtle multi-layer shadow.
+- The header groups global search, the current account, and signed-in identity
+  with theme-aware states. The current-account control remains available on
+  smaller screens and opens one keyboard-accessible search surface. Search is
+  limited to the user's already-authorized MySQL projections and matches safe
+  account name, realm, and organization name fields; selection persists only a
+  public Account UUID. It never performs raw-ID lookup or Switch masquerading.
 - Fixed 280px desktop sidebar that can collapse to an 80px icon rail.
 - White navigation surfaces over a light gray application background.
 - Mobile sidebar becomes an overlay drawer.
@@ -540,6 +547,22 @@ commercial template's source code or proprietary assets.
   closes the drawer.
 - Content uses compact page headings, breadcrumbs, actions, and responsive
   card grids.
+
+The `/settings` workspace owns only authenticated identity visibility and
+personal browser preferences. It shows the signed-in application profile and
+allows only its display name to change through an authenticated, validated,
+rate-limited, audited Laravel endpoint. The response uses the User public UUID;
+the database primary key is never exposed, unexpected fields cannot change the
+email or another identity attribute, and the operation never writes to Switch.
+The page also summarizes the selected account role and granted capabilities and
+reuses the shared controls for account selection, shell themes, and
+compact-sidebar preference. Account selection uses the account-scoped public
+UUID already provided to the browser; theme and sidebar choices remain
+browser-local. PBX account configuration stays in `/accounts`, operational
+diagnostics stay in `/system-status`, and authorized hierarchy workflows stay
+in `/reseller`. Login-email changes, email verification, password changes, MFA,
+session management, and notification preferences remain unavailable until each
+has a dedicated security contract.
 
 ### Visual tokens
 
@@ -575,6 +598,17 @@ mobile layouts.
 - Call History
 - Settings
 - Administration
+
+Settings owns GridPBX-local identity, browser preferences, and organization
+branding. Organization logos are not Kazoo Whitelabel documents: authorized
+organization administrators upload only bounded raster images, Laravel
+decodes and re-encodes them before private storage, and the authenticated API
+returns only availability/timestamp metadata plus account-scoped image bytes.
+Storage paths and internal keys never enter the browser. The selected
+organization logo may replace the shell mark; the GridPBX mark remains the
+fallback. Switch domains, public assets, HTML, links, SSO, colors, and email
+identity stay capability-gated in their owning security/infrastructure
+boundaries.
 
 ### Dashboard delivery scope
 
@@ -824,6 +858,11 @@ Acceptance criteria:
   guided editor. Resource references are public UUIDs, while unsupported or
   unresolved roots remain locked and are preserved losslessly. Higher-risk
   operations stay gated.
+- Organization branding foundation: private, sanitized PNG/JPEG/WebP logo
+  upload, authenticated account-scoped streaming, settings-role authorization,
+  immutable audit events, safe availability/timestamp metadata, and shell
+  fallback behavior. This is GridPBX application data and performs no
+  Switch/Kazoo Whitelabel read or write.
 - Add projections and incremental synchronization for each delivered resource
   domain.
 
@@ -835,13 +874,13 @@ Acceptance criteria:
 - Directory and group foundation: typed CRUD, queued projection rebuilds,
   normalized membership relationships, complete redacted `switch_json`, safe
   public references, dependency-aware deletion, and guided callflow targets.
-  A Device-only inline `ring_group` timing/strategy foundation is delivered
-  with bounded public UUID endpoints, computed attempt duration,
-  weighted-random routing, and the two schema-backed bridge flags. User/group
-  expansion is capability-gated because the installed runtime dynamically
-  recurses through mutable membership without a resolved-device cap or safe
-  cycle boundary. Ringback/ringtone media behavior remains part of advanced
-  visual callflow work.
+  The inline `ring_group` workflow accepts ordered account-scoped public
+  Extension, Device, and Group UUIDs and maps them privately to Kazoo's
+  `user`, `device`, and `group` endpoints. Bounded timing, computed attempt
+  duration, weighted-random routing, bridge flags, account-audio ringback, and
+  phone-alert fields are delivered. Dynamic User/Group expansion is documented
+  as installed runtime behavior; the 20-member form bound is not presented as
+  a resolved-device cap.
 - Queue and agent foundation: ACDc-aware typed queue CRUD, normalized roster
   projection, redacted `switch_json`, queued synchronization, compensating
   roster updates, live agent status commands, right-side panels, and guided
@@ -911,8 +950,33 @@ Acceptance criteria:
   access-number rows, owner relationship, full redacted `switch_json`,
   write-only PIN replacement/removal, queued synchronization, last-observed
   runtime status, dependency-safe deletion, guided callflow destinations, and
-  a Vue right-side CRUD panel. Live participant commands and dial/lock/play
-  controls remain a later operational enhancement and are not persisted.
+  a Vue right-side CRUD panel, plus an audited active-room lock/unlock command
+  surface that refreshes Switch runtime state before issuing a command and
+  reconciles the observed result afterward. The live-room panel reads current
+  participants directly from Switch and supports single-participant
+  mute/unmute, deaf/undeaf, and kick commands through short-lived encrypted
+  handles; raw participant, call, and media-node identifiers never reach Vue
+  or MySQL. Every command revalidates the participant against the current room
+  before mutation and refreshes runtime state afterward. Confirmed whole-room
+  and single-participant media playback accepts only projected account-owned,
+  streamable `audio/*` Media UUIDs, resolves raw identifiers server-side, and
+  revalidates the active room or opaque participant handle before submitting
+  the asynchronous Kazoo `play` command. A strict Zod command schema and
+  server-required confirmation protect both browser and direct API requests;
+  raw URL fields are rejected. Playback is audited but is not persisted as
+  configuration or reported as completed. Native room-wide mute/unmute and
+  deaf/undeaf are also available through an explicit preview-and-confirm flow.
+  Laravel re-reads the room under the Conference command lock, requires both
+  the observed participant count and eligible non-moderator target count to
+  match the preview, records safe accepted/failed audit metadata, and then
+  sends Kazoo's single participants command. Moderators and participants
+  already in the requested state are skipped exactly as Kazoo specifies; bulk
+  kick remains disabled. After acceptance, Vue performs four bounded live-room
+  observations over 750 ms and reports fully observed, partially/pending, or
+  changed-room status without misrepresenting Kazoo's asynchronous acceptance
+  as per-participant completion. Dial-out remains disabled because
+  Kazoo accepts Device/User IDs, raw numbers, and arbitrary SIP URIs, creates
+  outbound legs, and applies billing and account limits.
 - Fax foundation: typed fax-box CRUD, normalized fax-box and bounded
   inbox/outbox message projections, owner/fax-box relationship resolution,
   complete redacted `switch_json`, queued reconciliation, dependency-safe
@@ -956,6 +1020,15 @@ Acceptance criteria:
   selected-node modal, compact searchable installed 49-action palette, guided
   reference and inline-node add/edit forms, empty-branch moves, insert-before,
   disjoint-subtree swaps, and confirmed child-subtree deletion are delivered.
+  Creation uses the same full-page canvas, with public-UUID root selection and
+  pre-save Menu-key, Temporal Rule Set `rule_set`, and wildcard-fallback
+  previews instead of a create slide-over. Its empty wildcard branch accepts
+  guided resource-backed palette drops through the existing public fallback
+  selector. Menu roots likewise accept guided resource-backed drops on the
+  first unused schema-editable key and reopen the existing typed Menu form with
+  the projected public UUID selected. Inline draft children remain unavailable
+  until their nested create contract can be modeled without arbitrary Switch
+  JSON.
   The 40 guided and nine capability-gated actions have no planned gaps, and the
   installed default palette has no unhandled keyed branch contract. The next
   Callflow acceptance item is externally blocked: Ring Group audible ringback

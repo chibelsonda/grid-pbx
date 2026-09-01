@@ -566,7 +566,7 @@ final readonly class CallflowInlineNodeWriteData
         foreach ($endpoints as $endpoint) {
             if (! is_array($endpoint)
                 || array_diff(array_keys($endpoint), ['endpoint_type', 'id', 'delay', 'timeout', 'weight']) !== []
-                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! in_array($endpoint['endpoint_type'] ?? null, ['device', 'user', 'group'], true)
                 || ! is_string($endpoint['id'] ?? null)
                 || $endpoint['id'] === ''
                 || strlen($endpoint['id']) > 128
@@ -583,11 +583,11 @@ final readonly class CallflowInlineNodeWriteData
                         || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)))
                 || ($this->settings['strategy'] !== 'weighted_random'
                     && array_key_exists('weight', $endpoint))
-                || in_array($endpoint['id'], $ids, true)) {
+                || in_array($endpoint['endpoint_type'].':'.$endpoint['id'], $ids, true)) {
                 throw new InvalidArgumentException('The inline Ring Group endpoint selection is invalid.');
             }
 
-            $ids[] = $endpoint['id'];
+            $ids[] = $endpoint['endpoint_type'].':'.$endpoint['id'];
             $timings[] = ['delay' => $endpoint['delay'], 'timeout' => $endpoint['timeout']];
         }
 
@@ -624,7 +624,7 @@ final readonly class CallflowInlineNodeWriteData
             $timeout = is_array($endpoint) && is_int($endpoint['timeout'] ?? null) ? $endpoint['timeout'] : 20;
 
             if (! is_array($endpoint)
-                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! in_array($endpoint['endpoint_type'] ?? null, ['device', 'user', 'group'], true)
                 || ! is_string($endpoint['id'] ?? null)
                 || $endpoint['id'] === ''
                 || strlen($endpoint['id']) > 128
@@ -636,11 +636,11 @@ final readonly class CallflowInlineNodeWriteData
                 || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
                 || ($strategy === 'weighted_random'
                     && ! array_key_exists('weight', $endpoint))
-                || in_array($endpoint['id'], $ids, true)) {
+                || in_array($endpoint['endpoint_type'].':'.$endpoint['id'], $ids, true)) {
                 throw new InvalidArgumentException('The existing Ring Group configuration is not supported.');
             }
 
-            $ids[] = $endpoint['id'];
+            $ids[] = $endpoint['endpoint_type'].':'.$endpoint['id'];
             $timings[] = ['delay' => $delay, 'timeout' => $timeout];
         }
 

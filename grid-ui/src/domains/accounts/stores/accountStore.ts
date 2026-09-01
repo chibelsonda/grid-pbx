@@ -6,6 +6,7 @@ import type {
   AccountDetail,
   AccountSettingsInput,
   AccountSettingsOptions,
+  OrganizationBrandingResult,
 } from '../types/account'
 
 const storageKey = 'gridpbx:selected-account'
@@ -38,6 +39,10 @@ export const useAccountStore = defineStore('accounts', {
     changingStatus: false,
     mutationError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
+    organizationLogoUrl: null as string | null,
+    organizationLogoLoading: false,
+    organizationLogoSaving: false,
+    organizationLogoError: null as string | null,
   }),
   getters: {
     selected: (state): Account | null =>
@@ -70,6 +75,7 @@ export const useAccountStore = defineStore('accounts', {
     reset(): void {
       this.accounts = []
       this.select(null)
+      this.releaseOrganizationLogo()
     },
     async loadDetail(accountId: string): Promise<void> {
       this.detailLoading = true
@@ -162,6 +168,94 @@ export const useAccountStore = defineStore('accounts', {
       } finally {
         this.changingStatus = false
       }
+    },
+    async loadOrganizationLogo(): Promise<void> {
+      const account = this.selected
+      this.organizationLogoError = null
+
+      if (!account?.organization.branding?.logo_available) {
+        this.releaseOrganizationLogo()
+        return
+      }
+
+      this.organizationLogoLoading = true
+      try {
+        const blob = await accountApi.organizationLogo(account.id)
+        this.replaceOrganizationLogoUrl(URL.createObjectURL(blob))
+      } catch (error) {
+        this.releaseOrganizationLogo()
+        this.organizationLogoError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to load the organization logo.')
+          : 'Unable to load the organization logo.'
+      } finally {
+        this.organizationLogoLoading = false
+      }
+    },
+    async uploadOrganizationLogo(file: File): Promise<boolean> {
+      const account = this.selected
+      if (!account) return false
+
+      this.organizationLogoSaving = true
+      this.organizationLogoError = null
+      try {
+        const branding = await accountApi.uploadOrganizationLogo(account.id, file)
+        this.applyOrganizationBranding(branding)
+        await this.loadOrganizationLogo()
+        return true
+      } catch (error) {
+        const fieldErrors = axios.isAxiosError(error) ? error.response?.data?.errors : undefined
+        this.organizationLogoError =
+          fieldErrors?.logo?.[0] ??
+          (axios.isAxiosError(error)
+            ? (error.response?.data?.message ?? 'Unable to upload the organization logo.')
+            : 'Unable to upload the organization logo.')
+        return false
+      } finally {
+        this.organizationLogoSaving = false
+      }
+    },
+    async removeOrganizationLogo(): Promise<boolean> {
+      const account = this.selected
+      if (!account) return false
+
+      this.organizationLogoSaving = true
+      this.organizationLogoError = null
+      try {
+        const branding = await accountApi.removeOrganizationLogo(account.id)
+        this.applyOrganizationBranding(branding)
+        this.releaseOrganizationLogo()
+        return true
+      } catch (error) {
+        this.organizationLogoError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to remove the organization logo.')
+          : 'Unable to remove the organization logo.'
+        return false
+      } finally {
+        this.organizationLogoSaving = false
+      }
+    },
+    applyOrganizationBranding(branding: OrganizationBrandingResult): void {
+      for (const account of this.accounts) {
+        if (account.organization.id !== branding.organization_id) continue
+        account.organization.branding = {
+          logo_available: branding.logo_available,
+          logo_updated_at: branding.logo_updated_at,
+        }
+      }
+
+      if (this.detail?.organization.id === branding.organization_id) {
+        this.detail.organization.branding = {
+          logo_available: branding.logo_available,
+          logo_updated_at: branding.logo_updated_at,
+        }
+      }
+    },
+    replaceOrganizationLogoUrl(url: string | null): void {
+      if (this.organizationLogoUrl) URL.revokeObjectURL(this.organizationLogoUrl)
+      this.organizationLogoUrl = url
+    },
+    releaseOrganizationLogo(): void {
+      this.replaceOrganizationLogoUrl(null)
     },
   },
 })

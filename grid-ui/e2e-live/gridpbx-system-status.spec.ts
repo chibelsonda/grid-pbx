@@ -13,7 +13,7 @@ function collectPageIssues(page: Page): string[] {
   return issues
 }
 
-test('shows only safe read-only operational capabilities', async ({ page }) => {
+test('shows polished safe read-only operational capability cards', async ({ page }, testInfo) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
@@ -142,7 +142,7 @@ test('shows only safe read-only operational capabilities', async ({ page }) => {
   expect(payload.data.number_management.reservation_available).toBe(false)
   expect(payload.data.number_management.release_available).toBe(false)
   expect(JSON.stringify(payload)).not.toMatch(
-    /Call-ID|Presence-ID|Switch-URI|contact|subscription_id|switch_account_id|hook_id|req_body|resp_body|uri|message_id|\"body\"|\"from\"|\"to\"|attachment|port_request_id|billing_account|signee|signing_date|transfer_date|port_authority|comments|uploads|\"pin\"|usable_carriers|usable_creation_states|carrier_modules|available_numbers|accept_charges|quotes/i,
+    /Call-ID|Presence-ID|Switch-URI|contact|subscription_id|switch_account_id|hook_id|req_body|resp_body|uri|message_id|"body"|"from"|"to"|attachment|port_request_id|billing_account|signee|signing_date|transfer_date|port_authority|comments|uploads|"pin"|usable_carriers|usable_creation_states|carrier_modules|available_numbers|accept_charges|quotes/i,
   )
 
   await expect(page.getByRole('heading', { name: 'Presence' })).toBeVisible()
@@ -179,6 +179,41 @@ test('shows only safe read-only operational capabilities', async ({ page }) => {
   ).toBeVisible()
   await expect(page.getByText(/Search, purchase, reservation, and release remain/)).toBeVisible()
   await expect(page.getByText(/Observed/)).toBeVisible()
+
+  const cards = page.locator('[data-operational-status-card]')
+  await expect(cards).toHaveCount(6)
+  for (let index = 0; index < (await cards.count()); index += 1) {
+    const card = cards.nth(index)
+    const layout = await card.evaluate((element) => {
+      const header = element.firstElementChild
+      const icon = header?.firstElementChild
+      const body = header?.nextElementSibling
+      const iconStyle = icon ? window.getComputedStyle(icon) : null
+
+      return {
+        icon: icon?.getBoundingClientRect().left ?? -1,
+        body: body?.getBoundingClientRect().left ?? -2,
+        iconBackground: iconStyle?.backgroundColor,
+        iconBorderRadius: iconStyle?.borderRadius,
+      }
+    })
+    expect(
+      Math.abs(layout.icon - layout.body),
+      `card ${index}: icon=${layout.icon}, body=${layout.body}`,
+    ).toBeLessThan(2)
+    expect(layout.iconBackground, `card ${index} icon background`).toBe('rgba(0, 0, 0, 0)')
+    expect(layout.iconBorderRadius, `card ${index} icon border radius`).toBe('0px')
+  }
+  await page.screenshot({ path: testInfo.outputPath('system-status-desktop.png'), fullPage: true })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Presence' })).toBeVisible()
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  )
+  await page.screenshot({ path: testInfo.outputPath('system-status-mobile.png'), fullPage: true })
+
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })

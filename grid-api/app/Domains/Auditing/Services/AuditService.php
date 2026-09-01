@@ -12,7 +12,7 @@ class AuditService
     /** @param array<string, mixed> $metadata */
     public function record(
         User $actor,
-        SwitchAccount $account,
+        ?SwitchAccount $account,
         string $action,
         string $outcome,
         ?string $resourceId,
@@ -22,8 +22,8 @@ class AuditService
     ): AuditLog {
         return AuditLog::query()->create([
             'user_id' => $actor->getKey(),
-            'organization_id' => $account->organization_id,
-            'switch_account_id' => $account->getKey(),
+            'organization_id' => $account?->organization_id,
+            'switch_account_id' => $account?->getKey(),
             'request_id' => (string) Str::uuid(),
             'action' => $action,
             'resource_type' => $resourceType,

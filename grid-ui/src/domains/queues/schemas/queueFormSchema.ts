@@ -31,7 +31,9 @@ export const queueFormSchema = z
     announcement_increase_in_call_volume_media_id: nullableUuid,
     announcement_estimated_wait_time_media_id: nullableUuid,
     announcement_position_media_id: nullableUuid,
-    agent_ids: z.array(z.uuid()).refine((ids) => new Set(ids).size === ids.length, 'Select each agent once.'),
+    agent_ids: z
+      .array(z.uuid())
+      .refine((ids) => new Set(ids).size === ids.length, 'Select each agent once.'),
   })
   .strict()
   .superRefine((value, context) => {
@@ -41,7 +43,8 @@ export const queueFormSchema = z
       context.addIssue({
         code: 'custom',
         path: ['announcement_media'],
-        message: 'Select all four custom announcement prompts or leave all four on the Switch defaults.',
+        message:
+          'Select all four custom announcement prompts or leave all four on the Switch defaults.',
       })
     }
   })
@@ -61,4 +64,3 @@ export const agentStatusFormSchema = z
       })
     }
   })
-

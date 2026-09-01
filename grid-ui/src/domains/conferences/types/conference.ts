@@ -63,9 +63,50 @@ export type ConferenceInput = {
   play_exit_tone_media_id: string | null
 }
 export type ConferenceOption = { id: string; label: string; detail: string | null }
-export type ConferenceOptions = { owners: ConferenceOption[]; media: ConferenceOption[] }
+export type ConferenceOptions = {
+  owners: ConferenceOption[]
+  media: ConferenceOption[]
+  playable_media: ConferenceOption[]
+}
 export type ConferenceSyncRun = {
   id: string
   status: 'queued' | 'running' | 'succeeded' | 'failed'
   error_message: string | null
+}
+export type ConferenceControlAction = 'lock' | 'unlock'
+export type ConferenceParticipantAction = 'mute' | 'unmute' | 'deaf' | 'undeaf' | 'kick'
+export type ConferenceBulkParticipantAction = Exclude<ConferenceParticipantAction, 'kick'>
+export type ConferenceControlResult = {
+  accepted: true
+  action: ConferenceControlAction | ConferenceParticipantAction
+  message: string
+}
+export type ConferencePlaybackResult = {
+  accepted: true
+  action: 'play_media'
+  target: 'room' | 'participant'
+  message: string
+}
+export type ConferenceBulkControlResult = {
+  accepted: true
+  action: ConferenceBulkParticipantAction
+  targeted_participants: number
+  skipped_moderators: number
+  message: string
+}
+export type ConferenceBulkControlObservation = {
+  action: ConferenceBulkParticipantAction
+  status: 'observed' | 'pending' | 'room_changed'
+  targeted_participants: number
+  observed_participants: number
+  message: string
+}
+export type ConferenceParticipant = {
+  id: string
+  display_name: string | null
+  number: string | null
+  is_moderator: boolean
+  can_speak: boolean
+  can_hear: boolean
+  duration_seconds: number
 }

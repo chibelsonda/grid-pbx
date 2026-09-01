@@ -29,17 +29,27 @@ class ConferenceService
     /** @return array<string, mixed> */
     public function options(SwitchAccount $account): array
     {
+        $mediaOption = fn ($item): array => [
+            'id' => $item->id,
+            'label' => $item->name,
+            'detail' => $item->description,
+        ];
+
         return [
             'owners' => $account->extensions()->orderBy('display_name')->get()->map(fn ($item): array => [
                 'id' => $item->id,
                 'label' => $item->display_name ?? $item->extension ?? 'Unnamed user',
                 'detail' => $item->extension,
             ])->values()->all(),
-            'media' => $account->media()->orderBy('name')->get()->map(fn ($item): array => [
-                'id' => $item->id,
-                'label' => $item->name,
-                'detail' => $item->description,
-            ])->values()->all(),
+            'media' => $account->media()->orderBy('name')->get()->map($mediaOption)->values()->all(),
+            'playable_media' => $account->media()
+                ->where('streamable', true)
+                ->where('content_type', 'like', 'audio/%')
+                ->orderBy('name')
+                ->get()
+                ->map($mediaOption)
+                ->values()
+                ->all(),
         ];
     }
 }

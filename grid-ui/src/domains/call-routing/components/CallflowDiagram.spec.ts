@@ -30,6 +30,22 @@ function dispatchWheelEvent(
 }
 
 describe('CallflowDiagram', () => {
+  it('allows an editable callflow entry number to open the document editor', async () => {
+    const node: CallflowNode = {
+      module: 'device',
+      target: { type: 'device', id: 'device-public', label: 'Reception phone' },
+      reference_status: 'resolved',
+      children: {},
+    }
+    const wrapper = mount(CallflowDiagram, {
+      props: { node, numbers: ['2999'], editable: true },
+    })
+
+    await wrapper.get('[aria-label="2999. Edit callflow entry numbers"]').trigger('click')
+
+    expect(wrapper.emitted('edit-entry')).toEqual([[]])
+  })
+
   it('offers a compact remove control only for editable public child nodes', async () => {
     const child: CallflowNode = {
       module: 'voicemail',

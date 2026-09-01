@@ -45,7 +45,7 @@ import {
 
 const props = defineProps<{
   accountId: string | null
-  userId: number | null
+  userId: string | null
 }>()
 
 const router = useRouter()
@@ -156,7 +156,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
   <button
     type="button"
     :disabled="!accountId"
-    class="flex h-9 w-full items-center justify-center gap-2 rounded-full border border-transparent bg-slate-100 px-0 text-left text-xs text-slate-500 transition hover:border-slate-200 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 sm:justify-start sm:px-3"
+    class="app-header-search flex h-9 w-full items-center justify-center gap-2 rounded-full border px-0 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-60 sm:justify-start sm:px-3"
+    :class="open && 'app-header-action-active'"
     aria-label="Search this workspace"
     @click="show"
   >
@@ -165,7 +166,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
       accountId ? 'Search this workspace…' : 'Select an account to search'
     }}</span>
     <kbd
-      class="ml-auto hidden rounded border border-slate-200 bg-white px-1.5 py-0.5 font-sans text-[9px] font-semibold text-slate-400 lg:inline"
+      class="app-header-search-shortcut ml-auto hidden rounded border px-1.5 py-0.5 font-sans text-[9px] font-semibold lg:inline"
       >Ctrl K</kbd
     >
   </button>

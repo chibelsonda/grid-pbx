@@ -178,13 +178,11 @@ const router = createRouter({
           name: 'system-status',
           component: () => import('@/domains/system-status/pages/SystemStatusPage.vue'),
         },
-        ...(
-          [['settings', 'Settings', 'Configure account and application preferences.']] as const
-        ).map(([path, title, description]) => ({
-          path,
-          component: () => import('@/shared/components/PlaceholderPage.vue'),
-          props: { title, description },
-        })),
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/domains/settings/pages/SettingsPage.vue'),
+        },
       ],
     },
   ],

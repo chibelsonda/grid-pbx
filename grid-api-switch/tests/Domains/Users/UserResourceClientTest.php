@@ -41,6 +41,13 @@ use PHPUnit\Framework\TestCase;
 
 final class UserResourceClientTest extends TestCase
 {
+    public function test_empty_call_restrictions_are_serialized_as_a_switch_object(): void
+    {
+        $restrictions = new UserCallRestrictionsData([]);
+
+        self::assertSame('{}', json_encode($restrictions->toSwitchData(), JSON_THROW_ON_ERROR));
+    }
+
     /** @var array<int, array<string, mixed>> */
     private array $history = [];
 

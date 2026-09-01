@@ -55,13 +55,7 @@ for (const module of [
   categoryByModule.set(module, 'media')
 }
 
-for (const module of [
-  'voicemail',
-  'faxbox',
-  'fax_detect',
-  'receive_fax',
-  'missed_call_alert',
-]) {
+for (const module of ['voicemail', 'faxbox', 'fax_detect', 'receive_fax', 'missed_call_alert']) {
   categoryByModule.set(module, 'messaging')
 }
 

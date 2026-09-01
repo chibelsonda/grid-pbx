@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace GridPbx\Switch\Domains\Users\Dto\CallRestrictions;
 
+use stdClass;
+
 final readonly class UserCallRestrictionsData
 {
     /**
@@ -15,8 +17,8 @@ final readonly class UserCallRestrictionsData
         public array $preservedOptions = [],
     ) {}
 
-    /** @return array<string, array<string, mixed>> */
-    public function toSwitchData(): array
+    /** @return array<string, array<string, mixed>>|stdClass */
+    public function toSwitchData(): array|stdClass
     {
         $restrictions = [];
 
@@ -27,6 +29,6 @@ final readonly class UserCallRestrictionsData
             );
         }
 
-        return $restrictions;
+        return $restrictions === [] ? new stdClass : $restrictions;
     }
 }

@@ -19,6 +19,11 @@ class CrossbarSwitchConferenceGateway implements SwitchConferenceGateway
         }
     }
 
+    public function get(SwitchAccount $account, string $resourceId): array
+    {
+        return $this->conferences->get($account->switch_account_id, $resourceId)->toArray();
+    }
+
     public function create(SwitchAccount $account, array $data): array
     {
         return $this->conferences->create($account->switch_account_id, $this->writeData($data))->toArray();
@@ -32,6 +37,56 @@ class CrossbarSwitchConferenceGateway implements SwitchConferenceGateway
     public function delete(SwitchAccount $account, string $resourceId): void
     {
         $this->conferences->delete($account->switch_account_id, $resourceId);
+    }
+
+    public function setLocked(SwitchAccount $account, string $resourceId, bool $locked): void
+    {
+        $this->conferences->setLocked($account->switch_account_id, $resourceId, $locked);
+    }
+
+    public function participants(SwitchAccount $account, string $resourceId): array
+    {
+        return array_map(
+            fn ($participant): array => $participant->toArray(),
+            $this->conferences->participants($account->switch_account_id, $resourceId),
+        );
+    }
+
+    public function controlParticipant(
+        SwitchAccount $account,
+        string $resourceId,
+        string $participantId,
+        string $action,
+    ): void {
+        $this->conferences->controlParticipant(
+            $account->switch_account_id,
+            $resourceId,
+            $participantId,
+            $action,
+        );
+    }
+
+    public function controlParticipants(SwitchAccount $account, string $resourceId, string $action): void
+    {
+        $this->conferences->controlParticipants(
+            $account->switch_account_id,
+            $resourceId,
+            $action,
+        );
+    }
+
+    public function playMedia(
+        SwitchAccount $account,
+        string $resourceId,
+        string $mediaResourceId,
+        ?string $participantId = null,
+    ): void {
+        $this->conferences->playMedia(
+            $account->switch_account_id,
+            $resourceId,
+            $mediaResourceId,
+            $participantId,
+        );
     }
 
     /** @param array<string, mixed> $data */

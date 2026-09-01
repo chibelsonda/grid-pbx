@@ -1,4 +1,5 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
+import type { ProfileInput } from '../schemas/profileFormSchema'
 import type { LoginCredentials, Session } from '../types/session'
 
 export const sessionApi = {
@@ -17,5 +18,9 @@ export const sessionApi = {
 
   async logout(): Promise<void> {
     await http.post('/logout')
+  },
+
+  async updateProfile(input: ProfileInput): Promise<Session> {
+    return unwrapApiData(await http.patch<ApiResponse<Session>>('/api/v1/profile', input))
   },
 }

@@ -79,18 +79,18 @@ function recoverOperation(
 
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
-    <div class="page-container flex flex-col gap-4 sm:flex-row sm:items-center">
+    <div class="page-container flex flex-col gap-4 xl:flex-row xl:items-center">
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / People & Extensions</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">People & Extensions</h1>
         <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Switch.</p>
       </div>
-      <div class="flex gap-2 sm:ml-auto">
+      <div class="flex w-full flex-wrap gap-2 sm:w-auto xl:ml-auto">
         <button
           v-if="accounts.selected?.permissions.can_manage_extensions"
           type="button"
           :disabled="!accounts.selectedId"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+          class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           @click="openRecovery"
         >
           <WrenchScrewdriverIcon class="size-4" /> Recovery queue
@@ -98,7 +98,8 @@ function recoverOperation(
         <button
           type="button"
           :disabled="!accounts.selectedId || extensions.syncing"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
+          class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+          :aria-busy="extensions.syncing"
           @click="synchronize"
         >
           <ArrowPathIcon class="size-4" :class="extensions.syncing && 'animate-spin'" />
@@ -108,7 +109,7 @@ function recoverOperation(
           v-if="accounts.selected?.permissions.can_manage_extensions"
           type="button"
           :disabled="!accounts.selectedId"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+          class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
           @click="creating = true"
         >
           <PlusIcon class="size-4" /> Create extension
@@ -140,11 +141,15 @@ function recoverOperation(
             label="Search extensions"
             placeholder="Search name, extension, username…"
             input-class="h-10 bg-white text-xs shadow-sm"
+            live
+            @search="search"
           />
         </form>
         <div class="sm:ml-auto">
           <span
             class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold"
+            role="status"
+            aria-live="polite"
             :class="
               extensions.sync.status === 'healthy'
                 ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
@@ -153,7 +158,8 @@ function recoverOperation(
                   : 'border-amber-100 bg-amber-50 text-amber-700'
             "
           >
-            <span class="size-2 rounded-full bg-current" /> {{ freshnessLabel }}
+            <span class="size-2 rounded-full bg-current" aria-hidden="true" />
+            {{ freshnessLabel }}
           </span>
         </div>
       </div>
@@ -161,29 +167,33 @@ function recoverOperation(
       <div
         v-if="extensions.error"
         class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+        role="alert"
       >
         {{ extensions.error }}
       </div>
 
-      <div class="card-surface overflow-hidden">
-        <div class="overflow-x-auto">
+      <div class="card-surface min-w-0 max-w-full overflow-hidden" :aria-busy="extensions.loading">
+        <div class="max-w-full overflow-x-auto overscroll-x-contain">
           <table class="w-full min-w-[760px] text-left">
+            <caption class="sr-only">
+              Projected people and extensions for the selected Switch account
+            </caption>
             <thead
               class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
             >
               <tr>
-                <th class="px-5 py-3.5">Person</th>
-                <th class="px-5 py-3.5">Extension</th>
-                <th class="px-5 py-3.5">Username</th>
-                <th class="px-5 py-3.5">Timezone</th>
-                <th class="px-5 py-3.5">Status</th>
-                <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+                <th scope="col" class="px-5 py-3.5">Person</th>
+                <th scope="col" class="px-5 py-3.5">Extension</th>
+                <th scope="col" class="px-5 py-3.5">Username</th>
+                <th scope="col" class="px-5 py-3.5">Timezone</th>
+                <th scope="col" class="px-5 py-3.5">Status</th>
+                <th scope="col" aria-label="View extension" class="w-12 px-5 py-3.5" />
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
               <tr v-if="extensions.loading">
                 <td colspan="6" class="px-5 py-14 text-center text-slate-400">
-                  Loading projected extensions…
+                  <span role="status" aria-live="polite">Loading projected extensions…</span>
                 </td>
               </tr>
               <tr v-else-if="extensions.records.length === 0">
@@ -239,10 +249,10 @@ function recoverOperation(
           </table>
         </div>
         <footer
-          class="flex items-center border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500"
+          class="flex flex-col gap-3 border-t border-slate-100 px-5 py-3 text-[11px] text-slate-500 sm:flex-row sm:items-center"
         >
           <span>{{ extensions.total }} extensions</span>
-          <div class="ml-auto flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2 sm:ml-auto">
             <button
               type="button"
               :disabled="extensions.page <= 1"

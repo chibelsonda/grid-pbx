@@ -230,6 +230,8 @@ function formatSize(bytes: number | null): string {
         label="Search media"
         placeholder="Search name, description, language…"
         input-class="h-10 bg-white text-xs shadow-sm"
+        live
+        @search="accounts.selectedId && media.load(accounts.selectedId, 1)"
       />
       <FormSelect
         v-model="media.filters.media_source"

@@ -65,20 +65,20 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
 
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
-    <div class="page-container flex items-center gap-4">
-      <div>
+    <div class="page-container flex flex-col gap-4 sm:flex-row sm:items-center">
+      <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Queues</p>
         <h1 class="text-xl font-semibold text-slate-800">Queues & Agents</h1>
         <p class="mt-1 text-xs text-slate-500">
           Manage ACDc caller queues, projected rosters, and live agent state.
         </p>
       </div>
-      <div class="ml-auto flex gap-2">
+      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
         <button
           v-if="canManage"
           :disabled="queues.synchronizing || !configurationAvailable"
           :title="configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
+          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
           @click="accounts.selectedId && queues.synchronize(accounts.selectedId)"
         >
           <ArrowPathIcon
@@ -89,7 +89,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
           v-if="canManage"
           :disabled="!configurationAvailable"
           :title="configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-40"
+          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-40 sm:flex-none"
           @click="openQueue()"
         >
           <PlusIcon class="size-4" />New queue
@@ -101,6 +101,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     <div
       v-if="!queues.loading && !configurationAvailable"
       class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"
+      role="status"
     >
       Switch Queue configuration is unavailable. Projected data remains read-only until the
       configuration API recovers.
@@ -108,6 +109,7 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     <div
       v-else-if="!queues.loading && !liveAgentControlsAvailable"
       class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"
+      role="status"
     >
       Queue configuration is available, but the connected Switch did not report live agent controls
       as available.
@@ -143,7 +145,10 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
       :selected-index="tab === 'queues' ? 0 : 1"
       @change="tab = $event === 0 ? 'queues' : 'agents'"
     >
-      <TabList class="mb-4 flex items-center gap-2 border-b border-slate-200">
+      <TabList
+        aria-label="Queue workspace sections"
+        class="mb-4 flex items-center gap-2 border-b border-slate-200"
+      >
         <Tab v-slot="{ selected }" as="template"
           ><button
             class="border-b-2 px-4 py-3 text-xs font-semibold outline-none"
@@ -172,13 +177,14 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
       <div
         v-if="queues.error"
         class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
+        role="alert"
       >
         {{ queues.error }}
       </div>
       <TabPanels>
         <TabPanel class="focus:outline-none">
           <form
-            class="mb-4 flex gap-3"
+            class="mb-4 flex flex-col gap-3 sm:flex-row"
             @submit.prevent="accounts.selectedId && queues.load(accounts.selectedId)"
           >
             <SearchInput
@@ -187,97 +193,133 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
               class="min-w-0 flex-1"
               placeholder="Search queues…"
               input-class="h-10 bg-white text-xs shadow-sm"
+              live
+              @search="accounts.selectedId && queues.load(accounts.selectedId)"
             /><button
-              class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"
+              class="h-10 w-full rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600 sm:w-auto"
             >
               Search
             </button>
           </form>
           <div class="card-surface overflow-hidden">
-            <table class="w-full text-left">
+            <div class="overflow-x-auto">
+              <table class="w-full min-w-[680px] text-left" :aria-busy="queues.loading">
+                <caption class="sr-only">
+                  Queues for the selected Switch account
+                </caption>
+                <thead
+                  class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
+                >
+                  <tr>
+                    <th scope="col" class="px-5 py-3.5">Queue</th>
+                    <th scope="col" class="px-5 py-3.5">Strategy</th>
+                    <th scope="col" class="px-5 py-3.5">Agents</th>
+                    <th scope="col" class="px-5 py-3.5">Capacity</th>
+                    <th scope="col" class="w-12" aria-label="Open queue"></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-xs">
+                  <tr v-if="queues.loading">
+                    <td colspan="5" class="px-5 py-14 text-center text-slate-400">
+                      <span role="status">Loading queues…</span>
+                    </td>
+                  </tr>
+                  <tr v-else-if="!accounts.selectedId">
+                    <td colspan="5" class="px-5 py-14 text-center text-slate-400">
+                      Select an account to inspect its queues.
+                    </td>
+                  </tr>
+                  <tr v-else-if="!queues.records.length">
+                    <td colspan="5" class="px-5 py-14 text-center text-slate-400">
+                      No queues are projected. Switch ACDc may not be enabled for this account.
+                    </td>
+                  </tr>
+                  <tr
+                    v-for="record in queues.records"
+                    v-else
+                    :key="record.id"
+                    class="hover:bg-slate-50"
+                  >
+                    <td class="px-5 py-4">
+                      <button
+                        type="button"
+                        class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+                        @click="openQueue(record.id)"
+                      >
+                        {{ record.name }}
+                      </button>
+                    </td>
+                    <td class="px-5 py-4 text-slate-500">
+                      {{ record.strategy === 'most_idle' ? 'Most idle' : 'Round robin' }}
+                    </td>
+                    <td class="px-5 py-4 text-slate-500">{{ record.agent_count ?? 0 }}</td>
+                    <td class="px-5 py-4 text-slate-500">
+                      {{ record.max_queue_size || 'Unlimited' }}
+                    </td>
+                    <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </TabPanel>
+        <TabPanel class="card-surface overflow-hidden focus:outline-none">
+          <div class="overflow-x-auto">
+            <table class="w-full min-w-[620px] text-left" :aria-busy="queues.loading">
+              <caption class="sr-only">
+                Queue agents for the selected Switch account
+              </caption>
               <thead
                 class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
               >
                 <tr>
-                  <th class="px-5 py-3.5">Queue</th>
-                  <th class="px-5 py-3.5">Strategy</th>
-                  <th class="px-5 py-3.5">Agents</th>
-                  <th class="px-5 py-3.5">Capacity</th>
-                  <th class="w-12"></th>
+                  <th scope="col" class="px-5 py-3.5">Agent</th>
+                  <th scope="col" class="px-5 py-3.5">Extension</th>
+                  <th scope="col" class="px-5 py-3.5">Queue assignments</th>
+                  <th scope="col" class="w-12" aria-label="Open agent status"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 text-xs">
                 <tr v-if="queues.loading">
-                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">Loading queues…</td>
+                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                    <span role="status">Loading agents…</span>
+                  </td>
                 </tr>
-                <tr v-else-if="!queues.records.length">
-                  <td colspan="5" class="px-5 py-14 text-center text-slate-400">
-                    No queues are projected. Switch ACDc may not be enabled for this account.
+                <tr v-else-if="!accounts.selectedId">
+                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                    Select an account to inspect its queue agents.
+                  </td>
+                </tr>
+                <tr v-else-if="!queues.agents.length">
+                  <td colspan="4" class="px-5 py-14 text-center text-slate-400">
+                    No agents are assigned to projected queues.
                   </td>
                 </tr>
                 <tr
-                  v-for="record in queues.records"
+                  v-for="agent in queues.agents"
                   v-else
-                  :key="record.id"
-                  class="cursor-pointer hover:bg-slate-50"
-                  @click="openQueue(record.id)"
+                  :key="agent.id"
+                  :class="liveAgentControlsAvailable ? 'hover:bg-slate-50' : 'opacity-60'"
                 >
-                  <td class="px-5 py-4 font-semibold text-slate-700">{{ record.name }}</td>
-                  <td class="px-5 py-4 text-slate-500">
-                    {{ record.strategy === 'most_idle' ? 'Most idle' : 'Round robin' }}
+                  <td class="px-5 py-4">
+                    <button
+                      type="button"
+                      :disabled="!liveAgentControlsAvailable"
+                      class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+                      @click="openAgent(agent)"
+                    >
+                      {{ agent.name }}
+                    </button>
                   </td>
-                  <td class="px-5 py-4 text-slate-500">{{ record.agent_count ?? 0 }}</td>
+                  <td class="px-5 py-4 text-slate-500">{{ agent.extension ?? '—' }}</td>
                   <td class="px-5 py-4 text-slate-500">
-                    {{ record.max_queue_size || 'Unlimited' }}
+                    {{ agent.queues.map(({ name }) => name).join(', ') }}
                   </td>
-                  <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
+                  <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
                 </tr>
               </tbody>
             </table>
           </div>
-        </TabPanel>
-        <TabPanel class="card-surface overflow-hidden focus:outline-none">
-          <table class="w-full text-left">
-            <thead
-              class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
-            >
-              <tr>
-                <th class="px-5 py-3.5">Agent</th>
-                <th class="px-5 py-3.5">Extension</th>
-                <th class="px-5 py-3.5">Queue assignments</th>
-                <th class="w-12"></th>
-              </tr>
-            </thead>
-            <tbody class="divide-y divide-slate-100 text-xs">
-              <tr v-if="queues.loading">
-                <td colspan="4" class="px-5 py-14 text-center text-slate-400">Loading agents…</td>
-              </tr>
-              <tr v-else-if="!queues.agents.length">
-                <td colspan="4" class="px-5 py-14 text-center text-slate-400">
-                  No agents are assigned to projected queues.
-                </td>
-              </tr>
-              <tr
-                v-for="agent in queues.agents"
-                v-else
-                :key="agent.id"
-                :aria-disabled="!liveAgentControlsAvailable"
-                :class="
-                  liveAgentControlsAvailable
-                    ? 'cursor-pointer hover:bg-slate-50'
-                    : 'cursor-not-allowed opacity-60'
-                "
-                @click="openAgent(agent)"
-              >
-                <td class="px-5 py-4 font-semibold text-slate-700">{{ agent.name }}</td>
-                <td class="px-5 py-4 text-slate-500">{{ agent.extension ?? '—' }}</td>
-                <td class="px-5 py-4 text-slate-500">
-                  {{ agent.queues.map(({ name }) => name).join(', ') }}
-                </td>
-                <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
-              </tr>
-            </tbody>
-          </table>
         </TabPanel>
       </TabPanels>
     </TabGroup>
