@@ -9,6 +9,7 @@ import {
   ChevronDownIcon,
   CircleStackIcon,
   ExclamationTriangleIcon,
+  NoSymbolIcon,
   ShieldCheckIcon,
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
@@ -20,7 +21,7 @@ import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import DescendantOnboardingPanel from '../components/DescendantOnboardingPanel.vue'
 import ResellerDiagnosticDetails from '../components/ResellerDiagnosticDetails.vue'
 import { useResellerStore } from '../stores/resellerStore'
-import type { AccountHierarchy, DescendantOnboardingInput } from '../types/reseller'
+import type { AccountHierarchy, DescendantOnboardingInput, ResellerStatus } from '../types/reseller'
 
 type PortfolioQuantity = AccountHierarchy['portfolio']['quantities'][number]
 type QuantityGroup = {
@@ -30,6 +31,31 @@ type QuantityGroup = {
   total: number
   items: PortfolioQuantity[]
 }
+type AdministrationCapability = keyof ResellerStatus['administration']
+
+const administrationOperations: Array<{
+  capability: AdministrationCapability
+  label: string
+}> = [
+  { capability: 'account_creation_available', label: 'Account creation' },
+  { capability: 'account_move_available', label: 'Account move' },
+  { capability: 'account_deletion_available', label: 'Account deletion' },
+  { capability: 'limit_mutations_available', label: 'Limits changes' },
+  { capability: 'service_plan_mutations_available', label: 'Service plan changes' },
+  {
+    capability: 'service_override_mutations_available',
+    label: 'Service overrides and manual quantities',
+  },
+  { capability: 'top_up_available', label: 'Account top-up' },
+  {
+    capability: 'switch_service_synchronization_available',
+    label: 'Kazoo service synchronization',
+  },
+  {
+    capability: 'switch_service_reconciliation_available',
+    label: 'Kazoo service reconciliation',
+  },
+]
 
 const accounts = useAccountStore()
 const reseller = useResellerStore()
@@ -630,6 +656,44 @@ watch(
                   {{ dateTime(status.service_projection_last_synced_at) }}.
                 </p>
               </div>
+            </section>
+
+            <section
+              class="card-surface overflow-hidden"
+              data-testid="account-administration-capabilities"
+            >
+              <div class="border-b border-slate-200 px-5 py-4">
+                <div class="flex items-start gap-3">
+                  <NoSymbolIcon class="mt-0.5 size-5 shrink-0 text-slate-500" />
+                  <div>
+                    <h2 class="text-sm font-semibold text-slate-800">
+                      Lifecycle and billing operations
+                    </h2>
+                    <p class="mt-1 text-xs leading-5 text-slate-600">
+                      Kazoo account and billing mutations remain unavailable until their security,
+                      confirmation, audit, and recovery contracts are complete.
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div class="divide-y divide-slate-200">
+                <div
+                  v-for="operation in administrationOperations"
+                  :key="operation.capability"
+                  class="flex items-center justify-between gap-4 px-5 py-2.5"
+                >
+                  <span class="text-xs font-medium text-slate-700">{{ operation.label }}</span>
+                  <span class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
+                    {{ status.administration[operation.capability] ? 'Available' : 'Unavailable' }}
+                  </span>
+                </div>
+              </div>
+              <p
+                class="border-t border-slate-200 bg-slate-50 px-5 py-3 text-[11px] leading-5 text-slate-600"
+              >
+                GridPBX projection refresh is read-only and is separate from Kazoo billing-side
+                synchronization or reconciliation.
+              </p>
             </section>
 
             <section

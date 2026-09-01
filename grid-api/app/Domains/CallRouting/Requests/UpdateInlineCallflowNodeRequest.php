@@ -22,7 +22,8 @@ class UpdateInlineCallflowNodeRequest extends FormRequest
                 'branch_bnumber',
                 'missed_call_alert',
                 'set_cid', 'prepend_cid', 'set_alert_info', 'check_cid', 'cidlistmatch',
-                'temporal_route', 'ring_group_toggle', 'acdc_queue', 'hotdesk', 'do_not_disturb',
+                'temporal_route', 'ring_group_toggle', 'acdc_queue', 'hotdesk', 'do_not_disturb', 'call_forward',
+                'dynamic_cid', 'pivot', 'webhook', 'disa', 'offnet', 'resources',
             ])],
             'data' => ['required', 'array'],
         ];
@@ -31,10 +32,11 @@ class UpdateInlineCallflowNodeRequest extends FormRequest
     public function after(): array
     {
         return [function (Validator $validator): void {
-            if ($this->input('node_path') === [] && $this->input('module') !== 'ring_group') {
+            if ($this->input('node_path') === []
+                && ! in_array($this->input('module'), ['ring_group', 'dynamic_cid'], true)) {
                 $validator->errors()->add(
                     'node_path',
-                    'Only a supported Ring Group may be edited as the root callflow action.',
+                    'Only a supported guided root action may be edited here.',
                 );
             }
         }];

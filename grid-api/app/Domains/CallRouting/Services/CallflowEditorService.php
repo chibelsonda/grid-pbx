@@ -8,6 +8,13 @@ use Illuminate\Validation\ValidationException;
 
 class CallflowEditorService
 {
+    public function __construct(
+        private readonly PivotEndpointRegistry $pivotEndpoints,
+        private readonly WebhookEndpointRegistry $webhookEndpoints,
+        private readonly DisaAccessPolicyRegistry $disaPolicies,
+        private readonly CarrierRouteRegistry $carrierRoutes,
+    ) {}
+
     /** @var list<string> */
     private const MENU_BRANCH_KEYS = [
         'timeout',
@@ -60,6 +67,18 @@ class CallflowEditorService
 
         return [
             'mode' => $callflow === null ? 'create' : 'update',
+            'action_capabilities' => [
+                'pivot' => $this->pivotEndpoints->capability($account),
+                'webhook' => $this->webhookEndpoints->capability($account),
+                'disa' => $this->disaPolicies->capability($account),
+                'offnet' => $this->carrierRoutes->capability($account, 'offnet'),
+                'resources' => $this->carrierRoutes->capability($account, 'resources'),
+            ],
+            'pivot_endpoints' => $this->pivotEndpoints->publicEndpoints($account),
+            'webhook_endpoints' => $this->webhookEndpoints->publicEndpoints($account),
+            'disa_access_policies' => $this->disaPolicies->publicPolicies($account),
+            'disa_operational_safety' => $this->disaPolicies->operationalStatus($account),
+            'carrier_routes' => $this->carrierRoutes->publicRoutes($account),
             'editable' => $callflow === null || $this->blockedReason($callflow) === null,
             'blocked_reason' => $callflow === null ? null : $this->blockedReason($callflow),
             'fallback' => $this->fallbackEditor($callflow),

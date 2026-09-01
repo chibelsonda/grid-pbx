@@ -2,7 +2,11 @@
 import { computed, ref, watch } from 'vue'
 import { Disclosure, DisclosureButton, DisclosurePanel } from '@headlessui/vue'
 import { ChevronDownIcon } from '@heroicons/vue/20/solid'
-import { ArrowUturnLeftIcon, ArrowsPointingOutIcon } from '@heroicons/vue/24/outline'
+import {
+  ArrowUturnLeftIcon,
+  ArrowsPointingOutIcon,
+  ChevronRightIcon,
+} from '@heroicons/vue/24/outline'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import { callflowActionAppearance } from '../catalog/callflowActionAppearance'
 import {
@@ -13,6 +17,11 @@ import {
 } from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import CallflowNodeCard from './CallflowNodeCard.vue'
+import {
+  callflowInlineRootModules,
+  type CallflowActionCapability,
+  type CallflowInlineRootModule,
+} from '../types/callRouting'
 
 const props = withDefaults(
   defineProps<{
@@ -20,16 +29,20 @@ const props = withDefaults(
     dragEnabled?: boolean
     compact?: boolean
     movable?: boolean
+    collapsible?: boolean
     floating?: boolean
     rootOnly?: boolean
+    actionCapabilities?: Record<string, CallflowActionCapability>
   }>(),
   {
     enabled: false,
     dragEnabled: false,
     compact: false,
     movable: false,
+    collapsible: false,
     floating: false,
     rootOnly: false,
+    actionCapabilities: () => ({}),
   },
 )
 const emit = defineEmits<{
@@ -38,6 +51,7 @@ const emit = defineEmits<{
   'action-drag-end': []
   'drag-start': [event: PointerEvent]
   dock: []
+  collapse: []
 }>()
 
 const search = ref('')
@@ -117,7 +131,7 @@ const statusDotClass = {
 } as const
 
 function choose(action: CallflowAction): void {
-  if (props.enabled && isActionEnabled(action)) emit('choose', action)
+  if (props.enabled && isActionEnabled(action)) emit('choose', effectiveAction(action))
 }
 
 function startActionDrag(event: DragEvent, action: CallflowAction): void {
@@ -129,15 +143,33 @@ function startActionDrag(event: DragEvent, action: CallflowAction): void {
   event.dataTransfer?.setData('application/x-gridpbx-callflow-action', action.id)
   event.dataTransfer?.setData('text/plain', action.module)
   if (event.dataTransfer) event.dataTransfer.effectAllowed = 'copy'
-  emit('action-drag-start', action)
+  emit('action-drag-start', effectiveAction(action))
+}
+
+function capability(action: CallflowAction): CallflowActionCapability | undefined {
+  return props.actionCapabilities[action.module]
+}
+
+function effectiveAction(action: CallflowAction): CallflowAction {
+  return capability(action)?.enabled === true ? { ...action, status: 'guided' } : action
+}
+
+function effectiveStatus(action: CallflowAction): CallflowAction['status'] {
+  return effectiveAction(action).status
+}
+
+function actionTitle(action: CallflowAction): string {
+  const status = effectiveStatus(action)
+  const reason = capability(action)?.reason
+  return `${action.label} · ${action.module} · ${statusLabel[status]}${reason ? ` · ${reason}` : ''}`
 }
 
 function isActionEnabled(action: CallflowAction): boolean {
   return (
-    action.status === 'guided' &&
+    effectiveStatus(action) === 'guided' &&
     (!props.rootOnly ||
-      (action.action === undefined &&
-        (callflowActionDestinationType(action.module) !== null || action.module === 'ring_group')))
+      (action.action === undefined && callflowActionDestinationType(action.module) !== null) ||
+      callflowInlineRootModules.includes(action.module as CallflowInlineRootModule))
   )
 }
 
@@ -156,7 +188,7 @@ function toggleCategory(categoryId: string): void {
       class="border-b"
       :class="compact ? 'border-slate-700 px-2.5 py-2' : 'border-slate-200 px-4 py-3'"
     >
-      <div class="flex items-center gap-2">
+      <div class="flex items-center" :class="compact ? 'gap-1' : 'gap-2'">
         <h3 class="text-xs font-semibold" :class="compact ? 'text-white' : 'text-slate-700'">
           Action catalog
         </h3>
@@ -191,6 +223,22 @@ function toggleCategory(categoryId: string): void {
           @click="emit('dock')"
         >
           <ArrowUturnLeftIcon :class="compact ? 'size-3.5' : 'size-4'" />
+        </button>
+        <button
+          v-if="collapsible"
+          type="button"
+          aria-label="Collapse action catalog and route details"
+          title="Hide action catalog and route details"
+          class="grid place-items-center rounded-md border"
+          :class="[
+            compact
+              ? 'border-slate-600 bg-slate-800 text-slate-300 hover:border-blue-400 hover:text-white'
+              : 'border-slate-200 bg-white text-slate-500 hover:border-brand-300 hover:text-brand-600',
+            compact ? 'size-6' : 'size-7',
+          ]"
+          @click="emit('collapse')"
+        >
+          <ChevronRightIcon :class="compact ? 'size-3.5' : 'size-4'" />
         </button>
       </div>
       <p v-if="!compact" class="mt-0.5 text-[10px] text-slate-500">
@@ -280,7 +328,7 @@ function toggleCategory(categoryId: string): void {
             type="button"
             :disabled="!isActionEnabled(action) || (!enabled && !dragEnabled)"
             :draggable="dragEnabled && isActionEnabled(action)"
-            :title="`${action.label} · ${action.module} · ${statusLabel[action.status]}`"
+            :title="actionTitle(action)"
             class="relative rounded-md text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default"
             :class="[
               compact ? 'h-14' : 'p-3',
@@ -332,18 +380,18 @@ function toggleCategory(categoryId: string): void {
               <span
                 v-if="!compact"
                 class="ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-semibold"
-                :class="statusClass[action.status]"
+                :class="statusClass[effectiveStatus(action)]"
               >
-                {{ statusLabel[action.status] }}
+                {{ statusLabel[effectiveStatus(action)] }}
               </span>
             </div>
             <span
               v-if="compact"
               class="absolute top-1 right-1 z-10 size-1.5 shrink-0 rounded-full"
-              :class="statusDotClass[action.status]"
-              :title="statusLabel[action.status]"
+              :class="statusDotClass[effectiveStatus(action)]"
+              :title="statusLabel[effectiveStatus(action)]"
             >
-              <span class="sr-only">{{ statusLabel[action.status] }}</span>
+              <span class="sr-only">{{ statusLabel[effectiveStatus(action)] }}</span>
             </span>
             <p v-if="!props.compact" class="mt-2 text-[10px] leading-4 text-slate-600">
               {{ action.description }}

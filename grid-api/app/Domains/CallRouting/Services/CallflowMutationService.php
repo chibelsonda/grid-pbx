@@ -4,6 +4,7 @@ namespace App\Domains\CallRouting\Services;
 
 use App\Domains\Auditing\Services\AuditService;
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
@@ -26,6 +27,10 @@ class CallflowMutationService
         private readonly CallflowInlineNodeDataValidator $inlineNodeDataValidator,
         private readonly CallflowJsonNormalizer $jsonNormalizer,
         private readonly RedactSensitiveSwitchData $redactSensitiveData,
+        private readonly PivotEndpointRegistry $pivotEndpoints,
+        private readonly WebhookEndpointRegistry $webhookEndpoints,
+        private readonly DisaAccessPolicyRegistry $disaPolicies,
+        private readonly CarrierRouteRegistry $carrierRoutes,
         private readonly AuditService $audit,
     ) {}
 
@@ -185,6 +190,78 @@ class CallflowMutationService
             });
         } catch (Throwable $exception) {
             $this->recordFailure($actor, $account, $callflow, 'callflow.update_failed', $data, $exception, $ipAddress);
+
+            throw $exception;
+        }
+    }
+
+    /** @param array<string, mixed> $data */
+    public function updateEntryPoints(
+        SwitchAccount $account,
+        SwitchCallflow $callflow,
+        User $actor,
+        array $data,
+        SwitchCallflowEntryPointGateway $entryPointGateway,
+        ?string $ipAddress = null,
+    ): SwitchCallflow {
+        $this->editor->assertEditable($callflow);
+        [$assignedPhoneNumbers, $knownPhoneNumbers] = $this->phoneNumberSelection(
+            $account,
+            $callflow,
+            $data['phone_number_ids'],
+        );
+        [$assignedExtensionNumbers, $knownExtensionNumbers] = $this->extensionNumberSelection(
+            $account,
+            $callflow,
+            $data['extension_numbers'],
+            $knownPhoneNumbers,
+        );
+        $assignedEntryNumbers = array_values(array_unique([
+            ...$assignedExtensionNumbers,
+            ...$assignedPhoneNumbers,
+        ]));
+        $knownEntryNumbers = array_values(array_unique([
+            ...$knownExtensionNumbers,
+            ...$knownPhoneNumbers,
+        ]));
+        $this->assertEntryNumberOrPatternRemains(
+            $callflow,
+            $assignedEntryNumbers,
+            $knownEntryNumbers,
+        );
+
+        try {
+            $snapshot = new CallflowSnapshot($entryPointGateway->updateEntryPoints(
+                $account,
+                $callflow->switch_resource_id,
+                $assignedEntryNumbers,
+                $knownEntryNumbers,
+            ));
+
+            return DB::transaction(function () use ($account, $callflow, $actor, $data, $ipAddress, $snapshot): SwitchCallflow {
+                $projected = $this->project($account, $callflow, $snapshot);
+                $this->reconcilePhoneNumbers($account, $projected, $data['phone_number_ids']);
+                $this->recordSuccess(
+                    $actor,
+                    $account,
+                    $projected,
+                    'callflow.entry_points_updated',
+                    $data,
+                    $ipAddress,
+                );
+
+                return $this->load($projected);
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure(
+                $actor,
+                $account,
+                $callflow,
+                'callflow.entry_points_update_failed',
+                $data,
+                $exception,
+                $ipAddress,
+            );
 
             throw $exception;
         }
@@ -391,7 +468,8 @@ class CallflowMutationService
         array $data,
         ?string $ipAddress = null,
     ): SwitchCallflow {
-        $editingInlineRoot = $data['node_path'] === [] && $data['module'] === 'ring_group';
+        $editingInlineRoot = $data['node_path'] === []
+            && in_array($data['module'], ['ring_group', 'dynamic_cid'], true);
 
         if (! $editingInlineRoot) {
             $this->editor->assertEditable($callflow);
@@ -555,6 +633,26 @@ class CallflowMutationService
         string $module,
         array $settings,
     ): array {
+        if ($module === 'pivot') {
+            return $this->pivotEndpoints->settingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'dynamic_cid') {
+            return $this->dynamicCidSettingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'webhook') {
+            return $this->webhookEndpoints->settingsForSwitch($account, $settings);
+        }
+
+        if ($module === 'disa') {
+            return $this->disaPolicies->settingsForSwitch($account, $settings);
+        }
+
+        if (in_array($module, ['offnet', 'resources'], true)) {
+            return $this->carrierRoutes->settingsForSwitch($account, $module, $settings);
+        }
+
         if ($module === 'check_cid') {
             return $this->checkCidSettingsForSwitch($account, $settings);
         }
@@ -600,6 +698,33 @@ class CallflowMutationService
         }
 
         return $settings;
+    }
+
+    /** @param array<string, mixed> $settings @return array<string, mixed> */
+    private function dynamicCidSettingsForSwitch(SwitchAccount $account, array $settings): array
+    {
+        $phoneNumber = $account->phoneNumbers()
+            ->where('id', $settings['phone_number_id'])
+            ->first();
+
+        if ($phoneNumber === null || ! is_string($phoneNumber->number) || $phoneNumber->number === '') {
+            throw ValidationException::withMessages([
+                'data.phone_number_id' => ['Select a synchronized phone number owned by this account.'],
+            ]);
+        }
+
+        $callerId = ['number' => $phoneNumber->number];
+        $name = trim((string) ($settings['caller_id_name'] ?? ''));
+
+        if ($name !== '') {
+            $callerId['name'] = $name;
+        }
+
+        return [
+            'action' => 'static',
+            'caller_id' => $callerId,
+            'skip_module' => $settings['skip_module'],
+        ];
     }
 
     /** @param array<string, mixed> $settings @return array<string, mixed> */
@@ -1132,7 +1257,9 @@ class CallflowMutationService
             $module = $data['root_action']['module'] ?? null;
             $settings = $data['root_action']['data'] ?? null;
 
-            if ($callflow !== null || $module !== 'ring_group' || ! is_array($settings)) {
+            if ($callflow !== null
+                || ! in_array($module, ['ring_group', 'call_forward', 'dynamic_cid', 'pivot'], true)
+                || ! is_array($settings)) {
                 throw ValidationException::withMessages([
                     'root_action' => ['Select a supported inline root action.'],
                 ]);
@@ -1706,11 +1833,12 @@ class CallflowMutationService
             $callflow->switch_resource_id,
             [
                 'callflow_id' => $callflow->id,
-                'destination_type' => $data['destination_type'],
+                'destination_type' => $data['destination_type'] ?? null,
                 'destination_id' => $data['destination_id'] ?? null,
                 'temporal_rule_ids' => $data['temporal_rule_ids'] ?? [],
-                'name' => $data['name'],
-                'phone_number_ids' => $data['phone_number_ids'],
+                'name' => $data['name'] ?? $callflow->name,
+                'phone_number_ids' => $data['phone_number_ids'] ?? [],
+                'extension_numbers' => $data['extension_numbers'] ?? [],
             ],
             $ipAddress,
             'callflow',
@@ -1738,6 +1866,7 @@ class CallflowMutationService
                 'destination_type' => $data['destination_type'] ?? null,
                 'destination_id' => $data['destination_id'] ?? null,
                 'phone_number_ids' => $data['phone_number_ids'] ?? [],
+                'extension_numbers' => $data['extension_numbers'] ?? [],
                 'error_type' => $exception::class,
             ],
             $ipAddress,

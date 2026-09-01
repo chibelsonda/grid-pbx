@@ -132,13 +132,33 @@ describe('CallflowDetailPanel', () => {
 
     wrapper.get('[aria-label="Callflow workspace"]')
     wrapper.get('[aria-label="Callflow diagram"]')
+    const canvasShell = wrapper.get('[data-callflow-canvas-shell]')
+    const dockedRail = wrapper.get('[data-callflow-docked-rail]')
+    const dockedRailContent = wrapper.get('[data-callflow-docked-rail-content]')
+    const paletteShell = wrapper.get('[data-callflow-palette-shell]')
+    const supportingCards = wrapper.get('[data-callflow-supporting-cards]')
+    const routeStructureHeader = wrapper.get('[data-callflow-canvas-shell] > header')
+    const canvasOverlay = wrapper.get('[data-callflow-canvas-overlay]')
+    expect(canvasShell.element.contains(paletteShell.element)).toBe(true)
+    expect(dockedRail.classes()).toContain('top-32')
+    expect(dockedRail.classes()).toContain('overflow-x-hidden')
+    expect(dockedRail.classes()).toContain('overflow-y-auto')
+    expect(dockedRailContent.element.contains(paletteShell.element)).toBe(true)
+    expect(dockedRailContent.element.lastElementChild).toBe(supportingCards.element)
+    expect(supportingCards.classes()).toContain('grid-cols-1')
+    expect(supportingCards.element.children).toHaveLength(3)
+    expect(routeStructureHeader.classes()).toContain('lg:px-8')
+    expect(canvasOverlay.classes()).toContain('lg:px-8')
+    expect(supportingCards.element.firstElementChild?.textContent).toContain('Entry points')
+    const entryActions = wrapper.get('[data-callflow-entry-actions]')
+    expect(entryActions.text()).toContain('Delete callflow')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Back to callflows"]').exists()).toBe(false)
     expect(wrapper.find('[aria-label="Refresh callflow nodes"]').exists()).toBe(false)
     expect(wrapper.find('header.card-surface').exists()).toBe(false)
   })
 
-  it('explains why Call Forwarding nodes are capability-gated', async () => {
+  it('offers the guided editor for resource-free Call Forwarding nodes', async () => {
     const forwardingRecord: Callflow = {
       ...record,
       modules: ['menu', 'call_forward'],
@@ -180,9 +200,9 @@ describe('CallflowDetailPanel', () => {
 
     await wrapper.get('[aria-label="Enable call forwarding"]').trigger('click')
 
-    expect(wrapper.text()).toContain('Capability required')
-    expect(wrapper.text()).toContain('unauthenticated arbitrary destination')
-    expect(wrapper.text()).not.toContain('Edit action target')
+    expect(wrapper.text()).toContain('Guided now')
+    expect(wrapper.text()).toContain('Edit action target')
+    expect(wrapper.text()).not.toContain('Capability required')
   })
 
   it('offers a keyboard-accessible typed subtree move in the node modal', async () => {

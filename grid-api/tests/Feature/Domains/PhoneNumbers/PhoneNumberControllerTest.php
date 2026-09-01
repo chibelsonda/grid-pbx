@@ -50,9 +50,14 @@ class PhoneNumberControllerTest extends TestCase
                     'region' => 'CA',
                     'postal_code' => '94105',
                     'notification_contact_emails' => ['ops@example.test', 'invalid'],
+                    'activated_time' => 'private-provider-time',
                     'location_id' => 'private-provider-id',
                     'latitude' => '37.789',
+                    'longitude' => '-122.394',
+                    'plus_four' => '1234',
+                    'legacy_data' => ['suite' => 'private-legacy-suite'],
                     'provider_status' => 'private-provider-state',
+                    'future_provider_field' => ['private' => true],
                 ],
                 'porting' => [
                     'requested_port_date' => '2026-09-15',
@@ -96,14 +101,19 @@ class PhoneNumberControllerTest extends TestCase
                 'Switch reports CNAM as selectable, but the installed notifier workflow does not confirm carrier completion. Mutation remains disabled pending approved quote, charge-confirmation, audit, and reconciliation policy.',
             )
             ->assertJsonMissingPath('data.cnam.provider_status')
+            ->assertJsonMissingPath('data.e911.activated_time')
             ->assertJsonMissingPath('data.e911.location_id')
             ->assertJsonMissingPath('data.e911.latitude')
+            ->assertJsonMissingPath('data.e911.longitude')
+            ->assertJsonMissingPath('data.e911.plus_four')
+            ->assertJsonMissingPath('data.e911.legacy_data')
             ->assertJsonMissingPath('data.e911.provider_status')
+            ->assertJsonMissingPath('data.e911.future_provider_field')
             ->assertJsonPath('data.capabilities.e911.available', true)
             ->assertJsonPath('data.capabilities.e911.writable', false)
             ->assertJsonPath(
                 'data.capabilities.e911.reason',
-                'Switch reports E911 as selectable, but GridPBX has not confirmed provider readiness or emergency-caller-ID safeguards. Mutation remains disabled pending approved emergency-service, billing, confirmation, audit, and reconciliation policy.',
+                'Switch reports E911 as selectable, but selectability does not establish provider readiness or safe emergency caller-ID routing. Mutation remains disabled pending approved emergency-service, verified transport, billing, confirmation, audit, and reconciliation policy.',
             )
             ->assertJsonMissingPath('data.porting.billing_account_id')
             ->assertJsonMissingPath('data.porting.comments')

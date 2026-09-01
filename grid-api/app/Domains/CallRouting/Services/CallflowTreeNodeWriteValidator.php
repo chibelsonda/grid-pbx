@@ -72,8 +72,8 @@ class CallflowTreeNodeWriteValidator
         string $module,
         ?array $settings = null,
     ): void {
-        if ($nodePath === [] && $module !== 'ring_group') {
-            $this->fail('node_path', 'Only a supported Ring Group may be edited as the root callflow action.');
+        if ($nodePath === [] && ! in_array($module, ['ring_group', 'dynamic_cid'], true)) {
+            $this->fail('node_path', 'Only a supported guided root action may be edited here.');
         }
 
         if ($nodePath === [] && $callflow->is_feature_code) {

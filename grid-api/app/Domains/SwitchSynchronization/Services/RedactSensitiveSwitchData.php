@@ -23,6 +23,7 @@ class RedactSensitiveSwitchData
         'bookkeepers',
         'cloud_connector_claim_url',
         'cookie',
+        'custom_request_headers',
         'md5_auth',
         'password',
         'password_confirmation',

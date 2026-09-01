@@ -44,6 +44,10 @@ describe('CallflowDiagram', () => {
     await wrapper.get('[aria-label="2999. Edit callflow entry numbers"]').trigger('click')
 
     expect(wrapper.emitted('edit-entry')).toEqual([[]])
+
+    await wrapper.get('[aria-label="Add callflow entry number"]').trigger('click')
+
+    expect(wrapper.emitted('add-entry')).toEqual([[]])
   })
 
   it('offers a compact remove control only for editable public child nodes', async () => {
@@ -172,7 +176,15 @@ describe('CallflowDiagram', () => {
     }
     const wrapper = mount(CallflowDiagram, { props: { node } })
     const canvas = wrapper.get<HTMLElement>('[data-callflow-pan-canvas]')
+    const panContent = wrapper.get('[data-callflow-pan-content]')
+    const overlay = wrapper.get('[data-callflow-canvas-overlay]')
     expect(canvas.classes()).toContain('callflow-canvas-texture')
+    expect(canvas.classes()).toContain('pt-20')
+    expect(canvas.element.contains(overlay.element)).toBe(true)
+    expect(panContent.classes()).toContain('lg:min-w-[calc(100%_+_32rem)]')
+    expect(panContent.classes()).toContain('lg:px-64')
+    expect(overlay.classes()).not.toContain('bg-white')
+    expect(overlay.classes()).not.toContain('border-b')
     canvas.element.scrollLeft = 80
     canvas.element.scrollTop = 120
 
@@ -223,14 +235,19 @@ describe('CallflowDiagram', () => {
       children: {},
     }
     const wrapper = mount(CallflowDiagram, { props: { node } })
+    const canvas = wrapper.get<HTMLElement>('[data-callflow-pan-canvas]')
     const diagram = wrapper.get<HTMLElement>('[role="tree"][aria-label="Callflow diagram"]')
     const controls = wrapper.get('[role="group"][aria-label="Canvas zoom controls"]')
 
     expect(diagram.attributes('style')).toContain('zoom: 1')
+    expect(canvas.attributes('style')).toContain('--callflow-grid-major-size: 96px')
+    expect(canvas.attributes('style')).toContain('--callflow-grid-minor-size: 24px')
     expect(controls.text()).toContain('100%')
 
     await wrapper.get('[aria-label="Zoom in"]').trigger('click')
     expect(diagram.attributes('style')).toContain('zoom: 1.1')
+    expect(canvas.attributes('style')).toContain('--callflow-grid-major-size: 105.6px')
+    expect(canvas.attributes('style')).toContain('--callflow-grid-minor-size: 26.4px')
     expect(controls.text()).toContain('110%')
 
     await wrapper.get('[aria-label="Zoom out"]').trigger('click')
@@ -240,6 +257,7 @@ describe('CallflowDiagram', () => {
 
     await wrapper.get('[aria-label="Reset canvas zoom"]').trigger('click')
     expect(diagram.attributes('style')).toContain('zoom: 1')
+    expect(canvas.attributes('style')).toContain('--callflow-grid-major-size: 96px')
     expect(controls.text()).toContain('100%')
   })
 

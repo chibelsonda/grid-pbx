@@ -2,6 +2,7 @@
 
 namespace App\Domains\CallRouting\Controllers;
 
+use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\CallRouting\Requests\CreateCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\CreateInlineCallflowNodeRequest;
@@ -10,6 +11,7 @@ use App\Domains\CallRouting\Requests\ListCallflowsRequest;
 use App\Domains\CallRouting\Requests\MoveCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\ReorderCallflowNodesRequest;
 use App\Domains\CallRouting\Requests\StoreCallflowRequest;
+use App\Domains\CallRouting\Requests\UpdateCallflowEntryPointsRequest;
 use App\Domains\CallRouting\Requests\UpdateCallflowNodeRequest;
 use App\Domains\CallRouting\Requests\UpdateCallflowRequest;
 use App\Domains\CallRouting\Requests\UpdateInlineCallflowNodeRequest;
@@ -63,6 +65,7 @@ class CallflowController extends Controller
         string $callflow,
         SwitchAccountService $accounts,
         CallflowService $callflows,
+        SwitchCallflowEntryPointGateway $entryPointGateway,
     ): CallflowResource {
         /** @var User $user */
         $user = $request->user();
@@ -138,6 +141,30 @@ class CallflowController extends Controller
             $switchCallflow,
             $user,
             $request->validated(),
+            $request->ip(),
+        ));
+    }
+
+    public function updateEntryPoints(
+        UpdateCallflowEntryPointsRequest $request,
+        string $account,
+        string $callflow,
+        SwitchAccountService $accounts,
+        CallflowService $callflows,
+        SwitchCallflowEntryPointGateway $entryPointGateway,
+    ): CallflowResource {
+        /** @var User $user */
+        $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        $switchCallflow = $callflows->find($switchAccount, $callflow);
+        Gate::authorize('update', [$switchCallflow, $switchAccount]);
+
+        return new CallflowResource(app(CallflowMutationService::class)->updateEntryPoints(
+            $switchAccount,
+            $switchCallflow,
+            $user,
+            $request->validated(),
+            $entryPointGateway,
             $request->ip(),
         ));
     }

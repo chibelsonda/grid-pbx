@@ -66,9 +66,7 @@ const guidedModules = new Set([
 
 const restrictedModules = new Set([
   'acdc_agent',
-  'call_forward',
   'disa',
-  'dynamic_cid',
   'eavesdrop',
   'eavesdrop_feature',
   'intercept',
@@ -90,7 +88,7 @@ const descriptions: Record<string, string> = {
   branch_bnumber:
     'Branch on the feature-code capture group or hunt for the matching account callflow.',
   call_forward:
-    'Call forwarding is gated because Kazoo accepts an unauthenticated arbitrary destination without toll-fraud controls.',
+    "Change call forwarding for the authenticated caller's owner using the Switch action workflow.",
   check_cid: 'Branch by a safe regular expression matched against incoming caller ID.',
   cidlistmatch: 'Branch when incoming caller ID matches a synchronized Caller-ID List.',
   collect_dtmf: 'Collect keypad input before continuing.',
@@ -98,9 +96,9 @@ const descriptions: Record<string, string> = {
   device: 'Ring one projected endpoint.',
   directory: 'Open a configured dial-by-name directory.',
   dead_air: 'Suppress media and wait until the caller hangs up.',
-  disa: 'Direct inward system access; gated pending mandatory PIN and call-restriction policy.',
+  disa: 'Direct inward system access using a write-only administrator-approved access policy.',
   dynamic_cid:
-    'Caller-ID replacement; gated pending account-owned number authorization and anti-spoofing policy.',
+    'Replace caller ID with a synchronized phone number owned by this account.',
   faxbox: 'Deliver a fax to a configured fax box.',
   flush_dtmf: 'Clear a named collection of buffered keypad digits.',
   group: 'Ring a configured group of endpoints.',
@@ -121,7 +119,8 @@ const descriptions: Record<string, string> = {
     'Ring up to 20 synchronized devices simultaneously, in order, or in a bounded weighted random order.',
   offnet:
     'Global carrier routing; gated pending outbound-only authorization, final-destination, emergency, and toll-fraud controls.',
-  pivot: 'External call control; gated pending allowlisted egress and authenticated callbacks.',
+  pivot:
+    'Use a server-approved external call-control endpoint when the account capability is enabled.',
   play: 'Play projected media to the caller.',
   record_call: 'Change recording state for the active call.',
   prepend_cid: 'Prepend or reset caller ID name and number prefixes.',
@@ -383,6 +382,7 @@ const operationModules = new Set([
   'acdc_queue',
   'hotdesk',
   'do_not_disturb',
+  'call_forward',
 ])
 
 export function isGuidedInlineCallflowModule(
@@ -406,6 +406,10 @@ const inlineModulesUsingEditorCatalog = new Set<CallflowInlineModule>([
   'temporal_route',
   'ring_group_toggle',
   'acdc_queue',
+  'dynamic_cid',
+  'pivot',
+  'webhook',
+  'disa',
 ])
 
 export function callflowInlineModuleNeedsEditorCatalog(module: string): boolean {

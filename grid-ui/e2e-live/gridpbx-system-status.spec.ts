@@ -72,11 +72,23 @@ test('shows polished safe read-only operational capability cards', async ({ page
         reservation_available: false
         release_available: false
       }
+      connectivity: {
+        summary_available: boolean
+        configured_pbx_count: number | null
+        local_resource_summary_available: boolean
+        local_resource_count: number | null
+        configuration_mutations_available: false
+        resource_mutations_available: false
+        selector_mutations_available: false
+        limit_mutations_available: false
+        failover_mutations_available: false
+      }
     }
   }
 
   expect(response.status()).toBe(200)
   expect(Object.keys(payload.data).sort()).toEqual([
+    'connectivity',
     'messaging',
     'number_management',
     'number_porting',
@@ -141,8 +153,28 @@ test('shows polished safe read-only operational capability cards', async ({ page
   expect(payload.data.number_management.purchase_available).toBe(false)
   expect(payload.data.number_management.reservation_available).toBe(false)
   expect(payload.data.number_management.release_available).toBe(false)
+  expect(Object.keys(payload.data.connectivity).sort()).toEqual([
+    'configuration_mutations_available',
+    'configured_pbx_count',
+    'failover_mutations_available',
+    'limit_mutations_available',
+    'local_resource_count',
+    'local_resource_summary_available',
+    'resource_mutations_available',
+    'selector_mutations_available',
+    'summary_available',
+  ])
+  expect(payload.data.connectivity.summary_available).toBe(true)
+  expect(payload.data.connectivity.configured_pbx_count).toBe(1)
+  expect(payload.data.connectivity.local_resource_summary_available).toBe(true)
+  expect(payload.data.connectivity.local_resource_count).toBe(0)
+  expect(payload.data.connectivity.configuration_mutations_available).toBe(false)
+  expect(payload.data.connectivity.resource_mutations_available).toBe(false)
+  expect(payload.data.connectivity.selector_mutations_available).toBe(false)
+  expect(payload.data.connectivity.limit_mutations_available).toBe(false)
+  expect(payload.data.connectivity.failover_mutations_available).toBe(false)
   expect(JSON.stringify(payload)).not.toMatch(
-    /Call-ID|Presence-ID|Switch-URI|contact|subscription_id|switch_account_id|hook_id|req_body|resp_body|uri|message_id|"body"|"from"|"to"|attachment|port_request_id|billing_account|signee|signing_date|transfer_date|port_authority|comments|uploads|"pin"|usable_carriers|usable_creation_states|carrier_modules|available_numbers|accept_charges|quotes/i,
+    /Call-ID|Presence-ID|Switch-URI|contact|subscription_id|switch_account_id|hook_id|req_body|resp_body|uri|message_id|"body"|"from"|"to"|attachment|port_request_id|billing_account|signee|signing_date|transfer_date|port_authority|comments|uploads|"pin"|usable_carriers|usable_creation_states|carrier_modules|available_numbers|accept_charges|quotes|connectivity_id|resource_id|gateways|servers|username|password|hunt_account_id|allow_postpay|max_postpay_amount/i,
   )
 
   await expect(page.getByRole('heading', { name: 'Presence' })).toBeVisible()
@@ -151,6 +183,7 @@ test('shows polished safe read-only operational capability cards', async ({ page
   await expect(page.getByRole('heading', { name: 'SMS / MMS' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Number porting' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Number acquisition' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Connectivity / trunks' })).toBeVisible()
   await expect(page.getByRole('tab', { name: /basic|advanced/i })).toHaveCount(0)
   await expect(
     page.getByRole('button', {
@@ -178,10 +211,14 @@ test('shows polished safe read-only operational capability cards', async ({ page
     page.getByText(/Only the account-scoped carrier configuration endpoint shape/),
   ).toBeVisible()
   await expect(page.getByText(/Search, purchase, reservation, and release remain/)).toBeVisible()
+  await expect(page.getByText(/Only aggregate collection counts are exposed/)).toBeVisible()
+  await expect(
+    page.getByText(/Connectivity, Resource, selector, limit, and failover changes remain/),
+  ).toBeVisible()
   await expect(page.getByText(/Observed/)).toBeVisible()
 
   const cards = page.locator('[data-operational-status-card]')
-  await expect(cards).toHaveCount(6)
+  await expect(cards).toHaveCount(7)
   for (let index = 0; index < (await cards.count()); index += 1) {
     const card = cards.nth(index)
     const layout = await card.evaluate((element) => {

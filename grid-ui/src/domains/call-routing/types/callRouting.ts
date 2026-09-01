@@ -160,6 +160,13 @@ export const callflowInlineModules = [
   'acdc_queue',
   'hotdesk',
   'do_not_disturb',
+  'call_forward',
+  'dynamic_cid',
+  'pivot',
+  'webhook',
+  'disa',
+  'offnet',
+  'resources',
 ] as const
 
 export type CallflowInlineModule = (typeof callflowInlineModules)[number]
@@ -190,6 +197,7 @@ export type CallflowInlineNodeData = {
     | 'deactivate'
     | 'update'
     | 'check'
+    | 'static'
   format?: 'mp3' | 'wav' | null
   label?: string | null
   record_min_sec?: number | null
@@ -232,6 +240,7 @@ export type CallflowInlineNodeData = {
   recipients?: CallflowAlertRecipient[]
   caller_id_name?: string
   caller_id_number?: string
+  phone_number_id?: string
   caller_id_name_prefix?: string
   caller_id_number_prefix?: string
   apply_to?: 'original' | 'current'
@@ -246,6 +255,14 @@ export type CallflowInlineNodeData = {
   callflow_id?: string
   queue_id?: string
   id?: string | null
+  endpoint_id?: string
+  access_policy_id?: string
+  route_profile_id?: string
+  method?: 'get' | 'post'
+  req_format?: 'kazoo' | 'twiml'
+  http_verb?: 'get' | 'post'
+  retries?: number
+  custom_data?: Record<string, string | number | boolean>
   skip_module: boolean
 }
 
@@ -378,6 +395,12 @@ export type CallflowEditor = {
   mode: 'create' | 'update'
   editable: boolean
   blocked_reason: string | null
+  action_capabilities?: Record<string, CallflowActionCapability>
+  pivot_endpoints?: CallflowPivotEndpoint[]
+  webhook_endpoints?: CallflowWebhookEndpoint[]
+  disa_access_policies?: CallflowDisaAccessPolicy[]
+  disa_operational_safety?: CallflowDisaOperationalSafety
+  carrier_routes?: CallflowCarrierRoute[]
   fallback: {
     editable: boolean
     blocked_reason: string | null
@@ -433,6 +456,55 @@ export type CallflowEditor = {
   preserved_numbers?: string[]
 }
 
+export type CallflowActionCapability = {
+  enabled: boolean
+  reason: string | null
+}
+
+export type CallflowDisaOperationalSafety = {
+  ready: boolean
+  adapter: string
+  ingress_guard_available: boolean
+  persistent_lockout_available: boolean
+  rate_limit_available: boolean
+  concurrency_limit_available: boolean
+  destination_policy_available: boolean
+  redacted_monitoring_available: boolean
+  emergency_stop_available: boolean
+  emergency_stop_active: boolean
+  reason: string | null
+}
+
+export type CallflowPivotEndpoint = {
+  id: string
+  label: string
+  methods: Array<'get' | 'post'>
+  formats: Array<'kazoo' | 'twiml'>
+}
+
+export type CallflowWebhookEndpoint = {
+  id: string
+  label: string
+  methods: Array<'get' | 'post'>
+  max_retries: number
+}
+
+export type CallflowDisaAccessPolicy = {
+  id: string
+  label: string
+  retries: number
+  interdigit_ms: number
+  max_digits: number
+  preconnect_audio: 'dialtone' | 'ringing'
+}
+
+export type CallflowCarrierRoute = {
+  id: string
+  label: string
+  module: 'offnet' | 'resources'
+  scope: 'global' | 'account' | 'reseller'
+}
+
 export type CallflowUpdate = {
   name: string
   destination_type: CallflowDestinationType
@@ -451,8 +523,21 @@ export type CallflowUpdate = {
   temporal_match_destination_id?: string | null
 }
 
+export type CallflowEntryPointsUpdate = {
+  phone_number_ids: string[]
+  extension_numbers: string[]
+}
+
+export const callflowInlineRootModules = [
+  'ring_group',
+  'call_forward',
+  'dynamic_cid',
+  'pivot',
+] as const
+export type CallflowInlineRootModule = (typeof callflowInlineRootModules)[number]
+
 export type CallflowInlineRootAction = {
-  module: 'ring_group'
+  module: CallflowInlineRootModule
   data: CallflowInlineNodeData
 }
 

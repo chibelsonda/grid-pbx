@@ -132,6 +132,32 @@ describe('callflow form schema', () => {
     expect(result.data.extension_numbers).toEqual(['2999'])
   })
 
+  it('accepts an installed Call Forwarding operation as a typed root action', () => {
+    const valid = createCallflowFormSchema(editor('create')).safeParse({
+      name: 'Forwarding feature code',
+      destination_type: 'extension',
+      destination_id: '',
+      root_action: {
+        module: 'call_forward',
+        data: { action: 'update', skip_module: true },
+      },
+      manage_fallback: false,
+      fallback_enabled: false,
+      fallback_destination_type: 'extension',
+      fallback_destination_id: '',
+      manage_menu_branches: false,
+      menu_branches: [],
+      manage_temporal_match: false,
+      temporal_match_enabled: false,
+      temporal_match_destination_type: 'extension',
+      temporal_match_destination_id: '',
+      phone_number_ids: [],
+      extension_numbers: ['72'],
+    })
+
+    expect(valid.success).toBe(true)
+  })
+
   it('allows an update to clear projected phone-number assignments', () => {
     expect(
       createCallflowFormSchema(editor('update')).safeParse({

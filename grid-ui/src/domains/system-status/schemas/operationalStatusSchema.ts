@@ -53,6 +53,19 @@ export const operationalStatusSchema = z
         release_available: z.literal(false),
       })
       .strict(),
+    connectivity: z
+      .object({
+        summary_available: z.boolean(),
+        configured_pbx_count: z.number().int().nonnegative().nullable(),
+        local_resource_summary_available: z.boolean(),
+        local_resource_count: z.number().int().nonnegative().nullable(),
+        configuration_mutations_available: z.literal(false),
+        resource_mutations_available: z.literal(false),
+        selector_mutations_available: z.literal(false),
+        limit_mutations_available: z.literal(false),
+        failover_mutations_available: z.literal(false),
+      })
+      .strict(),
   })
   .strict()
 

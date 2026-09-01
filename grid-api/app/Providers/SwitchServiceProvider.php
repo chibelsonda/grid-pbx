@@ -9,6 +9,7 @@ use App\Domains\CallDetailRecords\Gateways\CrossbarSwitchCallDetailRecordGateway
 use App\Domains\CallerIdLists\Contracts\SwitchCallerIdListGateway;
 use App\Domains\CallerIdLists\Gateways\CrossbarSwitchCallerIdListGateway;
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
 use App\Domains\CallRouting\Gateways\CrossbarSwitchCallflowGateway;
 use App\Domains\Conferences\Contracts\SwitchConferenceGateway;
 use App\Domains\Conferences\Gateways\CrossbarSwitchConferenceGateway;
@@ -105,6 +106,7 @@ class SwitchServiceProvider extends ServiceProvider
     {
         $this->app->scoped(DeviceMetaflowPolicy::class);
         $this->app->bind(SwitchCallflowGateway::class, CrossbarSwitchCallflowGateway::class);
+        $this->app->bind(SwitchCallflowEntryPointGateway::class, CrossbarSwitchCallflowGateway::class);
         $this->app->bind(SwitchAccountGateway::class, CrossbarSwitchAccountGateway::class);
         $this->app->bind(SwitchConferenceGateway::class, CrossbarSwitchConferenceGateway::class);
         $this->app->bind(SwitchBlacklistGateway::class, CrossbarSwitchBlacklistGateway::class);

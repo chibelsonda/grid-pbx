@@ -10,6 +10,29 @@ import DeviceDraftForm from '@/domains/devices/components/DeviceDraftForm.vue'
 import { defaultExtensionFormOptions } from '../extensionForm'
 
 describe('ExtensionCreatePanel', () => {
+  it('uses the extra-wide panel required by its advanced tabs', () => {
+    const wrapper = mount(ExtensionCreatePanel, {
+      props: {
+        saving: false,
+        error: null,
+        fieldErrors: {},
+        options: defaultExtensionFormOptions(),
+      },
+      global: {
+        components: { FormSelect, ToggleSwitch },
+        stubs: {
+          CrudSlideOver: {
+            name: 'CrudSlideOver',
+            props: ['width'],
+            template: '<div><slot /></div>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.findComponent({ name: 'CrudSlideOver' }).props('width')).toBe('extra-wide')
+  })
+
   it('shows inline invalid controls without a duplicate validation alert', async () => {
     const wrapper = mount(ExtensionCreatePanel, {
       props: {
@@ -89,7 +112,30 @@ describe('ExtensionCreatePanel', () => {
         .get('[aria-label="Extension advanced sections"]')
         .findAll('[role="tab"]')
         .map((tab) => tab.text()),
-    ).toEqual(expect.arrayContaining(['Media', 'Routing & Profile', 'Metaflows']))
+    ).toEqual([
+      'Caller ID',
+      'Options',
+      'Call Forward',
+      'Password Management',
+      'Hot Desking',
+      'Restrictions',
+      'Recording',
+      'Media',
+      'Routing & Profile',
+      'Metaflows',
+    ])
+    expect(wrapper.get('[data-testid="extension-advanced-caller-id"]').text()).toContain(
+      'Presence ID',
+    )
+    expect(wrapper.get('[data-testid="extension-advanced-options"]').text()).not.toContain(
+      'Presence ID',
+    )
+    expect(wrapper.get('[data-testid="extension-advanced-options"]').text()).toContain(
+      'Music on hold',
+    )
+    expect(wrapper.get('[data-testid="extension-advanced-media"]').text()).not.toContain(
+      'Music on hold',
+    )
     expect(
       wrapper.get('[data-testid="extension-advanced-options"]').attributes('style') ?? '',
     ).not.toContain('display: none')
@@ -99,6 +145,8 @@ describe('ExtensionCreatePanel', () => {
   })
 
   it.each([
+    ['presence_id', 'extension-advanced-caller-id'],
+    ['music_on_hold.media_id', 'extension-advanced-options'],
     ['call_forward.number', 'extension-advanced-call-forward'],
     ['password', 'extension-advanced-password'],
     ['hotdesk.id', 'extension-advanced-hot-desking'],

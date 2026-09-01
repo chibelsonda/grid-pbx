@@ -1084,7 +1084,7 @@ Acceptance criteria:
   the projected public UUID selected. Inline draft children remain unavailable
   until their nested create contract can be modeled without arbitrary Switch
   JSON.
-  The 40 guided and nine capability-gated actions have no planned gaps, and the
+  The 43 guided and six capability-gated actions have no planned gaps, and the
   installed default palette has no unhandled keyed branch contract. The next
   Callflow acceptance item is externally blocked: Ring Group audible ringback
   and internal/external `Alert-Info` require a representative disposable

@@ -3,7 +3,11 @@
 namespace Tests\Feature\Domains\CallRouting;
 
 use App\Domains\Auditing\Models\AuditLog;
+use App\Domains\CallRouting\Contracts\DisaOperationalGuard;
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
+use App\Domains\CallRouting\Dto\DisaOperationalReadiness;
+use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Devices\Models\SwitchDevice;
 use App\Domains\Extensions\Models\SwitchExtension;
@@ -315,7 +319,7 @@ class CallflowControllerTest extends TestCase
         $this->assertSame('user', $gateway->received['destinationModule']);
         $this->assertSame(['+15550000200'], $gateway->received['assignedPhoneNumbers']);
         $this->assertEqualsCanonicalizing(
-            ['+15550000100', '+15550000200'],
+            ['+15550000100', '+15550000200', '18005550100'],
             $gateway->received['knownPhoneNumbers'],
         );
         $this->assertNull($currentlyAssigned->fresh()->assigned_callflow_id);
@@ -2229,6 +2233,86 @@ class CallflowControllerTest extends TestCase
             ->assertJsonValidationErrors('data');
     }
 
+    public function test_it_writes_resource_free_call_forward_actions_without_accepting_a_destination(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-call-forward',
+            'name' => 'Call Forward menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-call-forward',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Call Forward menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $settings = ['action' => 'update', 'skip_module' => false];
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $receivedSettings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-call-forward'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'call_forward'
+            && $receivedSettings === $settings)->andReturn([
+                'id' => 'switch-callflow-call-forward',
+                'name' => 'Call Forward route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-call-forward'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'call_forward',
+                            'data' => [
+                                ...$settings,
+                                'number' => '+15551234567',
+                                'server_owned' => ['preserve' => true],
+                            ],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+        $url = "/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes";
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '_',
+            'module' => 'call_forward',
+            'data' => $settings,
+        ])->assertOk()
+            ->assertJsonPath('data.flow.children._.reference_status', 'not_applicable')
+            ->assertJsonPath('data.flow.children._.settings.action', 'update')
+            ->assertJsonPath('data.flow.children._.settings.skip_module', false)
+            ->assertJsonMissing(['number' => '+15551234567'])
+            ->assertJsonMissing(['server_owned' => ['preserve' => true]]);
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '_',
+            'module' => 'call_forward',
+            'data' => [
+                'action' => 'activate',
+                'number' => '+15551234567',
+                'skip_module' => false,
+            ],
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors('data');
+    }
+
     public function test_it_rejects_every_capability_gated_palette_module_at_the_inline_boundary(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -2253,13 +2337,6 @@ class CallflowControllerTest extends TestCase
 
         foreach ([
             'acdc_agent',
-            'pivot',
-            'disa',
-            'offnet',
-            'resources',
-            'webhook',
-            'dynamic_cid',
-            'call_forward',
             'eavesdrop',
             'eavesdrop_feature',
         ] as $module) {
@@ -2272,12 +2349,635 @@ class CallflowControllerTest extends TestCase
                 ->assertJsonValidationErrors('module');
         }
 
-        $this->actingAs($user)->patchJson($url, [
-            'node_path' => ['_'],
-            'module' => 'call_forward',
-            'data' => ['action' => 'deactivate', 'skip_module' => false],
+        foreach (['offnet', 'resources'] as $module) {
+            $this->actingAs($user)->postJson($url, [
+                'parent_path' => [],
+                'branch' => '1',
+                'module' => $module,
+                'data' => ['skip_module' => false],
+            ])->assertUnprocessable()
+                ->assertJsonValidationErrors('data.route_profile_id');
+        }
+
+    }
+
+    public function test_it_writes_dynamic_cid_only_from_an_account_owned_phone_number(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15551234567',
+        ]);
+        $foreignNumber = SwitchPhoneNumber::factory()->create([
+            'number' => '+15557654321',
+        ]);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-dynamic-cid',
+            'name' => 'Caller ID menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-dynamic-cid',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Caller ID menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-dynamic-cid'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'dynamic_cid'
+            && $settings === [
+                'action' => 'static',
+                'caller_id' => ['number' => '+15551234567', 'name' => 'Support'],
+                'skip_module' => false,
+            ])->andReturn([
+                'id' => 'switch-callflow-dynamic-cid',
+                'name' => 'Caller ID route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-dynamic-cid'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'dynamic_cid',
+                            'data' => [
+                                'action' => 'static',
+                                'caller_id' => ['number' => '+15551234567', 'name' => 'Support'],
+                                'skip_module' => false,
+                            ],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+        $url = "/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes";
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '_',
+            'module' => 'dynamic_cid',
+            'data' => [
+                'action' => 'static',
+                'phone_number_id' => $phoneNumber->id,
+                'caller_id_name' => 'Support',
+                'skip_module' => false,
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.flow.children._.settings.supported_configuration', true)
+            ->assertJsonPath('data.flow.children._.settings.phone_number_id', $phoneNumber->id)
+            ->assertJsonPath('data.flow.children._.settings.caller_id_name', 'Support')
+            ->assertJsonMissing(['caller_id' => ['number' => '+15551234567', 'name' => 'Support']]);
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '1',
+            'module' => 'dynamic_cid',
+            'data' => [
+                'action' => 'static',
+                'phone_number_id' => $foreignNumber->id,
+                'caller_id_name' => '',
+                'skip_module' => false,
+            ],
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors('module');
+            ->assertJsonValidationErrors('data.phone_number_id');
+    }
+
+    public function test_it_enables_pivot_only_through_an_approved_server_side_endpoint(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $profile = CallflowIntegrationProfile::factory()->for($account)->create([
+            'name' => 'Customer IVR',
+            'settings' => [
+                'voice_url' => 'https://voice.example.test/pivot',
+                'methods' => ['post'],
+                'formats' => ['twiml'],
+                'req_body_format' => 'json',
+                'req_timeout_ms' => 4500,
+                'custom_request_headers' => ['X-Pivot-Key' => 'server-secret'],
+            ],
+        ]);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-pivot',
+            'name' => 'Pivot menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-pivot',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Pivot menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.action_capabilities.pivot.enabled', true)
+            ->assertJsonPath('data.pivot_endpoints.0.id', $profile->id)
+            ->assertJsonMissing(['https://voice.example.test/pivot', 'server-secret']);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-pivot'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'pivot'
+            && $settings['voice_url'] === 'https://voice.example.test/pivot'
+            && $settings['custom_request_headers'] === ['X-Pivot-Key' => 'server-secret']
+            && ! array_key_exists('endpoint_id', $settings))->andReturn([
+                'id' => 'switch-callflow-pivot',
+                'name' => 'Pivot route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-pivot'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'pivot',
+                            'data' => [
+                                'voice_url' => 'https://voice.example.test/pivot',
+                                'method' => 'post',
+                                'req_format' => 'twiml',
+                                'req_body_format' => 'json',
+                                'req_timeout_ms' => 4500,
+                                'custom_request_headers' => ['X-Pivot-Key' => 'server-secret'],
+                                'skip_module' => false,
+                            ],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'pivot',
+                'data' => [
+                    'endpoint_id' => $profile->id,
+                    'method' => 'post',
+                    'req_format' => 'twiml',
+                    'skip_module' => false,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children._.settings.endpoint_id', $profile->id)
+            ->assertJsonPath('data.flow.children._.settings.supported_configuration', true)
+            ->assertJsonMissing(['https://voice.example.test/pivot', 'server-secret']);
+    }
+
+    public function test_it_uses_multiple_pivot_profiles_on_independent_callflow_branches(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $primary = CallflowIntegrationProfile::factory()->for($account)->create([
+            'name' => 'Primary voice application',
+            'settings' => [
+                'voice_url' => 'https://primary.example.test/pivot',
+                'methods' => ['post'],
+                'formats' => ['twiml'],
+                'req_body_format' => 'json',
+                'req_timeout_ms' => 4000,
+                'custom_request_headers' => [],
+            ],
+        ]);
+        $secondary = CallflowIntegrationProfile::factory()->for($account)->create([
+            'name' => 'Secondary voice application',
+            'settings' => [
+                'voice_url' => 'https://secondary.example.test/pivot',
+                'methods' => ['get'],
+                'formats' => ['kazoo'],
+                'req_body_format' => 'form',
+                'req_timeout_ms' => 3000,
+                'custom_request_headers' => [],
+            ],
+        ]);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-multiple-pivot',
+            'name' => 'Multiple Pivot menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-multiple-pivot',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Multiple Pivot menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $pivotNode = static fn (string $url, string $method, string $format): array => [
+            'module' => 'pivot',
+            'data' => [
+                'voice_url' => $url,
+                'method' => $method,
+                'req_format' => $format,
+                'req_body_format' => $method === 'post' ? 'json' : 'form',
+                'req_timeout_ms' => $method === 'post' ? 4000 : 3000,
+                'skip_module' => false,
+            ],
+            'children' => [],
+        ];
+        $primaryNode = $pivotNode('https://primary.example.test/pivot', 'post', 'twiml');
+        $secondaryNode = $pivotNode('https://secondary.example.test/pivot', 'get', 'kazoo');
+        $expectedUrls = [
+            '1' => 'https://primary.example.test/pivot',
+            '2' => 'https://secondary.example.test/pivot',
+        ];
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->twice()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-multiple-pivot'
+            && $operation === 'create'
+            && $path === []
+            && is_string($branch)
+            && isset($expectedUrls[$branch])
+            && $module === 'pivot'
+            && $settings['voice_url'] === $expectedUrls[$branch]
+            && ! array_key_exists('endpoint_id', $settings))->andReturn(
+                [
+                    'id' => 'switch-callflow-multiple-pivot',
+                    'name' => 'Multiple Pivot route',
+                    'numbers' => [],
+                    'patterns' => [],
+                    'flow' => [
+                        'module' => 'menu',
+                        'data' => ['id' => 'switch-menu-multiple-pivot'],
+                        'children' => ['1' => $primaryNode],
+                    ],
+                ],
+                [
+                    'id' => 'switch-callflow-multiple-pivot',
+                    'name' => 'Multiple Pivot route',
+                    'numbers' => [],
+                    'patterns' => [],
+                    'flow' => [
+                        'module' => 'menu',
+                        'data' => ['id' => 'switch-menu-multiple-pivot'],
+                        'children' => [
+                            '1' => $primaryNode,
+                            '2' => $secondaryNode,
+                        ],
+                    ],
+                ],
+            );
+        $url = "/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes";
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '1',
+            'module' => 'pivot',
+            'data' => [
+                'endpoint_id' => $primary->id,
+                'method' => 'post',
+                'req_format' => 'twiml',
+                'skip_module' => false,
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.flow.children.1.settings.endpoint_id', $primary->id);
+
+        $this->actingAs($user)->postJson($url, [
+            'parent_path' => [],
+            'branch' => '2',
+            'module' => 'pivot',
+            'data' => [
+                'endpoint_id' => $secondary->id,
+                'method' => 'get',
+                'req_format' => 'kazoo',
+                'skip_module' => false,
+            ],
+        ])->assertOk()
+            ->assertJsonPath('data.flow.children.1.settings.endpoint_id', $primary->id)
+            ->assertJsonPath('data.flow.children.2.settings.endpoint_id', $secondary->id)
+            ->assertJsonMissing([
+                'https://primary.example.test/pivot',
+                'https://secondary.example.test/pivot',
+            ]);
+    }
+
+    public function test_it_resolves_an_approved_webhook_profile_without_exposing_its_uri(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $profile = CallflowIntegrationProfile::factory()->for($account)->create([
+            'integration_type' => 'webhook',
+            'name' => 'CRM events',
+            'settings' => [
+                'uri' => 'https://events.example.test/calls',
+                'methods' => ['post'],
+                'max_retries' => 3,
+            ],
+        ]);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-webhook',
+            'name' => 'Webhook menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-webhook',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Webhook menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.action_capabilities.webhook.enabled', true)
+            ->assertJsonPath('data.webhook_endpoints.0.id', $profile->id)
+            ->assertJsonMissing(['https://events.example.test/calls']);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-webhook'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'webhook'
+            && $settings['uri'] === 'https://events.example.test/calls'
+            && $settings['http_verb'] === 'post'
+            && $settings['retries'] === 2
+            && $settings['custom_data'] === ['source' => 'support']
+            && ! array_key_exists('endpoint_id', $settings))->andReturn([
+                'id' => 'switch-callflow-webhook',
+                'name' => 'Webhook route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-webhook'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'webhook',
+                            'data' => [
+                                'uri' => 'https://events.example.test/calls',
+                                'http_verb' => 'post',
+                                'retries' => 2,
+                                'custom_data' => ['source' => 'support'],
+                                'skip_module' => false,
+                            ],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'webhook',
+                'data' => [
+                    'endpoint_id' => $profile->id,
+                    'http_verb' => 'post',
+                    'retries' => 2,
+                    'custom_data' => ['source' => 'support'],
+                    'skip_module' => false,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children._.settings.endpoint_id', $profile->id)
+            ->assertJsonPath('data.flow.children._.settings.supported_configuration', true)
+            ->assertJsonMissing(['https://events.example.test/calls']);
+    }
+
+    public function test_it_keeps_disa_locked_when_only_an_access_policy_is_configured(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        CallflowIntegrationProfile::factory()->for($account)->disa()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/editor")
+            ->assertOk()
+            ->assertJsonPath('data.action_capabilities.disa.enabled', false)
+            ->assertJsonPath('data.disa_operational_safety.ready', false)
+            ->assertJsonPath('data.disa_operational_safety.emergency_stop_active', true)
+            ->assertJsonPath('data.disa_operational_safety.persistent_lockout_available', false)
+            ->assertJsonMissing(['82736491']);
+    }
+
+    public function test_it_enables_disa_only_through_an_approved_server_side_access_policy(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->app->instance(DisaOperationalGuard::class, new class implements DisaOperationalGuard
+        {
+            public function inspect(SwitchAccount $account): DisaOperationalReadiness
+            {
+                return DisaOperationalReadiness::available('test-sbc');
+            }
+        });
+        $profile = CallflowIntegrationProfile::factory()
+            ->for($account)
+            ->disa()
+            ->create(['name' => 'After-hours access']);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-disa',
+            'name' => 'DISA menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-disa',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'DISA menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.action_capabilities.disa.enabled', true)
+            ->assertJsonPath('data.disa_operational_safety.ready', true)
+            ->assertJsonPath('data.disa_operational_safety.adapter', 'test-sbc')
+            ->assertJsonPath('data.disa_access_policies.0.id', $profile->id)
+            ->assertJsonPath('data.disa_access_policies.0.retries', 2)
+            ->assertJsonMissing(['82736491']);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-disa'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'disa'
+            && $settings === [
+                'pin' => '82736491',
+                'retries' => 2,
+                'interdigit' => 3000,
+                'max_digits' => 15,
+                'preconnect_audio' => 'dialtone',
+                'use_account_caller_id' => false,
+                'enforce_call_restriction' => true,
+                'skip_module' => false,
+            ])->andReturn([
+                'id' => 'switch-callflow-disa',
+                'name' => 'DISA route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-disa'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'disa',
+                            'data' => [
+                                'pin' => '82736491',
+                                'retries' => 2,
+                                'interdigit' => 3000,
+                                'max_digits' => 15,
+                                'preconnect_audio' => 'dialtone',
+                                'use_account_caller_id' => false,
+                                'enforce_call_restriction' => true,
+                                'skip_module' => false,
+                            ],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'disa',
+                'data' => [
+                    'access_policy_id' => $profile->id,
+                    'skip_module' => false,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children._.settings.access_policy_id', $profile->id)
+            ->assertJsonPath('data.flow.children._.settings.supported_configuration', true)
+            ->assertJsonMissing(['82736491']);
+    }
+
+    public function test_it_enables_global_carrier_only_through_an_account_scoped_profile(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $profile = CallflowIntegrationProfile::factory()
+            ->for($account)
+            ->globalCarrier()
+            ->create(['name' => 'System carriers']);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-carrier',
+            'name' => 'Carrier menu',
+        ]);
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-carrier',
+            'flow_structure' => [
+                'module' => 'menu',
+                'target' => ['type' => 'menu', 'id' => $menu->id, 'label' => 'Carrier menu'],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/editor")
+            ->assertOk()
+            ->assertJsonPath('data.action_capabilities.offnet.enabled', true)
+            ->assertJsonPath('data.action_capabilities.resources.enabled', false)
+            ->assertJsonPath('data.carrier_routes.0.id', $profile->id)
+            ->assertJsonPath('data.carrier_routes.0.module', 'offnet')
+            ->assertJsonMissing([$account->switch_account_id]);
+
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
+            SwitchAccount $receivedAccount,
+            string $resourceId,
+            string $operation,
+            array $path,
+            ?string $branch,
+            string $module,
+            array $settings,
+        ): bool => $receivedAccount->is($account)
+            && $resourceId === 'switch-callflow-carrier'
+            && $operation === 'create'
+            && $path === []
+            && $branch === '_'
+            && $module === 'offnet'
+            && $settings === ['skip_module' => false])
+            ->andReturn([
+                'id' => 'switch-callflow-carrier',
+                'name' => 'Carrier route',
+                'numbers' => [],
+                'patterns' => [],
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'switch-menu-carrier'],
+                    'children' => [
+                        '_' => [
+                            'module' => 'offnet',
+                            'data' => ['skip_module' => false],
+                            'children' => [],
+                        ],
+                    ],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/inline-nodes", [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'offnet',
+                'data' => [
+                    'route_profile_id' => $profile->id,
+                    'skip_module' => false,
+                ],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.flow.children._.settings.route_profile_id', $profile->id)
+            ->assertJsonPath('data.flow.children._.settings.supported_configuration', true)
+            ->assertJsonMissing([$account->switch_account_id]);
     }
 
     public function test_it_maps_public_page_group_devices_without_exposing_switch_endpoint_ids(): void
@@ -3309,6 +4009,8 @@ class CallflowControllerTest extends TestCase
         $voicemail = SwitchVoicemailBox::factory()->for($account)->create();
         $callflow = SwitchCallflow::factory()->for($account)->create([
             'switch_resource_id' => 'switch-callflow-clear-fallback',
+            'numbers' => [],
+            'patterns' => ['^1001$'],
             'flow_structure' => [
                 'module' => 'user',
                 'target' => [
@@ -3546,6 +4248,76 @@ class CallflowControllerTest extends TestCase
             ])
             ->assertOk()
             ->assertJsonPath('data.numbers', ['2001', '*97', '3000']);
+    }
+
+    public function test_it_adds_an_entry_number_without_rebuilding_the_existing_callflow_tree(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $destination = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-entry-point-target',
+        ]);
+        $flow = [
+            'module' => 'user',
+            'data' => ['id' => 'switch-user-entry-point-target'],
+            'children' => [
+                '_' => [
+                    'module' => 'voicemail',
+                    'data' => ['id' => 'switch-mailbox-fallback'],
+                    'children' => [],
+                ],
+            ],
+        ];
+        $callflow = SwitchCallflow::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-callflow-entry-point-update',
+            'name' => 'Reception route',
+            'numbers' => ['2999'],
+            'patterns' => [],
+            'flow_structure' => [
+                'module' => 'user',
+                'target' => [
+                    'type' => 'extension',
+                    'id' => $destination->id,
+                    'label' => 'Reception',
+                ],
+                'reference_status' => 'resolved',
+                'children' => [],
+            ],
+        ]);
+        $this->mock(SwitchCallflowGateway::class);
+        $gateway = $this->mock(SwitchCallflowEntryPointGateway::class);
+        $gateway->shouldReceive('updateEntryPoints')
+            ->once()
+            ->withArgs(fn (
+                SwitchAccount $received,
+                string $resourceId,
+                array $assignedNumbers,
+                array $knownNumbers,
+            ): bool => $received->is($account)
+                && $resourceId === 'switch-callflow-entry-point-update'
+                && $assignedNumbers === ['2999', '3000']
+                && $knownNumbers === ['2999'])
+            ->andReturn([
+                'id' => 'switch-callflow-entry-point-update',
+                'name' => 'Reception route',
+                'numbers' => ['2999', '3000'],
+                'patterns' => [],
+                'flow' => $flow,
+            ]);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/entry-points", [
+                'phone_number_ids' => [],
+                'extension_numbers' => ['2999', '3000'],
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.numbers', ['2999', '3000'])
+            ->assertJsonPath('data.flow.module', 'user')
+            ->assertJsonPath('data.flow.children._.module', 'voicemail');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'callflow.entry_points_updated',
+            'outcome' => 'succeeded',
+        ]);
     }
 
     public function test_it_rejects_removing_the_final_entry_number_from_a_standalone_callflow(): void
@@ -3993,6 +4765,8 @@ class CallflowControllerTest extends TestCase
         $callflow = SwitchCallflow::factory()->for($account)->create([
             'switch_resource_id' => 'switch-callflow-hours',
             'name' => 'Office schedule',
+            'numbers' => [],
+            'patterns' => ['^2001$'],
             'flow_structure' => [
                 'module' => 'temporal_route',
                 'target' => ['type' => 'temporal_rule_set', 'id' => $set->id, 'label' => $set->name],
@@ -4148,6 +4922,11 @@ class CallflowControllerTest extends TestCase
             }
 
             public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function deleteTreeNode(SwitchAccount $account, string $resourceId, array $path): array
             {
                 throw new \LogicException('Not used by this test.');
             }
@@ -4425,6 +5204,170 @@ class CallflowControllerTest extends TestCase
         $this->assertNotNull($phoneNumber->fresh()->assigned_callflow_id);
     }
 
+    public function test_it_creates_a_pivot_root_using_an_approved_public_profile(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $profile = CallflowIntegrationProfile::factory()->for($account)->create([
+            'name' => 'Customer IVR',
+            'settings' => [
+                'voice_url' => 'https://voice.example.test/pivot',
+                'cdr_url' => null,
+                'methods' => ['post'],
+                'formats' => ['twiml'],
+                'req_body_format' => 'json',
+                'req_timeout_ms' => 4500,
+                'debug' => false,
+                'custom_request_headers' => ['X-Pivot-Key' => 'private-secret'],
+            ],
+        ]);
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550000402',
+            'assigned_callflow_id' => null,
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')
+            ->once()
+            ->withArgs(function (
+                SwitchAccount $receivedAccount,
+                string $name,
+                string $module,
+                ?string $resourceId,
+                array $numbers,
+                ?string $fallbackModule,
+                ?string $fallbackResourceId,
+                array $branches,
+                array $temporalRuleIds,
+                ?array $settings,
+            ) use ($account): bool {
+                $this->assertTrue($receivedAccount->is($account));
+                $this->assertSame('Customer voice application', $name);
+                $this->assertSame('pivot', $module);
+                $this->assertNull($resourceId);
+                $this->assertSame(['+15550000402'], $numbers);
+                $this->assertNull($fallbackModule);
+                $this->assertNull($fallbackResourceId);
+                $this->assertSame([], $branches);
+                $this->assertSame([], $temporalRuleIds);
+                $this->assertSame('https://voice.example.test/pivot', $settings['voice_url'] ?? null);
+                $this->assertSame('post', $settings['method'] ?? null);
+                $this->assertSame('twiml', $settings['req_format'] ?? null);
+                $this->assertSame(['X-Pivot-Key' => 'private-secret'], $settings['custom_request_headers'] ?? null);
+                $this->assertArrayNotHasKey('endpoint_id', $settings ?? []);
+
+                return true;
+            })
+            ->andReturn([
+                'id' => 'switch-callflow-pivot-root',
+                'name' => 'Customer voice application',
+                'numbers' => ['+15550000402'],
+                'flow' => [
+                    'module' => 'pivot',
+                    'data' => [
+                        'voice_url' => 'https://voice.example.test/pivot',
+                        'method' => 'post',
+                        'req_format' => 'twiml',
+                        'req_body_format' => 'json',
+                        'req_timeout_ms' => 4500,
+                        'debug' => false,
+                        'custom_request_headers' => ['X-Pivot-Key' => 'private-secret'],
+                        'skip_module' => false,
+                    ],
+                    'children' => [],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Customer voice application',
+                'destination_type' => null,
+                'destination_id' => null,
+                'root_action' => [
+                    'module' => 'pivot',
+                    'data' => [
+                        'endpoint_id' => $profile->id,
+                        'method' => 'post',
+                        'req_format' => 'twiml',
+                        'skip_module' => false,
+                    ],
+                ],
+                'phone_number_ids' => [$phoneNumber->id],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.root_module', 'pivot')
+            ->assertJsonPath('data.flow.module', 'pivot')
+            ->assertJsonPath('data.flow.settings.endpoint_id', $profile->id)
+            ->assertJsonPath('data.flow.settings.supported_configuration', true)
+            ->assertJsonMissing(['https://voice.example.test/pivot', 'private-secret']);
+
+        $this->assertNotNull($phoneNumber->fresh()->assigned_callflow_id);
+    }
+
+    public function test_it_creates_a_resource_free_call_forward_root(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550000403',
+            'assigned_callflow_id' => null,
+        ]);
+        $gateway = $this->mock(SwitchCallflowGateway::class);
+        $gateway->shouldReceive('create')
+            ->once()
+            ->withArgs(function (
+                SwitchAccount $receivedAccount,
+                string $name,
+                string $module,
+                ?string $resourceId,
+                array $numbers,
+                ?string $fallbackModule,
+                ?string $fallbackResourceId,
+                array $branches,
+                array $temporalRuleIds,
+                ?array $settings,
+            ) use ($account): bool {
+                $this->assertTrue($receivedAccount->is($account));
+                $this->assertSame('Forwarding feature code', $name);
+                $this->assertSame('call_forward', $module);
+                $this->assertNull($resourceId);
+                $this->assertSame(['+15550000403'], $numbers);
+                $this->assertNull($fallbackModule);
+                $this->assertNull($fallbackResourceId);
+                $this->assertSame([], $branches);
+                $this->assertSame([], $temporalRuleIds);
+                $this->assertSame(['action' => 'update', 'skip_module' => true], $settings);
+
+                return true;
+            })
+            ->andReturn([
+                'id' => 'switch-callflow-forward-root',
+                'name' => 'Forwarding feature code',
+                'numbers' => ['+15550000403'],
+                'flow' => [
+                    'module' => 'call_forward',
+                    'data' => ['action' => 'update', 'skip_module' => true],
+                    'children' => [],
+                ],
+            ]);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Forwarding feature code',
+                'destination_type' => null,
+                'destination_id' => null,
+                'root_action' => [
+                    'module' => 'call_forward',
+                    'data' => ['action' => 'update', 'skip_module' => true],
+                ],
+                'phone_number_ids' => [$phoneNumber->id],
+            ])
+            ->assertCreated()
+            ->assertJsonPath('data.root_module', 'call_forward')
+            ->assertJsonPath('data.flow.module', 'call_forward')
+            ->assertJsonPath('data.flow.settings.action', 'update')
+            ->assertJsonMissing(['number']);
+
+        $this->assertNotNull($phoneNumber->fresh()->assigned_callflow_id);
+    }
+
     public function test_it_updates_a_ring_group_root_using_the_shared_inline_contract(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -4592,6 +5535,11 @@ class CallflowControllerTest extends TestCase
             }
 
             public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            {
+                throw new \LogicException('Not used by this test.');
+            }
+
+            public function deleteTreeNode(SwitchAccount $account, string $resourceId, array $path): array
             {
                 throw new \LogicException('Not used by this test.');
             }

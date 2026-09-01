@@ -8,6 +8,7 @@ use App\Domains\Billing\Models\SwitchLedgerSummary;
 use App\Domains\Blacklists\Models\SwitchBlacklist;
 use App\Domains\CallDetailRecords\Models\SwitchCallDetailRecord;
 use App\Domains\CallerIdLists\Models\SwitchCallerIdList;
+use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Conferences\Models\SwitchConference;
 use App\Domains\Dashboard\Models\CallGeographyAggregate;
@@ -261,6 +262,12 @@ class SwitchAccount extends Model
     public function callflows(): HasMany
     {
         return $this->hasMany(SwitchCallflow::class, 'switch_account_id', 'account_id');
+    }
+
+    /** @return HasMany<CallflowIntegrationProfile, $this> */
+    public function callflowIntegrationProfiles(): HasMany
+    {
+        return $this->hasMany(CallflowIntegrationProfile::class, 'switch_account_id', 'account_id');
     }
 
     /** @return HasMany<SwitchConference, $this> */

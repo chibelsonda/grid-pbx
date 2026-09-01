@@ -9,6 +9,7 @@ import {
   LinkIcon,
   NoSymbolIcon,
   PhoneArrowUpRightIcon,
+  ServerStackIcon,
   ShoppingCartIcon,
   SignalIcon,
 } from '@heroicons/vue/24/outline'
@@ -146,6 +147,56 @@ watch(
         >
           Search, purchase, reservation, and release remain capability-gated pending provider,
           billing, confirmation, idempotency, dependency, and recovery controls.
+        </div>
+      </OperationalStatusCard>
+
+      <OperationalStatusCard title="Connectivity / trunks" icon-class="text-indigo-600">
+        <template #icon><ServerStackIcon class="size-5" /></template>
+        <template #status>
+          <span
+            class="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-semibold"
+            :class="
+              operationalStatus.status.connectivity.summary_available
+                ? 'bg-emerald-50 text-emerald-700'
+                : 'bg-slate-100 text-slate-600'
+            "
+          >
+            <CheckCircleIcon
+              v-if="operationalStatus.status.connectivity.summary_available"
+              class="size-3.5"
+            />
+            <NoSymbolIcon v-else class="size-3.5" />
+            {{
+              operationalStatus.status.connectivity.summary_available
+                ? 'Summary available'
+                : 'Unavailable'
+            }}
+          </span>
+        </template>
+        <dl class="grid grid-cols-2 gap-3 text-xs">
+          <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <dt class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">PBXs</dt>
+            <dd class="mt-1 font-medium text-slate-700">
+              {{ operationalStatus.status.connectivity.configured_pbx_count ?? '—' }} configured
+            </dd>
+          </div>
+          <div class="rounded-md border border-slate-200 bg-slate-50 p-3">
+            <dt class="text-[10px] font-semibold tracking-wide text-slate-400 uppercase">
+              Local resources
+            </dt>
+            <dd class="mt-1 font-medium text-slate-700">
+              {{ operationalStatus.status.connectivity.local_resource_count ?? '—' }} configured
+            </dd>
+          </div>
+        </dl>
+        <p class="mt-4 text-xs leading-5 text-slate-500">
+          Only aggregate collection counts are exposed. Raw IDs, servers, DIDs, routes, credentials,
+          selectors, limits, and failover data remain private.
+        </p>
+        <div
+          class="mt-4 rounded-md border border-amber-100 bg-amber-50 p-3 text-[11px] leading-5 text-amber-800"
+        >
+          Connectivity, Resource, selector, limit, and failover changes remain capability-gated.
         </div>
       </OperationalStatusCard>
 

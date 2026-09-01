@@ -22,7 +22,7 @@ class StoreCallflowRequest extends FormRequest
             'destination_type' => [Rule::requiredIf(fn (): bool => ! $usesInlineRoot()), Rule::prohibitedIf($usesInlineRoot), 'nullable', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set', 'temporal_rules'])],
             'destination_id' => [Rule::requiredIf(fn (): bool => ! $usesInlineRoot() && $this->input('destination_type') !== 'temporal_rules'), Rule::prohibitedIf($usesInlineRoot), 'nullable', 'uuid'],
             'root_action' => ['nullable', 'array:module,data'],
-            'root_action.module' => ['required_with:root_action', 'string', Rule::in(['ring_group'])],
+            'root_action.module' => ['required_with:root_action', 'string', Rule::in(['ring_group', 'call_forward', 'dynamic_cid', 'pivot'])],
             'root_action.data' => ['required_with:root_action', 'array'],
             'temporal_rule_ids' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],
             'temporal_rule_ids.*' => ['required', 'uuid', 'distinct'],

@@ -1,18 +1,13 @@
 <script setup lang="ts">
 import { LockClosedIcon } from '@heroicons/vue/24/outline'
-
-defineProps<{
-  description: string
-}>()
 </script>
 
 <template>
-  <header class="flex flex-wrap items-center gap-3 border-b border-slate-200 bg-white px-4 py-3">
-    <div>
-      <h3 class="text-xs font-semibold text-slate-700">Visual route map</h3>
-      <p class="mt-0.5 text-[10px] text-slate-500">{{ description }}</p>
-    </div>
-    <div class="ml-auto flex flex-wrap items-center gap-2 text-[9px] font-semibold">
+  <header
+    data-callflow-canvas-overlay
+    class="pointer-events-none absolute inset-x-0 top-0 z-10 flex flex-wrap items-center justify-end gap-3 px-4 py-3 sm:px-6 lg:px-8"
+  >
+    <div class="pointer-events-auto flex flex-wrap items-center gap-2 text-[9px] font-semibold">
       <span class="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-700">
         Schedule match
       </span>

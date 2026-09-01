@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import CallflowEntryNode from './CallflowEntryNode.vue'
 
 describe('CallflowEntryNode', () => {
-  it('opens the shared entry editor from either number cell or the pencil', async () => {
+  it('keeps number addition separate from the shared callflow editor', async () => {
     const wrapper = mount(CallflowEntryNode, {
       props: {
         name: 'Main line',
@@ -13,12 +13,11 @@ describe('CallflowEntryNode', () => {
     })
 
     await wrapper.get('[aria-label="2999. Edit callflow name and numbers"]').trigger('click')
-    await wrapper
-      .get('[aria-label="Click to add number. Edit callflow name and numbers"]')
-      .trigger('click')
+    await wrapper.get('[aria-label="Add callflow entry number"]').trigger('click')
     await wrapper.get('[aria-label="Edit callflow name and numbers"]').trigger('click')
 
-    expect(wrapper.emitted('edit')).toHaveLength(3)
+    expect(wrapper.emitted('edit')).toHaveLength(2)
+    expect(wrapper.emitted('add-entry')).toEqual([[]])
   })
 
   it('keeps additional entry-point information compact', () => {

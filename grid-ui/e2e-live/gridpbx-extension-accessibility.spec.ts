@@ -117,3 +117,86 @@ test('keeps People and Extensions inventory and form navigation usable on mobile
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
+
+test.describe('desktop extension form', () => {
+  test.use({ viewport: { width: 1440, height: 1000 } })
+
+  test('fits every Advanced tab without a horizontal scrollbar', async ({ page }) => {
+    const issues = collectPageIssues(page)
+
+    await page.goto('/extensions')
+    await page.getByRole('button', { name: 'Create extension' }).click()
+
+    const dialog = page.getByRole('dialog', { name: 'Create extension' })
+    const panel = dialog.getByTestId('slide-over-panel')
+    const actions = panel.locator('.slide-over-actions:visible')
+    await expect(panel).toHaveAttribute('data-width', 'extra-wide')
+    const [panelBox, actionsBox] = await Promise.all([panel.boundingBox(), actions.boundingBox()])
+    expect(panelBox).not.toBeNull()
+    expect(actionsBox).not.toBeNull()
+    expect(actionsBox!.x).toBeCloseTo(panelBox!.x, 0)
+    expect(actionsBox!.width).toBeCloseTo(panelBox!.width, 0)
+    const formSections = dialog.getByRole('tablist', { name: 'Extension form sections' })
+    const basicTab = formSections.getByRole('tab', { name: 'Basic', exact: true })
+    const advancedTab = formSections.getByRole('tab', { name: 'Advanced', exact: true })
+    await expect(formSections).toHaveClass(/bg-slate-100/)
+    await expect(formSections).toHaveClass(/rounded-lg/)
+    await expect(formSections).toHaveCSS('padding', '2px')
+    await expect(formSections.locator('svg')).toHaveCount(0)
+    const formSectionBox = await formSections.boundingBox()
+    expect(formSectionBox).not.toBeNull()
+    expect(formSectionBox!.width).toBeLessThan(panelBox!.width / 2)
+    expect(formSectionBox!.height).toBeLessThanOrEqual(38)
+    await expect(basicTab).toHaveClass(/bg-white/)
+    await expect(basicTab).toHaveClass(/text-brand-600/)
+
+    await advancedTab.click()
+    await expect(advancedTab).toHaveClass(/bg-white/)
+    await expect(basicTab).toHaveClass(/bg-transparent/)
+
+    const advancedSections = dialog.getByRole('tablist', {
+      name: 'Extension advanced sections',
+    })
+    const advancedTabLabels = (await advancedSections.getByRole('tab').allTextContents()).map(
+      (label) => label.trim(),
+    )
+    expect(advancedTabLabels).toEqual([
+      'Caller ID',
+      'Options',
+      'Call Forward',
+      'Password Management',
+      'Hot Desking',
+      'Restrictions',
+      'Recording',
+      'Media',
+      'Routing & Profile',
+      'Metaflows',
+    ])
+
+    await advancedSections.getByRole('tab', { name: 'Caller ID', exact: true }).click()
+    await expect(dialog.getByRole('heading', { name: 'Presence identity' })).toBeVisible()
+    await expect(
+      dialog.getByTestId('extension-advanced-caller-id').getByText('Presence ID', { exact: true }),
+    ).toBeVisible()
+
+    await advancedSections.getByRole('tab', { name: 'Options', exact: true }).click()
+    await expect(dialog.getByRole('heading', { name: 'User calling options' })).toBeVisible()
+    await expect(dialog.getByRole('heading', { name: 'Music on hold' })).toBeVisible()
+    await expect(
+      dialog.getByTestId('extension-advanced-options').getByText('Presence ID', { exact: true }),
+    ).toHaveCount(0)
+
+    await advancedSections.getByRole('tab', { name: 'Media', exact: true }).click()
+    await expect(dialog.getByRole('heading', { name: 'Media and endpoint audio' })).toBeVisible()
+    await expect(
+      dialog.getByTestId('extension-advanced-media').getByText('Music on hold', { exact: true }),
+    ).toHaveCount(0)
+    const tabWidths = await advancedSections.evaluate((element) => ({
+      client: element.clientWidth,
+      scroll: element.scrollWidth,
+    }))
+
+    expect(tabWidths.scroll).toBeLessThanOrEqual(tabWidths.client + 1)
+    expect(issues).toEqual([])
+  })
+})

@@ -258,15 +258,18 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
     'Caller ID',
     'Options',
     'Call Forward',
-    'Password',
-    'Recording',
+    'Password Management',
     'Hot Desking',
     'Restrictions',
+    'Recording',
+    'Media',
+    'Routing & Profile',
+    'Metaflows',
   ]) {
     await expect(advancedTabs.getByRole('tab', { name: tab, exact: true })).toBeVisible()
   }
 
-  await advancedTabs.getByRole('tab', { name: 'Password' }).click()
+  await advancedTabs.getByRole('tab', { name: 'Password Management', exact: true }).click()
   const passwordManagement = page.locator('article').filter({ hasText: 'Password management' })
   const password = passwordManagement.getByLabel('Password', { exact: true })
   const confirmation = passwordManagement.getByLabel('Confirm password')
@@ -295,7 +298,7 @@ test('shows and validates login credentials and hotdesk in the Extension slide-o
   await expect(
     hotdesk.getByText('Enter a hotdesk PIN when PIN protection is enabled.'),
   ).toBeVisible()
-  await advancedTabs.getByRole('tab', { name: 'Password' }).click()
+  await advancedTabs.getByRole('tab', { name: 'Password Management', exact: true }).click()
   await expect(passwordManagement.getByText('Use at least 6 characters.')).toBeVisible()
   await expect(passwordManagement.getByText('Passwords do not match.')).toBeVisible()
   await expect(passwordManagement.locator('input[type="password"]').first()).toHaveClass(
@@ -344,7 +347,7 @@ test('persists, edits, synchronizes, and clears Extension advanced fields in Swi
     const requireKeypress = page.getByRole('switch', { name: 'Require keypress' })
     await expect(requireKeypress).toBeChecked()
 
-    await advancedTabs.getByRole('tab', { name: 'Password' }).click()
+    await advancedTabs.getByRole('tab', { name: 'Password Management', exact: true }).click()
     await page.getByLabel('Password', { exact: true }).fill(password)
     await page.getByLabel('Confirm password').fill(password)
 
@@ -971,8 +974,8 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     await expect(page.getByText(/recording.*url/i)).toBeVisible()
     await expect(page.getByText('https://', { exact: false })).toHaveCount(0)
 
-    await advancedSections.getByRole('tab', { name: 'Media' }).click()
-    await expect(page.getByRole('heading', { name: 'Media and endpoint audio' })).toBeVisible()
+    await advancedSections.getByRole('tab', { name: 'Options' }).click()
+    await expect(page.getByRole('heading', { name: 'Music on hold' })).toBeVisible()
     await page.getByRole('button', { name: 'Select extension music on hold' }).click()
     const musicListbox = page.getByRole('listbox')
     await expect(musicListbox).toBeVisible()
@@ -984,6 +987,8 @@ test('shows schema-backed managed User calling fields without clipping or leakin
     expect(musicBox!.y + musicBox!.height).toBeLessThanOrEqual(viewport!.height)
     await page.getByRole('option', { name: 'Inherit account music' }).click()
 
+    await advancedSections.getByRole('tab', { name: 'Media' }).click()
+    await expect(page.getByRole('heading', { name: 'Media and endpoint audio' })).toBeVisible()
     await page.getByRole('button', { name: 'Codec, transport, and ringtone controls' }).click()
     await expect(page.getByText('Audio codec priority', { exact: true })).toBeVisible()
     const progressTimeout = page.getByLabel('Progress timeout (seconds)')
@@ -1401,7 +1406,8 @@ test('creates a Switch user with the complete tabbed advanced schema', async ({ 
     await page.getByRole('option', { name: 'Both call legs', exact: true }).click()
 
     const updateResponse = page.waitForResponse(
-      (candidate) => candidate.request().method() === 'PUT' && candidate.url() === created!.deleteUrl,
+      (candidate) =>
+        candidate.request().method() === 'PUT' && candidate.url() === created!.deleteUrl,
     )
     await editDrawer.getByRole('button', { name: 'Save changes' }).click()
     expect((await updateResponse).status()).toBe(200)
@@ -1450,19 +1456,22 @@ test('creates a Switch user with the complete tabbed advanced schema', async ({ 
     await page.getByRole('option', { name: 'Use Switch default', exact: true }).click()
 
     const clearResponse = page.waitForResponse(
-      (candidate) => candidate.request().method() === 'PUT' && candidate.url() === created!.deleteUrl,
+      (candidate) =>
+        candidate.request().method() === 'PUT' && candidate.url() === created!.deleteUrl,
     )
     await clearDrawer.getByRole('button', { name: 'Save changes' }).click()
     const clearedResponse = await clearResponse
     expect(clearedResponse.status()).toBe(200)
     expect(
-      (clearedResponse.request().postDataJSON() as {
-        metaflows: {
-          binding_digit: string | null
-          digit_timeout: number | null
-          listen_on: string | null
+      (
+        clearedResponse.request().postDataJSON() as {
+          metaflows: {
+            binding_digit: string | null
+            digit_timeout: number | null
+            listen_on: string | null
+          }
         }
-      }).metaflows,
+      ).metaflows,
     ).toMatchObject({ binding_digit: null, digit_timeout: null, listen_on: null })
     await synchronizeExtensions(page, apiOrigin, accountId)
     expect(await readConfiguration()).toMatchObject({

@@ -23,7 +23,7 @@ const props = withDefaults(
   },
 )
 
-defineEmits<{ edit: [] }>()
+const emit = defineEmits<{ edit: []; 'add-entry': [] }>()
 
 const accessibleLabel = computed(
   () => `Callflow entry${props.entries[0] ? `: ${props.entries[0].value}` : ''}`,
@@ -32,10 +32,12 @@ const slots = computed(() => {
   const first = props.entries[0]
   const second = props.entries[1]
 
+  if (!first) {
+    return [{ primary: 'Click to add number', secondary: 'Number', empty: true }]
+  }
+
   return [
-    first
-      ? { primary: first.value, secondary: first.kind, empty: false }
-      : { primary: 'Click to add number', secondary: 'Number', empty: true },
+    { primary: first.value, secondary: first.kind, empty: false },
     second
       ? {
           primary: second.value,
@@ -73,19 +75,28 @@ const slots = computed(() => {
         <PencilSquareIcon class="size-3.5" />
       </button>
     </header>
-    <div class="grid h-8 grid-cols-2 divide-x divide-slate-200 text-left">
+    <div
+      class="grid h-8 divide-x divide-slate-200 text-left"
+      :class="slots.length === 1 ? 'grid-cols-1' : 'grid-cols-2'"
+    >
       <component
         :is="editable ? 'button' : 'div'"
         v-for="(entry, index) in slots"
         :key="index"
         :type="editable ? 'button' : undefined"
-        :aria-label="editable ? `${entry.primary}. ${editLabel}` : undefined"
+        :aria-label="
+          editable
+            ? entry.empty
+              ? 'Add callflow entry number'
+              : `${entry.primary}. ${editLabel}`
+            : undefined
+        "
         class="min-w-0 px-2 py-0.5 text-left transition"
         :class="
           editable &&
           'cursor-pointer hover:bg-brand-50 focus-visible:bg-brand-50 focus-visible:outline-none'
         "
-        @click="editable && $emit('edit')"
+        @click="editable && (entry.empty ? emit('add-entry') : emit('edit'))"
       >
         <span
           class="block truncate font-mono text-[9px] font-semibold"

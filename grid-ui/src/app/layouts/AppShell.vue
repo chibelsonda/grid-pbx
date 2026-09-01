@@ -76,6 +76,8 @@ onBeforeUnmount(() => {
       :mobile-open="ui.mobileSidebarOpen"
       :theme-id="ui.sidebarTheme"
       :organization-logo-url="accounts.organizationLogoUrl"
+      :organization-name="accounts.selected?.organization.name"
+      :brand-display="ui.sidebarBrandDisplay"
       @collapse="ui.toggleSidebar"
       @close-mobile="ui.closeMobileSidebar"
     />

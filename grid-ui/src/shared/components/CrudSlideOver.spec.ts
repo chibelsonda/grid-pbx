@@ -3,6 +3,25 @@ import { mount } from '@vue/test-utils'
 import CrudSlideOver from './CrudSlideOver.vue'
 
 describe('CrudSlideOver', () => {
+  it('supports an extra-wide desktop panel for dense forms', () => {
+    const wrapper = mount(CrudSlideOver, {
+      props: { title: 'Create extension', width: 'extra-wide' },
+      global: {
+        stubs: {
+          Dialog: { template: '<div><slot /></div>' },
+          DialogPanel: { template: '<div><slot /></div>' },
+          DialogTitle: { template: '<div><slot /></div>' },
+          TransitionChild: { template: '<div><slot /></div>' },
+          TransitionRoot: { template: '<div><slot /></div>' },
+        },
+      },
+    })
+
+    const panel = wrapper.get('[data-testid="slide-over-panel"]')
+    expect(panel.attributes('data-width')).toBe('extra-wide')
+    expect(panel.classes()).toContain('max-w-7xl')
+  })
+
   it('renders reusable form content inline when embedded in a workspace', () => {
     const wrapper = mount(CrudSlideOver, {
       props: { title: 'Create call route', embedded: true },

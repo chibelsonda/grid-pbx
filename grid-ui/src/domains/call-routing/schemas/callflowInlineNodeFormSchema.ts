@@ -475,6 +475,65 @@ const schemas = {
       skip_module: z.boolean(),
     })
     .strict(),
+  call_forward: z
+    .object({
+      action: z.enum(['activate', 'deactivate', 'update']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  dynamic_cid: z
+    .object({
+      action: z.literal('static'),
+      phone_number_id: z.string().uuid('Select a synchronized account phone number.'),
+      caller_id_name: z.string().trim().max(128),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  pivot: z
+    .object({
+      endpoint_id: z
+        .string()
+        .trim()
+        .min(1, 'Select an administrator-approved Pivot endpoint.')
+        .max(64)
+        .regex(/^[a-z0-9][a-z0-9_-]*$/, 'Select a valid Pivot endpoint.'),
+      method: z.enum(['get', 'post']),
+      req_format: z.enum(['kazoo', 'twiml']),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  webhook: z
+    .object({
+      endpoint_id: z.string().uuid('Select an administrator-approved Webhook endpoint.'),
+      http_verb: z.enum(['get', 'post']),
+      retries: z.coerce.number().int().min(1).max(5),
+      custom_data: z.record(
+        z.string().regex(/^[A-Za-z0-9_.-]{1,64}$/),
+        z.union([z.string().max(1024), z.number(), z.boolean()]),
+      ),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  disa: z
+    .object({
+      access_policy_id: z.string().uuid('Select an administrator-approved DISA access policy.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  offnet: z
+    .object({
+      route_profile_id: z.string().uuid('Select an administrator-approved Global Carrier profile.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
+  resources: z
+    .object({
+      route_profile_id: z
+        .string()
+        .uuid('Select an administrator-approved Account Carrier profile.'),
+      skip_module: z.boolean(),
+    })
+    .strict(),
 } satisfies Record<CallflowInlineModule, z.ZodType>
 
 export function createCallflowInlineNodeFormSchema(

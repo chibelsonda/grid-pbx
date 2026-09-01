@@ -38,7 +38,7 @@ const record: PhoneNumber = {
       available: true,
       writable: false,
       reason:
-        'Switch reports E911 as selectable, but GridPBX has not confirmed provider readiness or emergency-caller-ID safeguards. Mutation remains disabled pending approved emergency-service, billing, confirmation, audit, and reconciliation policy.',
+        'Switch reports E911 as selectable, but selectability does not establish provider readiness or safe emergency caller-ID routing. Mutation remains disabled pending approved emergency-service, verified transport, billing, confirmation, audit, and reconciliation policy.',
     },
     porting: { available: true, writable: false, reason: 'Porting policy required.' },
     purchasing: { available: false, writable: false, reason: 'Carrier required.' },
@@ -71,7 +71,7 @@ describe('PhoneNumberDetailPanel', () => {
     expect(wrapper.text()).toContain('Caller name (CNAM)')
     expect(wrapper.text()).toContain('Policy gated')
     expect(wrapper.text()).toContain('does not confirm carrier completion')
-    expect(wrapper.text()).toContain('has not confirmed provider readiness')
+    expect(wrapper.text()).toContain('does not establish provider readiness')
     expect(wrapper.text()).not.toContain('private-provider-id')
     expect(wrapper.findAll('[role="tab"]')).toHaveLength(0)
   })

@@ -303,6 +303,10 @@
     --slide-over-panel-max-width: 64rem;
   }
 
+  [data-testid='slide-over-panel'][data-width='extra-wide'] {
+    --slide-over-panel-max-width: 80rem;
+  }
+
   [data-testid='slide-over-content']:has(.slide-over-actions) {
     /* Responsive p-* utilities otherwise replace this clearance at larger breakpoints. */
     padding-bottom: 6rem !important;

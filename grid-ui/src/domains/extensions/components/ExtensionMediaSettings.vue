@@ -13,6 +13,7 @@ type Model = Pick<ExtensionUpdate, 'media' | 'music_on_hold' | 'ringtones'>
 const props = defineProps<{
   fieldErrors: Record<string, string[]>
   mediaOptions: Array<{ id: string; name: string | null }>
+  section: 'music-on-hold' | 'media'
 }>()
 const settings = defineModel<Model>({ required: true })
 
@@ -40,15 +41,21 @@ function toggleEncryptionMethod(method: 'srtp' | 'zrtp'): void {
         <MusicalNoteIcon class="size-5" />
       </span>
       <div>
-        <h2 class="text-sm font-semibold text-slate-700">Media and endpoint audio</h2>
+        <h2 class="text-sm font-semibold text-slate-700">
+          {{ section === 'music-on-hold' ? 'Music on hold' : 'Media and endpoint audio' }}
+        </h2>
         <p class="text-[10px] leading-4 text-slate-500">
-          Advanced User media values from the connected Switch schema.
+          {{
+            section === 'music-on-hold'
+              ? 'Select the audio callers hear while this user places them on hold.'
+              : 'Advanced User media values from the connected Switch schema.'
+          }}
         </p>
       </div>
     </header>
 
     <div class="grid gap-5 p-5">
-      <div class="grid gap-2">
+      <div v-if="section === 'music-on-hold'" class="grid max-w-xl gap-2">
         <span class="text-xs font-semibold text-slate-600">Music on hold</span>
         <FormListbox
           :model-value="settings.music_on_hold.media_id"
@@ -79,7 +86,7 @@ function toggleEncryptionMethod(method: 'srtp' | 'zrtp'): void {
         </div>
       </div>
 
-      <Disclosure v-slot="{ open }">
+      <Disclosure v-else v-slot="{ open }">
         <DisclosureButton
           class="flex w-full items-center justify-between rounded-md border border-slate-200 px-4 py-3 text-left text-xs font-semibold text-slate-700"
         >

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { Dialog, DialogPanel, TransitionChild, TransitionRoot } from '@headlessui/vue'
+import type { SidebarBrandDisplay } from '@/app/stores/uiStore'
 import SidebarNavigation from '@/shared/components/SidebarNavigation.vue'
 
 defineProps<{
@@ -7,6 +8,8 @@ defineProps<{
   mobileOpen: boolean
   themeId: string
   organizationLogoUrl?: string | null
+  organizationName?: string | null
+  brandDisplay: SidebarBrandDisplay
 }>()
 const emit = defineEmits<{ collapse: []; closeMobile: [] }>()
 </script>
@@ -20,6 +23,8 @@ const emit = defineEmits<{ collapse: []; closeMobile: [] }>()
     <SidebarNavigation
       :collapsed="collapsed"
       :logo-url="organizationLogoUrl"
+      :organization-name="organizationName"
+      :brand-display="brandDisplay"
       @collapse="emit('collapse')"
     />
   </aside>
@@ -54,6 +59,8 @@ const emit = defineEmits<{ collapse: []; closeMobile: [] }>()
             <SidebarNavigation
               :collapsed="false"
               :logo-url="organizationLogoUrl"
+              :organization-name="organizationName"
+              :brand-display="brandDisplay"
               mobile
               @close="emit('closeMobile')"
             />

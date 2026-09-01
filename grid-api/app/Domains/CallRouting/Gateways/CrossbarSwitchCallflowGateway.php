@@ -3,12 +3,14 @@
 namespace App\Domains\CallRouting\Gateways;
 
 use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use GridPbx\Switch\Domains\Accounts\AccountResource;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
 use GridPbx\Switch\Domains\Callflows\CallflowResourceClient;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowBranchWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowCreateData;
+use GridPbx\Switch\Domains\Callflows\Dto\CallflowEntryPointsWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowInlineNodeWriteData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowSnapshot;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeMoveData;
@@ -18,7 +20,7 @@ use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use UnexpectedValueException;
 
-class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
+class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway, SwitchCallflowEntryPointGateway
 {
     public function __construct(
         private readonly AccountResourceClient $resources,
@@ -92,6 +94,33 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway
                 fallbackResourceId: $fallbackResourceId,
                 branchOperations: $this->branchData($branchOperations),
                 destinationTemporalRuleIds: $destinationTemporalRuleIds,
+            ),
+        )->toArray();
+    }
+
+    public function updateEntryPoints(
+        SwitchAccount $account,
+        string $resourceId,
+        array $assignedEntryNumbers,
+        array $knownEntryNumbers,
+    ): array {
+        $current = $this->resources->find(
+            $account->switch_account_id,
+            AccountResource::Callflows,
+            $resourceId,
+        );
+
+        if (! $current instanceof CallflowSnapshot) {
+            throw new UnexpectedValueException('Switch returned an unexpected callflow resource.');
+        }
+
+        return $this->callflows->updateEntryPoints(
+            $account->switch_account_id,
+            $resourceId,
+            new CallflowEntryPointsWriteData(
+                current: $current->toArray(),
+                assignedEntryNumbers: $assignedEntryNumbers,
+                knownEntryNumbers: $knownEntryNumbers,
             ),
         )->toArray();
     }

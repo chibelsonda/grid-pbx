@@ -31,6 +31,7 @@ import type {
   CallflowTreeBranchKey,
   CallflowTreeMoveInput,
   CallflowTreeReorderInput,
+  CallflowActionCapability,
 } from '../types/callRouting'
 
 const props = withDefaults(
@@ -44,16 +45,19 @@ const props = withDefaults(
     treeMoving?: boolean
     treeDeleting?: boolean
     treeMutationError?: string | null
+    actionCapabilities?: Record<string, CallflowActionCapability>
   }>(),
   {
     treeMoving: false,
     treeDeleting: false,
     treeMutationError: null,
+    actionCapabilities: () => ({}),
   },
 )
 const emit = defineEmits<{
   delete: []
   'edit-entry': []
+  'add-entry': []
   'move-node': [input: CallflowTreeMoveInput]
   'reorder-nodes': [input: CallflowTreeReorderInput]
   'create-node': [context: CallflowNodeEditorContext]
@@ -69,6 +73,16 @@ const dragSource = ref<CallflowNodeSelection | null>(null)
 const paletteAction = ref<CallflowAction | null>(null)
 const destinationBranch = ref<CallflowTreeBranchKey | null>(null)
 const nodeInfoOpen = ref(false)
+const capabilityGuidedModules = computed(() =>
+  Object.entries(props.actionCapabilities)
+    .filter(([, capability]) => capability.enabled)
+    .map(([module]) => module),
+)
+function actionIsGuided(action: CallflowAction | null | undefined): boolean {
+  return Boolean(
+    action && (action.status === 'guided' || capabilityGuidedModules.value.includes(action.module)),
+  )
+}
 let paletteDragFrame: number | null = null
 const deletionBlocker = computed(() => {
   if (props.record?.feature_code) return 'Feature-code routes cannot be deleted here.'
@@ -127,7 +141,7 @@ const selectedMovable = computed(
     selectedPath.value.length > 0 &&
     selectedNode.value.reference_status !== 'unresolved' &&
     selectedNode.value.branch?.kind !== 'preserved' &&
-    selectedAction.value?.status === 'guided',
+    actionIsGuided(selectedAction.value),
 )
 const selectedNodeEditable = computed(
   () =>
@@ -136,7 +150,7 @@ const selectedNodeEditable = computed(
     (selectedPath.value.length > 0 || selectedNode.value.module === 'ring_group') &&
     selectedNode.value.reference_status !== 'unresolved' &&
     selectedNode.value.branch?.kind !== 'preserved' &&
-    selectedAction.value?.status === 'guided',
+    actionIsGuided(selectedAction.value),
 )
 const selectedParentAddable = computed(
   () =>
@@ -144,7 +158,7 @@ const selectedParentAddable = computed(
     selectedNode.value !== null &&
     selectedNode.value.reference_status !== 'unresolved' &&
     selectedNode.value.branch?.kind !== 'preserved' &&
-    selectedAction.value?.status === 'guided' &&
+    actionIsGuided(selectedAction.value) &&
     canAddCallflowChild(selectedNode.value),
 )
 const availableBranchOptions = computed<ListboxOptionValue[]>(() => {
@@ -172,7 +186,7 @@ const reorderTargetEligible = computed(
     !samePath(selectedPath.value, moveSource.value.path) &&
     !selectedPath.value.some((segment) => segment.startsWith('preserved_')) &&
     selectedNode.value.branch?.kind !== 'preserved' &&
-    selectedAction.value?.status === 'guided',
+    actionIsGuided(selectedAction.value),
 )
 const canInsertBefore = computed(
   () =>
@@ -325,7 +339,7 @@ function createNodeAt(
     action.status !== 'guided' ||
     selection.node.reference_status === 'unresolved' ||
     selection.node.branch?.kind === 'preserved' ||
-    findCallflowAction(selection.node.module)?.status !== 'guided' ||
+    !actionIsGuided(findCallflowAction(selection.node.module)) ||
     callflowPalettePlacement(selection.node, action) !== placement
   ) {
     return
@@ -399,7 +413,13 @@ function humanize(value: string | null): string {
       {{ error }}
     </div>
     <div v-else-if="record" class="grid gap-5">
-      <CallflowWorkspaceLayout>
+      <CallflowWorkspaceLayout
+        :description="
+          canManage
+            ? 'Drag a guided subtree onto a node with an empty next-step branch'
+            : 'Current projected Switch execution tree'
+        "
+      >
         <template #summary>
           <CallflowRouteSummary
             :node-count="record.node_count"
@@ -423,6 +443,7 @@ function humanize(value: string | null): string {
           :moving="treeMoving"
           :drag-source-path="dragSource?.path ?? null"
           :palette-action="paletteAction"
+          :capability-guided-modules="capabilityGuidedModules"
           @select="selectNode"
           @drag-start="startDrag"
           @drag-end="finishDrag"
@@ -430,23 +451,54 @@ function humanize(value: string | null): string {
           @add-action="(selection, action, placement) => createNodeAt(action, selection, placement)"
           @remove="requestNodeDeletion"
           @edit-entry="emit('edit-entry')"
-        />
+          @add-entry="emit('add-entry')"
+        >
+          <template #entry-actions>
+            <div v-if="canManage || mutationError" class="grid justify-items-center gap-1.5">
+              <button
+                v-if="canManage"
+                type="button"
+                :disabled="Boolean(deletionBlocker)"
+                class="inline-flex h-8 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-4 text-[11px] font-semibold text-danger shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                @click="confirmingDelete = true"
+              >
+                <TrashIcon class="size-3.5" /> Delete callflow
+              </button>
+              <p
+                v-if="canManage && deletionBlocker"
+                class="max-w-80 text-center text-[10px] text-amber-700"
+              >
+                {{ deletionBlocker }}
+              </p>
+              <p
+                v-if="mutationError"
+                role="alert"
+                class="max-w-80 text-center text-xs font-semibold text-danger"
+              >
+                {{ mutationError }}
+              </p>
+            </div>
+          </template>
+        </CallflowDiagram>
         <p v-else class="text-xs text-slate-500">
           Switch did not return a structural flow for this route.
         </p>
 
-        <template #palette="{ floating, startMoving, dock }">
+        <template #palette="{ floating, startMoving, dock, collapse }">
           <CallflowActionPalette
             compact
             movable
+            collapsible
             :floating="floating"
             :enabled="selectedParentAddable"
             :drag-enabled="canManage"
+            :action-capabilities="actionCapabilities"
             @choose="createNode"
             @action-drag-start="startPaletteActionDrag"
             @action-drag-end="finishPaletteActionDrag"
             @drag-start="startMoving"
             @dock="dock"
+            @collapse="collapse"
           />
         </template>
 
@@ -509,22 +561,6 @@ function humanize(value: string | null): string {
               existing unsupported branches.
             </p>
           </div>
-
-          <button
-            v-if="canManage"
-            type="button"
-            :disabled="Boolean(deletionBlocker)"
-            class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-red-200 bg-white px-5 text-xs font-semibold text-danger hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-            @click="confirmingDelete = true"
-          >
-            <TrashIcon class="size-4" /> Delete route
-          </button>
-          <p v-if="canManage && deletionBlocker" class="text-[10px] text-amber-700">
-            {{ deletionBlocker }}
-          </p>
-          <p v-if="mutationError" role="alert" class="text-xs font-semibold text-danger">
-            {{ mutationError }}
-          </p>
         </template>
       </CallflowWorkspaceLayout>
     </div>
@@ -679,9 +715,9 @@ function humanize(value: string | null): string {
   </CallflowNodeInfoDialog>
   <ConfirmDialog
     :open="confirmingDelete"
-    title="Delete this route?"
+    title="Delete this callflow?"
     description="GridPBX will check projected dependencies again before deleting it from Switch."
-    confirm-label="Delete route"
+    confirm-label="Delete callflow"
     :busy="deleting"
     @close="confirmingDelete = false"
     @confirm="$emit('delete')"

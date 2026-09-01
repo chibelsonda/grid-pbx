@@ -90,6 +90,17 @@ const status: ResellerStatus = {
     promote: { available: false, reason: 'platform_policy_required' },
     demote: { available: false, reason: 'platform_policy_required' },
   },
+  administration: {
+    account_creation_available: false,
+    account_move_available: false,
+    account_deletion_available: false,
+    limit_mutations_available: false,
+    service_plan_mutations_available: false,
+    service_override_mutations_available: false,
+    top_up_available: false,
+    switch_service_synchronization_available: false,
+    switch_service_reconciliation_available: false,
+  },
 }
 
 describe('reseller store', () => {
@@ -109,6 +120,7 @@ describe('reseller store', () => {
     expect(store.hierarchy?.portfolio.billing.recurring_amount).toBe(25)
     expect(store.hierarchy?.mutation_preflight.mutation_available).toBe(false)
     expect(store.status).toEqual(status)
+    expect(Object.values(store.status?.administration ?? {})).toEqual(Array(9).fill(false))
     expect(store.error).toBeNull()
   })
 

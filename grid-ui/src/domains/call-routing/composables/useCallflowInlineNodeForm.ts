@@ -187,6 +187,36 @@ function defaults(
     case 'do_not_disturb':
       data = { action: 'activate', skip_module: false }
       break
+    case 'call_forward':
+      data = { action: 'activate', skip_module: false }
+      break
+    case 'dynamic_cid':
+      data = {
+        action: 'static',
+        phone_number_id: '',
+        caller_id_name: '',
+        skip_module: false,
+      }
+      break
+    case 'pivot':
+      data = { endpoint_id: '', method: 'get', req_format: 'kazoo', skip_module: false }
+      break
+    case 'webhook':
+      data = {
+        endpoint_id: '',
+        http_verb: 'post',
+        retries: 1,
+        custom_data: {},
+        skip_module: false,
+      }
+      break
+    case 'disa':
+      data = { access_policy_id: '', skip_module: false }
+      break
+    case 'offnet':
+    case 'resources':
+      data = { route_profile_id: '', skip_module: false }
+      break
   }
 
   return { ...data, ...preset }

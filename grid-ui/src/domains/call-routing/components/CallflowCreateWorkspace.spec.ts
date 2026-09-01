@@ -1,3 +1,4 @@
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import FormListbox from '@/shared/components/FormListbox.vue'
@@ -119,18 +120,14 @@ describe('CallflowCreateWorkspace', () => {
       },
     })
 
+    await wrapper.get('[aria-label="Add callflow entry number"]').trigger('click')
+    await nextTick()
     await wrapper
-      .findAll('[aria-label="Click to add number. Edit callflow name and numbers"]')[0]!
+      .findAll('button')
+      .find((button) => button.text() === 'Extension')!
       .trigger('click')
     await wrapper.get('input[placeholder="e.g. 2999"]').setValue('2999')
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Add')!
-      .trigger('click')
-    await wrapper
-      .findAll('button')
-      .find((button) => button.text() === 'Done')!
-      .trigger('click')
+    await wrapper.findAll('form')[1]!.trigger('submit')
 
     const entry = wrapper.get('[aria-label="Callflow entry: 2999"]')
     expect(entry.text()).toContain('2999')
@@ -200,23 +197,61 @@ describe('CallflowCreateWorkspace', () => {
 
     const paletteShell = wrapper.get('[aria-label="Callflow action catalog"]').element.parentElement
     const createWorkspace = wrapper.get('[data-callflow-create-workspace]')
+    const canvasShell = wrapper.get('[data-callflow-canvas-shell]')
+    const dockedRail = wrapper.get('[data-callflow-docked-rail]')
+    const dockedRailContent = wrapper.get('[data-callflow-docked-rail-content]')
+    const supportingCards = wrapper.get('[data-callflow-supporting-cards]')
+    const routeStructureHeader = wrapper.get('[data-callflow-canvas-shell] > header')
     const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const texturedCanvas = wrapper.get('.callflow-create-canvas')
+    const canvasOverlay = wrapper.get('[data-callflow-canvas-overlay]')
     expect(createWorkspace.classes()).toContain('grid')
     expect(canvas.classes()).toContain('w-full')
     expect(canvas.classes()).not.toContain('rounded-lg')
     expect(canvas.classes()).not.toContain('border')
-    expect(paletteShell?.classList.contains('xl:sticky')).toBe(true)
+    expect(texturedCanvas.classes()).toContain('pt-20')
+    expect(texturedCanvas.element.contains(canvasOverlay.element)).toBe(true)
+    expect(canvasOverlay.classes()).not.toContain('bg-white')
+    expect(canvasOverlay.classes()).not.toContain('border-b')
+    expect(routeStructureHeader.classes()).toContain('lg:px-8')
+    expect(canvasOverlay.classes()).toContain('lg:px-8')
+    expect(dockedRail.classes()).toContain('top-32')
+    expect(dockedRail.classes()).toContain('overflow-x-hidden')
+    expect(dockedRail.classes()).toContain('overflow-y-auto')
+    expect(canvasShell.element.contains(paletteShell)).toBe(true)
+    expect(dockedRailContent.element.contains(paletteShell)).toBe(true)
+    expect(dockedRailContent.element.lastElementChild).toBe(supportingCards.element)
+    expect(supportingCards.classes()).toContain('grid-cols-1')
+    expect(supportingCards.element.children).toHaveLength(3)
+
+    await wrapper.get('[aria-label="Collapse action catalog and route details"]').trigger('click')
+    expect(wrapper.get('[data-callflow-docked-rail-content]').attributes('style')).toContain(
+      'display: none',
+    )
+    expect(wrapper.find('[aria-label="Expand action catalog and route details"]').exists()).toBe(
+      true,
+    )
+
+    await wrapper.get('[aria-label="Expand action catalog and route details"]').trigger('click')
+    expect(wrapper.get('[data-callflow-docked-rail-content]').attributes('style')).not.toContain(
+      'display: none',
+    )
 
     await wrapper.get('[aria-label="Move action palette"]').trigger('pointerdown')
 
     expect(paletteShell?.classList.contains('fixed')).toBe(true)
     expect(wrapper.find('[aria-label="Dock action palette"]').exists()).toBe(true)
+    expect(
+      paletteShell?.contains(
+        wrapper.get('[aria-label="Collapse action catalog and route details"]').element,
+      ),
+    ).toBe(true)
     expect(wrapper.get('[aria-label="Use User as root action"]').attributes('draggable')).toBe(
       'true',
     )
 
     await wrapper.get('[aria-label="Dock action palette"]').trigger('click')
-    expect(paletteShell?.classList.contains('xl:sticky')).toBe(true)
+    expect(paletteShell?.classList.contains('fixed')).toBe(false)
   })
 
   it('adds and removes a compact root action before the callflow is saved', async () => {

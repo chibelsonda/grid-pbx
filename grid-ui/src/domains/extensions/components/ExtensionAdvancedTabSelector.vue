@@ -21,10 +21,10 @@ const tabs = computed(() => [
   { key: 'caller-id', label: 'Caller ID', icon: IdentificationIcon },
   { key: 'options', label: 'Options', icon: ShieldCheckIcon },
   { key: 'call-forward', label: 'Call Forward', icon: PhoneArrowUpRightIcon },
-  { key: 'password', label: 'Password', icon: KeyIcon },
-  { key: 'recording', label: 'Recording', icon: MicrophoneIcon },
+  { key: 'password', label: 'Password Management', icon: KeyIcon },
   { key: 'hot-desking', label: 'Hot Desking', icon: UserCircleIcon },
   { key: 'restrictions', label: 'Restrictions', icon: ShieldExclamationIcon },
+  { key: 'recording', label: 'Recording', icon: MicrophoneIcon },
   ...(props.extended
     ? [
         { key: 'media', label: 'Media', icon: MusicalNoteIcon },
@@ -55,6 +55,7 @@ const selectedIndex = computed({
     v-model="selectedIndex"
     :tabs="tabs"
     aria-label="Extension advanced sections"
+    compact
     sticky
   />
 </template>

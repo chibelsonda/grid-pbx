@@ -34,6 +34,10 @@ class OperationalStatusControllerTest extends TestCase
                 'mms_inventory_available' => false,
                 'port_request_inventory_available' => true,
                 'number_carrier_configuration_available' => true,
+                'connectivity_summary_available' => true,
+                'connectivity_count' => 1,
+                'local_resource_summary_available' => true,
+                'local_resource_count' => 0,
             ]);
 
         $response = $this->actingAs($user)
@@ -66,6 +70,15 @@ class OperationalStatusControllerTest extends TestCase
             ->assertJsonPath('data.number_management.purchase_available', false)
             ->assertJsonPath('data.number_management.reservation_available', false)
             ->assertJsonPath('data.number_management.release_available', false)
+            ->assertJsonPath('data.connectivity.summary_available', true)
+            ->assertJsonPath('data.connectivity.configured_pbx_count', 1)
+            ->assertJsonPath('data.connectivity.local_resource_summary_available', true)
+            ->assertJsonPath('data.connectivity.local_resource_count', 0)
+            ->assertJsonPath('data.connectivity.configuration_mutations_available', false)
+            ->assertJsonPath('data.connectivity.resource_mutations_available', false)
+            ->assertJsonPath('data.connectivity.selector_mutations_available', false)
+            ->assertJsonPath('data.connectivity.limit_mutations_available', false)
+            ->assertJsonPath('data.connectivity.failover_mutations_available', false)
             ->assertJsonStructure(['data' => ['observed_at']])
             ->assertJsonMissingPath('data.switch_account_id')
             ->assertDontSee($account->switch_account_id)
@@ -83,7 +96,16 @@ class OperationalStatusControllerTest extends TestCase
             ->assertDontSee('usable_carriers')
             ->assertDontSee('carrier_modules')
             ->assertDontSee('accept_charges')
-            ->assertDontSee('quotes');
+            ->assertDontSee('quotes')
+            ->assertDontSee('connectivity_id')
+            ->assertDontSee('resource_id')
+            ->assertDontSee('gateways')
+            ->assertDontSee('server')
+            ->assertDontSee('username')
+            ->assertDontSee('password')
+            ->assertDontSee('hunt_account_id')
+            ->assertDontSee('allow_postpay')
+            ->assertDontSee('max_postpay_amount');
     }
 
     public function test_returns_401_for_an_unauthenticated_request(): void

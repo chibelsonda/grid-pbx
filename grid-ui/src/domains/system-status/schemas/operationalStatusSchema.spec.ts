@@ -41,6 +41,17 @@ const payload = {
     reservation_available: false,
     release_available: false,
   },
+  connectivity: {
+    summary_available: true,
+    configured_pbx_count: 1,
+    local_resource_summary_available: true,
+    local_resource_count: 0,
+    configuration_mutations_available: false,
+    resource_mutations_available: false,
+    selector_mutations_available: false,
+    limit_mutations_available: false,
+    failover_mutations_available: false,
+  },
 }
 
 describe('operationalStatusSchema', () => {
@@ -131,6 +142,20 @@ describe('operationalStatusSchema', () => {
           usable_carriers: ['local', 'private-provider'],
           available_numbers: ['+15550000006'],
           quotes: [{ amount: 10 }],
+        },
+      }),
+    ).toThrow()
+  })
+
+  it('rejects raw Connectivity, Resource, credential, and limit fields', () => {
+    expect(() =>
+      operationalStatusSchema.parse({
+        ...payload,
+        connectivity: {
+          ...payload.connectivity,
+          documents: [{ id: 'raw-connectivity-id', servers: [{ password: 'private' }] }],
+          resources: [{ id: 'raw-resource-id', gateways: [] }],
+          limits: { allow_postpay: true, max_postpay_amount: 100 },
         },
       }),
     ).toThrow()

@@ -1,4 +1,5 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
+import { accountAdministrationCapabilitiesSchema } from '../schemas/accountAdministrationCapabilitiesSchema'
 import type {
   AccountHierarchy,
   DescendantOnboardingCandidates,
@@ -15,9 +16,14 @@ export const resellerApi = {
   },
 
   async status(accountId: string): Promise<ResellerStatus> {
-    return unwrapApiData(
+    const status = unwrapApiData(
       await http.get<ApiResponse<ResellerStatus>>(`/api/v1/accounts/${accountId}/reseller`),
     )
+
+    return {
+      ...status,
+      administration: accountAdministrationCapabilitiesSchema.parse(status.administration),
+    }
   },
 
   async onboardingCandidates(accountId: string): Promise<DescendantOnboardingCandidates> {

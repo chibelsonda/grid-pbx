@@ -119,14 +119,14 @@ async function deleteRoute(page: Page, routeName: string): Promise<void> {
     await openRoute(page, routeName)
     workspace = page.getByRole('region', { name: 'Callflow workspace' })
   }
-  await workspace.getByRole('button', { name: 'Delete route' }).click()
-  const confirmation = page.getByRole('dialog', { name: 'Delete this route?' })
+  await workspace.getByRole('button', { name: 'Delete callflow' }).click()
+  const confirmation = page.getByRole('dialog', { name: 'Delete this callflow?' })
   const response = page.waitForResponse(
     (candidate) =>
       candidate.request().method() === 'DELETE' &&
       /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(candidate.url()).pathname),
   )
-  await confirmation.getByRole('button', { name: 'Delete route' }).click()
+  await confirmation.getByRole('button', { name: 'Delete callflow' }).click()
   expect((await response).status()).toBe(204)
 }
 

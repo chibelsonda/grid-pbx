@@ -9,6 +9,7 @@ use App\Domains\Extensions\Models\SwitchExtension;
 use App\Domains\Groups\Models\SwitchGroup;
 use App\Domains\Media\Models\SwitchMedia;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\PhoneNumbers\Models\SwitchPhoneNumber;
 use App\Domains\Queues\Models\SwitchQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
@@ -118,10 +119,94 @@ class CallflowReferenceResolverTest extends TestCase
                 'children' => [],
             ]);
 
-            $this->assertNull($flow['settings']);
+            if ($module === 'pivot') {
+                $this->assertSame([
+                    'supported_configuration' => false,
+                    'endpoint_id' => null,
+                    'endpoint_label' => null,
+                    'method' => null,
+                    'req_format' => null,
+                    'skip_module' => false,
+                ], $flow['settings']);
+                $this->assertStringNotContainsString('example.test', json_encode($flow));
+            } elseif ($module === 'webhook') {
+                $this->assertSame([
+                    'supported_configuration' => false,
+                    'endpoint_id' => null,
+                    'endpoint_label' => null,
+                    'http_verb' => null,
+                    'retries' => null,
+                    'custom_data' => [],
+                    'skip_module' => false,
+                ], $flow['settings']);
+                $this->assertStringNotContainsString('callback.example.test', json_encode($flow));
+            } elseif ($module === 'disa') {
+                $this->assertSame([
+                    'supported_configuration' => false,
+                    'access_policy_id' => null,
+                    'access_policy_label' => null,
+                    'skip_module' => false,
+                ], $flow['settings']);
+                $this->assertStringNotContainsString('private-pin', json_encode($flow));
+            } elseif (in_array($module, ['offnet', 'resources'], true)) {
+                $this->assertSame([
+                    'supported_configuration' => false,
+                    'route_profile_id' => null,
+                    'route_profile_label' => null,
+                    'route_scope' => null,
+                    'skip_module' => false,
+                ], $flow['settings']);
+                $this->assertStringNotContainsString('raw-switch-account-id', json_encode($flow));
+                $this->assertStringNotContainsString('private-carrier', json_encode($flow));
+            } elseif ($module === 'dynamic_cid') {
+                $this->assertSame([
+                    'action' => 'list',
+                    'phone_number_id' => null,
+                    'phone_number_label' => null,
+                    'caller_id_name' => '',
+                    'supported_configuration' => false,
+                    'reference_status' => 'unresolved',
+                    'skip_module' => false,
+                ], $flow['settings']);
+                $this->assertStringNotContainsString('Private', json_encode($flow));
+                $this->assertStringNotContainsString('5555550100', json_encode($flow));
+                $this->assertStringNotContainsString('raw-switch-list-id', json_encode($flow));
+            } else {
+                $this->assertNull($flow['settings']);
+            }
             $this->assertSame('not_applicable', $flow['reference_status']);
             $this->assertNull($flow['target']);
         }
+    }
+
+    #[Test]
+    public function it_maps_a_safe_static_dynamic_cid_to_an_account_phone_number_reference(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $phoneNumber = SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15551234567',
+        ]);
+
+        $flow = app(CallflowReferenceResolver::class)->resolve($account, [
+            'module' => 'dynamic_cid',
+            'data' => [
+                'action' => 'static',
+                'caller_id' => ['name' => 'Support', 'number' => '+15551234567'],
+                'skip_module' => false,
+            ],
+            'children' => [],
+        ]);
+
+        $this->assertSame([
+            'action' => 'static',
+            'phone_number_id' => $phoneNumber->id,
+            'phone_number_label' => '+15551234567',
+            'caller_id_name' => 'Support',
+            'supported_configuration' => true,
+            'reference_status' => 'resolved',
+            'skip_module' => false,
+        ], $flow['settings']);
+        $this->assertArrayNotHasKey('caller_id', $flow['settings']);
     }
 
     #[Test]

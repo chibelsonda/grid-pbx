@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
 import { nextTick } from 'vue'
 import { describe, expect, it } from 'vitest'
+import type { SidebarBrandDisplay } from '@/app/stores/uiStore'
 import SidebarNavigation from './SidebarNavigation.vue'
 
 const routes = [
@@ -14,7 +15,13 @@ const routes = [
 
 async function mountNavigation(
   path: string,
-  props: { collapsed: boolean; mobile?: boolean; logoUrl?: string | null },
+  props: {
+    collapsed: boolean
+    mobile?: boolean
+    logoUrl?: string | null
+    organizationName?: string | null
+    brandDisplay?: SidebarBrandDisplay
+  },
 ) {
   const router = createRouter({ history: createMemoryHistory(), routes })
   await router.push(path)
@@ -101,5 +108,32 @@ describe('SidebarNavigation', () => {
     await wrapper.setProps({ logoUrl: null })
     expect(wrapper.find('img[alt="Organization logo"]').exists()).toBe(false)
     expect(wrapper.find('span.sidebar-accent-bg').exists()).toBe(true)
+  })
+
+  it('shows the selected organization name or the logo alone from the branding preference', async () => {
+    const { wrapper } = await mountNavigation('/', {
+      collapsed: false,
+      logoUrl: 'blob:organization-logo',
+      organizationName: 'Acme Telecom',
+      brandDisplay: 'logo-and-name',
+    })
+
+    expect(wrapper.get('[data-sidebar-brand-name]').text()).toContain('Acme Telecom')
+    expect(wrapper.text()).toContain('Phone system')
+
+    await wrapper.setProps({ brandDisplay: 'logo-only' })
+    expect(wrapper.find('[data-sidebar-brand-name]').exists()).toBe(false)
+    expect(wrapper.get('img[alt="Organization logo"]').attributes('data-sidebar-brand-size')).toBe(
+      'large',
+    )
+    expect(wrapper.get('img[alt="Organization logo"]').classes()).toContain('h-12')
+    expect(wrapper.get('[data-sidebar-header]').classes()).toContain('px-3')
+    expect(wrapper.text()).not.toContain('Phone system')
+    expect(wrapper.get('button[aria-label="Toggle navigation width"]')).toBeTruthy()
+
+    await wrapper.setProps({ collapsed: true })
+    expect(wrapper.get('img[alt="Organization logo"]').attributes('data-sidebar-brand-size')).toBe(
+      'compact',
+    )
   })
 })

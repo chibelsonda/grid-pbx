@@ -531,16 +531,23 @@ keeps the token out of URLs, storage state, reports, and traces.
 
 GridPBX now applies the result of that walkthrough to both create and edit. The
 Extension drawer has an outer Basic/Advanced selector and a shared inner
-Advanced tab bar for Caller ID, Options, Call Forward, Password, Recording, Hot
-Desking, Restrictions, Media, Routing & Profile, and Metaflows. The last three
-are current-schema controls that are not represented by the older Monster
-screen. Portal identity remains in Basic while write-only
-password management is isolated under Advanced. Caller ID, forwarding, and
-restriction views share one typed form model rather than duplicating controls.
+Advanced tab bar whose core order and terminology follow the installed Monster
+workflow: Caller ID, Options, Call Forward, Password Management, Hot Desking,
+and Restrictions. Presence ID is grouped with Caller ID, while Music on Hold is
+grouped with Options. The dedicated Recording view follows that core group and
+retains GridPBX's richer current-schema recording matrix; Media, Routing &
+Profile, and Metaflows then expose additional installed-schema controls that
+are not represented by the older Monster screen. Portal identity remains in
+Basic while write-only password management is isolated under Advanced. Caller
+ID, forwarding, and restriction views share one typed form model rather than
+duplicating controls.
 Client and server validation select the outer Advanced view and the exact inner
 tab containing an advanced-only error. Focused Vue tests and isolated headless
 create/edit walkthroughs pass without clipping, raw storage URLs, console
-errors, or server failures.
+errors, or server failures. A 2026-09-01 presentation follow-through added exact
+tab-order and error-routing assertions plus one isolated, non-mutating headless
+drawer check; the ten-tab row fits the extra-wide panel without a horizontal
+scrollbar.
 
 Disposable live Switch create/edit/clear verification now also covers the
 Advanced contract rather than presentation alone. It creates a managed User
@@ -1045,7 +1052,7 @@ routing, then verified the form and page actions at a 390-pixel viewport. It
 sent zero Queue, Agent, or Queue-sync mutations and reported no browser errors,
 so no live Agent capability is claimed by this presentation-only check.
 
-### Presence and parked-call status follow-through (2026-08-31)
+### Presence and parked-call status follow-through (2026-08-31, re-audited 2026-09-01)
 
 The installed deployment loads `cb_presence` and `cb_parked_calls`, and its
 `omnipresence` OTP application is running. Account-scoped reads returned `200`
@@ -1081,7 +1088,23 @@ tests passed with 2 tests and 5 assertions; Laravel passed with 3 tests and 18
 assertions; the two focused Zod/store files passed 3 tests. Vue typecheck and
 the isolated E2E TypeScript check also passed.
 
-### Webhook resource capability follow-through (2026-08-31)
+The 2026-09-01 installed-runtime re-audit used the deployed Kazoo `7.0.4.1`
+BEAM modules. `cb_presence` accepts account reads, detail-report reads, and
+nested Device/User commands only. A set command accepts only `confirmed`,
+`early`, or `terminated`, persists the account `manual_presence` document, and
+returns asynchronous `202` command acceptance rather than observed-state
+confirmation; reset derives the Presence ID through the account realm. This
+confirms that public Device/User identity mapping, authorization, immutable
+audit, and accepted-versus-observed state semantics are required before those
+commands can be enabled. `cb_parked_calls` remains GET-only, while `cf_park`
+requires an active call and referral/replacement context. A fresh read-only
+account probe reported Presence diagnostics available, parked-call summary
+available, zero active parked calls, and both command/action capability flags
+false. Focused checks passed with 2 SDK tests/20 assertions, 3 Laravel tests/51
+assertions, 7 Zod/store tests, and one isolated authenticated headless browser
+test. The browser again emitted no operational mutation.
+
+### Webhook resource capability follow-through (2026-08-31, re-audited 2026-09-01)
 
 This resource audit is separate from the capability-gated `callflows.webhook`
 palette action. The installed deployment loads `cb_webhooks`, runs the
@@ -1128,7 +1151,28 @@ enforcement, minimized public-safe payloads, secret rotation, bounded retries
 and response handling, redacted retention, authorization, immutable audit,
 rate/circuit controls, and an emergency kill switch exist.
 
-### SMS/MMS capability follow-through (2026-08-31)
+The 2026-09-01 installed Kazoo `7.0.4.1` BEAM re-audit confirmed the gate with
+the exact delivery behavior. `kz_http` inherits `httpc` automatic redirects,
+an infinite overall request timeout, and empty SSL options; the Webhook path
+sets only a ten-second connect timeout. URI validation checks the submitted
+literal host or IP against the live blacklist (`localhost`, `127.0.0.1/32`,
+and `0.0.0.0/32`) without resolving hostnames or revalidating redirect hops.
+Delivery treats only HTTP `200` as success. Transport errors retry after a
+fixed two-second sleep, while non-200 responses are stored as failures without
+retrying. Failed-attempt documents include the destination, raw hook/account
+headers, request and response bodies, status, retry state, and client error.
+No schema field or delivery header provides a signing secret or replay guard.
+
+Kazoo's automatic disabler currently uses the six-failures-in-60-seconds
+defaults and is enabled, but it is a failure circuit breaker rather than a
+safe outbound-egress kill switch. A fresh read-only GridPBX probe returned nine
+available events and zero configured or enabled hooks, with configuration
+mutations and delivery history fixed false. Focused checks passed with 2 SDK
+tests/20 assertions, 3 Laravel tests/51 assertions, 7 Zod/store tests, and one
+isolated authenticated headless browser test. The browser sent no operational
+mutation and no Webhook was created or delivered.
+
+### SMS/MMS capability follow-through (2026-08-31, re-audited 2026-09-01)
 
 This audit did not add a message form or messaging domain. The installed SMS
 schema requires a destination and a 1–700-character body; MMS requires a
@@ -1173,7 +1217,37 @@ no operational mutation is emitted, and no body, participant, private message
 ID, attachment, or Switch account identifier enters the public response or UI.
 No SMS or MMS message document was sent, received, created, opened, or deleted.
 
-### Number Porting capability follow-through (2026-08-31)
+The 2026-09-01 installed Kazoo `7.0.4.1` BEAM re-audit reconfirmed the live
+boundary and clarified acceptance versus delivery. Crossbar publishes outbound
+SMS/MMS asynchronously and immediately returns a normalized request plus the
+flat-rate charge value; actual ledger creation occurs later after the broker
+publisher confirms routing. Neither response proves carrier acceptance or
+final delivery. Each request receives a new message ID, with no client
+idempotency key or duplicate-safe retry contract. Offnet sending validates that
+the source number exists, belongs to the account, and has the matching feature,
+but onnet routing bypasses those source-number checks. No consent, opt-out,
+destination-classification, spam, or abuse-control step exists in the audited
+Crossbar and IM routing paths.
+
+MMS still accepts either an already MIME-encoded body or uploaded files. It
+copies caller-supplied content types and filenames into MIME headers and applies
+no message-specific allowlist, filename sanitization, attachment count, malware
+scan, or content-disposition policy. Direct message deletion remains available
+without a GridPBX retention/legal-hold contract. Doodle remains stopped, binds
+only inbound SMS when running, uses a durable queue with infinite TTL and
+length, and waits for textflow completion without a timeout. Monster's installed
+workflow only toggles SMS/MMS features on a Phone Number and handles possible
+charge cancellation; it does not supply a safe message-thread or send workflow.
+
+Fresh live reads still returned HTTP 503 for SMS and HTTP 404 for MMS; `cb_sms`
+is loaded, `cb_mms` is not loaded, Doodle is not running, and the selected
+account has zero projected sender numbers. The public GridPBX result remains
+four fixed fields with both inventory booleans and both content/send capabilities
+false. Focused checks passed with 2 SDK tests/20 assertions, 3 Laravel tests/51
+assertions, 7 Zod/store tests, and one isolated authenticated headless browser
+test. No message mutation was emitted.
+
+### Number Porting capability follow-through (re-audited 2026-09-01)
 
 The installed Port Request schema and runtime describe a regulated workflow,
 not a Phone Number edit form. A request requires a name and at least one number
@@ -1186,32 +1260,40 @@ date, submission, state tracking, documents, and comments; it remains workflow
 evidence only.
 
 Installed state transitions are authority-sensitive. Submission is allowed
-from unconfirmed or rejected. Pending requires submitted; scheduling accepts
-submitted or pending; rejection accepts submitted, pending, or scheduled;
-cancel accepts every non-completed active state; and completion accepts pending,
-scheduled, or rejected. Non-authority accounts can submit their request and
-cancel it while unconfirmed, but later operational transitions are reserved for
-the configured port authority or super administrator. Completion is not a
-label update: it creates and assigns in-service ported numbers, clears them from
-the request, and reconciles callflow/trunk usage.
+from unconfirmed or rejected. Pending requires submitted. Scheduling normally
+requires pending; an optional `number_manager` setting can also allow submitted,
+but it is unset and therefore false in this deployment. Rejection accepts
+submitted, pending, or scheduled; cancel accepts every non-completed active
+state; and completion accepts pending, scheduled, or rejected. Non-authority
+accounts can submit their request and cancel it while unconfirmed, but later
+operational transitions are reserved for the configured port authority or
+super administrator. Completion is not a label update: it creates and assigns
+in-service ported numbers, clears them from the request, and reconciles
+callflow/trunk usage.
 
 The external and document boundaries are not safe enough to expose. Phonebook
 submission can forward the current Kazoo auth token and public request document
-to a configured URL. A separate submitted-request exporter can POST the request
-and every attachment to an account-configured URL. LOA generation calls Google
-Charts with raw account and Port Request identifiers. Crossbar accepts PDF,
-plain text, and generic octet-stream uploads up to its global 8 MB ceiling,
-while Monster's client-only rule is PDF up to 5 MB. Comments and timelines can
-contain private content, action-required flags, reasons, and raw authorization
-account/user identities.
+to a configured URL. It uses the shared HTTP client without a Porting-specific
+host allowlist, redirect-hop validation, bounded overall timeout, or scoped
+service credential. A separate submitted-request exporter POSTs a normalized
+request containing the raw account identifier and then every attachment to an
+account-configured URL, also without a dedicated authentication header. LOA
+generation calls Google Charts with raw account and Port Request identifiers.
+Crossbar accepts PDF, plain text, and generic octet-stream uploads under its
+effective 8,000,000-byte global ceiling, while Monster's client-only rule is
+PDF up to 5 MB. Comments and timelines can contain private content,
+action-required flags, reasons, and raw authorization account/user identities.
 
-Live read-only checks found `cb_port_requests` loaded, an available empty
-account endpoint, Phonebook unset/disabled, no Phonebook URL, and no
-account-level submitted-request export URL. Because the installed active-state
-listing disables pagination, GridPBX does not use a nominal `page_size=1`
-probe. The Switch SDK instead queries the exact-number filter with the
-non-number sentinel `gridpbx-capability-probe`, validates only the list envelope,
-and immediately returns a boolean.
+Live read-only checks found `cb_port_requests` loaded. The account-scoped
+`by_number=gridpbx-capability-probe` request returned `success` with zero
+matches. `crossbar.phonebook.enabled`, its URL, the account-level
+`submitted_port_requests_url`, and the optional submitted-to-scheduled setting
+are all unset; Phonebook and both sensitive outbound paths are therefore not
+active for the audited account. `crossbar.max_upload_size` resolves to
+8,000,000 bytes. Because the installed active-state listing disables
+pagination, GridPBX does not use a nominal `page_size=1` probe. The Switch SDK
+queries the exact-number filter with the non-number sentinel, validates only
+the list envelope, and immediately returns a boolean.
 
 GridPBX exposes that boolean only in the existing account-scoped System Status
 response. Laravel hard-disables request details, documents, and workflow
@@ -1220,16 +1302,16 @@ value, PIN, comment, attachment, state transition, authority identifier, or
 carrier mutation is copied into MySQL or returned to the browser. This is a
 read-only capability foundation, not a Porting feature.
 
-Focused checks passed with 2 Switch SDK tests and 17 assertions, 3 Laravel
-tests and 42 assertions, and 2 UI files with 6 tests. Vue typecheck and the
+Focused checks passed with 2 Switch SDK tests and 20 assertions, 3 Laravel
+tests and 51 assertions, and 2 UI files with 7 tests. Vue typecheck and the
 isolated E2E TypeScript check passed. One isolated authenticated headless
-Playwright check passed in 3.5 seconds and verified the live inventory signal,
+Playwright check passed in 3.2 seconds and verified the live inventory signal,
 all higher-risk flags fixed to false, no operational mutation, and no sensitive
 Port Request content in the public response or UI. No Port Request was created,
 edited, submitted, transitioned, completed, canceled, or deleted; no individual
 request document, uploaded document, or LOA was accessed.
 
-### Number acquisition and release follow-through (2026-08-31)
+### Number acquisition and release follow-through (re-audited 2026-09-01)
 
 The installed number workflow separates carrier information, search, purchase,
 reservation, and release. `carriers_info` is read-only but returns a static
@@ -1237,10 +1319,17 @@ usable-carrier catalog and account-authorized creation states, neither of which
 proves a provider is configured or reachable. Number search validates a
 three-to-ten-character prefix, two-character country, and positive quantity,
 then fans out to every effective carrier module. It can therefore contact
-external providers despite using GET.
+external providers despite using GET. The installed search layer caps quantity
+at 500 and waits up to five seconds for each still-outstanding carrier response;
+its query/cache identifier contains a hash derived from the private Account ID
+and current auth token. Kazoo also explicitly self-authenticates and authorizes
+the global non-Account search route. GridPBX does not proxy that route and uses
+only the authenticated Account-scoped read-only carrier-info endpoint.
 
-Live configuration inspection found both global and audited-account
-`carrier_modules` unset, so the deployment falls back to `knm_local`. The local
+Live configuration inspection found the global carrier module resolves to
+`knm_local` and the audited account has no override. For an Account-scoped
+search, Kazoo prepends the internal `knm_reserved`, `knm_reserved_reseller`, and
+`knm_local` modules; no external provider module is effective here. The local
 carrier searches internal available inventory, does not bill, and has no-op
 acquire/disconnect callbacks. The live carrier-info endpoint returned a valid
 shape with maximum prefix 10, 24 static catalog entries, and the creation states
@@ -1255,9 +1344,10 @@ operations can partially succeed. Reservation changes assignment/history and
 can acquire a discovery number from a carrier. Release strips features and
 public fields, can return ownership to a prior reservation account, and can
 disconnect then age or delete a number. Local numbers without reserve history
-are deleted even though the live global defaults leave permanent deletion and
-aging disabled. Monster's availability recheck is mocked, while its E911 guard
-and delete confirmation are client-only workflow evidence.
+are deleted even though the live settings are unset and therefore use
+`released_state = available`, permanent deletion false, and aging false.
+Monster's availability recheck is mocked, while its E911 guard and delete
+confirmation are client-only workflow evidence.
 
 The SDK now performs only the account-scoped carrier-info GET, validates its
 expected object and list types, discards the payload, and returns one boolean.
@@ -1270,7 +1360,7 @@ provider call, or number mutation was performed.
 Focused checks passed with 2 Switch SDK tests and 20 assertions, 3 Laravel tests
 and 51 assertions, and 2 UI files with 7 tests. Vue and isolated E2E TypeScript
 checks passed. One isolated authenticated headless Playwright check passed in
-3.5 seconds and verified the live boolean, four literal-false operational
+3.2 seconds and verified the live boolean, four literal-false operational
 flags, zero mutation requests, and absence of raw carrier data in the public
 response and UI.
 
@@ -1602,7 +1692,7 @@ non-mutating isolated browser test passed; the browser verified both tabs,
 bounded owner selection, and cross-tab inline validation without creating a
 Fax Box.
 
-### Fax message operations audit (2026-08-31)
+### Fax message operations audit (2026-08-31, re-audited 2026-09-01)
 
 The installed `faxes` schema requires sender and destination numbers, permits
 zero to four retries, and supports email or SMS status recipients. A document
@@ -1610,16 +1700,26 @@ can be uploaded as multipart content or supplied as an HTTP URL. The URL form
 can select GET or POST and can provide request content, content type, Host, and
 Referer values. The installed attachment fetcher sends that server-side
 request directly and has no visible destination allowlist, private-address
-block, redirect policy, or DNS-rebinding defense. GridPBX therefore does not
-expose URL-based sending.
+block, per-redirect validation, DNS-rebinding defense, explicit request
+deadline, or response-size ceiling. It also logs the full URL and, on a
+non-200 response or transport error, returns the logging result rather than
+the tagged error expected by its background caller. That can leave a saved
+job with indeterminate attachment-processing state. GridPBX therefore does
+not expose URL-based sending.
 
 Multipart sending is also asynchronous rather than an atomic upload command.
 Crossbar first saves a global Fax job, returns HTTP 202, and spawns background
-attachment processing. The running defaults accept eight content-type entries,
-including prefix-based image, OpenXML, and OpenDocument families; store the
-original, faxable TIFF, and generated PDF; retry attachment storage five times;
-allow ten active outbound jobs per account; serialize jobs globally by
-destination; and allow a running job to remain controlled for up to one hour.
+attachment processing. When multipart content is supplied, only the first
+uploaded file is consumed. The running defaults accept broad image, PDF/TIFF,
+OpenXML, OpenDocument, and legacy Microsoft Office families; store the
+original, faxable TIFF, and generated PDF; invoke serialized LibreOffice
+conversion; retry attachment storage five times; allow ten active outbound
+jobs per account; and serialize jobs by destination. The scheduler fetches at
+most 100 jobs per view request, considers a pending cache entry stale after
+120 seconds and a running entry stale after one hour, and resets locked or
+zombie work to pending during recovery. A retry after an uncertain outcome can
+therefore create another delivery attempt.
+
 Caller-ID validation is enabled, but that does not supply document malware
 controls, billing policy, recipient authorization, idempotency, delivery audit,
 or an authoritative outcome after a timeout or background conversion failure.
@@ -1636,19 +1736,23 @@ both deletion paths independently.
 Monster provides history, parallel bulk delete, and outbound resubmit
 workflows, with browser confirmation only. Its bulk-delete handler collects
 the selected IDs before confirmation and appends them again inside the confirm
-callback, so the reference workflow can submit each selected ID twice. The
-installed forward action is not surfaced there, and no in-app Send Fax form was
-found. These workflows are useful interaction evidence but are not safe
-idempotency, retention, or authorization contracts.
+callback before converting the list to keyed parallel tasks. Duplicate keys
+collapse in the current implementation, but the duplicated intermediate list
+is brittle and is not a deletion contract. The installed forward action is not
+surfaced there, and no in-app Send Fax form was found. These workflows are
+useful interaction evidence but are not safe idempotency, retention, or
+authorization contracts.
 
 Live read-only checks against account `4bb372131dddafedcdb142ea3a0ccf2f`
 found available Fax Box, inbox, and outbox collections with zero records. The
 active outgoing-job collection returned HTTP 503. Effective non-secret defaults
 confirmed caller-ID validation, destination serialization, URL-document
 storage, original/TIFF/PDF retention, five storage retries, a ten-job account
-limit, a 40-second endpoint timeout, and a one-hour job wait. No Fax message,
-attachment, or job was created, copied, transmitted, forwarded, resubmitted,
-or deleted.
+limit, a 40-second endpoint timeout, no configured reschedule rules, and the
+one-hour running-job recovery threshold. The related live configuration keys
+were unset, so these are compiled runtime defaults rather than account policy.
+No Fax message, attachment, or job was created, copied, transmitted,
+forwarded, resubmitted, or deleted.
 
 GridPBX now publishes one strict account-scoped history capability object with
 only `switch_supported`, fixed `enabled = false`, and a safe reason for Send,
@@ -1658,13 +1762,14 @@ or message content enters that contract. Vue validates it with a strict Zod
 schema and renders five informational policy gates without action buttons or
 mutation clients.
 
-Focused verification passed with the one affected Laravel Fax test (10
-assertions) and two Vue files with four tests. Vue typecheck and isolated E2E
-TypeScript checks passed. One isolated authenticated headless Playwright Fax
-test passed in 2.4 seconds and confirmed all five visible policy gates, the
-absence of Send/Forward/Resubmit/Delete controls, the existing Fax Box form
-behavior, and clean browser/network state. The disposable UI listener was
-stopped after the run.
+The 2026-09-01 focused re-verification passed with two Fax-message Switch SDK
+tests (nine assertions), one Laravel capability test (27 assertions), and one
+strict-Zod file (two tests). Vue typecheck and the isolated E2E TypeScript check
+passed. One isolated authenticated headless Playwright Fax test passed in 2.3
+seconds and confirmed all five visible policy gates, the audited HTTP 202
+warning, the absence of Send/Forward/Resubmit/Delete controls, the existing Fax
+Box form behavior, and clean browser/network state. The browser used the
+existing isolated listener; no Fax mutation was performed.
 
 ### Phone Number follow-through (2026-08-29)
 
@@ -1690,7 +1795,7 @@ configured. They will use dedicated command panels rather than a generic JSON
 form. Focused package, API, Vue, TypeScript, and isolated authenticated
 headless checks pass without issuing a carrier mutation.
 
-### Phone Number CNAM mutation audit (2026-08-31)
+### Phone Number CNAM mutation audit (re-audited 2026-09-01)
 
 The installed `phone_numbers` schema accepts only `cnam.display_name` as a
 one-to-fifteen-character string and `cnam.inbound_lookup` as a boolean. Monster
@@ -1707,36 +1812,53 @@ Provider execution happens before the number is saved. A dry run can return a
 service quote and Crossbar then repeats the operation only after charges are
 accepted. State changes also update the services ledger and can fail for
 credit or provider reasons, so this is not an ordinary idempotent form save.
+The accepted-charge pipeline runs the provider first, saves the Phone Number
+second, and commits service changes third. A credit race or later failure can
+therefore occur after provider work or local persistence, and no client
+idempotency key prevents a retry from repeating provider work.
 
-The running deployment has no account-level CNAM provider override and inherits
-`knm_cnam_notifier`. That provider marks inbound/outbound feature state, but an
-outbound name change only publishes an asynchronous CNAM notification when the
-request is not a dry run; it supplies no carrier acknowledgement or completion
-status. The audited account contains no phone numbers, so no disposable carrier
-mutation was possible. GridPBX therefore continues to expose only the
-allowlisted CNAM projection and per-number selectable capability. The public
-reason now states that selectable does not mean carrier-confirmed, while raw
-provider state and unknown nested fields remain private.
+The running deployment has no account-level CNAM provider override and the
+global setting resolves to `knm_cnam_notifier`. That provider marks
+inbound/outbound feature state, but an outbound name change only publishes an
+asynchronous CNAM notification when the request is not a dry run; it supplies
+no carrier acknowledgement or completion status. The two installed direct
+provider alternatives do not establish a portable safe contract. Telnyx uses
+synchronous writes with 180-second timeouts but disables TLS certificate
+verification and can write credential-bearing request headers to a debug file.
+Vitelity defaults to plain HTTP, puts login credentials in the query string,
+logs the full URI, and ignores an upstream failure while removing inbound CNAM
+before clearing local feature state. Provider choice therefore changes
+transport, acknowledgement, error, and compensation behavior materially.
+
+Fresh read-only checks confirmed both the Switch inventory and MySQL projection
+contain zero numbers, so no disposable carrier mutation was possible. GridPBX
+continues to expose only the allowlisted CNAM projection and per-number
+selectable capability. The public reason states that selectable does not mean
+carrier-confirmed, while raw provider state and unknown nested fields remain
+private.
 
 CNAM mutation stays capability-gated until a target provider and completion
 contract are configured, quote and charge confirmation are represented
 server-side, permission and immutable audit rules are approved, retries cannot
 duplicate billable work, and authoritative resynchronization can distinguish
 pending, completed, rejected, and indeterminate outcomes. No live number was
-created or changed during this audit. Focused verification passed with the one
-affected Laravel API test (25 assertions), the one CNAM detail component test,
-the isolated E2E TypeScript check, and one isolated headless Playwright test in
-1.5 seconds. The browser confirmed the allowlisted values, the explicit
+created or changed during this audit. Focused verification passed with five
+Switch SDK tests / 26 assertions, the one affected Laravel API test / 29
+assertions, the one CNAM detail component test, Vue and isolated E2E TypeScript
+checks, and one isolated headless Playwright test in 0.8 seconds. The browser
+confirmed the allowlisted values, the explicit
 notification-only gate, and the absence of purchase, release, or port actions.
 
-### Phone Number E911 mutation audit (2026-08-31)
+### Phone Number E911 mutation audit (re-audited 2026-09-01)
 
 The installed `phone_numbers` schema requires `street_address`, `locality`,
 `region`, and `postal_code` whenever an E911 object is present. Region is
 exactly two characters; caller name, when supplied, is at least three
-characters; and notification recipients are an email array. Provider-owned
-status, activation time, coordinates, location ID, plus-four, and legacy
-address data appear in the same object but are not operator-owned fields.
+characters; and notification recipients are an email array. Provider status is
+limited to `INVALID`, `GEOCODED`, `PROVISIONED`, `REMOVED`, or `ERROR`.
+Activation time, coordinates, location ID, plus-four, legacy address data, and
+future provider fields appear in the same object but are not operator-owned
+fields.
 
 Monster's reference form edits street and extended address, city, state,
 postal code, and notification emails for an in-service number. It sends the
@@ -1748,26 +1870,45 @@ one. That UI-only count is useful workflow evidence but is not an authoritative
 dependency or concurrency control.
 
 Kazoo resolves E911 through an account/reseller provider selection and the
-same dry-run service quote path as other billable number features. The default
-Dash provider validates and geocodes an address, can return multiple choices,
-then adds and provisions a location. Its configured HTTP client disables TLS
-certificate verification, allows 180-second connect/response timeouts, and can
-write address-bearing request/response XML to `/tmp` when provider debug is
-enabled. Removal deactivates the local feature even when the upstream removal
-reports an error. Other installed providers have different compensation risks:
-Telnyx removes the previous address before creating and assigning its
-replacement and cleans old address records asynchronously, while Vitelity uses
-separate validate, update, lookup, and delete calls. A generic retry therefore
-cannot be assumed safe or idempotent.
+same dry-run service quote path as other billable number features. All three
+installed providers act only while a number is reserved, in service, or
+porting in; other states enter their delete path. The default Dash provider
+validates and geocodes an address, can return multiple choices, then adds and
+provisions a location. Its HTTP client disables TLS certificate verification,
+allows 180-second connect and response timeouts, and can write complete
+address-bearing request/response XML to `/tmp` when provider debug is enabled.
+Debug logging also serializes the E911 address, and an invalid-address error
+embeds the submitted address. Dash removal reports most provider failures as
+`REMOVED`, after which Kazoo deactivates the local feature.
+
+The alternatives do not provide one interchangeable transaction contract.
+Telnyx can treat sandbox provisioning as a local dry run, removes the previous
+address before creating and assigning its replacement, and deletes old address
+records asynchronously. Vitelity uses separate validation, update, lookup, and
+delete requests through its shared plain-HTTP, credential-bearing query-string
+transport. Its callers ignore the delete result before deactivating local
+feature state. A generic retry therefore cannot be assumed safe, private, or
+idempotent.
 
 Emergency routing is coupled to this feature. Stepswitch can restrict the
-emergency caller ID to the account's E911-enabled numbers and otherwise choose
-another enabled number, but `ensure_valid_emergency_cid` defaults to false. The
-running deployment leaves that safeguard unset. It also inherits
-`knm_dash_e911`, has no configured Dash username or password, has provider
-debug unset/false, and has no account-level E911 provider override. The audited
-account contains zero phone numbers, so no disposable provisioning or removal
-could be performed.
+emergency caller ID to the account's E911-enabled numbers, prefer a valid
+emergency or outbound caller ID, and otherwise choose the first enabled number.
+That validation is used only when `ensure_valid_emergency_cid` is true. When it
+is false, the runtime explicitly uses the requested emergency caller ID without
+verification. If no number is available, `deny_invalid_emergency_cid` decides
+whether to reject the call; its false default instead permits an anonymous or
+configured global fallback. Account-hunted local resources also bypass this
+validation path.
+
+The running deployment leaves `ensure_valid_emergency_cid`,
+`deny_invalid_emergency_cid`, and `default_emergency_cid_number` unset, so all
+three effective defaults are unsafe for a write claim. It inherits
+`knm_dash_e911`; the Dash username, password, URL override, and debug setting
+are unset, and the audited Account has no provider override. Fresh aggregate
+checks found zero Switch Phone Numbers, zero MySQL Phone Number projections,
+and zero provisioned E911 projections. No disposable provisioning or removal
+could therefore be performed without inventing carrier credentials or a
+billable number.
 
 GridPBX therefore keeps E911 mutation unavailable. The public API/UI continues
 to expose only the allowlisted address, notification, and status projection;
@@ -1783,14 +1924,15 @@ audit, and reconcile completed, rejected, partially compensated, and
 indeterminate outcomes before reporting success. No E911 or Phone Number write
 was issued during this audit.
 
-Focused verification passed with the one affected Laravel Phone Number test
-(29 assertions), the one Phone Number detail component test, the Vue typecheck,
-and the isolated E2E TypeScript check. One isolated authenticated headless
-Playwright Phone Number test passed in 1.9 seconds against a disposable UI
-listener using the existing same-scheme local API. The browser confirmed the
-allowlisted E911 projection, the explicit provider-readiness gate, and the
-absence of purchase, release, or port controls. The disposable listener was
-stopped immediately after the test.
+Focused verification passed with five Switch SDK tests / 26 assertions, the
+one affected Laravel Phone Number test / 34 assertions, the one Phone Number
+detail component test, the Vue typecheck, and the isolated E2E TypeScript
+check. One isolated authenticated headless Playwright Phone Number test passed
+in 0.7 seconds (1.6 seconds for the run) against the existing local UI/API. The
+browser confirmed the allowlisted E911 projection, the explicit
+provider-readiness gate, and the absence of purchase, release, port, or generic
+Basic/Advanced edit controls. No E911, Phone Number, carrier, billing, or
+emergency-call mutation was issued.
 
 ### Phone Number form-drift re-audit (2026-08-31)
 
@@ -2021,6 +2163,16 @@ a separate read-oriented workspace with public Account UUID relationships,
 projection coverage, service/billing-owner health, and safe promotion/demotion
 preflight. Raw Switch account IDs and numeric database keys remain private.
 
+The Reseller status contract additionally exposes a strict fixed-false matrix
+for Account create/move/delete, Limits, Service Plans, service overrides/manual
+quantities, top-up, and Kazoo billing-side synchronization/reconciliation. The
+workspace presents these nine operations as read-only unavailable rows, without
+action buttons. Zod rejects enabled values and unknown/private operation fields;
+`accept_charges`, raw Service Plan IDs, and Switch Account IDs never enter the
+browser. One focused Laravel test passed with 22 assertions, two focused Vue
+files passed seven tests, both Vue and isolated E2E TypeScript checks passed, and
+one isolated authenticated headless Playwright scenario passed in 1.8 seconds.
+
 Authorized onboarding accepts only a short-lived opaque reference issued for
 the current actor and reseller scope. It requires exact-name confirmation and
 explicit acknowledgement that existing organization members inherit access,
@@ -2125,7 +2277,7 @@ mutations; it is not presented as a complete visual implementation of every
 | Caller-ID condition branches | `check_cid` and `cidlistmatch` `children.match` / `children.nomatch` | Regex-mode Check CID has safe-regex validation, stable public result branches, and optional all-or-none identity override fields. The public Extension UUID is resolved server-side into Kazoo's nested `caller_id.external` and `user_id` values. Existing absolute caller-number branches are numbered preserved branches; their nodes and destinations cannot be rewritten. Caller-ID List Match selects an account-scoped projected List by public UUID; Laravel resolves the private List ID and exposes only stable `match`/`nomatch` branches. Lists and entries retain separate redacted `switch_json` snapshots and are never confused with account Blacklists. Standalone list metadata and number/pattern entries use account-scoped API CRUD and a shared-control slide-over editor with safe-regex validation. The Switch adapter hydrates summary-only entry collections and supplies the schema-required parent `list_id` internally | Regex-mode Check CID, Caller-ID List Match, and standalone Caller-ID List CRUD implemented; absolute Check CID mode intentionally read-only; authenticated local Switch create/edit/reopen/clear/delete verified |
 | Captured-number branches | `branch_bnumber` exact child keys, `hunt`, `hunt_allow`, `hunt_deny`, and `_` continuation | Branch mode accepts bounded dial strings (`0`–`9`, `*`, `#`, and `+`) as typed condition branches. Hunt mode exposes safe optional allow/deny regexes and only the default continuation; enabling it with exact children is rejected. Existing data and subtrees remain lossless | Implemented across SDK, API, Zod, Vue, focused tests, and disposable live Switch verification |
 | Module reference palette | Installed Kazoo palette registry plus connected-version-safe current-schema actions | Expanded categories use the exact installed Kazoo section names, membership, and order, without an invented “Schema extensions” category. Supported current-schema actions that are absent from the installed palette are search-only, so existing guided workflows remain reachable without changing the visible native registry. All entries and diagram/editor nodes use one centralized corresponding icon map. Guided resource and supported inline actions open their schema-appropriate right-side form; planned and restricted entries remain non-mutating | Implemented and headless-tested |
-| Installed palette classification | All 49 visible Monster actions across Basic, Advanced, Time of Day, Ring Group Toggle, Hotdesking, Do Not Disturb, Caller-ID, Call Recording, and Call Forwarding | Exactly 40 actions are guided through a public destination or typed inline contract. Nine variants are capability-gated: Pivot, DISA, Global Carrier, Account Carrier, Webhook, Dynamic CID, and Call Forwarding activate/deactivate/update. No visible action remains planned. The catalog test fixes the exact counts and restricted IDs; the API test rejects every restricted module before gateway access; the isolated browser opens every category, verifies the 40/9/0 status split and disabled restricted controls, and sends no Callflow mutation | Complete and isolated-headless verified |
+| Installed palette classification | All 49 visible Monster actions across Basic, Advanced, Time of Day, Ring Group Toggle, Hotdesking, Do Not Disturb, Caller-ID, Call Recording, and Call Forwarding | Exactly 44 actions are always guided through a public destination or typed inline contract, including static Dynamic CID through an account-owned public Phone Number UUID. Pivot, Webhook, Global Carrier, and Account Carrier become guided independently only when the server reports a matching active, valid, encrypted account integration profile. DISA additionally requires a ready live-ingress deployment guard. Without matching profiles the split is 44/5/0; activating all five profiles and the DISA guard produces 49/0/0. No visible action is planned. The capability overlay is generic and does not change the installed Kazoo grouping or order | Complete; static and profile/guard-enabled splits covered by focused API/UI tests |
 | Other keyed recursive branches | Module-specific branch schemas beyond Menu, temporal routing, Caller-ID, Call Priority, and Branch Bnumber | The installed 49-action Monster registry has no additional default-palette keyed branch contract. Its only multi-child actions are Menu and Time of Day, both already guided. A redacted 2026-08-31 inventory of 30 active test-account callflows likewise found no unhandled keyed shape. Unknown or future-version branch keys remain read-only and losslessly preserved until their own schema/runtime audit exists | No current default-palette target; future capability-gated |
 
 The 2026-08-31 Feature Codes audit confirmed that `callflows.json` treats
@@ -2163,17 +2315,17 @@ then used Monster only to confirm the intended operator workflows.
 | Ring Group Toggle | `callflows.ring_group_toggle` requires `action` (`login` or `logout`) and `callflow_id`, with optional `skip_module`. Installed `cf_ring_group_toggle` answers the call, opens that target only in the caller's account database, recursively visits every `ring_group`, and changes `disable_until` only on `user` endpoints whose raw ID equals `kapps_call:owner_id(Call)`. Login writes `0`; logout writes `66269664000`. Device/group endpoints and other users are unchanged. The module plays logged-in, logged-out, or invalid-choice prompts, saves the complete callflow with bounded conflict retries, and continues | Guided for synchronized non-feature callflows containing a Ring Group. The public API/UI use only the account-scoped target Callflow UUID; Laravel maps the raw target at the Switch boundary and rejects cross-account or non-ring-group targets. Focused SDK coverage proves unknown node fields survive typed edits and remain absent publicly. Disposable live configuration verified both actions, edits, reopen, raw/public mapping, cleanup, and public redaction. Crossbar sanitized the attempted unknown marker, so live preservation is not claimed. No media leg was originated, so compiled-runtime inspection rather than a live call proves the owner-only membership rule and prompts |
 | Hotdesking | `callflows.hotdesk` permits `login`, `logout`, `toggle`, and `bridge`, with optional `id`, `interdigit_timeout`, and `skip_module`. Monster exposes only login/logout/toggle and writes only `action`. Installed `cf_hotdesk` does not consume a feature-code capture value: when no server-owned `id` is present it prompts for the account Hotdesk ID, except logout can infer the sole owner of the authorizing endpoint. Login loads the user's Hotdesk profile, enforces its PIN when `require_pin = true`, optionally removes that user from other devices, and writes the raw user ID under the current authorizing device's `hotdesk.users`. Logout never requests the profile PIN and removes either the current device or all devices according to `keep_logged_in_elsewhere`. Toggle chooses login when the user has no active Hotdesk endpoints and logout otherwise. Each mutation saves the complete Device document and sends an unsolicited MWI update | Guided only as the resource-free public contract `{ action: login|logout|toggle, skip_module }`; `bridge`, design-time user selection, raw `id`, and timing controls are rejected or remain server-owned. The form warns that logout and toggle's logout path do not prompt for a PIN and should remain behind a trusted feature-code route. Focused SDK coverage proves raw/private and unknown fields survive typed edits, while API/resolver/UI tests prove they remain absent publicly. A disposable isolated run created, edited, and reopened all three actions; an independent raw watcher confirmed the exact actions, `skip_module = true`, and no `id` or `interdigit_timeout`. No media leg was originated, so prompts, PIN entry, and Device session mutation remain compiled-runtime evidence rather than a live-call claim |
 | Do Not Disturb | `callflows.do_not_disturb` permits `action` (`activate`, `deactivate`, or `toggle`), optional raw `id`, and `skip_module`. Monster's normal palette writes only the action. Installed `cf_do_not_disturb` uses `id` only when server-owned data already provides it; otherwise it resolves `kapps_call:owner_id(Call)` and falls back to `authorizing_id(Call)`, opens only the caller account database, accepts only User or Device documents, and changes only `do_not_disturb.enabled` with conflict retry | Guided only as resource-free `{ action, skip_module }`. GridPBX rejects legacy `enable`/`disable` spellings and any public raw `id`, returns `target: null` with `reference_status: not_applicable`, and preserves private/unknown node fields losslessly. There is no public-to-raw mapping: runtime identity resolution stays in Kazoo. The module has no PIN challenge, so the editor warns that this must remain behind a trusted feature-code route. Focused tests protect the contract and preservation; a disposable isolated run verified all three create/edit/reopen paths, raw/public redaction, and cleanup. No media leg was originated, so the account-local User/Device mutation remains compiled-runtime evidence |
-| Call Forwarding | `callflows.call_forward` permits `activate`, `deactivate`, `update`, `toggle`, and `menu` plus `skip_module`; Monster's normal palette exposes the first three, while its feature-code registry also defines toggle. Installed `cf_call_forward` resolves the authorizing endpoint's owner or falls back to the endpoint, answers the call, and has no PIN challenge. Activate and update use a feature-code capture or prompt for an arbitrary 3–20 digit destination; toggle reuses a stored number or collects one. The runtime writes `call_forward.enabled` and `call_forward.number` on the complete account-local document with conflict retry, but performs no ownership, destination-class, emergency/premium/international, rate/lockout, or loop validation | Capability-gated as a category. All visible actions are disabled with a toll-fraud explanation; public create/update requests and direct Switch DTO writes reject the module, and existing nodes plus descendants stay read-only. Public projection exposes only the safe action and skip summary for labeling; the raw forwarding number and unknown properties remain private. A focused SDK regression proves private data and the subtree survive an unrelated typed edit. API, validator, resolver, public-tree, catalog, detail-panel, type, and isolated headless tests passed; the browser emitted no Callflow mutation. No disposable Switch write or live call was attempted because the audited runtime lacks the controls required to exercise it safely |
+| Call Forwarding | `callflows.call_forward` permits `activate`, `deactivate`, `update`, `toggle`, and `menu` plus `skip_module`; Monster's normal palette exposes the first three. Installed `cf_call_forward` resolves the authorizing endpoint's owner or falls back to the endpoint and has no PIN challenge | Guided for the three installed palette actions. The public node contract accepts only the exact action and `skip_module`; it never accepts or returns the owner-level forwarding number. API, direct Switch DTO, Zod, palette drag, existing-node edit, redaction, and lossless-merge tests cover the boundary. Operators are warned to use a trusted feature-code route. Schema-only `toggle` and `menu` stay outside the installed palette |
 | ACDC Agent | `callflows.acdc_agent` permits `login`, `logout`, `paused`, and `resume`, optional `presence_id`, one of six presence states, integer `timeout`, and `skip_module`. Installed `cf_acdc_agent` answers the call and infers a raw Agent ID from the authorizing endpoint's single Hotdesk user or owner. It has no PIN challenge and sends no Queue ID. The ACDC handler opens that account-local raw User document without a queue-membership check at this boundary. `paused` becomes the runtime `pause` event; an omitted timeout defaults to 600 seconds, while message validation accepts any non-negative integer with no upper bound. Login, logout, pause, and resume can change live agent and presence state. The action is absent from the installed Monster palette | Capability-gated and search-only. All four schema variants are disabled with direction to the authenticated Queue Agent status panel. Public API and direct Switch DTO writes reject the module; existing nodes and descendants are preserved and read-only. The public projection exposes only `action` and `skip_module`; inferred raw Agent IDs, presence fields, timeout, and unknown properties remain private and lossless. The supported Queue Agent panel already resolves an account-scoped public Extension UUID, verifies membership, bounds pause time, authorizes the operator, and audits the result. Focused SDK/API/resolver/public-tree/catalog/type checks and one isolated headless no-mutation test passed. No disposable Switch write or live agent-state mutation was attempted because the missing feature-code authentication and membership controls are the reason it remains gated |
 | Eavesdrop / Eavesdrop Feature | `callflows.eavesdrop` permits one raw target `device_id` or `user_id`, raw `approved_device_id`, `approved_user_id`, or `approved_group_id`, and `skip_module`. `callflows.eavesdrop_feature` replaces the direct target with raw `group_id` and captures an extension at runtime. Direct runtime finds active target channels and starts DTMF-enabled live monitoring; Feature resolves the captured account callflow to its first Device/User node, applies an optional direct Group membership restriction, and delegates to direct Eavesdrop. Missing approval fields deny access, but multiple approval fields do not combine: only the first configured Device/User/Group field is evaluated. Authorization Group expansion and Feature target Group matching also use different membership semantics. Both actions stop the current callflow and are absent from the installed Monster palette | Capability-gated and search-only. Public API and direct SDK writes reject both modules; existing nodes and every descendant remain preserved and read-only. Public projection exposes only `skip_module`; raw target, approval, and Group IDs plus unknown properties never cross the API and survive unrelated typed edits. Enabling requires an account-scoped supervisor entitlement, explicit target policy, immutable monitor audit, privacy/consent and notification policy, bounded listen/interaction modes, and live-call abuse verification. Focused SDK/API/resolver/public-tree/catalog/type checks and one isolated headless no-mutation test passed. No disposable Switch write or monitored call was attempted because those missing controls are the reason the feature is gated |
-| Pivot | `callflows.pivot` requires `voice_url`, permits HTTP or HTTPS, GET or POST, form or JSON POST bodies, Kazoo or TwiML responses, optional `cdr_url`, debug persistence, and a request timeout up to 5000 ms. The schema defaults `req_format` to Kazoo, but the installed worker defaults an omitted request format to TwiML. The runtime sends account, call, caller, callee, custom application variable, custom SIP header, recording, transcription, and user-variable data. Kazoo-format responses can replace live call control; TwiML Redirect, Gather, and Record can issue relative or absolute follow-up requests. The worker accumulates streamed response chunks without a size ceiling and increments a counter without enforcing an iteration limit. The CDR callback is a separate unauthenticated form POST after channel destruction and does not receive the configured Pivot request timeout | Capability-gated. The installed worker applies no destination allowlist, DNS/IP/private-network rejection, application authentication header, callback signature, redirect-chain policy, or Pivot-specific TLS policy. Debug mode can persist request and response bodies. GridPBX exposes none of the Pivot URLs, formats, debug state, or callback configuration; typed SDK and API writes reject the module, while existing private data and descendants remain read-only and losslessly preserved. GridPBX must not expose Pivot until server-owned HTTPS origins, DNS rebinding-safe egress enforcement on every connection and redirect, bounded response size/iterations and total callback timeout, verified TLS, secret-backed authentication, signed callbacks, data-minimization controls, and audit/kill-switch behavior are defined outside user-editable callflow JSON |
-| DISA | The installed public schema declares only `skip_module`, but the runtime and Monster workflow consume undeclared `pin`, `retries`, `interdigit`, `max_digits`, `preconnect_audio`, and `use_account_caller_id`; runtime also accepts undeclared `enforce_call_restriction` and `ring_repeat_count`. Monster stores the PIN as visible text in node metadata and merely warns before saving an empty PIN. Runtime explicitly permits an empty PIN, logs the digits entered for a bad PIN, and has only recursive per-call retries with no cross-call rate limit or lockout. It normalizes the collected destination, then executes an exact, pattern, or account no-match Callflow. Restriction enforcement defaults to false; when enabled it checks only account-level classification and fails open if the account cannot be loaded or the class is not explicitly denied. The selected original or account caller ID is marked `Retain-CID` before the target Callflow runs | Capability-gated. This schema/runtime drift cannot support a safe typed editor. GridPBX exposes none of the PIN, dialing, restriction, audio, or caller-ID configuration; typed SDK and API writes reject DISA, while existing private data and descendants remain read-only and losslessly preserved. Enabling requires a mandatory write-only, strongly hashed secret or stronger identity, bounded retry/timeout/digit policy, persistent rate limiting and lockout, default-deny destination classification that fails closed, explicit emergency/premium/international policy, account-owned source-number authorization, redacted immutable audit records, spend/concurrency controls, and live abuse tests |
+| Pivot | `callflows.pivot` requires `voice_url`, permits HTTP or HTTPS, GET or POST, form or JSON POST bodies, Kazoo or TwiML responses, optional `cdr_url`, debug persistence, and a request timeout up to 5000 ms. The schema defaults `req_format` to Kazoo, but the installed worker defaults an omitted request format to TwiML. The runtime sends account, call, caller, callee, custom application variable, custom SIP header, recording, transcription, and user-variable data. Kazoo-format responses can replace live call control; TwiML Redirect, Gather, and Record can issue relative or absolute follow-up requests. The worker accumulates streamed response chunks without a size ceiling and increments a counter without enforcing an iteration limit. The CDR callback is separate and does not receive the configured Pivot request timeout | Conditionally guided through an active, valid, account-owned profile. The browser selects only a public profile UUID, an endpoint-approved GET/POST method, an endpoint-approved Kazoo/TwiML response format, and `skip_module`. Laravel resolves the UUID through the encrypted profile immediately before the Switch write. Settings / Callflow integrations provides audited administrator create, rotation, enable/disable, and removal controls. API resources expose only name, state, methods/formats, and boolean capability summaries; raw URLs and header values are write-only and excluded from audits. Literal localhost, local/internal names, private/reserved IPv4/IPv6, ambiguous numeric/single-label hosts, explicit non-443 ports, embedded credentials, fragments, invalid methods/formats, excessive timeouts, and unsafe headers are rejected. Debug persistence is forced to `false` server-side and cannot be supplied by the browser. Existing unrecognized, disabled, unsafe, or cross-account Pivot configurations remain read-only and losslessly preserved. DNS-rebinding-safe egress and redirect enforcement, verified TLS, bounded response/iteration/callback behavior, data minimization, audit, and an infrastructure kill switch remain deployment requirements. Focused SDK, Laravel, Zod, Vue, TypeScript, authenticated palette, and disposable live Switch create/edit/clear verification pass; no external callback was originated |
+| DISA | The installed public schema declares only `skip_module`, but the runtime and Monster workflow consume undeclared `pin`, `retries`, `interdigit`, `max_digits`, `preconnect_audio`, and `use_account_caller_id`; runtime also accepts undeclared `enforce_call_restriction` and `ring_repeat_count`. Monster stores the PIN as visible text in node metadata and merely warns before saving an empty PIN. Runtime explicitly permits an empty PIN, logs the digits entered for a bad PIN, and has only recursive per-call retries with no cross-call rate limit or lockout. It normalizes the collected destination, then executes an exact, pattern, or account no-match Callflow. Restriction enforcement defaults to false; when enabled it checks only account-level classification and fails open if the account cannot be loaded or the class is not explicitly denied. The selected original or account caller ID is marked `Retain-CID` before the target Callflow runs | Fail-closed guarded native foundation. An active, valid, account-owned encrypted profile supplies a mandatory write-only 8–12 digit PIN and bounded retry/interdigit/destination/prompt settings. The public node contains only the profile UUID and `skip_module`; Laravel resolves the secret immediately before the Switch write, forces account restrictions on, forces original caller-ID retention, and rejects raw PINs or browser-controlled security flags. A typed deployment-guard contract additionally requires live ingress interception, persistent lockout, rate and concurrency limits, destination policy, redacted monitoring, and an available inactive emergency stop. Its unconfigured default reports the stop active, so an encrypted profile alone no longer makes DISA draggable. Unmatched legacy nodes stay read-only and losslessly preserved. A client-specific carrier/SBC adapter, spend controls, immutable audit, and live abuse tests remain deployment requirements |
 | Conference Service | Monster writes the existing `conference` module without an `id`. `cf_conference` omits `Conference-ID`; the installed conference discovery worker then prompts up to three times for a 1–16 digit account conference number and applies the selected conference's existing member/moderator PIN rules | Guided as a distinct resource-free variant. Public writes carry only `service_mode: true` and `skip_module`; Laravel strips the discriminator and the raw node never contains a conference resource ID. Configured Conference remains UUID-backed. Focused preservation/collision tests and a disposable live Switch configuration lifecycle passed; no media-leg prompt call was originated during that run |
 | Check Voicemail | `callflows.voicemail` supports `action: check`, optional mailbox `id`, caller-ID matching, single-mailbox login, timeouts, and message limits. Installed `cf_voicemail` runtime inspection confirmed that resource-free check mode discovers an account mailbox by feature-code capture or prompts for its number, bounds retries, and enforces the selected mailbox PIN policy; an authenticated owner may intentionally bypass the PIN only when that mailbox has `require_pin = false` | Guided only as resource-free `{ action: check, skip_module }`. GridPBX rejects mailbox IDs, compose mode, caller-ID matching, and single-mailbox auto-login at its public write boundary. Those private fields and unknown data are redacted and preserved. Focused tests and a disposable Switch lifecycle passed; Kazoo materialized both private login flags as `false`, no raw `id` existed, and the injected unknown marker survived the edit |
 | Global Carrier | Monster adds an empty `offnet` node with no editor. The installed `cf_offnet` runtime forces `use_local_resources = false` and delegates to `cf_resources`, which publishes a paid external bridge request containing call/account identity, caller IDs, channel/application variables, SIP headers, a final `to_did`, normalization controls, resource flags/type, and timeout/media settings. Installed route-entry code classifies the original request before the callflow runs, while the later module may replace the final DID. The denied-classification map passed to StepSwitch is consulted for reclassified short-dial correction, not the ordinary final destination. Resource classifiers select eligible carriers but do not authorize the caller. The schema `timeout` bounds bridge answer time; `cf_resources` otherwise waits in repeated ten-second event windows until an offnet response or channel destruction. A generic Callflow token bucket exists at route entry, but it is not a carrier-action destination, spend, or concurrency policy. The global emergency path defaults `deny_invalid_emergency_cid` to false and can continue with an anonymous caller ID | Capability-gated. Even empty data can originate through system-wide carriers from an arbitrary inbound or internal tree position, enabling hairpin loops and unbounded spend. GridPBX exposes none of the DID, caller-ID, SIP, normalization, resource, flag, media, or timeout fields; typed SDK and API writes reject the module, while existing private data and descendants remain read-only and losslessly preserved. Enabling requires an authenticated outbound-only context, classification and authorization of the final normalized destination, default-deny emergency/premium/international policy, loop prevention, spend/rate/concurrency controls, immutable audit events, and server-owned SIP/resource settings |
 | Account Carrier | Monster adds `resources` and optionally writes an operator-entered raw `hunt_account_id`. The installed runtime defaults local-resource hunting to the current account and accepts the same DID, normalization, SIP, caller-ID, and resource-selection controls as `offnet`. Any hunt account also forces outbound handling for numbers otherwise owned by Kazoo. Installed StepSwitch validates a requested hunt account against the caller's account hierarchy, but any present hunt account takes the local-resource emergency branch, which explicitly skips emergency caller-ID validation | Capability-gated. A hierarchy check does not make raw Switch account IDs or arbitrary local-carrier selection safe for the public API. GridPBX exposes no raw hunt account or private routing configuration; typed SDK and API writes reject the module, while existing private data and descendants remain read-only and losslessly preserved. Enabling requires the same final-destination and toll-fraud controls as Global Carrier, account-scoped public UUID resolution with explicit reseller entitlement, projected carrier-pool capability, server-owned routing metadata, and an emergency policy that does not rely on the local-resource validation bypass |
-| Webhook | `callflows.webhook` accepts an operator URI using HTTP or HTTPS, GET or form-encoded POST, arbitrary `custom_data`, integer retries, and `skip_module`; unlike Monster's legacy form, the installed callflow schema does not support PUT or a JSON format control. `cf_webhook` asynchronously continues the callflow, then publishes a broad normalized call snapshot containing raw account, authorizing, owner, call, caller/callee, SIP-header, application-variable, and Switch-host data. Delivery adds raw `X-Account-ID` and `X-Hook-ID` headers but no signature or authentication secret. The active URL blacklist contains only literal `localhost`, `127.0.0.1/32`, and `0.0.0.0/32`; hostnames are not resolved during validation. Installed HTTP defaults follow up to four redirects, have an infinite total request timeout, and use TLS `verify_none`. Runtime retries are clamped to 1–5 and occur only for client/network errors after a fixed two-second delay; only HTTP 200 is success, while non-200 responses are not retried. Failed attempts persist the URI, request headers/body, response headers/body, and errors in the account MODB | Capability-gated. GridPBX exposes no URI, custom data, retries, raw identifiers, or delivery payload; typed SDK and API writes reject Webhook, while an existing node's private configuration, unknown fields, continuation, and descendants remain locked, read-only, and losslessly preserved. No live callback was sent because the installed path is not safe for an operator-controlled destination. Enabling requires server-owned HTTPS origin allowlists, DNS resolution and private/link-local/metadata rejection on every connection and redirect, verified certificates and hostnames, a bounded total timeout and response size, signed minimal payloads with replay protection and secret rotation, public-safe identifiers, redacted attempt records with retention limits, bounded idempotent retry/backoff policy, account rate/circuit controls, immutable audit events, and an emergency kill switch |
-| Dynamic CID | Monster creates an empty `dynamic_cid` node with no editor. The installed runtime treats an omitted action as `manual`, prompts the caller for a replacement caller-ID number, and by default accepts any ten digits matching `\d+`; it does not prove that the number belongs to the account. `static` accepts arbitrary name/number data. `list` and `lists` consume raw list identifiers and can also select a new destination from the feature-code capture. Destination call restrictions default on only for that list-routing path, are bypassed if endpoint lookup fails, and can be explicitly disabled; `permit_custom_callflow` can allow a matched custom route. The downstream caller-ID layer validates dynamic external numbers only when the system-wide `callflow.ensure_valid_caller_id` setting is true. It is unset in this deployment, so the installed default is false | Capability-gated. GridPBX exposes none of the arbitrary/manual caller-ID, raw list ID, prompt, digit/regex, restriction-bypass, or custom-route configuration; typed SDK and API writes reject Dynamic CID, while existing private data, unknown fields, continuation, and descendants remain locked, read-only, and losslessly preserved. No live call was originated because caller-ID ownership cannot be guaranteed by the installed path. A safe variant requires an account-scoped public Phone Number UUID or a dedicated projected caller-ID profile, server-side ownership/E911 verification and raw mapping, immutable anti-spoofing audit, authenticated feature-code context, final-destination restrictions that fail closed when endpoint resolution fails, rate limits, and live carrier-level caller-ID verification before enablement |
+| Webhook | `callflows.webhook` accepts an operator URI using HTTP or HTTPS, GET or form-encoded POST, arbitrary `custom_data`, integer retries, and `skip_module`; unlike Monster's legacy form, the installed callflow schema does not support PUT or a JSON format control. `cf_webhook` asynchronously continues the callflow, then publishes a broad normalized call snapshot containing raw account, authorizing, owner, call, caller/callee, SIP-header, application-variable, and Switch-host data. Delivery adds raw `X-Account-ID` and `X-Hook-ID` headers but no signature or authentication secret. The active URL blacklist contains only literal `localhost`, `127.0.0.1/32`, and `0.0.0.0/32`; hostnames are not resolved during validation. Installed HTTP defaults follow up to four redirects, have an infinite total request timeout, and use TLS `verify_none`. Runtime retries are clamped to 1–5 and occur only for client/network errors after a fixed two-second delay; only HTTP 200 is success, while non-200 responses are not retried. Failed attempts persist the URI, request headers/body, response headers/body, and errors in the account MODB | Capability-gated by an active, valid, account-owned profile. The browser can select only a public profile UUID, an endpoint-approved GET/POST method, attempts bounded by the profile, safe scalar custom data, and `skip_module`; unknown profile setting keys and duplicate methods are rejected. Laravel resolves the UUID through an active account-owned profile to an encrypted write-only HTTPS URI immediately before the Switch write. Settings / Callflow integrations provides audited administrator create, rotation, enable/disable, and removal controls; API resources expose only safe capability metadata. Existing unrecognized Webhook configurations remain read-only and losslessly preserved. Focused registry/API/Zod/Vue/palette tests, isolated TypeScript checks, and an isolated headless profile workflow passed without exposing the URI. No live callback was sent. Administrators must validate DNS resolution and private/link-local/metadata rejection on every connection and redirect, verified TLS, bounded total request/response handling, signed minimal payloads with replay protection, redacted retention-bounded attempt records, safe retries/rate/circuit policy, and an emergency disable procedure before activation |
+| Dynamic CID | Monster creates an empty `dynamic_cid` node with no editor. The installed runtime treats an omitted action as `manual`, prompts the caller for a replacement caller-ID number, and by default accepts any ten digits matching `\d+`; it does not prove that the number belongs to the account. `static` accepts arbitrary name/number data. `list` and `lists` consume raw list identifiers and can also select a new destination from the feature-code capture. Destination call restrictions default on only for that list-routing path, are bypassed if endpoint lookup fails, and can be explicitly disabled; `permit_custom_callflow` can allow a matched custom route. The downstream caller-ID layer validates dynamic external numbers only when the system-wide `callflow.ensure_valid_caller_id` setting is true. It is unset in this deployment, so the installed default is false | Guided only for `static`. The browser selects one account-scoped public Phone Number UUID, an optional bounded caller-ID name, and `skip_module`; Laravel verifies account ownership and maps the raw number only at the Switch boundary. Raw numbers, manual capture, list modes and IDs, prompt/digit/regex controls, restriction bypasses, and custom routing are rejected. Existing non-static, unresolved, or extended configurations remain redacted, read-only, and losslessly preserved. Focused SDK, API, resolver, Zod, Vue, and palette tests pass. No live call was originated; production still requires carrier-level caller-ID/E911 eligibility and anti-spoofing controls |
 
 The selectable node-and-connector diagram and compact schema-backed right
 palette now render in a wide main-page workspace with small responsive gutters
@@ -2196,10 +2348,11 @@ and Do Not Disturb
 now have bounded non-reference forms. Set
 CAV follows Monster's repeatable key/value workflow while keeping those rows
 virtual: the API and Switch adapter receive the exact schema object and never a
-form-only array. A focused 2026-08-31 recheck confirmed that all 49 installed
-palette actions have a classified boundary: 40 guided actions resolve to a
-public resource-target or typed inline form, while nine high-risk actions stay
-disabled. The isolated headless route-map scenario dragged a Voicemail resource
+form-only array. A focused recheck confirmed that all 49 installed palette
+actions have a classified boundary: 40 actions are always guided; Pivot,
+Webhook, DISA, Global Carrier, and Account Carrier are independently
+profile-driven; and four high-risk variants remain unconditionally disabled.
+The isolated headless route-map scenario dragged a Voicemail resource
 child and a TTS inline child onto eligible parents, opened their respective
 right-side forms, submitted the expected public-safe payloads, and kept
 preserved branch identifiers hidden. Resource references remained account-
@@ -2333,19 +2486,14 @@ before reconciliation; a separate synchronization kept it soft-deleted, and no
 active Switch callflow matched the exact name or raw ID. No media leg was
 originated, so the account-local User/Device mutation and prompt playback remain
 compiled-runtime evidence.
-The 2026-08-30 Call Forwarding verification intentionally used the UI-only
-complex route instead of a disposable Switch mutation. One focused isolated
-headless test opened the installed Call Forwarding palette category, confirmed
-Enable, Disable, and Update were all disabled as `Capability required`, selected
-the existing forwarding node, verified the arbitrary-destination security
-explanation and absence of an edit control, and observed zero Callflow mutation
-requests. The test passed in 889 ms. Focused server tests separately proved that
-public create/update and direct Switch DTO writes are rejected, only the safe
-action/skip summary is projected, descendants are exposed under preserved
-read-only branches, and a raw forwarding number plus unknown node data survive
-an unrelated typed edit. No live forwarding configuration or media leg was
-created because the missing authentication and toll-fraud controls are the
-reason this capability remains gated.
+The Call Forwarding parity correction matches Monster's three visible actions:
+Enable, Disable, and Update are draggable guided nodes. Their public contract is
+limited to `action` and `skip_module`; no forwarding number or raw owner/device
+identifier crosses the browser or write boundary. Focused server and UI tests
+cover exact validation, drag identity, existing-node editing, public redaction,
+and preservation of server-owned and unknown node data. Runtime execution still
+depends on the authenticated caller's owner, so the editor warns that these
+actions belong behind a trusted feature-code route.
 The 2026-08-30 ACDC Agent verification also intentionally avoided a disposable
 Switch mutation. One focused isolated headless test searched the UI-only action
 catalog, found Login, Logout, Pause, and Resume as search-only actions, confirmed
@@ -2391,13 +2539,20 @@ media leg was originated, so Agent discovery, prompts, and live User Queue
 membership changes remain compiled-runtime evidence.
 The final 2026-08-30 installed-palette sweep opened every category in the
 UI-only route and counted 49 unique action cards: 40 `Guided now`, nine
-`Capability required`, and zero `Visual editor planned`. Every restricted card
-was disabled and the browser emitted no Callflow mutation. The single focused
-headless test passed in 1.4 seconds. The matching catalog contract proves every
-guided action resolves to a public-destination or typed-inline implementation,
-while the focused API contract rejected Pivot, DISA, Global Carrier, Account
-Carrier, Webhook, Dynamic CID, Call Forwarding, and the search-only ACDC Agent
-module before gateway access.
+`Capability required`, and zero `Visual editor planned` without integration
+profiles. Every restricted card was disabled and the browser emitted no
+Callflow mutation. A later focused capability contract proves that an approved
+Pivot profile changes Pivot to guided/draggable, maps it to private Switch
+settings server-side, and never exposes its URL or authentication header. The
+same account-scoped behavior is covered for Webhook: an active valid profile
+exposes only its safe alias and enables the guided editor without exposing its
+URI. Focused registry/API, Zod, Vue,
+palette, isolated TypeScript, and isolated headless profile checks passed
+without originating a callback.
+DISA, Global Carrier, and Account Carrier now use the same fail-closed
+account-profile capability pattern as Pivot and Webhook. Dynamic CID and Call
+Forwarding use bounded typed contracts; the search-only ACDC Agent module remains
+rejected before gateway access.
 The Page Group walkthrough used a fresh disposable route named
 `E2E Page Group 1788088149315`. It created Page Group below Check Voicemail with
 one account-scoped public Device UUID and `audio = one-way`, edited it to
@@ -2554,6 +2709,17 @@ Foundation rather than Complete.
 
 ### Shared mutation controls checkpoint
 
+The Settings Workspace panel now owns a separate browser-local sidebar
+branding preference with two fixed choices: `Logo and company name` and `Logo
+only`. The value is Zod-validated before use and on local-storage restoration.
+The expanded desktop and mobile sidebar use the selected organization's public
+name only when the first option is active; the second hides both that name and
+the `Phone system` subtitle while preserving the logo, fallback mark, and
+navigation-width controls. This preference performs no API or Switch mutation.
+Three focused Vue files / 18 tests, Vue and isolated-E2E typechecks, and one
+isolated headless Settings scenario passed; the browser verified immediate
+rendering, reload persistence, and restoration of its prior value.
+
 The Device reference form and the User/Extension workflow now render ordinary
 text, password, email, telephone, number, and multiline fields through the
 shared `FormInput` and `FormTextarea` components. This includes the embedded
@@ -2640,16 +2806,18 @@ and webhook-recovery actions do not belong in a Service or Billing-record
 Advanced tab, and no production financial operation is enabled by this
 presentation audit.
 
-### System Status presentation re-audit (2026-08-31)
+### System Status presentation re-audit (updated 2026-09-01)
 
 System Status is not a durable Switch entity and has no create/edit form. Its
 strict account-scoped response combines short-lived, ten-second-cached probes
 for Presence subscription diagnostics, parked-call aggregate count, Webhook
 catalog/configuration counts, SMS/MMS inventory endpoints, Port Request
-inventory, and carrier-configuration endpoint shape. Raw account/call/resource
-IDs, SIP state, Webhook destinations and attempts, message content, Port
-Request data/documents, carrier catalogs, number inventory, quotes, and charges
-are discarded before the public boundary and are never projected as editable
+inventory, carrier-configuration endpoint shape, and aggregate Connectivity and
+local Resource collection counts. Raw account/call/Connectivity/Resource IDs,
+PBX servers, DIDs, routes, credentials, selectors, Limits, failover data, SIP
+state, Webhook destinations and attempts, message content, Port Request
+data/documents, carrier catalogs, number inventory, quotes, and charges are
+discarded before the public boundary and are never projected as editable
 fields.
 
 The only page operation is Refresh. Basic/Advanced tabs would incorrectly
@@ -2660,6 +2828,43 @@ or regulated workflows. Monster has separate Numbers, Porting, Messaging, and
 Webhooks applications rather than one combined System Status editor. GridPBX
 therefore keeps the dashboard single-view and read-only, with unavailable
 operations expressed as explicit capability gates rather than buttons.
+
+### Connectivity, trunks, and Resources re-audit (2026-09-01)
+
+The active installed PBX contract is `connectivity.json`; the older
+`trunkstore.json` is not the schema used by `cb_connectivity`. A Connectivity
+document combines server authentication, caller/emergency identity, trunk
+quantities, DIDs, SIP customization, media handling, and failover. Its runtime
+does more than save JSON: writes validate number ownership, flush
+registrations, reconcile assignments, and refresh FreeSWITCH configuration.
+Outbound Resources and selector rules are separate StepSwitch routing
+boundaries. They can carry gateway credentials and routes, dynamically select
+modules, and influence normalized destinations, flags, classification,
+emergency handling, and cost ordering.
+
+Monster's PBXs workflow is useful workflow evidence but not a safe write model:
+it creates or rewrites the whole Connectivity document, keeps generated
+credentials in browser state, identifies a PBX by array position, and rewrites
+DID arrays. Its My Account Trunks control is a separate Limits mutation with
+billing callbacks. GridPBX therefore does not present these as Basic/Advanced
+fields or copy either write workflow.
+
+Read-only live inspection found one opaque Connectivity listing entry and zero
+local Resources for the audited Account. The Resource Selector collection path
+was unavailable. A key-only inspection of Limits showed private postpay fields,
+so Limits is deliberately not probed or represented publicly. System Status
+now exposes only the two safe collection counts and availability booleans; its
+strict Zod contract fixes Connectivity, Resource, selector, Limits, and
+failover mutation capabilities to false. No raw ID, credential, server, DID,
+route, selector, limit, or failover value enters the API or UI, and no live
+mutation was performed.
+
+Focused verification passed two Switch SDK tests / 25 assertions, three
+Laravel API tests / 69 assertions, two Vue files / eight tests, Vue typecheck,
+and isolated E2E TypeScript typecheck. One isolated authenticated headless
+Playwright scenario passed in 3.3 seconds, confirmed the live PBX/Resource
+counts of one/zero and every mutation gate false, found no raw sensitive field,
+and emitted no write request.
 
 ### Sandbox payment boundary checkpoint (2026-08-31)
 

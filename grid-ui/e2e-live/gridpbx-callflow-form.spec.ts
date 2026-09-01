@@ -281,7 +281,7 @@ async function deleteCallflowRoute(page: Page, routeName: string): Promise<void>
   await viewRoute.click()
 
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-  const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
+  const deleteRoute = workspace.getByRole('button', { name: 'Delete callflow' })
 
   if (await deleteRoute.isDisabled()) {
     await page.getByRole('button', { name: 'Edit callflow' }).click()
@@ -302,19 +302,21 @@ async function deleteCallflowRoute(page: Page, routeName: string): Promise<void>
   }
 
   await deleteRoute.click()
-  const confirmation = page.getByRole('dialog', { name: 'Delete this route?' })
+  const confirmation = page.getByRole('dialog', { name: 'Delete this callflow?' })
   const deleteResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'DELETE' &&
       /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(response.url()).pathname),
   )
-  await confirmation.getByRole('button', { name: 'Delete route' }).click()
+  await confirmation.getByRole('button', { name: 'Delete callflow' }).click()
   expect((await deleteResponse).status()).toBe(204)
   await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
   await expect(page.getByText(routeName, { exact: true })).toHaveCount(0)
 }
 
-test('keeps Call Forwarding capability gated without mutating Switch', async ({ page }) => {
+test('keeps all three Call Forwarding actions draggable without exposing private fields', async ({
+  page,
+}) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
@@ -337,9 +339,10 @@ test('keeps Call Forwarding capability gated without mutating Switch', async ({ 
     'Disable call forwarding',
     'Update call forwarding',
   ]) {
-    const title = `${label} · call_forward · Capability required`
+    const title = `${label} · call_forward · Guided now`
     const action = palette.getByTitle(title, { exact: true })
-    await expect(action).toBeDisabled()
+    await expect(action).toBeEnabled()
+    await expect(action).toHaveAttribute('draggable', 'true')
     await expect(action).toHaveAttribute('title', title)
   }
 
@@ -637,8 +640,8 @@ test('classifies every installed palette action without planned gaps', async ({ 
   }
 
   expect(new Set(actionTitles).size).toBe(49)
-  expect(actionTitles.filter((title) => title.endsWith('Guided now'))).toHaveLength(40)
-  expect(actionTitles.filter((title) => title.endsWith('Capability required'))).toHaveLength(9)
+  expect(actionTitles.filter((title) => title.endsWith('Guided now'))).toHaveLength(44)
+  expect(actionTitles.filter((title) => title.endsWith('Capability required'))).toHaveLength(5)
   expect(actionTitles.filter((title) => title.endsWith('Visual editor planned'))).toEqual([])
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
@@ -2213,6 +2216,964 @@ test('creates, edits, branches, and removes live guided inline actions', async (
   }
 })
 
+test('keeps profile-gated integration actions draggable after cancel and save', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  await mockIsolatedAccount(page)
+  const callflowId = 'f2b04320-a8c7-40a7-a7d7-ec89960ac615'
+  const callflow = {
+    id: callflowId,
+    name: 'Pivot capability route',
+    route_type: 'phone_number',
+    numbers: ['2998'],
+    patterns: [],
+    flags: [],
+    modules: ['user'],
+    root_module: 'user',
+    node_count: 1,
+    max_depth: 1,
+    feature_code: null,
+    flow: {
+      module: 'user',
+      target: {
+        type: 'extension',
+        id: '16f95ac5-243c-476a-b238-9f51108f82e1',
+        label: 'Reception',
+      },
+      reference_status: 'resolved',
+      branch: null,
+      children: {},
+    },
+    linked_extension: null,
+    phone_numbers: [],
+    sync_status: 'healthy',
+    last_synced_at: '2026-09-01T08:00:00+08:00',
+  }
+  await page.route('**/api/v1/accounts/*/callflows?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [callflow],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: 1,
+          sync: { status: 'healthy', last_successful_at: null, error_message: null },
+        },
+      }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: callflow }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/editor`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          ...isolatedCreateEditor(),
+          mode: 'update',
+          action_capabilities: {
+            pivot: { enabled: true, reason: null },
+            webhook: { enabled: true, reason: null },
+            disa: { enabled: true, reason: null },
+            offnet: { enabled: true, reason: null },
+            resources: { enabled: true, reason: null },
+          },
+          pivot_endpoints: [
+            {
+              id: 'customer-ivr',
+              label: 'Customer IVR',
+              methods: ['post'],
+              formats: ['twiml'],
+            },
+            {
+              id: 'after-hours-ivr',
+              label: 'After-hours IVR',
+              methods: ['get'],
+              formats: ['kazoo'],
+            },
+          ],
+          webhook_endpoints: [
+            {
+              id: 'call-events',
+              label: 'Call events',
+              methods: ['post'],
+              max_retries: 2,
+            },
+          ],
+          disa_access_policies: [
+            {
+              id: '62e96bfa-b92c-4e7d-9cbc-21a7d86e11d5',
+              label: 'After-hours access',
+              retries: 2,
+              interdigit_ms: 2500,
+              max_digits: 12,
+              preconnect_audio: 'dialtone',
+            },
+          ],
+          disa_operational_safety: {
+            ready: true,
+            adapter: 'isolated-test-sbc',
+            ingress_guard_available: true,
+            persistent_lockout_available: true,
+            rate_limit_available: true,
+            concurrency_limit_available: true,
+            destination_policy_available: true,
+            redacted_monitoring_available: true,
+            emergency_stop_available: true,
+            emergency_stop_active: false,
+            reason: null,
+          },
+          carrier_routes: [
+            {
+              id: 'global-primary',
+              label: 'Global primary',
+              module: 'offnet',
+              scope: 'global',
+            },
+            {
+              id: 'account-primary',
+              label: 'Account primary',
+              module: 'resources',
+              scope: 'account',
+            },
+          ],
+        },
+      }),
+    })
+  })
+  let pivotCreateCount = 0
+  const selectedPivotEndpoints: string[] = []
+  await page.route(
+    `**/api/v1/accounts/*/callflows/${callflowId}/tree/inline-nodes`,
+    async (route) => {
+      pivotCreateCount += 1
+      const payload = route.request().postDataJSON() as {
+        data?: { endpoint_id?: string }
+      }
+      if (payload.data?.endpoint_id) selectedPivotEndpoints.push(payload.data.endpoint_id)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: callflow }),
+      })
+    },
+  )
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'View Pivot capability route' }).click()
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('button', { name: /^Advanced/ }).click()
+  await palette.getByLabel('Search callflow actions').fill('Pivot')
+
+  const pivotAction = palette.getByRole('button', { name: 'Add Pivot' })
+  await expect(pivotAction).toBeEnabled()
+  await expect(pivotAction).toHaveAttribute('draggable', 'true')
+  await expect(pivotAction).toHaveAttribute('title', /Guided now$/)
+
+  await pivotAction.dragTo(workspace.getByRole('treeitem', { name: /^User: Reception/ }))
+
+  const dialog = page.getByRole('dialog', { name: 'Configure Pivot' })
+  await expect(dialog).toContainText('administrator-approved HTTPS application')
+  await dialog.getByRole('button', { name: 'Voice application' }).click()
+  await page.getByRole('option', { name: 'Customer IVR' }).click()
+  await expect(dialog.getByRole('button', { name: 'Request method' })).toContainText('POST')
+  await expect(dialog.getByRole('button', { name: 'Response format' })).toContainText('TwiML')
+  await dialog.getByRole('button', { name: 'Use action' }).click()
+  await expect(dialog).toBeHidden()
+  expect(pivotCreateCount).toBe(1)
+
+  await expect(pivotAction).toBeEnabled()
+  await expect(pivotAction).toHaveAttribute('draggable', 'true')
+  await pivotAction.dragTo(workspace.getByRole('treeitem', { name: /^User: Reception/ }))
+  const secondDialog = page.getByRole('dialog', { name: 'Configure Pivot' })
+  await secondDialog.getByRole('button', { name: 'Voice application' }).click()
+  await page.getByRole('option', { name: 'After-hours IVR' }).click()
+  await expect(secondDialog.getByRole('button', { name: 'Request method' })).toContainText('GET')
+  await expect(secondDialog.getByRole('button', { name: 'Response format' })).toContainText(
+    'Kazoo Pivot',
+  )
+  await secondDialog.getByRole('button', { name: 'Use action' }).click()
+  await expect(secondDialog).toBeHidden()
+  expect(pivotCreateCount).toBe(2)
+  expect(selectedPivotEndpoints).toEqual(['customer-ivr', 'after-hours-ivr'])
+
+  for (const actionLabel of ['Webhook', 'DISA', 'Global Carrier', 'Account Carrier']) {
+    await palette.getByLabel('Search callflow actions').fill(actionLabel)
+    const action = palette.getByRole('button', { name: `Add ${actionLabel}` })
+
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      await expect(action).toBeEnabled()
+      await expect(action).toHaveAttribute('draggable', 'true')
+      await action.dragTo(workspace.getByRole('treeitem', { name: /^User: Reception/ }))
+      const actionPanel = page.getByRole('dialog').last()
+      await expect(
+        actionPanel.getByRole('heading', { name: `Configure ${actionLabel}` }),
+      ).toBeVisible()
+      if (actionLabel === 'DISA') {
+        await expect(actionPanel.getByText('Operational ingress guard ready')).toBeVisible()
+      }
+      await page.getByRole('button', { name: 'Close panel' }).last().click()
+    }
+  }
+  expect(issues).toEqual([])
+})
+
+test('live verifies disposable integration actions against Switch', async ({ page }) => {
+  test.skip(
+    process.env.GRID_E2E_CALLFLOW_INTEGRATION_MUTATIONS !== 'true' ||
+      process.env.GRID_E2E_WEBHOOK_CALLBACK_ALLOWED !== 'true',
+    'Explicitly enable disposable writes and Webhook callback delivery to run this test.',
+  )
+  test.setTimeout(120_000)
+
+  const issues = collectPageIssues(page)
+  const createdProfileIds: string[] = []
+  let accountId: string | null = null
+  let callflowId: string | null = null
+  const apiBaseUrl = (process.env.GRID_E2E_API_URL ?? 'http://localhost:8081').replace(/\/$/, '')
+  const apiUrl = (path: string) => `${apiBaseUrl}${path}`
+
+  type ApiMethod = 'GET' | 'POST' | 'PATCH' | 'DELETE'
+  type BrowserApiResponse<T> = {
+    status: number
+    data: T | null
+  }
+
+  const browserApiRequest = async <T>(
+    method: ApiMethod,
+    path: string,
+    data?: unknown,
+  ): Promise<BrowserApiResponse<T>> => {
+    const response = await page.evaluate(
+      async ({ method: requestMethod, url, requestData }) => {
+        const xsrfToken = document.cookie
+          .split('; ')
+          .find((cookie) => cookie.startsWith('XSRF-TOKEN='))
+          ?.split('=')
+          .slice(1)
+          .join('=')
+
+        const result = await fetch(url, {
+          method: requestMethod,
+          credentials: 'include',
+          headers: {
+            Accept: 'application/json',
+            ...(requestData === undefined ? {} : { 'Content-Type': 'application/json' }),
+            ...(xsrfToken === undefined ? {} : { 'X-XSRF-TOKEN': decodeURIComponent(xsrfToken) }),
+          },
+          ...(requestData === undefined ? {} : { body: JSON.stringify(requestData) }),
+        })
+        const text = await result.text()
+
+        return {
+          ok: result.ok,
+          status: result.status,
+          text,
+        }
+      },
+      { method, url: apiUrl(path), requestData: data },
+    )
+
+    expect(response.ok, response.text).toBe(true)
+
+    if (response.text === '') {
+      return { status: response.status, data: null }
+    }
+
+    return {
+      status: response.status,
+      data: (JSON.parse(response.text) as { data: T }).data,
+    }
+  }
+
+  const responseData = async <T>(method: ApiMethod, path: string, data?: unknown): Promise<T> => {
+    const response = await browserApiRequest<T>(method, path, data)
+
+    expect(response.data).not.toBeNull()
+
+    return response.data as T
+  }
+
+  try {
+    await page.goto('/')
+    const accounts = await responseData<Array<{ id: string; name: string }>>(
+      'GET',
+      '/api/v1/accounts',
+    )
+    const account = accounts.find(({ name }) => name === 'GridPBX') ?? accounts[0]
+    expect(account).toBeDefined()
+    accountId = account!.id
+
+    const profilePayloads = [
+      {
+        integration_type: 'webhook',
+        name: 'GridPBX disposable Webhook verification',
+        is_active: true,
+        settings: {
+          uri: 'https://example.com/gridpbx-callflow-verification',
+          methods: ['post'],
+          max_retries: 2,
+        },
+      },
+      {
+        integration_type: 'global_carrier',
+        name: 'GridPBX disposable Global Carrier verification',
+        is_active: true,
+        settings: {},
+      },
+      {
+        integration_type: 'account_carrier',
+        name: 'GridPBX disposable Account Carrier verification',
+        is_active: true,
+        settings: { scope: 'account' },
+      },
+    ] as const
+    const profiles = new Map<string, string>()
+
+    for (const payload of profilePayloads) {
+      const profile = await responseData<{ id: string; integration_type: string }>(
+        'POST',
+        `/api/v1/accounts/${accountId}/callflow-integration-profiles`,
+        payload,
+      )
+      createdProfileIds.push(profile.id)
+      profiles.set(profile.integration_type, profile.id)
+    }
+
+    const editor = await responseData<{
+      action_capabilities: Record<string, { enabled: boolean; reason: string | null }>
+      destinations: { extension: Array<{ id: string; label: string }> }
+      pivot_endpoints: Array<{
+        id: string
+        methods: Array<'get' | 'post'>
+        formats: Array<'kazoo' | 'twiml'>
+      }>
+    }>('GET', `/api/v1/accounts/${accountId}/callflows/editor`)
+    expect(editor.action_capabilities).toMatchObject({
+      pivot: { enabled: true, reason: null },
+      webhook: { enabled: true, reason: null },
+      offnet: { enabled: true, reason: null },
+      resources: { enabled: true, reason: null },
+    })
+    const destination = editor.destinations.extension[0]
+    const pivotEndpoint = editor.pivot_endpoints[0]
+    expect(destination).toBeDefined()
+    expect(pivotEndpoint).toBeDefined()
+
+    const verificationToken = Date.now().toString().slice(-8)
+    const createdCallflow = await responseData<{
+      id: string
+      flow?: PublicCallflowNode | null
+    }>('POST', `/api/v1/accounts/${accountId}/callflows`, {
+      name: `GridPBX disposable integrations ${verificationToken}`,
+      destination_type: 'extension',
+      destination_id: destination!.id,
+      phone_number_ids: [],
+      extension_numbers: [`7${verificationToken}`],
+    })
+    callflowId = createdCallflow.id
+
+    const actions = [
+      {
+        module: 'pivot',
+        create: {
+          endpoint_id: pivotEndpoint!.id,
+          method: pivotEndpoint!.methods[0],
+          req_format: pivotEndpoint!.formats[0],
+          skip_module: false,
+        },
+        update: {
+          endpoint_id: pivotEndpoint!.id,
+          method: pivotEndpoint!.methods[0],
+          req_format: pivotEndpoint!.formats[0],
+          skip_module: true,
+        },
+      },
+      {
+        module: 'webhook',
+        create: {
+          endpoint_id: profiles.get('webhook'),
+          http_verb: 'post',
+          retries: 1,
+          custom_data: { verification: 'created' },
+          skip_module: false,
+        },
+        update: {
+          endpoint_id: profiles.get('webhook'),
+          http_verb: 'post',
+          retries: 2,
+          custom_data: { verification: 'updated' },
+          skip_module: true,
+        },
+      },
+      {
+        module: 'offnet',
+        create: {
+          route_profile_id: profiles.get('global_carrier'),
+          skip_module: false,
+        },
+        update: {
+          route_profile_id: profiles.get('global_carrier'),
+          skip_module: true,
+        },
+      },
+      {
+        module: 'resources',
+        create: {
+          route_profile_id: profiles.get('account_carrier'),
+          skip_module: false,
+        },
+        update: {
+          route_profile_id: profiles.get('account_carrier'),
+          skip_module: true,
+        },
+      },
+    ] as const
+
+    for (const action of actions) {
+      const created = await responseData<{ flow?: PublicCallflowNode | null }>(
+        'POST',
+        `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/inline-nodes`,
+        {
+          parent_path: [],
+          branch: '_',
+          placement: 'append',
+          module: action.module,
+          data: action.create,
+        },
+      )
+      expect(callflowNodeAtPath(created.flow, ['_'])).toMatchObject({
+        module: action.module,
+        settings: { supported_configuration: true, skip_module: false },
+      })
+      expect(JSON.stringify(created)).not.toContain('https://example.com')
+
+      const updated = await responseData<{ flow?: PublicCallflowNode | null }>(
+        'PATCH',
+        `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/inline-nodes`,
+        {
+          node_path: ['_'],
+          module: action.module,
+          data: action.update,
+        },
+      )
+      expect(callflowNodeAtPath(updated.flow, ['_'])).toMatchObject({
+        module: action.module,
+        settings: { supported_configuration: true, skip_module: true },
+      })
+
+      const cleared = await responseData<{ flow?: PublicCallflowNode | null }>(
+        'DELETE',
+        `/api/v1/accounts/${accountId}/callflows/${callflowId}/tree/nodes`,
+        { node_path: ['_'], confirm_subtree: true },
+      )
+      expect(callflowNodeAtPath(cleared.flow, ['_'])).toBeNull()
+    }
+
+    expect(issues).toEqual([])
+  } finally {
+    if (accountId && callflowId) {
+      const response = await browserApiRequest(
+        'DELETE',
+        `/api/v1/accounts/${accountId}/callflows/${callflowId}`,
+      )
+      expect(response.status).toBe(204)
+    }
+
+    if (accountId) {
+      for (const profileId of createdProfileIds.reverse()) {
+        const response = await browserApiRequest(
+          'DELETE',
+          `/api/v1/accounts/${accountId}/callflow-integration-profiles/${profileId}`,
+        )
+        expect(response.status).toBe(204)
+      }
+    }
+  }
+})
+
+test('live enables Pivot in the palette when the account has an active approved profile', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+
+  await page.goto('/call-routing')
+  await page
+    .getByRole('button', { name: /^View / })
+    .first()
+    .click()
+
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByLabel('Search callflow actions').fill('Pivot')
+
+  const pivotAction = palette.getByRole('button', { name: 'Add Pivot' })
+  await expect(pivotAction).toBeEnabled()
+  await expect(pivotAction).toHaveAttribute('draggable', 'true')
+  await expect(pivotAction).toHaveAttribute('title', /Guided now$/)
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+
+  const createWorkspace = page.getByRole('region', { name: 'Create callflow' })
+  const createPalette = createWorkspace.getByRole('region', {
+    name: 'Callflow action catalog',
+  })
+  await createPalette.getByLabel('Search callflow actions').fill('Pivot')
+
+  const pivotRootAction = createPalette.getByRole('button', {
+    name: 'Use Pivot as root action',
+  })
+  await expect(pivotRootAction).toBeEnabled()
+  await expect(pivotRootAction).toHaveAttribute('draggable', 'true')
+  await pivotRootAction.click()
+  const pivotPanel = page.getByTestId('slide-over-panel').last()
+  await expect(pivotPanel).toBeVisible()
+  await expect(pivotPanel.getByRole('heading', { name: 'Configure Pivot' })).toBeVisible()
+  expect(issues).toEqual([])
+})
+
+test('refreshes profile-gated create actions without resetting the unsaved callflow draft', async ({
+  page,
+}) => {
+  const issues = collectPageIssues(page)
+  await mockIsolatedAccount(page)
+  let editorRequestCount = 0
+
+  await page.route('**/api/v1/accounts/*/callflows?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: 0,
+          sync: { status: 'healthy', last_successful_at: null, error_message: null },
+        },
+      }),
+    })
+  })
+  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
+    editorRequestCount += 1
+    const enabled = editorRequestCount > 1
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          ...isolatedCreateEditor(),
+          action_capabilities: {
+            pivot: {
+              enabled,
+              reason: enabled ? null : 'Add an active Pivot integration profile.',
+            },
+          },
+          pivot_endpoints: enabled
+            ? [
+                {
+                  id: 'customer-ivr',
+                  label: 'Customer IVR',
+                  methods: ['post'],
+                  formats: ['twiml'],
+                },
+              ]
+            : [],
+        },
+      }),
+    })
+  })
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+
+  await canvas
+    .getByRole('button', { name: 'Add callflow entry number' })
+    .first()
+    .click()
+  const addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
+  await addNumber.getByRole('radio', { name: 'Extension' }).click()
+  await addNumber.getByLabel('Extension number').fill('2997')
+  await addNumber.getByRole('button', { name: 'Add number' }).click()
+  await canvas.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
+  await metadata.getByLabel('Callflow name').fill('Unsaved capability refresh')
+  await metadata.getByRole('button', { name: 'Done' }).click()
+
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('button', { name: /^Advanced/ }).click()
+  await palette.getByLabel('Search callflow actions').fill('Pivot')
+  await expect(palette.getByRole('button', { name: 'Pivot Capability required' })).toBeDisabled()
+
+  await page.evaluate(
+    ({ accountId }) => {
+      window.dispatchEvent(
+        new CustomEvent('gridpbx:callflow-capabilities-changed', {
+          detail: {
+            accountId,
+            changedAt: new Date().toISOString(),
+            token: 'isolated-e2e-capability-refresh',
+          },
+        }),
+      )
+    },
+    { accountId: isolatedAccountId },
+  )
+
+  await expect.poll(() => editorRequestCount).toBe(2)
+  const pivotAction = palette.getByRole('button', { name: 'Use Pivot as root action' })
+  await expect(pivotAction).toBeEnabled()
+  await expect(pivotAction).toHaveAttribute('draggable', 'true')
+  await expect(canvas.getByRole('treeitem', { name: 'Callflow entry: 2997' })).toBeVisible()
+
+  await canvas.getByRole('button', { name: '2997. Edit callflow name and numbers' }).click()
+  await expect(metadata.getByLabel('Callflow name')).toHaveValue('Unsaved capability refresh')
+  await metadata.getByRole('button', { name: 'Done' }).click()
+  expect(issues).toEqual([])
+})
+
+test('refreshes profile-gated actions across tabs without resetting the open draft', async ({
+  context,
+  page,
+}) => {
+  const callflowIssues = collectPageIssues(page)
+  const settingsPage = await context.newPage()
+  const settingsIssues = collectPageIssues(settingsPage)
+  const profiles: Array<{
+    id: string
+    type: 'pivot' | 'webhook' | 'global_carrier' | 'account_carrier'
+    name: string
+    actionLabel: string
+    capability: 'pivot' | 'webhook' | 'offnet' | 'resources'
+    active: boolean
+  }> = [
+    {
+      id: '4cc21628-8150-46ec-a24b-9547e8eae061',
+      type: 'pivot',
+      name: 'Cross-tab customer IVR',
+      actionLabel: 'Pivot',
+      capability: 'pivot',
+      active: true,
+    },
+    {
+      id: 'bb181757-98ac-44d2-8d31-91568d6ea43b',
+      type: 'webhook',
+      name: 'Cross-tab call events',
+      actionLabel: 'Webhook',
+      capability: 'webhook',
+      active: true,
+    },
+    {
+      id: '489b94bc-9c7f-4761-8070-6ca7ab0d331f',
+      type: 'global_carrier',
+      name: 'Cross-tab global carrier',
+      actionLabel: 'Global Carrier',
+      capability: 'offnet',
+      active: true,
+    },
+    {
+      id: '36e180f0-fe69-44cc-a6ee-b04ac9f34b64',
+      type: 'account_carrier',
+      name: 'Cross-tab account carrier',
+      actionLabel: 'Account Carrier',
+      capability: 'resources',
+      active: true,
+    },
+  ]
+  let editorRequestCount = 0
+  let showExistingCallflow = false
+  let treeMutationRequests = 0
+  const callflowId = '1c27bccf-35c8-457c-8f43-355927b77a56'
+  const projectedCallflow = {
+    id: callflowId,
+    name: 'Cross-tab capability route',
+    route_type: 'phone_number',
+    numbers: ['2995'],
+    patterns: [],
+    flags: [],
+    modules: ['user'],
+    root_module: 'user',
+    node_count: 1,
+    max_depth: 1,
+    feature_code: null,
+    flow: {
+      module: 'user',
+      target: {
+        type: 'extension',
+        id: '16f95ac5-243c-476a-b238-9f51108f82e1',
+        label: 'Reception',
+      },
+      reference_status: 'resolved',
+      branch: null,
+      children: {},
+    },
+    linked_extension: null,
+    phone_numbers: [],
+    sync_status: 'healthy',
+    last_synced_at: '2026-09-01T08:00:00+08:00',
+  }
+
+  const editorData = (mode: 'create' | 'update') => ({
+    ...isolatedCreateEditor(),
+    mode,
+    action_capabilities: Object.fromEntries(
+      profiles.map((profile) => [
+        profile.capability,
+        {
+          enabled: profile.active,
+          reason: profile.active
+            ? null
+            : `Add an active ${profile.actionLabel} integration profile.`,
+        },
+      ]),
+    ),
+    pivot_endpoints: profiles[0]!.active
+      ? [
+          {
+            id: profiles[0]!.id,
+            label: profiles[0]!.name,
+            methods: ['post'],
+            formats: ['kazoo'],
+          },
+        ]
+      : [],
+    webhook_endpoints: profiles[1]!.active
+      ? [
+          {
+            id: profiles[1]!.id,
+            label: profiles[1]!.name,
+            methods: ['post'],
+            max_retries: 3,
+          },
+        ]
+      : [],
+    carrier_routes: profiles
+      .filter((profile) => profile.active && profile.type.endsWith('_carrier'))
+      .map((profile) => ({
+        id: profile.id,
+        label: profile.name,
+        module: profile.type === 'global_carrier' ? 'offnet' : 'resources',
+        scope: profile.type === 'global_carrier' ? 'global' : 'account',
+      })),
+  })
+
+  await mockIsolatedAccount(page)
+  await mockIsolatedAccount(settingsPage)
+  await page.route('**/api/v1/accounts/*/callflows?*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: showExistingCallflow ? [projectedCallflow] : [],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          last_page: 1,
+          per_page: 25,
+          total: showExistingCallflow ? 1 : 0,
+          sync: { status: 'healthy', last_successful_at: null, error_message: null },
+        },
+      }),
+    })
+  })
+  await page.route('**/api/v1/accounts/*/callflows/editor', async (route) => {
+    editorRequestCount += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: editorData('create') }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}`, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: projectedCallflow }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/editor`, async (route) => {
+    editorRequestCount += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: editorData('update') }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/*/callflows/${callflowId}/tree/**`, async (route) => {
+    treeMutationRequests += 1
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({ message: 'Unexpected tree mutation in read-only capability test.' }),
+    })
+  })
+
+  const profileResponse = (profile: (typeof profiles)[number]) => ({
+    id: profile.id,
+    integration_type: profile.type,
+    name: profile.name,
+    is_active: profile.active,
+    configuration:
+      profile.type === 'pivot'
+        ? {
+            methods: ['post'],
+            formats: ['kazoo'],
+            has_cdr_callback: false,
+            has_custom_headers: false,
+          }
+        : profile.type === 'webhook'
+          ? { methods: ['post'], max_retries: 3 }
+          : { route_scope: profile.type === 'global_carrier' ? 'global' : 'account' },
+    created_at: null,
+    updated_at: null,
+  })
+  await settingsPage.route(
+    `**/api/v1/accounts/${isolatedAccountId}/callflow-integration-profiles`,
+    async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: profiles.map(profileResponse) }),
+      })
+    },
+  )
+  await settingsPage.route(
+    `**/api/v1/accounts/${isolatedAccountId}/callflow-integration-profiles/*`,
+    async (route) => {
+      expect(route.request().method()).toBe('PUT')
+      const profileId = new URL(route.request().url()).pathname.split('/').at(-1)
+      const profile = profiles.find(({ id }) => id === profileId)
+      expect(profile).toBeDefined()
+      const payload = route.request().postDataJSON() as { is_active?: boolean }
+      profile!.active = payload.is_active === true
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: profileResponse(profile!) }),
+      })
+    },
+  )
+
+  await page.goto('/call-routing')
+  await page.getByRole('button', { name: 'Create callflow' }).click()
+  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+  await canvas
+    .getByRole('button', { name: 'Add callflow entry number' })
+    .first()
+    .click()
+  const addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
+  await addNumber.getByRole('radio', { name: 'Extension' }).click()
+  await addNumber.getByLabel('Extension number').fill('2996')
+  await addNumber.getByRole('button', { name: 'Add number' }).click()
+  await canvas.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
+  await metadata.getByLabel('Callflow name').fill('Cross-tab unsaved draft')
+  await metadata.getByRole('button', { name: 'Done' }).click()
+
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  await palette.getByRole('button', { name: /^Advanced/ }).click()
+
+  await settingsPage.goto('/settings#callflow-integrations')
+  await expect(settingsPage.getByRole('heading', { name: 'Callflow integrations' })).toBeVisible()
+  const profileCard = (profile: (typeof profiles)[number]) =>
+    settingsPage.locator('article').filter({
+      has: settingsPage.getByRole('heading', { name: profile.name, exact: true }),
+    })
+  for (const profile of profiles) {
+    await palette.getByLabel('Search callflow actions').fill(profile.actionLabel)
+    const enabledAction = () =>
+      profile.type === 'pivot'
+        ? palette.getByRole('button', { name: `Use ${profile.actionLabel} as root action` })
+        : palette.getByRole('button', { name: `${profile.actionLabel} Guided now` })
+    if (profile.type === 'pivot') {
+      await expect(enabledAction()).toBeEnabled()
+      await expect(enabledAction()).toHaveAttribute('draggable', 'true')
+    } else {
+      // These actions are guided inline nodes, but Switch does not allow them as a callflow root.
+      await expect(enabledAction()).toBeDisabled()
+    }
+
+    const disableRequestCount = editorRequestCount + 1
+    await profileCard(profile).getByRole('button', { name: 'Disable' }).click()
+    await expect.poll(() => editorRequestCount).toBe(disableRequestCount)
+    await expect(
+      palette.getByRole('button', { name: `${profile.actionLabel} Capability required` }),
+    ).toBeDisabled()
+    await expect(canvas.getByRole('treeitem', { name: 'Callflow entry: 2996' })).toBeVisible()
+
+    const enableRequestCount = editorRequestCount + 1
+    await profileCard(profile).getByRole('button', { name: 'Enable' }).click()
+    await expect.poll(() => editorRequestCount).toBe(enableRequestCount)
+    if (profile.type === 'pivot') await expect(enabledAction()).toBeEnabled()
+    else await expect(enabledAction()).toBeDisabled()
+  }
+
+  await canvas.getByRole('button', { name: '2996. Edit callflow name and numbers' }).click()
+  await expect(metadata.getByLabel('Callflow name')).toHaveValue('Cross-tab unsaved draft')
+  await metadata.getByRole('button', { name: 'Done' }).click()
+
+  showExistingCallflow = true
+  await page.reload()
+  await page.getByRole('button', { name: 'View Cross-tab capability route' }).click()
+  const existingWorkspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const existingPalette = existingWorkspace.getByRole('region', {
+    name: 'Callflow action catalog',
+  })
+  const advancedCategory = existingPalette.getByRole('button', { name: /^Advanced/ })
+  if ((await advancedCategory.getAttribute('aria-expanded')) !== 'true')
+    await advancedCategory.click()
+  const diagram = existingWorkspace.getByRole('tree', { name: 'Callflow diagram' })
+  const originalTree = await diagram.textContent()
+
+  for (const profile of profiles) {
+    await existingPalette.getByLabel('Search callflow actions').fill(profile.actionLabel)
+    const enabledAction = () =>
+      existingPalette.getByRole('button', { name: `Add ${profile.actionLabel}` })
+    await expect(enabledAction()).toBeEnabled()
+    await expect(enabledAction()).toHaveAttribute('draggable', 'true')
+
+    const disableRequestCount = editorRequestCount + 1
+    await profileCard(profile).getByRole('button', { name: 'Disable' }).click()
+    await expect.poll(() => editorRequestCount).toBe(disableRequestCount)
+    const gatedAction = existingPalette.getByRole('button', {
+      name: `${profile.actionLabel} Capability required`,
+    })
+    await expect(gatedAction).toBeDisabled()
+    await expect(gatedAction).toHaveAttribute('draggable', 'false')
+
+    const enableRequestCount = editorRequestCount + 1
+    await profileCard(profile).getByRole('button', { name: 'Enable' }).click()
+    await expect.poll(() => editorRequestCount).toBe(enableRequestCount)
+    await expect(enabledAction()).toBeEnabled()
+    await expect(enabledAction()).toHaveAttribute('draggable', 'true')
+  }
+
+  expect(profiles.every(({ active }) => active)).toBe(true)
+  expect(await diagram.textContent()).toBe(originalTree)
+  expect(treeMutationRequests).toBe(0)
+  expect(callflowIssues).toEqual([])
+  expect(settingsIssues).toEqual([])
+})
+
 test('opens the Switch-style blank callflow root and keeps creation validation inline', async ({
   page,
 }) => {
@@ -2258,46 +3219,54 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
   const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
   const workspaceLayout = workspace.locator('[data-callflow-workspace-layout]')
+  const supportingCards = workspace.locator('[data-callflow-supporting-cards]')
   const actionPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   const headerBox = await page.locator('[data-callflow-page-header]').boundingBox()
   const workspaceLayoutBox = await workspaceLayout.boundingBox()
   const canvasBox = await canvas.boundingBox()
   const paletteBox = await actionPalette.boundingBox()
+  const supportingCardsBox = await supportingCards.boundingBox()
   expect(headerBox).not.toBeNull()
   expect(workspaceLayoutBox).not.toBeNull()
   expect(canvasBox).not.toBeNull()
   expect(paletteBox).not.toBeNull()
+  expect(supportingCardsBox).not.toBeNull()
   expect(Math.abs(workspaceLayoutBox!.x - headerBox!.x)).toBeLessThanOrEqual(1)
   expect(
     Math.abs(workspaceLayoutBox!.x + workspaceLayoutBox!.width - (headerBox!.x + headerBox!.width)),
   ).toBeLessThanOrEqual(1)
   expect(canvasBox!.x).toBeGreaterThanOrEqual(workspaceLayoutBox!.x)
+  expect(Math.abs(canvasBox!.width - workspaceLayoutBox!.width)).toBeLessThanOrEqual(1)
   expect(paletteBox!.x).toBeGreaterThan(canvasBox!.x)
+  expect(paletteBox!.x + paletteBox!.width).toBeLessThanOrEqual(canvasBox!.x + canvasBox!.width)
+  expect(paletteBox!.y - canvasBox!.y).toBeGreaterThanOrEqual(16)
+  expect(supportingCardsBox!.y).toBeGreaterThanOrEqual(paletteBox!.y + paletteBox!.height)
+  expect(Math.abs(supportingCardsBox!.x - paletteBox!.x)).toBeLessThanOrEqual(1)
   await expect(canvas).toContainText('Click to add number')
   await canvas
-    .getByRole('button', {
-      name: 'Click to add number. Edit callflow name and numbers',
-    })
+    .getByRole('button', { name: 'Add callflow entry number' })
     .first()
     .click()
-  const callflowMetadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
-  await expect(callflowMetadata.getByLabel('Callflow name')).toBeVisible()
-  await expect(callflowMetadata.getByText('Phone-number entry points')).toBeVisible()
-  await callflowMetadata.getByLabel('Internal extension number').fill('2999')
-  await callflowMetadata.getByRole('button', { name: 'Add', exact: true }).click()
-  await callflowMetadata.getByLabel('Internal extension number').fill('2999')
-  await callflowMetadata.getByRole('button', { name: 'Add', exact: true }).click()
-  await expect(callflowMetadata.getByLabel('Internal extension number')).toHaveAttribute(
+  let addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
+  await addNumber.getByRole('radio', { name: 'Extension' }).click()
+  await addNumber.getByLabel('Extension number').fill('2999')
+  await addNumber.getByRole('button', { name: 'Add number' }).click()
+  await canvas.getByRole('button', { name: 'Add callflow entry number' }).click()
+  addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
+  await addNumber.getByRole('radio', { name: 'Extension' }).click()
+  await addNumber.getByLabel('Extension number').fill('2999')
+  await addNumber.getByRole('button', { name: 'Add number' }).click()
+  await expect(addNumber.getByLabel('Extension number')).toHaveAttribute(
     'aria-invalid',
     'true',
   )
   await expect(
-    callflowMetadata.getByText('This number is already configured on the callflow.'),
+    addNumber.getByText('This number is already configured on the callflow.'),
   ).toBeVisible()
-  await callflowMetadata.getByRole('button', { name: 'Done' }).click()
-  await expect(callflowMetadata).toHaveCount(0)
+  await addNumber.getByRole('button', { name: 'Cancel' }).click()
   await expect(canvas.getByRole('treeitem', { name: 'Callflow entry: 2999' })).toBeVisible()
   await canvas.getByRole('button', { name: '2999. Edit callflow name and numbers' }).click()
+  const callflowMetadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await callflowMetadata.getByRole('button', { name: 'Remove extension number 2999' }).click()
   await callflowMetadata.getByRole('button', { name: 'Done' }).click()
   await expect(workspace.getByText('Route identity')).toHaveCount(0)
@@ -2313,6 +3282,21 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await expect(dockPalette).toBeVisible()
   await dockPalette.click()
   await expect(dockPalette).toHaveCount(0)
+
+  await rootPalette.getByRole('button', { name: /^Caller-ID/ }).click()
+  const dynamicCidAction = rootPalette.getByRole('button', {
+    name: 'Use Dynamic cid as root action',
+  })
+  await expect(dynamicCidAction).toBeEnabled()
+  await expect(dynamicCidAction).toHaveAttribute('draggable', 'true')
+  await dynamicCidAction.click()
+  const dynamicCidDialog = page.getByRole('dialog', { name: 'Configure Dynamic cid' })
+  await expect(
+    dynamicCidDialog.getByRole('button', { name: 'Caller-ID phone number' }),
+  ).toBeVisible()
+  await dynamicCidDialog.getByRole('button', { name: 'Cancel' }).click()
+
+  await rootPalette.getByRole('button', { name: /^Basic/ }).click()
   const rootAction = rootPalette.getByRole('button', { name: 'Use User as root action' })
   await expect(rootAction).toHaveAttribute('draggable', 'true')
   const dataTransfer = await page.evaluateHandle(() => new DataTransfer())
@@ -2457,14 +3441,17 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
   const workspace = page.getByRole('region', { name: 'Create callflow' })
   const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
   await canvas
-    .getByRole('button', { name: 'Click to add number. Edit callflow name and numbers' })
+    .getByRole('button', { name: 'Add callflow entry number' })
     .first()
     .click()
 
-  let metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
+  let addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
+  await addNumber.getByRole('radio', { name: 'Extension' }).click()
+  await addNumber.getByLabel('Extension number').fill('2999')
+  await addNumber.getByRole('button', { name: 'Add number' }).click()
+  await canvas.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Conflicting extension route')
-  await metadata.getByLabel('Internal extension number').fill('2999')
-  await metadata.getByRole('button', { name: 'Add', exact: true }).click()
   await metadata.getByRole('button', { name: 'Done' }).click()
   await expect(metadata).toHaveCount(0)
 
@@ -2483,11 +3470,11 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
   await workspace.getByRole('button', { name: 'Create callflow' }).click()
   expect((await rejected).status()).toBe(422)
 
-  metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
-  const extensionInput = metadata.getByLabel('Internal extension number')
+  addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
+  const extensionInput = addNumber.getByLabel('Extension number')
   await expect(extensionInput).toHaveAttribute('aria-invalid', 'true')
   await expect(extensionInput).toHaveClass(/border-red-400/)
-  await expect(metadata.getByText('Extension 2999 already enters another callflow.')).toBeVisible()
+  await expect(addNumber.getByText('Extension 2999 already enters another callflow.')).toBeVisible()
   expect(issues.filter((issue) => !issue.includes('status of 422'))).toEqual([])
 })
 
@@ -3186,7 +4173,44 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await expect(page.getByRole('button', { name: 'Back to callflows' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Refresh callflow nodes' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'Edit callflow', exact: true })).toBeVisible()
-  await expect(workspace.getByRole('heading', { name: 'Visual route map' })).toBeVisible()
+  await expect(workspace.getByRole('heading', { name: 'Route structure' })).toBeVisible()
+  const workspaceLayout = workspace.locator('[data-callflow-workspace-layout]')
+  const canvasShell = workspace.locator('[data-callflow-canvas-shell]')
+  const panCanvas = workspace.locator('[data-callflow-pan-canvas]')
+  const supportingCards = workspace.locator('[data-callflow-supporting-cards]')
+  const actionPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  const workspaceLayoutBox = await workspaceLayout.boundingBox()
+  const canvasShellBox = await canvasShell.boundingBox()
+  const supportingCardsBox = await supportingCards.boundingBox()
+  const dockedPaletteBox = await actionPalette.boundingBox()
+  expect(workspaceLayoutBox).not.toBeNull()
+  expect(canvasShellBox).not.toBeNull()
+  expect(supportingCardsBox).not.toBeNull()
+  expect(dockedPaletteBox).not.toBeNull()
+  expect(Math.abs(canvasShellBox!.width - workspaceLayoutBox!.width)).toBeLessThanOrEqual(1)
+  expect(dockedPaletteBox!.x).toBeGreaterThan(canvasShellBox!.x)
+  expect(dockedPaletteBox!.x + dockedPaletteBox!.width).toBeLessThanOrEqual(
+    canvasShellBox!.x + canvasShellBox!.width,
+  )
+  expect(dockedPaletteBox!.y - canvasShellBox!.y).toBeGreaterThanOrEqual(16)
+  expect(supportingCardsBox!.y).toBeGreaterThanOrEqual(
+    dockedPaletteBox!.y + dockedPaletteBox!.height,
+  )
+  expect(Math.abs(supportingCardsBox!.x - dockedPaletteBox!.x)).toBeLessThanOrEqual(1)
+  const horizontalPanRunway = await panCanvas.evaluate(
+    (element) => element.scrollWidth - element.clientWidth,
+  )
+  expect(horizontalPanRunway).toBeGreaterThanOrEqual(512)
+  const supportingCardItems = supportingCards.locator(':scope > *')
+  await expect(supportingCardItems).toHaveCount(3)
+  const firstCardBox = await supportingCardItems.nth(0).boundingBox()
+  const secondCardBox = await supportingCardItems.nth(1).boundingBox()
+  const thirdCardBox = await supportingCardItems.nth(2).boundingBox()
+  expect(firstCardBox).not.toBeNull()
+  expect(secondCardBox).not.toBeNull()
+  expect(thirdCardBox).not.toBeNull()
+  expect(secondCardBox!.y).toBeGreaterThan(firstCardBox!.y)
+  expect(thirdCardBox!.y).toBeGreaterThan(secondCardBox!.y)
   await expect(
     workspace.getByRole('treeitem', { name: 'Callflow entry: +15550001234' }),
   ).toBeVisible()
@@ -3222,7 +4246,6 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await nodeInfo.getByRole('button', { name: 'Close node information' }).click()
   await expect(nodeInfo).toHaveCount(0)
 
-  const actionPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   const paletteBeforeMove = await actionPalette.boundingBox()
   const paletteHandle = actionPalette.getByRole('button', { name: 'Move action palette' })
   const handleBox = await paletteHandle.boundingBox()

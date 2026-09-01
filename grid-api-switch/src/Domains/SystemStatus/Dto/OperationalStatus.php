@@ -19,6 +19,10 @@ final readonly class OperationalStatus
         public bool $mmsInventoryAvailable,
         public bool $portRequestInventoryAvailable,
         public bool $numberCarrierConfigurationAvailable,
+        public bool $connectivitySummaryAvailable,
+        public ?int $connectivityCount,
+        public bool $localResourceSummaryAvailable,
+        public ?int $localResourceCount,
     ) {}
 
     /**
@@ -34,7 +38,11 @@ final readonly class OperationalStatus
      *     sms_inventory_available: bool,
      *     mms_inventory_available: bool,
      *     port_request_inventory_available: bool,
-     *     number_carrier_configuration_available: bool
+     *     number_carrier_configuration_available: bool,
+     *     connectivity_summary_available: bool,
+     *     connectivity_count: int|null,
+     *     local_resource_summary_available: bool,
+     *     local_resource_count: int|null
      * }
      */
     public function toArray(): array
@@ -52,6 +60,10 @@ final readonly class OperationalStatus
             'mms_inventory_available' => $this->mmsInventoryAvailable,
             'port_request_inventory_available' => $this->portRequestInventoryAvailable,
             'number_carrier_configuration_available' => $this->numberCarrierConfigurationAvailable,
+            'connectivity_summary_available' => $this->connectivitySummaryAvailable,
+            'connectivity_count' => $this->connectivityCount,
+            'local_resource_summary_available' => $this->localResourceSummaryAvailable,
+            'local_resource_count' => $this->localResourceCount,
         ];
     }
 }

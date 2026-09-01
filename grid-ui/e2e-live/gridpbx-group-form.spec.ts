@@ -144,7 +144,7 @@ test('creates, edits, clears, and deletes a disposable Switch Group', async ({ p
 
   const createdRow = page.getByRole('row').filter({ hasText: createdName })
   await expect(createdRow).toBeVisible()
-  await createdRow.getByRole('button', { name: createdName }).click()
+  await createdRow.click()
   await expect(page.getByRole('heading', { name: 'Edit group' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill(updatedName)
   for (let member = 0; member < 3; member += 1) {
@@ -166,7 +166,7 @@ test('creates, edits, clears, and deletes a disposable Switch Group', async ({ p
   await expect(updatedRow).toBeVisible()
   await expect(updatedRow).toContainText('0')
   await expect(updatedRow).toContainText('Account default')
-  await updatedRow.getByRole('button', { name: updatedName }).click()
+  await updatedRow.click()
   await expect(page.getByText('No members selected.')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Music on hold' })).toContainText('Account default')
 

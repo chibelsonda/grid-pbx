@@ -41,6 +41,12 @@ final readonly class OperationalStatusClient
         $numberCarrierConfigurationAvailable = $this->carrierConfigurationAvailable(
             $accountPath.'/phone_numbers/carriers_info',
         );
+        [$connectivitySummaryAvailable, $connectivityCount] = $this->opaqueCollectionSummary(
+            $accountPath.'/connectivity',
+        );
+        [$localResourceSummaryAvailable, $localResourceCount] = $this->opaqueCollectionSummary(
+            $accountPath.'/resources',
+        );
 
         return new OperationalStatus(
             presenceSubscriptionDiagnosticsAvailable: $presenceAvailable,
@@ -55,6 +61,10 @@ final readonly class OperationalStatusClient
             mmsInventoryAvailable: $mmsInventoryAvailable,
             portRequestInventoryAvailable: $portRequestInventoryAvailable,
             numberCarrierConfigurationAvailable: $numberCarrierConfigurationAvailable,
+            connectivitySummaryAvailable: $connectivitySummaryAvailable,
+            connectivityCount: $connectivityCount,
+            localResourceSummaryAvailable: $localResourceSummaryAvailable,
+            localResourceCount: $localResourceCount,
         );
     }
 
@@ -151,6 +161,29 @@ final readonly class OperationalStatusClient
             return is_array($payload['data'] ?? null) && array_is_list($payload['data']);
         } catch (SwitchException) {
             return false;
+        }
+    }
+
+    /** @return array{bool, int|null} */
+    private function opaqueCollectionSummary(string $path): array
+    {
+        try {
+            $payload = $this->client->request('GET', $path);
+            $items = $payload['data'] ?? null;
+
+            if (! is_array($items) || ! array_is_list($items)) {
+                return [false, null];
+            }
+
+            foreach ($items as $item) {
+                if (! is_array($item) && (! is_string($item) || $item === '')) {
+                    return [false, null];
+                }
+            }
+
+            return [true, count($items)];
+        } catch (SwitchException) {
+            return [false, null];
         }
     }
 

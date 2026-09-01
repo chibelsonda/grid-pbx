@@ -54,6 +54,17 @@ describe('operationalStatusStore', () => {
         reservation_available: false as const,
         release_available: false as const,
       },
+      connectivity: {
+        summary_available: true,
+        configured_pbx_count: 1,
+        local_resource_summary_available: true,
+        local_resource_count: 0,
+        configuration_mutations_available: false as const,
+        resource_mutations_available: false as const,
+        selector_mutations_available: false as const,
+        limit_mutations_available: false as const,
+        failover_mutations_available: false as const,
+      },
     }
     vi.mocked(operationalStatusApi.get).mockResolvedValue(status)
     const store = useOperationalStatusStore()

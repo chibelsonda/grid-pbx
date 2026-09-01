@@ -163,6 +163,25 @@ describe('useLineKeyForm', () => {
     ])
   })
 
+  it('orders assignments by physical position without changing their form indexes', () => {
+    const { form, orderedAssignments } = useLineKeyForm(preview)
+    form.push(
+      { category: 'combo', position: 0, type: 'line', value: null, label: null },
+      { category: 'combo', position: 3, type: 'presence', value: null, label: null },
+      { category: 'feature', position: 1, type: 'presence', value: null, label: null },
+      { category: 'feature', position: 2, type: 'presence', value: null, label: null },
+    )
+
+    expect(
+      orderedAssignments.value.map(({ index, key }) => ({ index, position: key.position })),
+    ).toEqual([
+      { index: 0, position: 0 },
+      { index: 2, position: 1 },
+      { index: 3, position: 2 },
+      { index: 1, position: 3 },
+    ])
+  })
+
   it('requires line appearances to be value-less combo keys', () => {
     const { form, validate, validationErrors } = useLineKeyForm(preview)
     form.push({

@@ -6,6 +6,13 @@ use App\Domains\Organizations\Models\SwitchAccount;
 
 class CallflowReferenceResolver
 {
+    public function __construct(
+        private readonly PivotEndpointRegistry $pivotEndpoints,
+        private readonly WebhookEndpointRegistry $webhookEndpoints,
+        private readonly DisaAccessPolicyRegistry $disaPolicies,
+        private readonly CarrierRouteRegistry $carrierRoutes,
+    ) {}
+
     /**
      * @param  array<string, mixed>|null  $flow
      * @return array<string, mixed>|null
@@ -16,7 +23,7 @@ class CallflowReferenceResolver
             return null;
         }
 
-        return $this->resolveNode($flow, $this->targetMaps($account));
+        return $this->resolveNode($account, $flow, $this->targetMaps($account));
     }
 
     public function refresh(SwitchAccount $account): void
@@ -26,7 +33,7 @@ class CallflowReferenceResolver
         foreach ($account->callflows()->get() as $callflow) {
             $flow = $callflow->switch_json['flow'] ?? null;
             $callflow->forceFill([
-                'flow_structure' => is_array($flow) ? $this->resolveNode($flow, $targets) : null,
+                'flow_structure' => is_array($flow) ? $this->resolveNode($account, $flow, $targets) : null,
             ])->save();
         }
     }
@@ -36,7 +43,7 @@ class CallflowReferenceResolver
      * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>
      */
-    private function resolveNode(array $node, array $targets): array
+    private function resolveNode(SwitchAccount $account, array $node, array $targets): array
     {
         $module = is_string($node['module'] ?? null) ? $node['module'] : 'unknown';
         $data = is_array($node['data'] ?? null) ? $node['data'] : [];
@@ -101,7 +108,7 @@ class CallflowReferenceResolver
 
         foreach (is_array($node['children'] ?? null) ? $node['children'] : [] as $branch => $child) {
             if ((is_string($branch) || is_int($branch)) && is_array($child)) {
-                $children[(string) $branch] = $this->resolveNode($child, $targets);
+                $children[(string) $branch] = $this->resolveNode($account, $child, $targets);
             }
         }
 
@@ -137,7 +144,7 @@ class CallflowReferenceResolver
             'temporal_rules' => $directTemporalRules,
             'settings' => $pageGroupSettings
                 ?? $ringGroupSettings
-                ?? $this->publicInlineSettings($module, $data, $targets),
+                ?? $this->publicInlineSettings($account, $module, $data, $targets),
             'children' => $children,
         ];
     }
@@ -147,8 +154,50 @@ class CallflowReferenceResolver
      * @param  array<string, array<string, array{id: string, label: string, supports_ring_group_toggle?: bool, supports_ringback?: bool}>>  $targets
      * @return array<string, mixed>|null
      */
-    private function publicInlineSettings(string $module, array $data, array $targets): ?array
-    {
+    private function publicInlineSettings(
+        SwitchAccount $account,
+        string $module,
+        array $data,
+        array $targets,
+    ): ?array {
+        if ($module === 'dynamic_cid') {
+            $callerId = is_array($data['caller_id'] ?? null) ? $data['caller_id'] : [];
+            $number = is_string($callerId['number'] ?? null) ? $callerId['number'] : null;
+            $phoneNumber = $number === null ? null : ($targets['phone_number'][$number] ?? null);
+            $supported = ($data['action'] ?? null) === 'static'
+                && $phoneNumber !== null
+                && array_diff(array_keys($data), ['action', 'caller_id', 'skip_module']) === []
+                && array_diff(array_keys($callerId), ['name', 'number']) === [];
+
+            return [
+                'action' => is_string($data['action'] ?? null) ? $data['action'] : null,
+                'phone_number_id' => $phoneNumber['id'] ?? null,
+                'phone_number_label' => $phoneNumber['label'] ?? null,
+                'caller_id_name' => $supported && is_string($callerId['name'] ?? null)
+                    ? $callerId['name']
+                    : '',
+                'supported_configuration' => $supported,
+                'reference_status' => $phoneNumber === null ? 'unresolved' : 'resolved',
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
+        if ($module === 'pivot') {
+            return $this->pivotEndpoints->publicSettings($account, $data);
+        }
+
+        if ($module === 'webhook') {
+            return $this->webhookEndpoints->publicSettings($account, $data);
+        }
+
+        if ($module === 'disa') {
+            return $this->disaPolicies->publicSettings($account, $data);
+        }
+
+        if (in_array($module, ['offnet', 'resources'], true)) {
+            return $this->carrierRoutes->publicSettings($account, $module, $data);
+        }
+
         if ($module === 'conference') {
             return [
                 'service_mode' => ! is_string($data['id'] ?? null) || $data['id'] === '',
@@ -804,6 +853,12 @@ class CallflowReferenceResolver
             ])->all(),
             'caller_id_list' => $account->callerIdLists()->get()->mapWithKeys(fn ($list): array => [
                 $list->switch_resource_id => ['id' => $list->id, 'label' => $list->name],
+            ])->all(),
+            'phone_number' => $account->phoneNumbers()->whereNotNull('number')->get()->mapWithKeys(fn ($phoneNumber): array => [
+                $phoneNumber->number => [
+                    'id' => $phoneNumber->id,
+                    'label' => $phoneNumber->number,
+                ],
             ])->all(),
         ];
     }

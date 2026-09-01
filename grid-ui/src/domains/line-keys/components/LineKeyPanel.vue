@@ -33,9 +33,8 @@ const props = defineProps<{
   canManage: boolean
 }>()
 const emit = defineEmits<{ close: []; save: [keys: LineKeyInput[]] }>()
-const { add, canAdd, form, remove, safePreview, validate, validationErrors } = useLineKeyForm(
-  props.preview,
-)
+const { add, canAdd, form, orderedAssignments, remove, safePreview, validate, validationErrors } =
+  useLineKeyForm(props.preview)
 const categoryOptions: ListboxOptionValue[] = [
   { value: 'combo', label: 'Combo key', description: 'Primary programmable line key' },
   { value: 'feature', label: 'Feature key', description: 'Secondary programmable feature key' },
@@ -239,18 +238,6 @@ function addToGroup(group: SlotGroup): void {
   add(group.start, group.end)
 }
 
-function positionLocation(position: number): string | null {
-  const model = props.preview.capability.model
-
-  if (!model.matched || model.max_keys === null) return null
-  if (position < model.max_keys) return 'Main unit'
-  if (!model.keys_per_expansion_module) return null
-
-  const module = Math.floor((position - model.max_keys) / model.keys_per_expansion_module) + 1
-
-  return module <= (model.max_expansion_modules ?? 0) ? `Expansion ${module}` : null
-}
-
 function submit(): void {
   if (!canApply.value) return
   const result = validate()
@@ -337,6 +324,7 @@ function submit(): void {
               <template v-else
                 >A full replacement of the device's combo and feature key maps.</template
               >
+              · Extension selections resolve to Kazoo presence IDs server-side.
             </p>
           </div>
         </header>
@@ -368,7 +356,7 @@ function submit(): void {
                 No keys are assigned to this hardware section.
               </div>
               <template
-                v-for="(key, index) in form"
+                v-for="{ index, key } in orderedAssignments"
                 :key="`${group.key}-${key.category}-${key.position}-${index}`"
               >
                 <fieldset
@@ -376,11 +364,12 @@ function submit(): void {
                   :disabled="!canManage"
                   data-testid="line-key-assignment"
                   :data-key-category="key.category"
+                  :data-key-position="key.position"
                   class="grid items-start gap-3 border-l-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-[120px_80px_minmax(170px,1fr)_minmax(360px,2fr)_32px] disabled:opacity-70"
                   :class="
                     key.category === 'feature'
-                      ? 'border-violet-300 bg-violet-50/20'
-                      : 'border-brand-300 bg-brand-50/20'
+                      ? 'border-indigo-400 bg-indigo-50/30'
+                      : 'border-sky-500 bg-sky-50/40'
                   "
                 >
                   <label class="flex min-w-0 self-start flex-col">
@@ -409,7 +398,6 @@ function submit(): void {
                     type="number"
                     min="0"
                     :max="maximumPosition"
-                    :description="positionLocation(key.position)"
                     input-class="h-9 px-2"
                     :error="fieldError(index, 'position')"
                   />
@@ -469,12 +457,11 @@ function submit(): void {
                         class="mt-1 text-[10px] leading-4 text-danger"
                         >{{ fieldError(index, 'value') }}</span
                       >
-                      <span v-else class="mt-1 text-[10px] leading-4 text-slate-500">
-                        {{
-                          key.type === 'presence' || key.type === 'personal_parking'
-                            ? 'Resolved server-side to the Kazoo presence ID.'
-                            : 'Stores the dialable value; internal IDs remain private.'
-                        }}
+                      <span
+                        v-else-if="key.type !== 'presence' && key.type !== 'personal_parking'"
+                        class="mt-1 text-[10px] leading-4 text-slate-500"
+                      >
+                        Stores the dialable value; internal IDs remain private.
                       </span>
                     </label>
                     <p

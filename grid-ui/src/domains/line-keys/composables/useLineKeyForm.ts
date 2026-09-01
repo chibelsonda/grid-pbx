@@ -45,6 +45,16 @@ export function useLineKeyForm(preview: LineKeyPreview) {
     Math.min(preview.capability.model.total_keys ?? 100, 1000),
   )
   const canAdd = computed(() => form.length < maximumAssignments.value)
+  const orderedAssignments = computed(() =>
+    form
+      .map((key, index) => ({ index, key }))
+      .sort(
+        (left, right) =>
+          left.key.position - right.key.position ||
+          left.key.category.localeCompare(right.key.category) ||
+          left.index - right.index,
+      ),
+  )
   const normalizedKeys = computed(() => form.map(normalizedKey))
   const safePreview = computed(() => ({
     provision: {
@@ -99,5 +109,14 @@ export function useLineKeyForm(preview: LineKeyPreview) {
       : { success: false, data: null }
   }
 
-  return { add, canAdd, form, remove, safePreview, validate, validationErrors }
+  return {
+    add,
+    canAdd,
+    form,
+    orderedAssignments,
+    remove,
+    safePreview,
+    validate,
+    validationErrors,
+  }
 }

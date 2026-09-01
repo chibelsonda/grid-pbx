@@ -26,9 +26,19 @@ const props = withDefaults(
     moving?: boolean
     dragSourcePath?: string[] | null
     paletteAction?: CallflowAction | null
+    capabilityGuidedModules?: string[]
   }>(),
-  { entryName: null, numbers: () => [], patterns: () => [], paletteAction: null },
+  {
+    entryName: null,
+    numbers: () => [],
+    patterns: () => [],
+    paletteAction: null,
+    capabilityGuidedModules: () => [],
+  },
 )
+defineSlots<{
+  'entry-actions'(): unknown
+}>()
 defineEmits<{
   select: [selection: CallflowNodeSelection]
   'drag-start': [selection: CallflowNodeSelection]
@@ -41,6 +51,7 @@ defineEmits<{
   ]
   remove: [selection: CallflowNodeSelection]
   'edit-entry': []
+  'add-entry': []
 }>()
 const entryPoints = computed(() => [
   ...props.numbers.map((value) => ({ value, kind: 'Number' })),
@@ -50,61 +61,28 @@ const panCanvas = ref<HTMLElement | null>(null)
 const { isPanning, startPanning, pan, stopPanning } = useDragToPan(panCanvas)
 const { zoom, zoomPercent, canZoomIn, canZoomOut, zoomIn, zoomOut, resetZoom, handleZoomWheel } =
   useCanvasZoom()
+const canvasTextureStyle = computed<Record<string, string>>(() => {
+  const scale = (pixels: number) => `${Number((pixels * zoom.value).toFixed(2))}px`
+
+  return {
+    '--callflow-grid-major-size': scale(96),
+    '--callflow-grid-minor-size': scale(24),
+    '--callflow-grid-dot-offset': scale(12),
+    '--callflow-grid-dot-color': zoom.value < 0.6 ? 'rgb(71 85 105 / 0.1)' : 'rgb(71 85 105 / 0.2)',
+  }
+})
 </script>
 
 <template>
-  <div class="flex h-[calc(100dvh-7rem)] min-h-[36rem] flex-col overflow-hidden bg-slate-50/70">
-    <CallflowCanvasHeader
-      :description="
-        editable
-          ? 'Drag a guided subtree onto a node with an empty next-step branch'
-          : 'Current projected Switch execution tree'
-      "
-    >
-      <template #controls>
-        <div
-          data-callflow-no-pan
-          role="group"
-          aria-label="Canvas zoom controls"
-          class="ml-1 inline-flex h-7 items-center overflow-hidden rounded-md border border-slate-300 bg-white shadow-sm"
-        >
-          <button
-            type="button"
-            aria-label="Zoom out"
-            title="Zoom out"
-            :disabled="!canZoomOut"
-            class="grid h-full w-8 place-items-center text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
-            @click="zoomOut"
-          >
-            <MagnifyingGlassMinusIcon class="size-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label="Reset canvas zoom"
-            title="Reset canvas zoom"
-            class="h-full min-w-12 border-x border-slate-200 px-2 text-[9px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600"
-            @click="resetZoom"
-          >
-            {{ zoomPercent }}%
-          </button>
-          <button
-            type="button"
-            aria-label="Zoom in"
-            title="Zoom in"
-            :disabled="!canZoomIn"
-            class="grid h-full w-8 place-items-center text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
-            @click="zoomIn"
-          >
-            <MagnifyingGlassPlusIcon class="size-3.5" />
-          </button>
-        </div>
-      </template>
-    </CallflowCanvasHeader>
+  <div
+    class="relative flex h-[calc(100dvh-7rem)] min-h-[36rem] flex-col overflow-hidden bg-slate-50/70"
+  >
     <div
       ref="panCanvas"
       data-callflow-pan-canvas
-      class="callflow-canvas-texture min-h-0 flex-1 overflow-auto p-4 select-none"
+      class="callflow-canvas-texture min-h-0 flex-1 overflow-auto p-4 pt-20 select-none"
       :class="isPanning ? 'cursor-grabbing' : 'cursor-grab'"
+      :style="canvasTextureStyle"
       @pointerdown="startPanning"
       @pointermove="pan"
       @pointerup="stopPanning"
@@ -112,18 +90,67 @@ const { zoom, zoomPercent, canZoomIn, canZoomOut, zoomIn, zoomOut, resetZoom, ha
       @lostpointercapture="stopPanning"
       @wheel="handleZoomWheel"
     >
+      <CallflowCanvasHeader>
+        <template #controls>
+          <div
+            data-callflow-no-pan
+            role="group"
+            aria-label="Canvas zoom controls"
+            class="ml-1 inline-flex h-7 items-center overflow-hidden rounded-md border border-slate-300 bg-white shadow-sm"
+          >
+            <button
+              type="button"
+              aria-label="Zoom out"
+              title="Zoom out"
+              :disabled="!canZoomOut"
+              class="grid h-full w-8 place-items-center text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+              @click="zoomOut"
+            >
+              <MagnifyingGlassMinusIcon class="size-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label="Reset canvas zoom"
+              title="Reset canvas zoom"
+              class="h-full min-w-12 border-x border-slate-200 px-2 text-[9px] font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-brand-600"
+              @click="resetZoom"
+            >
+              {{ zoomPercent }}%
+            </button>
+            <button
+              type="button"
+              aria-label="Zoom in"
+              title="Zoom in"
+              :disabled="!canZoomIn"
+              class="grid h-full w-8 place-items-center text-slate-600 transition hover:bg-slate-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:text-slate-300"
+              @click="zoomIn"
+            >
+              <MagnifyingGlassPlusIcon class="size-3.5" />
+            </button>
+          </div>
+        </template>
+      </CallflowCanvasHeader>
       <div
         role="tree"
         aria-label="Callflow diagram"
-        class="mx-auto flex w-max min-w-full flex-col items-center"
+        data-callflow-pan-content
+        class="mx-auto flex w-max min-w-[calc(100%_+_16rem)] flex-col items-center px-32 sm:min-w-[calc(100%_+_24rem)] sm:px-48 lg:min-w-[calc(100%_+_32rem)] lg:px-64"
         :style="{ zoom: String(zoom) }"
       >
+        <div
+          v-if="$slots['entry-actions']"
+          data-callflow-entry-actions
+          class="mb-3 flex w-80 justify-center"
+        >
+          <slot name="entry-actions" />
+        </div>
         <CallflowEntryNode
           :name="entryName"
           :entries="entryPoints"
           :editable="editable"
           edit-label="Edit callflow entry numbers"
           @edit="$emit('edit-entry')"
+          @add-entry="$emit('add-entry')"
         />
         <CallflowConnectorArrow />
         <CallflowTreeNode
@@ -133,6 +160,7 @@ const { zoom, zoomPercent, canZoomIn, canZoomOut, zoomIn, zoomOut, resetZoom, ha
           :moving="moving"
           :drag-source-path="dragSourcePath"
           :palette-action="paletteAction"
+          :capability-guided-modules="capabilityGuidedModules"
           @select="$emit('select', $event)"
           @drag-start="$emit('drag-start', $event)"
           @drag-end="$emit('drag-end')"
@@ -153,14 +181,18 @@ const { zoom, zoomPercent, canZoomIn, canZoomOut, zoomIn, zoomOut, resetZoom, ha
   background-image:
     linear-gradient(to right, rgb(148 163 184 / 0.1) 1px, transparent 1px),
     linear-gradient(to bottom, rgb(148 163 184 / 0.1) 1px, transparent 1px),
-    radial-gradient(circle, rgb(71 85 105 / 0.2) 1px, transparent 1.25px);
+    radial-gradient(
+      circle,
+      var(--callflow-grid-dot-color, rgb(71 85 105 / 0.2)) 1px,
+      transparent 1.25px
+    );
   background-position:
     0 0,
     0 0,
-    12px 12px;
+    var(--callflow-grid-dot-offset, 12px) var(--callflow-grid-dot-offset, 12px);
   background-size:
-    96px 96px,
-    96px 96px,
-    24px 24px;
+    var(--callflow-grid-major-size, 96px) var(--callflow-grid-major-size, 96px),
+    var(--callflow-grid-major-size, 96px) var(--callflow-grid-major-size, 96px),
+    var(--callflow-grid-minor-size, 24px) var(--callflow-grid-minor-size, 24px);
 }
 </style>

@@ -142,15 +142,25 @@ class FaxControllerTest extends TestCase
             ->getJson("/api/v1/accounts/{$account->id}/faxes");
 
         $response->assertOk()
-            ->assertJsonCount(0, 'data')
-            ->assertJsonPath('capabilities.send.switch_supported', true)
-            ->assertJsonPath('capabilities.send.enabled', false)
-            ->assertJsonPath('capabilities.forward.enabled', false)
-            ->assertJsonPath('capabilities.resubmit.enabled', false)
-            ->assertJsonPath('capabilities.delete_message.enabled', false)
-            ->assertJsonPath('capabilities.delete_document.enabled', false)
-            ->assertJsonMissingPath('capabilities.send.url')
-            ->assertJsonMissingPath('capabilities.send.switch_resource_id');
+            ->assertJsonCount(0, 'data');
+
+        $capabilities = $response->json('capabilities');
+        $this->assertSame(
+            ['send', 'forward', 'resubmit', 'delete_message', 'delete_document'],
+            array_keys($capabilities),
+        );
+
+        foreach ($capabilities as $capability) {
+            $this->assertSame(['switch_supported', 'enabled', 'reason'], array_keys($capability));
+            $this->assertTrue($capability['switch_supported']);
+            $this->assertFalse($capability['enabled']);
+            $this->assertNotSame('', $capability['reason']);
+        }
+
+        $this->assertStringContainsString('HTTP 202 does not confirm', $capabilities['send']['reason']);
+        $this->assertStringContainsString('hardened egress', $capabilities['send']['reason']);
+        $this->assertStringContainsString('random identifier on every request', $capabilities['forward']['reason']);
+        $this->assertStringContainsString('random identifier on every request', $capabilities['resubmit']['reason']);
     }
 
     private function boxPayload(): array

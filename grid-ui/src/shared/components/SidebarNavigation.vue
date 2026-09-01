@@ -9,6 +9,7 @@ import {
   XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import { useRoute } from 'vue-router'
+import type { SidebarBrandDisplay } from '@/app/stores/uiStore'
 import SidebarNavLink from './SidebarNavLink.vue'
 import {
   businessItems,
@@ -19,9 +20,26 @@ import {
   type SidebarItem,
 } from '@/shared/navigation/sidebarNavigation'
 
-const props = defineProps<{ collapsed: boolean; mobile?: boolean; logoUrl?: string | null }>()
+const props = withDefaults(
+  defineProps<{
+    collapsed: boolean
+    mobile?: boolean
+    logoUrl?: string | null
+    organizationName?: string | null
+    brandDisplay?: SidebarBrandDisplay
+  }>(),
+  {
+    mobile: false,
+    logoUrl: null,
+    organizationName: null,
+    brandDisplay: 'logo-and-name',
+  },
+)
 const emit = defineEmits<{ collapse: []; close: [] }>()
 const route = useRoute()
+const organizationName = computed(() => props.organizationName?.trim() || 'GridPBX')
+const showBrandName = computed(() => !props.collapsed && props.brandDisplay === 'logo-and-name')
+const showLargeBrandMark = computed(() => !props.collapsed && props.brandDisplay === 'logo-only')
 
 const active = (to: string): boolean =>
   to === '/' ? route.path === '/' : route.path.startsWith(to)
@@ -64,21 +82,31 @@ function itemKey(item: SidebarItem): string {
 </script>
 
 <template>
-  <div class="sidebar-border flex h-[60px] items-center border-b px-5">
+  <div
+    class="sidebar-border flex h-[60px] items-center border-b"
+    :class="showLargeBrandMark ? 'px-3' : 'px-5'"
+    data-sidebar-header
+  >
     <img
       v-if="logoUrl"
       :src="logoUrl"
       alt="Organization logo"
-      class="size-9 shrink-0 rounded-md object-contain"
+      class="shrink-0 object-contain object-left"
+      :class="showLargeBrandMark ? 'h-12 w-auto max-w-[190px]' : 'size-9 rounded-md'"
+      :data-sidebar-brand-size="showLargeBrandMark ? 'large' : 'compact'"
+      data-sidebar-brand-mark
     />
     <span
       v-else
-      class="sidebar-accent-bg grid size-9 shrink-0 place-items-center rounded-md text-white"
+      class="sidebar-accent-bg grid shrink-0 place-items-center rounded-md text-white"
+      :class="showLargeBrandMark ? 'size-12' : 'size-9'"
+      :data-sidebar-brand-size="showLargeBrandMark ? 'large' : 'compact'"
+      data-sidebar-brand-mark
     >
-      <Squares2X2Icon class="size-5" />
+      <Squares2X2Icon :class="showLargeBrandMark ? 'size-7' : 'size-5'" />
     </span>
-    <div v-if="!collapsed" class="ml-3 min-w-0 flex-1">
-      <div class="sidebar-foreground truncate text-[15px] font-bold">GridPBX</div>
+    <div v-if="showBrandName" class="ml-3 min-w-0 flex-1" data-sidebar-brand-name>
+      <div class="sidebar-foreground truncate text-[15px] font-bold">{{ organizationName }}</div>
       <div class="sidebar-muted text-[10px] font-semibold tracking-widest uppercase">
         Phone system
       </div>
@@ -86,7 +114,7 @@ function itemKey(item: SidebarItem): string {
     <button
       v-if="!mobile"
       type="button"
-      class="sidebar-action hidden size-8 place-items-center rounded-md lg:grid"
+      class="sidebar-action ml-auto hidden size-8 place-items-center rounded-md lg:grid"
       aria-label="Toggle navigation width"
       @click="emit('collapse')"
     >

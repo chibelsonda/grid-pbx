@@ -16,13 +16,13 @@ class FaxResource extends JsonResource
     {
         return [
             'send' => self::disabledOperation(
-                'The installed Switch supports asynchronous outbound Fax jobs, but GridPBX has not approved document conversion, retention, notification, billing, or abuse-control policy.',
+                'The installed Switch supports asynchronous outbound Fax jobs, but URL retrieval has no hardened egress or bounded response contract and HTTP 202 does not confirm conversion or delivery. Sending remains disabled pending document-content controls, destination authorization, billing, rate limits, idempotency, audit, and reconciliation policy.',
             ),
             'forward' => self::disabledOperation(
-                'Forwarding copies a retained inbound document into a new outbound job. It remains disabled pending destination confirmation, retention, authorization, audit, and reconciliation policy.',
+                'Forwarding copies a retained inbound document into a new outbound job with a random identifier on every request. It remains disabled pending destination confirmation, retention authority, duplicate-safe execution, audit, and reconciliation policy.',
             ),
             'resubmit' => self::disabledOperation(
-                'Resubmission copies an outbox document into a new outbound job. It remains disabled pending duplicate-safe execution, exact-message confirmation, audit, and reconciliation policy.',
+                'Resubmission copies an outbox document into a new outbound job with a random identifier on every request. It remains disabled pending exact-message confirmation, duplicate-safe execution, abuse controls, audit, and reconciliation policy.',
             ),
             'delete_message' => self::disabledOperation(
                 'Permanent Fax message deletion remains disabled pending retention, legal-hold, exact-message confirmation, authorization, and immutable audit policy.',

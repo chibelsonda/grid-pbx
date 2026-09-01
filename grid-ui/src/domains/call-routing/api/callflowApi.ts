@@ -2,6 +2,7 @@ import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
 import type {
   Callflow,
   CallflowCreateInput,
+  CallflowEntryPointsUpdate,
   CallflowEditor,
   CallflowFilters,
   CallflowUpdate,
@@ -74,6 +75,18 @@ export const callflowApi = {
   async update(accountId: string, callflowId: string, input: CallflowUpdate): Promise<Callflow> {
     const response = await http.put<ApiResponse<Callflow>>(
       `/api/v1/accounts/${accountId}/callflows/${callflowId}`,
+      input,
+    )
+
+    return unwrapApiData(response)
+  },
+  async updateEntryPoints(
+    accountId: string,
+    callflowId: string,
+    input: CallflowEntryPointsUpdate,
+  ): Promise<Callflow> {
+    const response = await http.patch<ApiResponse<Callflow>>(
+      `/api/v1/accounts/${accountId}/callflows/${callflowId}/entry-points`,
       input,
     )
 

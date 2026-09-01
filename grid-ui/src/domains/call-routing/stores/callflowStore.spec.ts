@@ -4,6 +4,7 @@ import { callflowApi, type CallflowPage } from '../api/callflowApi'
 import type {
   Callflow,
   CallflowEditor,
+  CallflowEntryPointsUpdate,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
   CallflowTreeMoveInput,
@@ -25,6 +26,14 @@ vi.mock('../api/callflowApi', () => ({
     create: vi.fn<(accountId: string, input: CallflowUpdate) => Promise<Callflow>>(),
     update:
       vi.fn<(accountId: string, callflowId: string, input: CallflowUpdate) => Promise<Callflow>>(),
+    updateEntryPoints:
+      vi.fn<
+        (
+          accountId: string,
+          callflowId: string,
+          input: CallflowEntryPointsUpdate,
+        ) => Promise<Callflow>
+      >(),
     moveTreeNode:
       vi.fn<
         (accountId: string, callflowId: string, input: CallflowTreeMoveInput) => Promise<Callflow>
@@ -301,6 +310,31 @@ describe('callflow store', () => {
     expect(store.editorOpen).toBe(false)
   })
 
+  it('adds an entry point without closing or replacing the full callflow editor', async () => {
+    const updated = {
+      ...callflow,
+      numbers: [...callflow.numbers, '2999'],
+    }
+    vi.mocked(callflowApi.updateEntryPoints).mockResolvedValue(updated)
+    const store = useCallflowStore()
+    store.records = [callflow]
+    store.detail = callflow
+    store.editorOpen = true
+    const input: CallflowEntryPointsUpdate = {
+      phone_number_ids: ['number-public-id'],
+      extension_numbers: ['2999'],
+    }
+
+    const result = await store.updateEntryPoints('account-1', callflow.id, input)
+
+    expect(callflowApi.updateEntryPoints).toHaveBeenCalledWith('account-1', callflow.id, input)
+    expect(result?.numbers).toEqual(['+15551234567', '2999'])
+    expect(store.detail?.numbers).toEqual(['+15551234567', '2999'])
+    expect(store.records[0]?.numbers).toEqual(['+15551234567', '2999'])
+    expect(store.editorOpen).toBe(true)
+    expect(store.entryPointSaving).toBe(false)
+  })
+
   it('creates and deletes a guided route through the domain API', async () => {
     const editor: CallflowEditor = {
       mode: 'create',
@@ -371,6 +405,121 @@ describe('callflow store', () => {
     expect(callflowApi.delete).toHaveBeenCalledWith('account-1', callflow.id)
     expect(deleted).toBe(true)
     expect(store.records).toEqual([])
+  })
+
+  it('refreshes create capabilities without replacing the editor that owns an unsaved draft', async () => {
+    const current = {
+      mode: 'create',
+      action_capabilities: { pivot: { enabled: false, reason: 'Add an active profile.' } },
+      pivot_endpoints: [],
+    } as unknown as CallflowEditor
+    const refreshed = {
+      mode: 'create',
+      action_capabilities: { pivot: { enabled: true, reason: null } },
+      pivot_endpoints: [
+        {
+          id: 'profile-public-id',
+          label: 'Customer voice application',
+          methods: ['post'],
+          formats: ['kazoo'],
+        },
+      ],
+    } as unknown as CallflowEditor
+    vi.mocked(callflowApi.createEditor).mockResolvedValue(refreshed)
+    const store = useCallflowStore()
+    store.editor = current
+    const reactiveEditor = store.editor
+
+    expect(await store.refreshCapabilityOptions('account-1', null)).toBe(true)
+
+    expect(callflowApi.createEditor).toHaveBeenCalledWith('account-1')
+    expect(store.editor).toBe(reactiveEditor)
+    expect(store.editor?.action_capabilities?.pivot).toEqual({ enabled: true, reason: null })
+    expect(store.editor?.pivot_endpoints).toEqual(refreshed.pivot_endpoints)
+  })
+
+  it('refreshes an open tree editor after an integration changes', async () => {
+    const current = {
+      mode: 'update',
+      action_capabilities: { webhook: { enabled: false, reason: 'Add an active profile.' } },
+      webhook_endpoints: [],
+    } as unknown as CallflowEditor
+    const refreshed = {
+      mode: 'update',
+      action_capabilities: { webhook: { enabled: true, reason: null } },
+      webhook_endpoints: [
+        {
+          id: 'profile-public-id',
+          label: 'Call events',
+          methods: ['post'],
+          max_retries: 2,
+        },
+      ],
+    } as unknown as CallflowEditor
+    vi.mocked(callflowApi.editor).mockResolvedValue(refreshed)
+    const store = useCallflowStore()
+    store.treeEditor = current
+    const reactiveEditor = store.treeEditor
+
+    expect(await store.refreshCapabilityOptions('account-1', callflow.id)).toBe(true)
+
+    expect(callflowApi.editor).toHaveBeenCalledWith('account-1', callflow.id)
+    expect(store.treeEditor).toBe(reactiveEditor)
+    expect(store.treeEditor?.action_capabilities?.webhook).toEqual({ enabled: true, reason: null })
+    expect(store.treeEditor?.webhook_endpoints).toEqual(refreshed.webhook_endpoints)
+  })
+
+  it('ignores an older capability response that resolves after the latest refresh', async () => {
+    const stale = {
+      mode: 'create',
+      action_capabilities: { pivot: { enabled: false, reason: 'Profile disabled.' } },
+      pivot_endpoints: [],
+    } as unknown as CallflowEditor
+    const latest = {
+      mode: 'create',
+      action_capabilities: { pivot: { enabled: true, reason: null } },
+      pivot_endpoints: [
+        {
+          id: 'profile-public-id',
+          label: 'Current customer application',
+          methods: ['post'],
+          formats: ['kazoo'],
+        },
+      ],
+    } as unknown as CallflowEditor
+    let resolveStale!: (editor: CallflowEditor) => void
+    let resolveLatest!: (editor: CallflowEditor) => void
+    vi.mocked(callflowApi.createEditor)
+      .mockReturnValueOnce(
+        new Promise<CallflowEditor>((resolve) => {
+          resolveStale = resolve
+        }),
+      )
+      .mockReturnValueOnce(
+        new Promise<CallflowEditor>((resolve) => {
+          resolveLatest = resolve
+        }),
+      )
+    const store = useCallflowStore()
+    store.editor = {
+      mode: 'create',
+      action_capabilities: {},
+      pivot_endpoints: [],
+    } as unknown as CallflowEditor
+
+    const staleRefresh = store.refreshCapabilityOptions('account-1', null)
+    const latestRefresh = store.refreshCapabilityOptions('account-1', null)
+    resolveLatest(latest)
+
+    expect(await latestRefresh).toBe(true)
+    expect(store.editor?.action_capabilities?.pivot).toEqual({ enabled: true, reason: null })
+
+    resolveStale(stale)
+
+    expect(await staleRefresh).toBe(false)
+    expect(store.editor?.action_capabilities?.pivot).toEqual({ enabled: true, reason: null })
+    expect(store.editor?.pivot_endpoints).toEqual(latest.pivot_endpoints)
+    expect(store.editorError).toBeNull()
   })
 
   it('keeps API validation errors inline without a duplicate editor alert', async () => {
@@ -549,12 +698,26 @@ describe('callflow store', () => {
     const store = useCallflowStore()
     store.detail = callflow
     store.records = [callflow]
+    store.treeEditor = {
+      action_capabilities: {
+        pivot: { enabled: true, reason: null },
+        webhook: { enabled: true, reason: null },
+        offnet: { enabled: true, reason: null },
+        resources: { enabled: true, reason: null },
+      },
+    } as unknown as CallflowEditor
 
     await store.createInlineTreeNode('account-1', callflow.id, input)
 
     expect(callflowApi.createInlineTreeNode).toHaveBeenCalledWith('account-1', callflow.id, input)
     expect(store.detail?.flow?.children._?.children._?.settings?.text).toBe('Please hold.')
     expect(store.treeNodeError).toBeNull()
+    expect(store.treeEditor?.action_capabilities).toEqual({
+      pivot: { enabled: true, reason: null },
+      webhook: { enabled: true, reason: null },
+      offnet: { enabled: true, reason: null },
+      resources: { enabled: true, reason: null },
+    })
   })
 
   it('replaces the projected tree after a lossless subtree reorder', async () => {

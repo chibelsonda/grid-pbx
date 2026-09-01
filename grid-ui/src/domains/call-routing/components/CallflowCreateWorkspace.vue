@@ -18,16 +18,21 @@ import {
 } from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import { useCallflowForm } from '../composables/useCallflowForm'
-import type {
-  CallflowCreateInput,
-  CallflowDestinationType,
-  CallflowEditor,
-  CallflowInlineNodeCreateInput,
-  CallflowInlineNodeData,
-  CallflowInlineNodeUpdateInput,
-  CallflowNodeEditorContext,
+import {
+  callflowInlineRootModules,
+  type CallflowInlineRootModule,
+  type CallflowCreateInput,
+  type CallflowDestinationType,
+  type CallflowEditor,
+  type CallflowInlineNodeCreateInput,
+  type CallflowInlineNodeData,
+  type CallflowInlineNodeUpdateInput,
+  type CallflowNodeEditorContext,
 } from '../types/callRouting'
 import CallflowActionPalette from './CallflowActionPalette.vue'
+import CallflowAddEntryNumberDialog, {
+  type CallflowEntryNumberAddition,
+} from './CallflowAddEntryNumberDialog.vue'
 import CallflowBranchConnector from './CallflowBranchConnector.vue'
 import CallflowCanvasHeader from './CallflowCanvasHeader.vue'
 import CallflowConnectorArrow from './CallflowConnectorArrow.vue'
@@ -52,6 +57,7 @@ const { form, validate, validationErrors } = useCallflowForm(
   () => props.editor,
 )
 const metadataOpen = ref(false)
+const entryNumberOpen = ref(false)
 const actionOpen = ref(false)
 const selectedAction = ref<CallflowAction | null>(null)
 const rootActionChosen = ref(false)
@@ -80,6 +86,18 @@ const selectedEntryPoints = computed(() => [
   ...form.extension_numbers.map((value) => ({ value, kind: 'Extension' })),
   ...selectedPhoneNumbers.value.map(({ number: value }) => ({ value, kind: 'Phone number' })),
 ])
+
+function addEntryNumber(addition: CallflowEntryNumberAddition): void {
+  if (addition.type === 'phone_number') {
+    if (!form.phone_number_ids.includes(addition.id)) {
+      form.phone_number_ids.push(addition.id)
+    }
+  } else if (!form.extension_numbers.includes(addition.value)) {
+    form.extension_numbers.push(addition.value)
+  }
+
+  entryNumberOpen.value = false
+}
 const destinationOptions = computed<ListboxOptionValue[]>(() =>
   props.editor.destinations[form.destination_type].map(({ id, label, detail }) => ({
     value: id,
@@ -129,7 +147,9 @@ watch(
   (fieldErrors) => {
     const fields = Object.keys(fieldErrors)
 
-    if (fields.some((field) => ['name', 'phone_number_ids', 'extension_numbers'].includes(field))) {
+    if (fields.some((field) => ['phone_number_ids', 'extension_numbers'].includes(field))) {
+      entryNumberOpen.value = true
+    } else if (fields.includes('name')) {
       metadataOpen.value = true
     } else if (
       fields.some((field) =>
@@ -162,6 +182,21 @@ const rootActionDetail = computed(() => {
     const count = form.menu_branches.length
 
     return count === 0 ? destination : `${destination} · ${count} key${count === 1 ? '' : 's'}`
+  }
+
+  if (selectedAction.value?.module === 'pivot') {
+    return (
+      (props.editor.pivot_endpoints ?? []).find(
+        ({ id }) => id === rootActionData.value?.endpoint_id,
+      )?.label ?? 'Select a Pivot profile'
+    )
+  }
+
+  if (selectedAction.value?.module === 'dynamic_cid') {
+    return (
+      props.editor.phone_numbers.find(({ id }) => id === rootActionData.value?.phone_number_id)
+        ?.number ?? 'Select an account phone number'
+    )
   }
 
   return selectedDestination.value?.label ?? 'Select a destination'
@@ -217,7 +252,9 @@ const draftModuleCount = computed(
 const rootConfigurationContext = computed<CallflowNodeEditorContext>(() => ({
   operation: 'create',
   path: [],
-  module: 'ring_group',
+  module: isInlineRootModule(selectedAction.value?.module)
+    ? selectedAction.value!.module
+    : 'ring_group',
   node: {
     module: 'callflow',
     target: null,
@@ -231,9 +268,13 @@ function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
 }
 
+function isInlineRootModule(module: string | undefined): module is CallflowInlineRootModule {
+  return callflowInlineRootModules.includes(module as CallflowInlineRootModule)
+}
+
 function selectRootAction(action: CallflowAction): void {
   const destinationType = callflowActionDestinationType(action.module)
-  const inlineRoot = action.module === 'ring_group'
+  const inlineRoot = isInlineRootModule(action.module)
   if (!destinationType && !inlineRoot) return
 
   if (selectedAction.value?.id === action.id) {
@@ -328,7 +369,7 @@ function rootActionFromDrop(event: DragEvent): CallflowAction | null {
   const action = paletteActionFromDrop(event)
 
   return action &&
-    (callflowActionDestinationType(action.module) !== null || action.module === 'ring_group')
+    (callflowActionDestinationType(action.module) !== null || isInlineRootModule(action.module))
     ? action
     : null
 }
@@ -530,15 +571,20 @@ function submit(): void {
     return
   }
 
-  if (selectedAction.value?.module === 'ring_group' && rootActionData.value === null) {
-    rootActionError.value = 'Configure at least one Ring Group device.'
+  if (isInlineRootModule(selectedAction.value?.module) && rootActionData.value === null) {
+    rootActionError.value = {
+      ring_group: 'Configure at least one Ring Group device.',
+      call_forward: 'Choose a Call Forwarding operation.',
+      dynamic_cid: 'Select a synchronized account phone number.',
+      pivot: 'Configure an administrator-approved Pivot profile.',
+    }[selectedAction.value!.module]
     actionOpen.value = true
     return
   }
 
   const result = validate(
-    selectedAction.value?.module === 'ring_group' && rootActionData.value
-      ? { module: 'ring_group', data: rootActionData.value }
+    isInlineRootModule(selectedAction.value?.module) && rootActionData.value
+      ? { module: selectedAction.value.module, data: rootActionData.value }
       : null,
   )
   if (result.success) {
@@ -556,7 +602,7 @@ function submit(): void {
 function saveInlineRootAction(
   input: CallflowInlineNodeCreateInput | CallflowInlineNodeUpdateInput,
 ): void {
-  if (input.module !== 'ring_group') return
+  if (!isInlineRootModule(input.module)) return
 
   rootActionData.value = input.data
   rootActionError.value = null
@@ -590,7 +636,11 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
       {{ error }}
     </div>
 
-    <CallflowWorkspaceLayout data-callflow-create-workspace class="min-h-[calc(100dvh-7rem)]">
+    <CallflowWorkspaceLayout
+      data-callflow-create-workspace
+      description="Build the visual route map by dragging actions from the catalog"
+      class="min-h-[calc(100dvh-7rem)]"
+    >
       <template #summary>
         <CallflowRouteSummary
           :node-count="draftNodeCount"
@@ -611,10 +661,10 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
         @dragleave="leaveRootActionDrop"
         @drop="dropRootAction"
       >
-        <CallflowCanvasHeader description="Build the route by dragging actions from the catalog" />
         <div
-          class="callflow-create-canvas callflow-canvas-texture min-h-0 flex-1 overflow-auto p-8"
+          class="callflow-create-canvas callflow-canvas-texture min-h-0 flex-1 overflow-auto p-8 pt-20"
         >
+          <CallflowCanvasHeader />
           <div class="mx-auto flex w-max min-w-full flex-col items-center pt-4">
             <div data-callflow-create-actions class="mb-3 flex w-80 justify-center gap-2">
               <button
@@ -638,6 +688,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
               :entries="selectedEntryPoints"
               editable
               @edit="metadataOpen = true"
+              @add-entry="entryNumberOpen = true"
             />
 
             <template v-if="rootActionChosen && selectedAction">
@@ -796,19 +847,22 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
         </div>
       </section>
 
-      <template #palette="{ floating, startMoving, dock }">
+      <template #palette="{ floating, startMoving, dock, collapse }">
         <CallflowActionPalette
           compact
           movable
+          collapsible
           :floating="floating"
           root-only
           enabled
           drag-enabled
+          :action-capabilities="editor?.action_capabilities ?? {}"
           @choose="selectRootAction"
           @action-drag-start="beginRootActionDrag"
           @action-drag-end="endRootActionDrag"
           @drag-start="startMoving"
           @dock="dock"
+          @collapse="collapse"
         />
       </template>
 
@@ -879,8 +933,20 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
     </div>
   </CallflowNodeInfoDialog>
 
+  <CallflowAddEntryNumberDialog
+    :open="entryNumberOpen"
+    :phone-numbers="editor.phone_numbers"
+    :phone-number-ids="form.phone_number_ids"
+    :extension-numbers="form.extension_numbers"
+    :preserved-numbers="editor.preserved_numbers ?? []"
+    :error="error"
+    :field-errors="errors"
+    @close="entryNumberOpen = false"
+    @add="addEntryNumber"
+  />
+
   <CallflowNodeInfoDialog
-    :open="actionOpen && selectedAction !== null && selectedAction.module !== 'ring_group'"
+    :open="actionOpen && selectedAction !== null && !isInlineRootModule(selectedAction.module)"
     :title="selectedAction ? `Configure ${selectedAction.label}` : 'Configure action'"
     breadcrumb="New route / Root action"
     @close="actionOpen = false"
@@ -1136,7 +1202,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
   </CallflowNodeInfoDialog>
 
   <CallflowInlineNodeEditorPanel
-    v-if="actionOpen && selectedAction?.module === 'ring_group'"
+    v-if="actionOpen && isInlineRootModule(selectedAction?.module)"
     root-configuration
     :context="rootConfigurationContext"
     :editor="editor"

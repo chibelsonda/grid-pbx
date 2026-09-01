@@ -123,7 +123,7 @@ class PhoneNumberResource extends JsonResource
 
         return match ($feature) {
             'cnam' => 'Switch reports CNAM as selectable, but the installed notifier workflow does not confirm carrier completion. Mutation remains disabled pending approved quote, charge-confirmation, audit, and reconciliation policy.',
-            'e911' => 'Switch reports E911 as selectable, but GridPBX has not confirmed provider readiness or emergency-caller-ID safeguards. Mutation remains disabled pending approved emergency-service, billing, confirmation, audit, and reconciliation policy.',
+            'e911' => 'Switch reports E911 as selectable, but selectability does not establish provider readiness or safe emergency caller-ID routing. Mutation remains disabled pending approved emergency-service, verified transport, billing, confirmation, audit, and reconciliation policy.',
             'port' => 'Switch reports porting as selectable; mutation remains disabled pending approved authority, document-retention, billing, confirmation, audit, and reconciliation policy.',
             default => 'Switch reports this feature as selectable; mutation remains disabled pending approved billing, confirmation, audit, and reconciliation policy.',
         };

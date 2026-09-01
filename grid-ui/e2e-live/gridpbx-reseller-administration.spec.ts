@@ -19,12 +19,41 @@ test('shows the selected account reseller boundary without mutation controls', a
 
   const [hierarchyResponse, resellerResponse] = await Promise.all([
     page.waitForResponse((response) => response.url().endsWith('/hierarchy')),
-    page.waitForResponse((response) => response.url().endsWith('/reseller')),
+    page.waitForResponse(
+      (response) =>
+        response.request().method() === 'GET' &&
+        response.url().includes('/api/v1/accounts/') &&
+        response.url().endsWith('/reseller'),
+    ),
     page.goto('/reseller'),
   ])
 
   expect(hierarchyResponse.ok()).toBe(true)
   expect(resellerResponse.ok()).toBe(true)
+  const resellerStatus = (await resellerResponse.json()) as {
+    data: {
+      administration: Record<string, boolean>
+    }
+  }
+  const expectedAdministrationCapabilities = [
+    'account_creation_available',
+    'account_move_available',
+    'account_deletion_available',
+    'limit_mutations_available',
+    'service_plan_mutations_available',
+    'service_override_mutations_available',
+    'top_up_available',
+    'switch_service_synchronization_available',
+    'switch_service_reconciliation_available',
+  ]
+
+  expect(Object.keys(resellerStatus.data.administration).sort()).toEqual(
+    expectedAdministrationCapabilities.sort(),
+  )
+  expect(Object.values(resellerStatus.data.administration)).toEqual(Array(9).fill(false))
+  expect(JSON.stringify(resellerStatus.data.administration)).not.toMatch(
+    /accept_charges|service_plan_ids|switch_account_id/,
+  )
   await expect(page.getByRole('heading', { name: 'Reseller administration' })).toBeVisible()
   await expect(page.getByText('Switch account role')).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Billing ownership' })).toBeVisible()
@@ -55,6 +84,17 @@ test('shows the selected account reseller boundary without mutation controls', a
   ).toBeVisible()
   await expect(page.getByRole('button', { name: 'Promote account', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Demote account', exact: true })).toHaveCount(0)
+  const administrationCapabilities = page.getByTestId('account-administration-capabilities')
+  await expect(administrationCapabilities).toBeVisible()
+  await expect(administrationCapabilities).toContainText('Lifecycle and billing operations')
+  await expect(administrationCapabilities.getByText('Unavailable', { exact: true })).toHaveCount(9)
+  await expect(page.getByRole('button', { name: /create account/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /move account/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /delete account/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /change limits/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /change service plans/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /top up/i })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: /reconcile/i })).toHaveCount(0)
 
   const currentAccount = page.getByRole('button', { name: 'Current account' })
   const originalAccountName = (await currentAccount.textContent())?.trim() ?? ''
@@ -75,7 +115,12 @@ test('shows the selected account reseller boundary without mutation controls', a
   if (descendantAccountName) {
     const [childHierarchyResponse, childResellerResponse] = await Promise.all([
       page.waitForResponse((response) => response.url().endsWith('/hierarchy')),
-      page.waitForResponse((response) => response.url().endsWith('/reseller')),
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().includes('/api/v1/accounts/') &&
+          response.url().endsWith('/reseller'),
+      ),
       page.getByRole('option', { name: descendantAccountName, exact: true }).click(),
     ])
     const childReseller = (await childResellerResponse.json()) as {
@@ -95,7 +140,12 @@ test('shows the selected account reseller boundary without mutation controls', a
 
     const [restoredHierarchyResponse, restoredResellerResponse] = await Promise.all([
       page.waitForResponse((response) => response.url().endsWith('/hierarchy')),
-      page.waitForResponse((response) => response.url().endsWith('/reseller')),
+      page.waitForResponse(
+        (response) =>
+          response.request().method() === 'GET' &&
+          response.url().includes('/api/v1/accounts/') &&
+          response.url().endsWith('/reseller'),
+      ),
       currentAccount
         .click()
         .then(() => page.getByRole('option', { name: originalAccountName, exact: true }).click()),

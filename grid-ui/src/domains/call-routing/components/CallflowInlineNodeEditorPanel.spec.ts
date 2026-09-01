@@ -10,6 +10,220 @@ const stubs = {
 }
 
 describe('CallflowInlineNodeEditorPanel', () => {
+  it('keeps multiple Pivot profiles selectable and submits the selected public profile only', async () => {
+    const firstProfileId = '11111111-1111-4111-8111-111111111111'
+    const secondProfileId = '22222222-2222-4222-8222-222222222222'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'pivot',
+      node: {
+        module: 'menu',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      pivot_endpoints: [
+        {
+          id: firstProfileId,
+          label: 'Customer service IVR',
+          methods: ['get'],
+          formats: ['kazoo'],
+        },
+        {
+          id: secondProfileId,
+          label: 'After-hours application',
+          methods: ['post'],
+          formats: ['twiml'],
+        },
+      ],
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    const profile = wrapper
+      .findAllComponents(FormListbox)
+      .find((component) => component.props('ariaLabel') === 'Voice application')
+    expect(profile?.props('options')).toEqual([
+      expect.objectContaining({ value: firstProfileId, label: 'Customer service IVR' }),
+      expect.objectContaining({ value: secondProfileId, label: 'After-hours application' }),
+    ])
+
+    profile!.vm.$emit('update:modelValue', secondProfileId)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'pivot',
+      data: {
+        endpoint_id: secondProfileId,
+        method: 'post',
+        req_format: 'twiml',
+        skip_module: false,
+      },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('https://')
+  })
+
+  it('submits only a public DISA access-policy UUID and never exposes its PIN', async () => {
+    const policyId = '77777777-7777-4777-8777-777777777777'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'disa',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      disa_access_policies: [
+        {
+          id: policyId,
+          label: 'After-hours access',
+          retries: 2,
+          interdigit_ms: 2500,
+          max_digits: 12,
+          preconnect_audio: 'dialtone',
+        },
+      ],
+      disa_operational_safety: {
+        ready: true,
+        adapter: 'test-sbc',
+        ingress_guard_available: true,
+        persistent_lockout_available: true,
+        rate_limit_available: true,
+        concurrency_limit_available: true,
+        destination_policy_available: true,
+        redacted_monitoring_available: true,
+        emergency_stop_available: true,
+        emergency_stop_active: false,
+        reason: null,
+      },
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('The PIN stays encrypted server-side')
+    expect(wrapper.text()).toContain('Operational ingress guard ready')
+    const policy = wrapper
+      .findAllComponents(FormListbox)
+      .find((component) => component.props('ariaLabel') === 'DISA access policy')
+    expect(policy?.props('options')).toEqual([
+      expect.objectContaining({
+        value: policyId,
+        description: '2 attempts · up to 12 destination digits',
+      }),
+    ])
+    policy!.vm.$emit('update:modelValue', policyId)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'disa',
+      data: { access_policy_id: policyId, skip_module: false },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('pin')
+  })
+
+  it('submits only an approved Webhook profile alias and schema-backed choices', async () => {
+    const endpointId = '11111111-1111-4111-8111-111111111111'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'webhook',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      webhook_endpoints: [
+        { id: endpointId, label: 'CRM events', methods: ['post'], max_retries: 3 },
+      ],
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    const endpoint = wrapper
+      .findAllComponents(FormListbox)
+      .find((component) => component.props('ariaLabel') === 'Webhook receiver')
+    endpoint!.vm.$emit('update:modelValue', endpointId)
+    await wrapper.vm.$nextTick()
+    await wrapper
+      .get('textarea[aria-label="Custom data (JSON object)"]')
+      .setValue('{"source":"support","priority":4}')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'webhook',
+      data: {
+        endpoint_id: endpointId,
+        http_verb: 'post',
+        retries: 1,
+        custom_data: { source: 'support', priority: 4 },
+        skip_module: false,
+      },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('events.example')
+  })
+
+  it('submits only the selected public Global Carrier profile UUID', async () => {
+    const profileId = '22222222-2222-4222-8222-222222222222'
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'offnet',
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const editor = {
+      carrier_routes: [
+        { id: profileId, label: 'System carriers', module: 'offnet', scope: 'global' },
+        {
+          id: '33333333-3333-4333-8333-333333333333',
+          label: 'Account resources',
+          module: 'resources',
+          scope: 'account',
+        },
+      ],
+    } as CallflowEditor
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, editor, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    const authorization = wrapper
+      .findAllComponents(FormListbox)
+      .find((component) => component.props('ariaLabel') === 'Carrier routing authorization')
+    expect(authorization?.props('options')).toHaveLength(1)
+    authorization!.vm.$emit('update:modelValue', profileId)
+    await wrapper.vm.$nextTick()
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'offnet',
+      data: { route_profile_id: profileId, skip_module: false },
+    })
+    expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('hunt_account_id')
+  })
+
   it('keeps a shared-module palette preset in the submitted Switch action', async () => {
     const context: CallflowNodeEditorContext = {
       operation: 'create',
@@ -95,6 +309,34 @@ describe('CallflowInlineNodeEditorPanel', () => {
       data: { action: 'toggle', skip_module: false },
     })
     expect(input.data).not.toHaveProperty('id')
+  })
+
+  it('submits the selected resource-free Call Forwarding action', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'call_forward',
+      preset: { action: 'update' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain("authenticated caller's owner")
+    expect(wrapper.text()).toContain('does not contain a destination number')
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'call_forward',
+      data: { action: 'update', skip_module: false },
+    })
   })
 
   it('shows Zod validation beside the invalid TTS control', async () => {

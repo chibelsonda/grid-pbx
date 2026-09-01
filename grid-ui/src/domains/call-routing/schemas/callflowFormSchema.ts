@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import {
+  callflowInlineRootModules,
   callflowDestinationTypes,
   callflowMenuBranchKeys,
   type CallflowCreateInput,
@@ -32,7 +33,7 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
       destination_id: z.string(),
       root_action: z
         .object({
-          module: z.literal('ring_group'),
+          module: z.enum(callflowInlineRootModules),
           data: z.record(z.string(), z.unknown()),
         })
         .nullable()
@@ -88,10 +89,11 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
     .strict()
     .superRefine((input, context) => {
       if (input.root_action) {
-        const rootResult = createCallflowInlineNodeFormSchema('ring_group', ['_'], true).safeParse({
-          branch: '_',
-          data: input.root_action.data,
-        })
+        const rootResult = createCallflowInlineNodeFormSchema(
+          input.root_action.module,
+          ['_'],
+          true,
+        ).safeParse({ branch: '_', data: input.root_action.data })
 
         if (!rootResult.success) {
           rootResult.error.issues.forEach((issue) => {

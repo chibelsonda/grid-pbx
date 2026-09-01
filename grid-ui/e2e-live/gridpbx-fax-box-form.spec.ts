@@ -40,7 +40,11 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
       body: JSON.stringify({
         ...emptyPage,
         capabilities: {
-          send: capability,
+          send: {
+            ...capability,
+            reason:
+              'URL retrieval has no hardened egress contract and HTTP 202 does not confirm conversion or delivery.',
+          },
           forward: capability,
           resubmit: capability,
           delete_message: capability,
@@ -74,6 +78,7 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
   await expect(page.getByRole('heading', { name: 'Fax boxes & history' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Fax message operations' })).toBeVisible()
   await expect(page.getByText('Policy gated', { exact: true })).toHaveCount(5)
+  await expect(page.getByText(/HTTP 202 does not confirm conversion or delivery/)).toBeVisible()
   await expect(page.getByRole('button', { name: /send|forward|resubmit|delete fax/i })).toHaveCount(
     0,
   )

@@ -744,7 +744,7 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('POST', $this->history[0]['request']->getMethod());
         self::assertSame('voicemail', $node['module']);
         self::assertSame(['id' => 'mailbox-1'], $node['data']);
-        self::assertSame([], $node['children']);
+        self::assertSame([], (array) $node['children']);
         self::assertArrayNotHasKey('_rev', $body['data']);
     }
 
@@ -2055,7 +2055,7 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('stop', $recordingChildren['_']['data']['action']);
     }
 
-    public function test_it_rejects_call_forward_writes_and_preserves_existing_private_data(): void
+    public function test_it_writes_call_forward_actions_and_preserves_existing_private_data(): void
     {
         $forwarding = [
             'module' => 'call_forward',
@@ -2094,15 +2094,42 @@ final class CallflowResourceClientTest extends TestCase
         );
         self::assertTrue($children['2']['data']['skip_module']);
 
-        $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('inline Switch callflow action is not supported');
-        CallflowInlineNodeWriteData::create(
+        $updatedForwarding = CallflowInlineNodeWriteData::update(
+            $current,
+            ['1'],
+            'call_forward',
+            ['action' => 'deactivate', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedForwardingChildren = (array) $updatedForwarding['flow']['children'];
+
+        self::assertSame(
+            [
+                'action' => 'deactivate',
+                'number' => '+15551234567',
+                'future_option' => ['preserve' => true],
+                'skip_module' => true,
+            ],
+            $updatedForwardingChildren['1']['data'],
+        );
+        self::assertSame(
+            'user',
+            ((array) $updatedForwardingChildren['1']['children'])['_']['module'],
+        );
+
+        $created = CallflowInlineNodeWriteData::create(
             $current,
             [],
             '3',
             'call_forward',
             ['action' => 'update', 'skip_module' => false],
+        )->toSwitchData();
+        $createdChildren = (array) $created['flow']['children'];
+
+        self::assertSame(
+            ['action' => 'update', 'skip_module' => false],
+            $createdChildren['3']['data'],
         );
+        self::assertSame($forwarding['data'], $createdChildren['1']['data']);
     }
 
     public function test_it_rejects_high_risk_writes_and_preserves_existing_private_data(): void
@@ -2207,29 +2234,202 @@ final class CallflowResourceClientTest extends TestCase
         }
         self::assertTrue($children['7']['data']['skip_module']);
 
-        foreach (['pivot', 'disa', 'offnet', 'resources', 'webhook', 'dynamic_cid'] as $module) {
-            try {
-                CallflowInlineNodeWriteData::create($current, [], '8', $module, []);
-                self::fail("Expected the {$module} action to be rejected.");
-            } catch (InvalidArgumentException $exception) {
-                self::assertSame(
-                    'The inline Switch callflow action is not supported.',
-                    $exception->getMessage(),
-                );
-            }
-        }
+        $dynamicCid = CallflowInlineNodeWriteData::create(
+            $current,
+            [],
+            '8',
+            'dynamic_cid',
+            [
+                'action' => 'static',
+                'caller_id' => ['name' => 'Support', 'number' => '+15551234567'],
+                'skip_module' => false,
+            ],
+        )->toSwitchData();
+        $dynamicCidChildren = (array) $dynamicCid['flow']['children'];
 
-        foreach (['5' => 'Webhook', '6' => 'Dynamic CID'] as $branch => $label) {
+        self::assertSame('dynamic_cid', $dynamicCidChildren['8']['module']);
+        self::assertSame(
+            ['action' => 'static', 'caller_id' => ['name' => 'Support', 'number' => '+15551234567'], 'skip_module' => false],
+            $dynamicCidChildren['8']['data'],
+        );
+    }
+
+    public function test_it_writes_only_a_bounded_disa_policy(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-root'],
+                'children' => [],
+            ],
+        ];
+        $settings = [
+            'pin' => '82736491',
+            'retries' => 2,
+            'interdigit' => 3000,
+            'max_digits' => 15,
+            'preconnect_audio' => 'dialtone',
+            'use_account_caller_id' => false,
+            'enforce_call_restriction' => true,
+            'skip_module' => false,
+        ];
+
+        $created = CallflowInlineNodeWriteData::create($base, [], '_', 'disa', $settings)
+            ->toSwitchData();
+        $node = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('disa', $node['module']);
+        self::assertSame($settings, $node['data']);
+
+        foreach ([
+            [...$settings, 'pin' => '1234'],
+            [...$settings, 'retries' => 4],
+            [...$settings, 'use_account_caller_id' => true],
+            [...$settings, 'enforce_call_restriction' => false],
+        ] as $unsafeSettings) {
             try {
-                CallflowInlineNodeWriteData::create($current, [(string) $branch], '_', 'hangup', []);
-                self::fail("Expected the {$label} subtree to remain locked.");
-            } catch (InvalidArgumentException $exception) {
-                self::assertSame(
-                    'This conditional action has preserved branches that cannot be edited.',
-                    $exception->getMessage(),
-                );
+                CallflowInlineNodeWriteData::create($base, [], '_', 'disa', $unsafeSettings);
+                self::fail('Expected the unsafe DISA policy to be rejected.');
+            } catch (InvalidArgumentException) {
+                self::assertTrue(true);
             }
         }
+    }
+
+    public function test_it_writes_an_allowlisted_pivot_and_preserves_unknown_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $settings = [
+            'voice_url' => 'https://voice.example.test/pivot',
+            'method' => 'post',
+            'req_format' => 'twiml',
+            'req_body_format' => 'json',
+            'cdr_url' => 'https://voice.example.test/cdr',
+            'debug' => false,
+            'req_timeout_ms' => 5000,
+            'custom_request_headers' => ['X-Pivot-Key' => 'server-owned'],
+            'skip_module' => false,
+        ];
+
+        $created = CallflowInlineNodeWriteData::create($base, [], '_', 'pivot', $settings)
+            ->toSwitchData();
+        $node = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('pivot', $node['module']);
+        self::assertSame($settings, $node['data']);
+        self::assertSame([], (array) $node['children']);
+
+        $node['data']['server_owned'] = ['preserve' => true];
+        $current = ['flow' => $base['flow']];
+        $current['flow']['children'] = ['_' => $node];
+        $updated = CallflowInlineNodeWriteData::update(
+            $current,
+            ['_'],
+            'pivot',
+            [...$settings, 'method' => 'get', 'req_format' => 'kazoo', 'skip_module' => true],
+        )->toSwitchData();
+        $updatedNode = ((array) $updated['flow']['children'])['_'];
+
+        self::assertSame('get', $updatedNode['data']['method']);
+        self::assertSame('kazoo', $updatedNode['data']['req_format']);
+        self::assertTrue($updatedNode['data']['skip_module']);
+        self::assertSame(['preserve' => true], $updatedNode['data']['server_owned']);
+    }
+
+    public function test_it_writes_a_schema_backed_webhook_and_allows_its_continuation_branch(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'user',
+                'data' => ['id' => 'user-root'],
+                'children' => [],
+            ],
+        ];
+        $settings = [
+            'uri' => 'https://events.example.test/calls',
+            'http_verb' => 'post',
+            'retries' => 2,
+            'custom_data' => ['source' => 'support', 'priority' => 4],
+            'skip_module' => false,
+        ];
+
+        $created = CallflowInlineNodeWriteData::create($base, [], '_', 'webhook', $settings)
+            ->toSwitchData();
+        $node = ((array) $created['flow']['children'])['_'];
+
+        self::assertSame('webhook', $node['module']);
+        self::assertSame($settings, $node['data']);
+
+        $continued = CallflowInlineNodeWriteData::create(
+            ['flow' => $node],
+            [],
+            '_',
+            'hangup',
+            ['skip_module' => false],
+        )->toSwitchData();
+
+        self::assertSame('hangup', ((array) $continued['flow']['children'])['_']['module']);
+    }
+
+    public function test_it_writes_only_bounded_terminal_carrier_settings(): void
+    {
+        $base = [
+            'flow' => [
+                'module' => 'menu',
+                'data' => ['id' => 'menu-root'],
+                'children' => [],
+            ],
+        ];
+
+        $offnet = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'offnet',
+            ['skip_module' => false],
+        )->toSwitchData();
+        $offnetNode = ((array) $offnet['flow']['children'])['_'];
+
+        self::assertSame('offnet', $offnetNode['module']);
+        self::assertSame(['skip_module' => false], $offnetNode['data']);
+
+        $resources = CallflowInlineNodeWriteData::create(
+            $base,
+            [],
+            '_',
+            'resources',
+            ['hunt_account_id' => 'private-reseller-id', 'skip_module' => true],
+        )->toSwitchData();
+        $resourceNode = ((array) $resources['flow']['children'])['_'];
+
+        self::assertSame('resources', $resourceNode['module']);
+        self::assertSame('private-reseller-id', $resourceNode['data']['hunt_account_id']);
+        self::assertTrue($resourceNode['data']['skip_module']);
+
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('terminal action cannot preserve');
+        CallflowInlineNodeWriteData::create(
+            [
+                'flow' => [
+                    'module' => 'menu',
+                    'data' => ['id' => 'menu-root'],
+                    'children' => [
+                        '_' => ['module' => 'hangup', 'data' => [], 'children' => []],
+                    ],
+                ],
+            ],
+            [],
+            '_',
+            'offnet',
+            ['skip_module' => false],
+            'insert_before',
+        );
     }
 
     public function test_it_rejects_acdc_agent_writes(): void
@@ -2820,11 +3020,11 @@ final class CallflowResourceClientTest extends TestCase
             CallflowTreeNodeWriteData::create($current, [], 'match', 'user', 'user-1');
             self::fail('Absolute-mode checks must reject fixed reference branches.');
         } catch (InvalidArgumentException $exception) {
-            self::assertStringContainsString('Absolute-mode caller ID branches', $exception->getMessage());
+            self::assertStringContainsString('preserved branches that cannot be edited', $exception->getMessage());
         }
 
         $this->expectException(InvalidArgumentException::class);
-        $this->expectExceptionMessage('Absolute-mode caller ID branches');
+        $this->expectExceptionMessage('preserved branches that cannot be edited');
 
         CallflowInlineNodeWriteData::create(
             $current,

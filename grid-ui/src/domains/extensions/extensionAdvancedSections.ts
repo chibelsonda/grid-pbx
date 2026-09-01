@@ -11,21 +11,21 @@ export type ExtensionAdvancedSection =
   | 'metaflows'
 
 const sectionFields: Record<ExtensionAdvancedSection, readonly string[]> = {
-  'caller-id': ['caller_id'],
+  'caller-id': ['caller_id', 'presence_id'],
   options: [
     'language',
-    'presence_id',
     'call_waiting',
     'do_not_disturb',
     'contact_list',
     'caller_id_options',
+    'music_on_hold',
   ],
   'call-forward': ['call_forward'],
   password: ['password', 'password_confirmation', 'require_password_update'],
   recording: ['call_recording'],
   'hot-desking': ['hotdesk'],
   restrictions: ['call_restriction'],
-  media: ['media', 'music_on_hold', 'ringtones'],
+  media: ['media', 'ringtones'],
   'routing-profile': ['dial_plan', 'formatters', 'profile', 'pronounced_name'],
   metaflows: ['metaflows'],
 }

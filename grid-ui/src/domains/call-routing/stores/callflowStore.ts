@@ -5,6 +5,7 @@ import type {
   Callflow,
   CallflowCreateInput,
   CallflowEditor,
+  CallflowEntryPointsUpdate,
   CallflowFilters,
   CallflowTreeMoveInput,
   CallflowTreeReorderInput,
@@ -42,6 +43,9 @@ export const useCallflowStore = defineStore('call-routing', {
     treeNodeSaving: false,
     treeNodeError: null as string | null,
     treeNodeFieldErrors: {} as Record<string, string[]>,
+    entryPointSaving: false,
+    entryPointError: null as string | null,
+    entryPointFieldErrors: {} as Record<string, string[]>,
     synchronizing: false,
     error: null as string | null,
     detailError: null as string | null,
@@ -49,9 +53,11 @@ export const useCallflowStore = defineStore('call-routing', {
     fieldErrors: {} as Record<string, string[]>,
     mutationError: null as string | null,
     treeMutationError: null as string | null,
+    capabilityRefreshSequence: 0,
   }),
   actions: {
     reset(): void {
+      this.capabilityRefreshSequence += 1
       this.records = []
       this.detail = null
       this.editor = null
@@ -71,6 +77,9 @@ export const useCallflowStore = defineStore('call-routing', {
       this.treeEditorLoading = false
       this.treeNodeError = null
       this.treeNodeFieldErrors = {}
+      this.entryPointSaving = false
+      this.entryPointError = null
+      this.entryPointFieldErrors = {}
     },
     async load(accountId: string, page = 1): Promise<void> {
       this.loading = true
@@ -117,10 +126,12 @@ export const useCallflowStore = defineStore('call-routing', {
       }
     },
     closeDetail(): void {
+      this.capabilityRefreshSequence += 1
       this.detail = null
       this.detailError = null
     },
     async openEditor(accountId: string, callflowId: string): Promise<void> {
+      this.capabilityRefreshSequence += 1
       this.editorOpen = true
       this.editor = null
       this.editorError = null
@@ -138,6 +149,7 @@ export const useCallflowStore = defineStore('call-routing', {
       }
     },
     async openCreateEditor(accountId: string): Promise<void> {
+      this.capabilityRefreshSequence += 1
       this.detail = null
       this.editorOpen = true
       this.editor = null
@@ -155,7 +167,40 @@ export const useCallflowStore = defineStore('call-routing', {
         this.editorLoading = false
       }
     },
+    async refreshCapabilityOptions(
+      accountId: string,
+      callflowId: string | null,
+    ): Promise<boolean> {
+      const refreshSequence = ++this.capabilityRefreshSequence
+
+      try {
+        const refreshed = callflowId
+          ? await callflowApi.editor(accountId, callflowId)
+          : await callflowApi.createEditor(accountId)
+        if (refreshSequence !== this.capabilityRefreshSequence) return false
+
+        const current = callflowId ? this.treeEditor : this.editor
+
+        if (current) Object.assign(current, refreshed)
+        else if (callflowId) this.treeEditor = refreshed
+        else this.editor = refreshed
+
+        return true
+      } catch (error) {
+        if (refreshSequence !== this.capabilityRefreshSequence) return false
+
+        const message = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to refresh Callflow capabilities.')
+          : 'Unable to refresh Callflow capabilities.'
+
+        if (callflowId) this.treeNodeError = message
+        else this.editorError = message
+
+        return false
+      }
+    },
     closeEditor(): void {
+      this.capabilityRefreshSequence += 1
       this.editorOpen = false
       this.editor = null
       this.editorError = null
@@ -190,6 +235,38 @@ export const useCallflowStore = defineStore('call-routing', {
         return null
       } finally {
         this.saving = false
+      }
+    },
+    async updateEntryPoints(
+      accountId: string,
+      callflowId: string,
+      input: CallflowEntryPointsUpdate,
+    ): Promise<Callflow | null> {
+      this.entryPointSaving = true
+      this.entryPointError = null
+      this.entryPointFieldErrors = {}
+
+      try {
+        const updated = await callflowApi.updateEntryPoints(accountId, callflowId, input)
+        this.detail = updated
+        const index = this.records.findIndex((record) => record.id === updated.id)
+        if (index >= 0) this.records[index] = updated
+
+        return updated
+      } catch (error) {
+        this.entryPointFieldErrors = axios.isAxiosError(error)
+          ? (error.response?.data?.errors ?? {})
+          : {}
+        this.entryPointError =
+          Object.keys(this.entryPointFieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to add the callflow entry number.')
+              : 'Unable to add the callflow entry number.'
+
+        return null
+      } finally {
+        this.entryPointSaving = false
       }
     },
     async create(accountId: string, input: CallflowCreateInput): Promise<Callflow | null> {
@@ -272,6 +349,7 @@ export const useCallflowStore = defineStore('call-routing', {
       }
     },
     async loadTreeEditor(accountId: string, callflowId: string): Promise<boolean> {
+      this.capabilityRefreshSequence += 1
       this.treeEditor = null
       this.treeEditorLoading = true
       this.treeNodeError = null
@@ -321,7 +399,11 @@ export const useCallflowStore = defineStore('call-routing', {
       }
     },
     closeTreeEditor(): void {
+      this.capabilityRefreshSequence += 1
       this.treeEditor = null
+      this.clearTreeNodeErrors()
+    },
+    clearTreeNodeErrors(): void {
       this.treeNodeError = null
       this.treeNodeFieldErrors = {}
     },
@@ -390,7 +472,10 @@ export const useCallflowStore = defineStore('call-routing', {
         this.detail = updated
         const index = this.records.findIndex((record) => record.id === updated.id)
         if (index >= 0) this.records[index] = updated
-        this.closeTreeEditor()
+        // The editor also carries account-scoped action capabilities and safe
+        // resource choices used by the persistent palette. Keep it available
+        // after a node mutation; only the transient form errors are cleared.
+        this.clearTreeNodeErrors()
 
         return updated
       } catch (error) {

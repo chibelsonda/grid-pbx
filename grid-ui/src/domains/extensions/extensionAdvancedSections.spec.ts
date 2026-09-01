@@ -4,13 +4,13 @@ import { extensionAdvancedSectionForField } from './extensionAdvancedSections'
 describe('extensionAdvancedSectionForField', () => {
   it.each([
     ['caller_id.external.number', 'caller-id'],
-    ['presence_id', 'options'],
+    ['presence_id', 'caller-id'],
     ['call_forward.number', 'call-forward'],
     ['password_confirmation', 'password'],
     ['call_recording.outbound.offnet.enabled', 'recording'],
     ['hotdesk.pin', 'hot-desking'],
     ['call_restriction.international.action', 'restrictions'],
-    ['music_on_hold.media_id', 'media'],
+    ['music_on_hold.media_id', 'options'],
     ['pronounced_name.media_id', 'routing-profile'],
     ['metaflows.binding_digit', 'metaflows'],
   ])('maps %s to %s', (field, section) => {

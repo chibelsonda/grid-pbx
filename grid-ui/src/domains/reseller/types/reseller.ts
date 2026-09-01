@@ -1,3 +1,5 @@
+import type { AccountAdministrationCapabilities } from '../schemas/accountAdministrationCapabilitiesSchema'
+
 export type ResellerAccountSummary = {
   id: string
   name: string
@@ -99,6 +101,7 @@ export type ResellerStatus = {
     promote: ResellerMutationAvailability
     demote: ResellerMutationAvailability
   }
+  administration: AccountAdministrationCapabilities
 }
 
 export type DescendantOnboardingCandidate = {

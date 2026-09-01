@@ -191,6 +191,13 @@ test('keeps long slide-over actions visible while the panel content scrolls', as
   const removeKey = assignment.getByRole('button', { name: 'Remove key' })
   await expect(removeKey).toHaveCSS('color', 'rgb(217, 37, 80)')
   await expect(assignment).toHaveAttribute('data-key-category', /^(combo|feature)$/)
+  const positions = await panel
+    .getByTestId('line-key-assignment')
+    .evaluateAll((assignments) =>
+      assignments.map((element) => Number((element as HTMLElement).dataset.keyPosition)),
+    )
+  expect(positions).toEqual([...positions].sort((left, right) => left - right))
+  await expect(panel.locator('[data-key-category="combo"]').first()).toHaveClass(/border-sky-500/)
   expect(
     await assignment.evaluate((element) => {
       const style = getComputedStyle(element)

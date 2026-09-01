@@ -96,6 +96,24 @@ describe('callflow inline node form schema', () => {
       },
       hotdesk: { action: 'logout', skip_module: false },
       do_not_disturb: { action: 'toggle', skip_module: false },
+      call_forward: { action: 'update', skip_module: false },
+      pivot: {
+        endpoint_id: 'customer-ivr',
+        method: 'post',
+        req_format: 'twiml',
+        skip_module: false,
+      },
+      webhook: {
+        endpoint_id: '11111111-1111-4111-8111-111111111111',
+        http_verb: 'post',
+        retries: 2,
+        custom_data: { source: 'support', priority: 4 },
+        skip_module: false,
+      },
+      disa: {
+        access_policy_id: '11111111-1111-4111-8111-111111111111',
+        skip_module: false,
+      },
       page_group: {
         audio: 'one-way',
         device_ids: ['11111111-1111-4111-8111-111111111111'],
@@ -413,6 +431,130 @@ describe('callflow inline node form schema', () => {
       false,
     )
   })
+
+  it('accepts only the installed resource-free Call Forwarding actions', () => {
+    const schema = createCallflowInlineNodeFormSchema('call_forward', ['_'], true)
+    const base = { branch: '_', data: { action: 'update', skip_module: false } }
+
+    for (const action of ['activate', 'deactivate', 'update']) {
+      expect(schema.safeParse({ ...base, data: { ...base.data, action } }).success).toBe(true)
+    }
+    expect(
+      schema.safeParse({
+        ...base,
+        data: { ...base.data, number: '+15551234567' },
+      }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...base, data: { action: 'toggle', skip_module: false } }).success,
+    ).toBe(false)
+  })
+
+  it('accepts only a public Pivot endpoint alias and supported protocol choices', () => {
+    const schema = createCallflowInlineNodeFormSchema('pivot', ['_'], true)
+    const valid = {
+      branch: '_',
+      data: {
+        endpoint_id: 'customer-ivr',
+        method: 'post',
+        req_format: 'twiml',
+        skip_module: false,
+      },
+    } as const
+
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(
+      schema.safeParse({
+        ...valid,
+        data: { ...valid.data, endpoint_id: 'https://private.example/pivot' },
+      }).success,
+    ).toBe(false)
+    expect(schema.safeParse({ ...valid, data: { ...valid.data, method: 'put' } }).success).toBe(
+      false,
+    )
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, voice_url: 'https://attacker.test' } })
+        .success,
+    ).toBe(false)
+  })
+
+  it('accepts Dynamic CID only with a public account phone-number UUID', () => {
+    const schema = createCallflowInlineNodeFormSchema('dynamic_cid', ['_'], true)
+    const valid = {
+      branch: '_',
+      data: {
+        action: 'static',
+        phone_number_id: '11111111-1111-4111-8111-111111111111',
+        caller_id_name: 'Support',
+        skip_module: false,
+      },
+    } as const
+
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, phone_number_id: '+15551234567' } })
+        .success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, action: 'manual' } }).success,
+    ).toBe(false)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, caller_id_number: '+15551234567' } })
+        .success,
+    ).toBe(false)
+  })
+
+  it('accepts only a public Webhook profile and bounded schema data', () => {
+    const schema = createCallflowInlineNodeFormSchema('webhook', ['_'], true)
+    const valid = {
+      branch: '_',
+      data: {
+        endpoint_id: '11111111-1111-4111-8111-111111111111',
+        http_verb: 'post',
+        retries: 2,
+        custom_data: { source: 'support', priority: 4 },
+        skip_module: false,
+      },
+    } as const
+
+    expect(schema.safeParse(valid).success).toBe(true)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, endpoint_id: 'https://private.test' } })
+        .success,
+    ).toBe(false)
+    expect(schema.safeParse({ ...valid, data: { ...valid.data, retries: 6 } }).success).toBe(false)
+    expect(
+      schema.safeParse({ ...valid, data: { ...valid.data, uri: 'https://attacker.test' } }).success,
+    ).toBe(false)
+  })
+
+  it.each(['offnet', 'resources'] as const)(
+    'accepts only a public %s routing profile UUID',
+    (module) => {
+      const schema = createCallflowInlineNodeFormSchema(module, ['_'], true)
+      const valid = {
+        branch: '_',
+        data: {
+          route_profile_id: '11111111-1111-4111-8111-111111111111',
+          skip_module: false,
+        },
+      } as const
+
+      expect(schema.safeParse(valid).success).toBe(true)
+      expect(
+        schema.safeParse({
+          ...valid,
+          data: { ...valid.data, route_profile_id: 'raw-switch-account-id' },
+        }).success,
+      ).toBe(false)
+      expect(
+        schema.safeParse({
+          ...valid,
+          data: { ...valid.data, hunt_account_id: 'raw-switch-account-id' },
+        }).success,
+      ).toBe(false)
+    },
+  )
 
   it('accepts only public Queue UUIDs for installed ACDC Queue actions', () => {
     const schema = createCallflowInlineNodeFormSchema('acdc_queue', ['_'], true)

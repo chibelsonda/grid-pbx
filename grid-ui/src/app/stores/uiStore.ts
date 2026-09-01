@@ -1,11 +1,16 @@
 import { defineStore } from 'pinia'
+import { z } from 'zod'
 import { findShellTheme, type ShellThemeRegion } from '@/app/theme/themeCatalog'
 import type { AppNotificationInput, AppNotificationState } from '@/shared/types/appNotification'
 
 const themeStorageKey = 'gridpbx.shell-theme.v1'
 const sidebarStorageKey = 'gridpbx.sidebar-collapsed.v1'
+const sidebarBrandDisplayStorageKey = 'gridpbx.sidebar-brand-display.v1'
 const defaultThemeId = 'light'
 let notificationSequence = 0
+
+export const sidebarBrandDisplaySchema = z.enum(['logo-and-name', 'logo-only'])
+export type SidebarBrandDisplay = z.infer<typeof sidebarBrandDisplaySchema>
 
 type StoredThemePreferences = {
   header: string
@@ -35,12 +40,23 @@ function readSidebarCollapsed(): boolean {
   return typeof window !== 'undefined' && window.localStorage.getItem(sidebarStorageKey) === 'true'
 }
 
+function readSidebarBrandDisplay(): SidebarBrandDisplay {
+  if (typeof window === 'undefined') return 'logo-and-name'
+
+  const result = sidebarBrandDisplaySchema.safeParse(
+    window.localStorage.getItem(sidebarBrandDisplayStorageKey),
+  )
+
+  return result.success ? result.data : 'logo-and-name'
+}
+
 export const useUiStore = defineStore('ui', {
   state: () => {
     const storedThemes = readThemePreferences()
 
     return {
       sidebarCollapsed: readSidebarCollapsed(),
+      sidebarBrandDisplay: readSidebarBrandDisplay(),
       mobileSidebarOpen: false,
       themePanelOpen: false,
       headerTheme: storedThemes.header,
@@ -108,6 +124,12 @@ export const useUiStore = defineStore('ui', {
       this.sidebarCollapsed = collapsed
       if (typeof window !== 'undefined') {
         window.localStorage.setItem(sidebarStorageKey, String(collapsed))
+      }
+    },
+    setSidebarBrandDisplay(display: SidebarBrandDisplay): void {
+      this.sidebarBrandDisplay = display
+      if (typeof window !== 'undefined') {
+        window.localStorage.setItem(sidebarBrandDisplayStorageKey, display)
       }
     },
     toggleMobileSidebar(): void {

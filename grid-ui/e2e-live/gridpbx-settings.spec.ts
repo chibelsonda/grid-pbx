@@ -28,6 +28,7 @@ test('keeps personal settings honest, persistent, and responsive', async ({ page
     'Appearance',
     'Workspace',
     'Administration',
+    'Callflow integrations',
     'Access & security',
   ])
   const desktopNavigationBox = await settingsNavigation.boundingBox()
@@ -114,6 +115,41 @@ test('keeps personal settings honest, persistent, and responsive', async ({ page
   await page.getByRole('button', { name: 'Close theme customizer' }).click()
 
   await settingsNavigation.getByRole('tab', { name: 'Workspace' }).click()
+  const workspaceAccountSelect = page.getByRole('button', { name: 'Settings workspace account' })
+  const sidebarBrandDisplay = page.getByRole('button', { name: 'Sidebar branding display' })
+  const workspaceCard = page.locator('#workspace-preferences')
+  const workspaceAccountBox = await workspaceAccountSelect.boundingBox()
+  const sidebarBrandDisplayBox = await sidebarBrandDisplay.boundingBox()
+  const workspaceCardBox = await workspaceCard.boundingBox()
+  expect(workspaceAccountBox).not.toBeNull()
+  expect(sidebarBrandDisplayBox).not.toBeNull()
+  expect(workspaceCardBox).not.toBeNull()
+  expect(workspaceAccountBox!.width).toBeLessThan(workspaceCardBox!.width * 0.75)
+  expect(sidebarBrandDisplayBox!.width).toBeLessThan(workspaceAccountBox!.width)
+  const initialBrandDisplay = (await sidebarBrandDisplay.textContent())?.trim() ?? ''
+  const alternateBrandDisplay =
+    initialBrandDisplay === 'Logo only' ? 'Logo and company name' : 'Logo only'
+  await sidebarBrandDisplay.click()
+  await page.getByRole('option', { name: new RegExp(alternateBrandDisplay) }).click()
+  await expect(sidebarBrandDisplay).toHaveText(alternateBrandDisplay)
+  if (alternateBrandDisplay === 'Logo only') {
+    await expect(page.locator('[data-sidebar-brand-name]')).toHaveCount(0)
+    const brandMark = page.locator('[data-sidebar-brand-mark]')
+    await expect(brandMark).toHaveAttribute('data-sidebar-brand-size', 'large')
+    const brandMarkBox = await brandMark.boundingBox()
+    const sidebarHeaderBox = await page.locator('[data-sidebar-header]').boundingBox()
+    expect(brandMarkBox).not.toBeNull()
+    expect(sidebarHeaderBox).not.toBeNull()
+    expect(brandMarkBox!.height / sidebarHeaderBox!.height).toBeGreaterThanOrEqual(0.75)
+  } else {
+    await expect(page.locator('[data-sidebar-brand-name]')).toBeVisible()
+  }
+  await page.reload()
+  await expect(sidebarBrandDisplay).toHaveText(alternateBrandDisplay)
+  await sidebarBrandDisplay.click()
+  await page.getByRole('option', { name: new RegExp(initialBrandDisplay) }).click()
+  await expect(sidebarBrandDisplay).toHaveText(initialBrandDisplay)
+
   const compactSidebar = page.getByRole('switch', { name: 'Use compact desktop sidebar' })
   const initialValue = await compactSidebar.getAttribute('aria-checked')
   await compactSidebar.click()
@@ -151,6 +187,349 @@ test('keeps personal settings honest, persistent, and responsive', async ({ page
     true,
   )
   await page.screenshot({ path: testInfo.outputPath('settings-mobile.png'), fullPage: true })
+})
+
+test('manages an account-scoped Pivot profile without rendering private configuration', async ({
+  page,
+}) => {
+  const accountId = '3dd5d4ea-e4a0-43ab-aad4-4e58621955ee'
+  const profileId = '9b8ce8fb-4055-4a99-815a-fd42fd40a81c'
+  const browserErrors: string[] = []
+  let submittedPayload: Record<string, unknown> | null = null
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => browserErrors.push(error.message))
+
+  await page.route('**/api/v1/accounts', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: accountId,
+            name: 'Integration Preview',
+            realm: 'integration.example.test',
+            timezone: 'Asia/Manila',
+            enabled: true,
+            organization: {
+              id: '6404891c-f514-4b71-a55a-9b2658e79326',
+              name: 'Preview Organization',
+            },
+            organization_role: 'account_administrator',
+            permissions: {
+              can_manage_extensions: true,
+              can_manage_devices: true,
+              can_manage_voicemail: true,
+              can_manage_call_routing: true,
+              can_manage_media: true,
+              can_sync_call_detail_records: true,
+              can_view_services: true,
+              can_manage_account_settings: true,
+              can_onboard_descendants: false,
+            },
+          },
+        ],
+      }),
+    })
+  })
+  await page.route(
+    `**/api/v1/accounts/${accountId}/callflow-integration-profiles`,
+    async (route) => {
+      if (route.request().method() === 'POST') {
+        submittedPayload = route.request().postDataJSON() as Record<string, unknown>
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              id: profileId,
+              integration_type: 'pivot',
+              name: 'Customer IVR',
+              is_active: true,
+              configuration: {
+                methods: ['post'],
+                formats: ['kazoo'],
+                has_cdr_callback: false,
+                has_custom_headers: true,
+              },
+              created_at: null,
+              updated_at: null,
+            },
+          }),
+        })
+        return
+      }
+
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ data: [] }),
+      })
+    },
+  )
+
+  await page.goto('/settings#callflow-integrations')
+  await expect(page.getByRole('heading', { name: 'Callflow integrations' })).toBeVisible()
+  await expect(page.getByText(/Only an active, valid, account-owned profile enables/)).toBeVisible()
+  await expect(page.getByText('No integration profiles configured')).toBeVisible()
+  await page.getByRole('button', { name: 'Add integration' }).click()
+  await page.getByRole('button', { name: 'Add Pivot profile' }).click()
+
+  const panel = page.getByRole('dialog', { name: 'Add Pivot profile' })
+  await expect(panel.getByText(/Pivot debug persistence is always disabled/)).toBeVisible()
+  await expect(panel.getByRole('switch', { name: /debug/i })).toHaveCount(0)
+  await panel.getByLabel('Profile name').fill('Customer IVR')
+  await panel.getByLabel('Voice URL').fill('https://voice.example.test/pivot')
+  await panel.getByRole('button', { name: 'Add header' }).click()
+  await panel.getByLabel('Header name').fill('X-Pivot-Key')
+  await panel.getByLabel('Header value').fill('private-secret')
+  await panel.getByRole('button', { name: 'Add profile' }).click()
+
+  await expect(panel).toBeHidden()
+  await expect(page.getByText('Customer IVR', { exact: true })).toBeVisible()
+  await expect(page.getByText('Private headers', { exact: true })).toBeVisible()
+  await expect(page.getByText('https://voice.example.test/pivot')).toHaveCount(0)
+  await expect(page.getByText('private-secret')).toHaveCount(0)
+  expect(submittedPayload).toMatchObject({
+    integration_type: 'pivot',
+    name: 'Customer IVR',
+    is_active: true,
+    settings: {
+      voice_url: 'https://voice.example.test/pivot',
+      methods: ['post'],
+      formats: ['kazoo'],
+      custom_request_headers: { 'X-Pivot-Key': 'private-secret' },
+    },
+  })
+  expect(JSON.stringify(submittedPayload)).not.toContain('"debug"')
+  expect(browserErrors).toEqual([])
+})
+
+test('manages an account-scoped Webhook profile without rendering its private URL', async ({
+  page,
+}) => {
+  const accountId = '3dd5d4ea-e4a0-43ab-aad4-4e58621955ee'
+  const profileId = 'ef72ad8e-aeb2-4e83-9b57-09f90f3f613a'
+  const browserErrors: string[] = []
+  let submittedPayload: Record<string, unknown> | null = null
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => browserErrors.push(error.message))
+
+  await page.route('**/api/v1/accounts', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: accountId,
+            name: 'Webhook Preview',
+            realm: 'webhook.example.test',
+            timezone: 'Asia/Manila',
+            enabled: true,
+            organization: {
+              id: '6404891c-f514-4b71-a55a-9b2658e79326',
+              name: 'Preview Organization',
+            },
+            organization_role: 'account_administrator',
+            permissions: {
+              can_manage_extensions: true,
+              can_manage_devices: true,
+              can_manage_voicemail: true,
+              can_manage_call_routing: true,
+              can_manage_media: true,
+              can_sync_call_detail_records: true,
+              can_view_services: true,
+              can_manage_account_settings: true,
+              can_onboard_descendants: false,
+            },
+          },
+        ],
+      }),
+    })
+  })
+  await page.route(
+    `**/api/v1/accounts/${accountId}/callflow-integration-profiles`,
+    async (route) => {
+      if (route.request().method() === 'POST') {
+        submittedPayload = route.request().postDataJSON() as Record<string, unknown>
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            data: {
+              id: profileId,
+              integration_type: 'webhook',
+              name: 'Call events',
+              is_active: true,
+              configuration: { methods: ['post'], max_retries: 3 },
+              created_at: null,
+              updated_at: null,
+            },
+          }),
+        })
+        return
+      }
+
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ data: [] }),
+      })
+    },
+  )
+
+  await page.goto('/settings#callflow-integrations')
+  await expect(page.getByRole('heading', { name: 'Callflow integrations' })).toBeVisible()
+  await page.getByRole('button', { name: 'Add integration' }).click()
+  await page.getByRole('button', { name: 'Add Webhook profile' }).click()
+
+  const panel = page.getByRole('dialog', { name: 'Add Webhook profile' })
+  await expect(panel.getByText(/Activating this profile enables the Webhook action/)).toBeVisible()
+  await panel.getByLabel('Profile name').fill('Call events')
+  await panel.getByLabel('Webhook URL').fill('https://events.example.test/calls')
+  await panel.getByRole('button', { name: 'Add profile' }).click()
+
+  await expect(panel).toBeHidden()
+  await expect(page.getByText('Call events', { exact: true })).toBeVisible()
+  await expect(page.getByText('Maximum attempts: 3', { exact: true })).toBeVisible()
+  await expect(page.getByText('https://events.example.test/calls')).toHaveCount(0)
+  expect(submittedPayload).toMatchObject({
+    integration_type: 'webhook',
+    name: 'Call events',
+    is_active: true,
+    settings: {
+      uri: 'https://events.example.test/calls',
+      methods: ['post'],
+      max_retries: 3,
+    },
+  })
+  expect(browserErrors).toEqual([])
+})
+
+test('manages Global and Account Carrier authorizations without exposing Switch identifiers', async ({
+  page,
+}) => {
+  const accountId = '3dd5d4ea-e4a0-43ab-aad4-4e58621955ee'
+  const browserErrors: string[] = []
+  const submittedPayloads: Record<string, unknown>[] = []
+  const profiles: Record<string, unknown>[] = []
+
+  page.on('console', (message) => {
+    if (message.type() === 'error') browserErrors.push(message.text())
+  })
+  page.on('pageerror', (error) => browserErrors.push(error.message))
+
+  await page.route('**/api/v1/accounts', async (route) => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: accountId,
+            name: 'Carrier Preview',
+            realm: 'carrier.example.test',
+            timezone: 'Asia/Manila',
+            enabled: true,
+            organization: {
+              id: '6404891c-f514-4b71-a55a-9b2658e79326',
+              name: 'Preview Organization',
+            },
+            organization_role: 'account_administrator',
+            permissions: {
+              can_manage_extensions: true,
+              can_manage_devices: true,
+              can_manage_voicemail: true,
+              can_manage_call_routing: true,
+              can_manage_media: true,
+              can_sync_call_detail_records: true,
+              can_view_services: true,
+              can_manage_account_settings: true,
+              can_onboard_descendants: false,
+            },
+          },
+        ],
+      }),
+    })
+  })
+  await page.route(
+    `**/api/v1/accounts/${accountId}/callflow-integration-profiles`,
+    async (route) => {
+      if (route.request().method() === 'POST') {
+        const payload = route.request().postDataJSON() as Record<string, unknown>
+        submittedPayloads.push(payload)
+        const integrationType = payload.integration_type as 'global_carrier' | 'account_carrier'
+        const profile = {
+          id:
+            integrationType === 'global_carrier'
+              ? '11111111-1111-4111-8111-111111111111'
+              : '22222222-2222-4222-8222-222222222222',
+          integration_type: integrationType,
+          name: payload.name,
+          is_active: true,
+          configuration: {
+            route_scope:
+              integrationType === 'global_carrier'
+                ? 'global'
+                : ((payload.settings as { scope: string }).scope ?? 'account'),
+          },
+          created_at: null,
+          updated_at: null,
+        }
+        profiles.push(profile)
+        await route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ data: profile }),
+        })
+        return
+      }
+
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify({ data: profiles }),
+      })
+    },
+  )
+
+  await page.goto('/settings#callflow-integrations')
+  await page.getByRole('button', { name: 'Add integration' }).click()
+  await page.getByRole('button', { name: 'Add Global carrier profile' }).click()
+  const globalPanel = page.getByRole('dialog', { name: 'Add Global Carrier profile' })
+  await globalPanel.getByLabel('Profile name').fill('System carrier authorization')
+  await globalPanel.getByRole('button', { name: 'Add profile' }).click()
+  await expect(globalPanel).toBeHidden()
+  await expect(page.getByText('Scope: global', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Add integration' }).click()
+  await page.getByRole('button', { name: 'Add Account carrier profile' }).click()
+  const accountPanel = page.getByRole('dialog', { name: 'Add Account Carrier profile' })
+  await accountPanel.getByLabel('Profile name').fill('Reseller carrier authorization')
+  await accountPanel.getByRole('button', { name: 'Carrier resource scope' }).click()
+  await page.getByRole('option', { name: /Projected reseller resources/ }).click()
+  await accountPanel.getByRole('button', { name: 'Add profile' }).click()
+  await expect(accountPanel).toBeHidden()
+  await expect(page.getByText('Scope: reseller', { exact: true })).toBeVisible()
+
+  expect(submittedPayloads).toEqual([
+    {
+      integration_type: 'global_carrier',
+      name: 'System carrier authorization',
+      is_active: true,
+      settings: {},
+    },
+    {
+      integration_type: 'account_carrier',
+      name: 'Reseller carrier authorization',
+      is_active: true,
+      settings: { scope: 'reseller' },
+    },
+  ])
+  expect(JSON.stringify(submittedPayloads)).not.toContain('hunt_account_id')
+  expect(JSON.stringify(submittedPayloads)).not.toContain('switch_account_id')
+  expect(browserErrors).toEqual([])
 })
 
 test('uploads and removes private organization branding through public account scope', async ({

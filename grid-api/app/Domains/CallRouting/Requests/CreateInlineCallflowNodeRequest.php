@@ -24,7 +24,8 @@ class CreateInlineCallflowNodeRequest extends FormRequest
                 'branch_bnumber',
                 'missed_call_alert',
                 'set_cid', 'prepend_cid', 'set_alert_info', 'check_cid', 'cidlistmatch',
-                'temporal_route', 'ring_group_toggle', 'acdc_queue', 'hotdesk', 'do_not_disturb',
+                'temporal_route', 'ring_group_toggle', 'acdc_queue', 'hotdesk', 'do_not_disturb', 'call_forward',
+                'dynamic_cid', 'pivot', 'webhook', 'disa', 'offnet', 'resources',
             ])],
             'data' => ['required', 'array'],
         ];

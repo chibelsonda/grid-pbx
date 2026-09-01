@@ -62,6 +62,177 @@ describe('CallflowActionPalette', () => {
     expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({ module: 'tts' })
   })
 
+  it.each([
+    ['Enable call forwarding', 'activate'],
+    ['Disable call forwarding', 'deactivate'],
+    ['Update call forwarding', 'update'],
+  ] as const)('starts a guided drag for %s', async (label, action) => {
+    const setData = vi.fn()
+    const wrapper = mount(CallflowActionPalette, { props: { dragEnabled: true } })
+
+    await wrapper.get('input[type="search"]').setValue(label)
+    await wrapper
+      .get(`[aria-label="Drag ${label} onto route"]`)
+      .trigger('dragstart', { dataTransfer: { setData, effectAllowed: 'none' } })
+
+    expect(setData).toHaveBeenCalledWith(
+      'application/x-gridpbx-callflow-action',
+      `call_forward[action=${action}]`,
+    )
+    expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({
+      module: 'call_forward',
+      action,
+      status: 'guided',
+    })
+  })
+
+  it('allows installed action variants when their typed module is valid at the root', async () => {
+    const wrapper = mount(CallflowActionPalette, {
+      props: { enabled: true, dragEnabled: true, rootOnly: true },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('Enable call forwarding')
+
+    const action = wrapper.get('[aria-label="Use Enable call forwarding as root action"]')
+    expect(action.attributes('disabled')).toBeUndefined()
+    expect(action.attributes('draggable')).toBe('true')
+  })
+
+  it('enables a capability-gated Pivot only when the server advertises it', async () => {
+    const setData = vi.fn()
+    const wrapper = mount(CallflowActionPalette, {
+      props: {
+        dragEnabled: true,
+        actionCapabilities: { pivot: { enabled: true, reason: null } },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('pivot')
+    await wrapper
+      .get('[aria-label="Drag Pivot onto route"]')
+      .trigger('dragstart', { dataTransfer: { setData, effectAllowed: 'none' } })
+
+    expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({
+      module: 'pivot',
+      status: 'guided',
+    })
+  })
+
+  it('enables Webhook only when the account has an approved endpoint profile', async () => {
+    const setData = vi.fn()
+    const wrapper = mount(CallflowActionPalette, {
+      props: {
+        dragEnabled: true,
+        actionCapabilities: { webhook: { enabled: true, reason: null } },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('webhook')
+    await wrapper
+      .get('[aria-label="Drag Webhook onto route"]')
+      .trigger('dragstart', { dataTransfer: { setData, effectAllowed: 'none' } })
+
+    expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({
+      module: 'webhook',
+      status: 'guided',
+    })
+  })
+
+  it('enables DISA only when the account has an approved access policy', async () => {
+    const setData = vi.fn()
+    const wrapper = mount(CallflowActionPalette, {
+      props: {
+        dragEnabled: true,
+        actionCapabilities: { disa: { enabled: true, reason: null } },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('disa')
+    await wrapper
+      .get('[aria-label="Drag DISA onto route"]')
+      .trigger('dragstart', { dataTransfer: { setData, effectAllowed: 'none' } })
+
+    expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({
+      module: 'disa',
+      status: 'guided',
+    })
+  })
+
+  it('keeps DISA non-interactive without an approved access policy', async () => {
+    const wrapper = mount(CallflowActionPalette, {
+      props: {
+        enabled: true,
+        dragEnabled: true,
+        actionCapabilities: {
+          disa: {
+            enabled: false,
+            reason:
+              'No active administrator-approved DISA access policy is configured for this account.',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('disa')
+
+    const action = wrapper.get(
+      'button[title*="No active administrator-approved DISA access policy"]',
+    )
+    expect(action.attributes('disabled')).toBeDefined()
+    expect(action.attributes('draggable')).toBe('false')
+  })
+
+  it('shows the server runtime-gate reason and keeps Webhook non-interactive', async () => {
+    const wrapper = mount(CallflowActionPalette, {
+      props: {
+        enabled: true,
+        dragEnabled: true,
+        actionCapabilities: {
+          webhook: {
+            enabled: false,
+            reason:
+              'No active administrator-approved Webhook profile is configured for this account.',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('webhook')
+
+    const action = wrapper.get('button[title*="No active administrator-approved Webhook profile"]')
+    expect(action.attributes('disabled')).toBeDefined()
+    expect(action.attributes('draggable')).toBe('false')
+    expect(wrapper.text()).toContain('Capability required')
+    expect(wrapper.emitted('choose')).toBeUndefined()
+    expect(wrapper.emitted('action-drag-start')).toBeUndefined()
+  })
+
+  it.each([
+    ['offnet', 'Global Carrier'],
+    ['resources', 'Account Carrier'],
+  ] as const)(
+    'enables %s only when the server advertises an approved profile',
+    async (module, label) => {
+      const setData = vi.fn()
+      const wrapper = mount(CallflowActionPalette, {
+        props: {
+          dragEnabled: true,
+          actionCapabilities: { [module]: { enabled: true, reason: null } },
+        },
+      })
+
+      await wrapper.get('input[type="search"]').setValue(label)
+      await wrapper
+        .get(`[aria-label="Drag ${label} onto route"]`)
+        .trigger('dragstart', { dataTransfer: { setData, effectAllowed: 'none' } })
+
+      expect(wrapper.emitted('action-drag-start')?.[0]?.[0]).toMatchObject({
+        module,
+        status: 'guided',
+      })
+    },
+  )
+
   it('puts the exact shared-module action identity in native drag data', async () => {
     const setData = vi.fn()
     const wrapper = mount(CallflowActionPalette, { props: { dragEnabled: true } })
@@ -79,14 +250,16 @@ describe('CallflowActionPalette', () => {
 
   it('exposes explicit move and dock controls for the floating palette', async () => {
     const wrapper = mount(CallflowActionPalette, {
-      props: { compact: true, movable: true, floating: true },
+      props: { compact: true, movable: true, collapsible: true, floating: true },
     })
 
     await wrapper.get('[aria-label="Move action palette"]').trigger('pointerdown')
     await wrapper.get('[aria-label="Dock action palette"]').trigger('click')
+    await wrapper.get('[aria-label="Collapse action catalog and route details"]').trigger('click')
 
     expect(wrapper.emitted('drag-start')).toHaveLength(1)
     expect(wrapper.emitted('dock')).toHaveLength(1)
+    expect(wrapper.emitted('collapse')).toHaveLength(1)
   })
 
   it('uses the dark callflow surface throughout the compact editor palette', () => {

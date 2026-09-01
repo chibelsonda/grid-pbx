@@ -344,7 +344,7 @@ function submit(): void {
     :title="panelTitle"
     :eyebrow="panelEyebrow"
     :description="panelDescription"
-    :width="panelView === 'extension' ? 'medium' : 'wide'"
+    width="extra-wide"
     :scroll-key="panelView"
     @close="emit('close')"
   >
@@ -446,6 +446,14 @@ function submit(): void {
           data-testid="extension-advanced-caller-id"
           class="contents"
         >
+          <ExtensionUserOptions
+            :model-value="userConfiguration"
+            :field-errors="displayErrors"
+            :language-options="languageOptions"
+            :presence-options="presenceOptions"
+            section="presence-id"
+            @update:model-value="updateUserConfiguration"
+          />
           <ExtensionAdvancedCallingSettings
             :model-value="advancedCalling"
             :field-errors="displayErrors"
@@ -470,7 +478,15 @@ function submit(): void {
             :field-errors="displayErrors"
             :language-options="languageOptions"
             :presence-options="presenceOptions"
+            section="options"
             @update:model-value="updateUserConfiguration"
+          />
+          <ExtensionMediaSettings
+            :model-value="advancedCalling"
+            :field-errors="displayErrors"
+            :media-options="options.media"
+            section="music-on-hold"
+            @update:model-value="updateExtendedAdvanced"
           />
         </div>
 
@@ -563,6 +579,7 @@ function submit(): void {
             :model-value="advancedCalling"
             :field-errors="displayErrors"
             :media-options="options.media"
+            section="media"
             @update:model-value="updateExtendedAdvanced"
           />
         </div>

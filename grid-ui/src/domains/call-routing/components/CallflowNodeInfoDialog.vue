@@ -2,7 +2,10 @@
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 
-defineProps<{ open: boolean; title: string; breadcrumb: string }>()
+withDefaults(
+  defineProps<{ open: boolean; title: string; breadcrumb: string; eyebrow?: string }>(),
+  { eyebrow: 'Callflow node' },
+)
 const emit = defineEmits<{ close: [] }>()
 </script>
 
@@ -38,7 +41,7 @@ const emit = defineEmits<{ close: [] }>()
               <header class="flex items-start gap-4 border-b border-slate-200 px-5 py-4 sm:px-6">
                 <div class="min-w-0">
                   <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
-                    Callflow node
+                    {{ eyebrow }}
                   </p>
                   <DialogTitle class="mt-1 text-lg font-semibold text-slate-800">
                     {{ title }}

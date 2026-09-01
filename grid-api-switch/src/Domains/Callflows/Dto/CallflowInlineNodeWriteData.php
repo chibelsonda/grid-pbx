@@ -57,6 +57,19 @@ final readonly class CallflowInlineNodeWriteData
         'acdc_queue' => ['action', 'id', 'skip_module'],
         'hotdesk' => ['action', 'skip_module'],
         'do_not_disturb' => ['action', 'skip_module'],
+        'call_forward' => ['action', 'skip_module'],
+        'dynamic_cid' => ['action', 'caller_id', 'skip_module'],
+        'pivot' => [
+            'voice_url', 'method', 'req_format', 'req_body_format', 'cdr_url', 'debug',
+            'req_timeout_ms', 'custom_request_headers', 'skip_module',
+        ],
+        'webhook' => ['uri', 'http_verb', 'retries', 'custom_data', 'skip_module'],
+        'disa' => [
+            'pin', 'retries', 'interdigit', 'max_digits', 'preconnect_audio',
+            'use_account_caller_id', 'enforce_call_restriction', 'skip_module',
+        ],
+        'offnet' => ['skip_module'],
+        'resources' => ['hunt_account_id', 'skip_module'],
     ];
 
     /**
@@ -129,8 +142,8 @@ final readonly class CallflowInlineNodeWriteData
             return;
         }
 
-        if ($this->path === [] && $this->module !== 'ring_group') {
-            throw new InvalidArgumentException('Only a supported Ring Group may be edited as an inline root action.');
+        if ($this->path === [] && ! in_array($this->module, ['ring_group', 'dynamic_cid'], true)) {
+            throw new InvalidArgumentException('Only a supported guided root action may be edited here.');
         }
         $node = $this->nodeAt($flow, $this->path, 'node');
 
@@ -337,6 +350,13 @@ final readonly class CallflowInlineNodeWriteData
             'acdc_queue' => $this->assertAcdcQueue(),
             'hotdesk' => $this->oneOf('action', ['login', 'logout', 'toggle']),
             'do_not_disturb' => $this->oneOf('action', ['activate', 'deactivate', 'toggle']),
+            'call_forward' => $this->oneOf('action', ['activate', 'deactivate', 'update']),
+            'dynamic_cid' => $this->assertDynamicCid(),
+            'pivot' => $this->assertPivot(),
+            'webhook' => $this->assertWebhook(),
+            'disa' => $this->assertDisa(),
+            'offnet' => null,
+            'resources' => $this->nullableString('hunt_account_id', 128),
         };
 
         if (array_key_exists('skip_module', $this->settings) && ! is_bool($this->settings['skip_module'])) {
@@ -894,6 +914,101 @@ final readonly class CallflowInlineNodeWriteData
             || ! is_string($number) || $number === '' || strlen($number) > 64
             || strlen($userId) > 128) {
             throw new InvalidArgumentException('The inline action caller identity override is invalid.');
+        }
+    }
+
+    private function assertDynamicCid(): void
+    {
+        $this->oneOf('action', ['static']);
+        $callerId = $this->settings['caller_id'] ?? null;
+
+        if (! is_array($callerId)
+            || array_diff(array_keys($callerId), ['name', 'number']) !== []
+            || ! is_string($callerId['number'] ?? null)
+            || $callerId['number'] === ''
+            || strlen($callerId['number']) > 64
+            || (array_key_exists('name', $callerId)
+                && (! is_string($callerId['name']) || strlen($callerId['name']) > 128))) {
+            throw new InvalidArgumentException('The Dynamic CID caller identity is invalid.');
+        }
+    }
+
+    private function assertPivot(): void
+    {
+        $this->string('voice_url', 1, 2048);
+        $this->oneOf('method', ['get', 'post']);
+        $this->oneOf('req_format', ['kazoo', 'twiml']);
+        $this->oneOf('req_body_format', ['form', 'json']);
+        $this->nullableString('cdr_url', 2048);
+        $this->boolean('debug');
+        $this->integer('req_timeout_ms', 1, 5000);
+
+        $headers = $this->settings['custom_request_headers'] ?? null;
+        if ($headers === null) {
+            return;
+        }
+
+        if (! is_array($headers) || ($headers !== [] && array_is_list($headers)) || count($headers) > 20) {
+            throw new InvalidArgumentException('The Pivot request headers are invalid.');
+        }
+
+        foreach ($headers as $name => $value) {
+            if (! is_string($name)
+                || preg_match('/^X-[A-Za-z0-9-]{1,62}$/', $name) !== 1
+                || ! is_string($value)
+                || strlen($value) > 1024
+                || preg_match('/[\x00\r\n]/', $value) === 1) {
+                throw new InvalidArgumentException('The Pivot request headers are invalid.');
+            }
+        }
+    }
+
+    private function assertWebhook(): void
+    {
+        $this->string('uri', 1, 2048);
+        $this->oneOf('http_verb', ['get', 'post']);
+        $this->integer('retries', 1, 5);
+
+        $customData = $this->settings['custom_data'] ?? null;
+
+        if (is_object($customData)) {
+            $customData = get_object_vars($customData);
+        }
+
+        if (! is_array($customData)
+            || ($customData !== [] && array_is_list($customData))
+            || count($customData) > 20) {
+            throw new InvalidArgumentException('The Webhook custom data is invalid.');
+        }
+
+        foreach ($customData as $key => $value) {
+            if (! is_string($key)
+                || preg_match('/^[A-Za-z0-9_.-]{1,64}$/', $key) !== 1
+                || (! is_string($value) && ! is_int($value) && ! is_float($value) && ! is_bool($value))
+                || (is_string($value) && (strlen($value) > 1024 || preg_match('/[\x00\r\n]/', $value) === 1))) {
+                throw new InvalidArgumentException('The Webhook custom data is invalid.');
+            }
+        }
+    }
+
+    private function assertDisa(): void
+    {
+        $this->string('pin', 8, 12);
+
+        if (preg_match('/^\d{8,12}$/', $this->settings['pin']) !== 1) {
+            throw new InvalidArgumentException('The DISA credential is invalid.');
+        }
+
+        $this->integer('retries', 1, 3);
+        $this->integer('interdigit', 1000, 5000);
+        $this->integer('max_digits', 3, 15);
+        $this->oneOf('preconnect_audio', ['dialtone', 'ringing']);
+        $this->boolean('use_account_caller_id');
+        $this->boolean('enforce_call_restriction');
+
+        if ($this->settings['use_account_caller_id'] !== false
+            || $this->settings['enforce_call_restriction'] !== true) {
+            throw new InvalidArgumentException('The DISA security policy cannot be weakened.');
         }
     }
 

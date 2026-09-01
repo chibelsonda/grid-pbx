@@ -9,6 +9,7 @@ use App\Domains\CallDetailRecords\Controllers\CallDetailRecordSyncController;
 use App\Domains\CallerIdLists\Controllers\CallerIdListController;
 use App\Domains\CallerIdLists\Controllers\CallerIdListSyncController;
 use App\Domains\CallRouting\Controllers\CallflowController;
+use App\Domains\CallRouting\Controllers\CallflowIntegrationProfileController;
 use App\Domains\Conferences\Controllers\ConferenceController;
 use App\Domains\Conferences\Controllers\ConferenceOperationalControlController;
 use App\Domains\Conferences\Controllers\ConferenceParticipantController;
@@ -222,11 +223,19 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/phone-numbers', [PhoneNumberController::class, 'index']);
             Route::get('/phone-numbers/{phoneNumber}', [PhoneNumberController::class, 'show']);
             Route::get('/callflows', [CallflowController::class, 'index']);
+            Route::get('/callflow-integration-profiles', [CallflowIntegrationProfileController::class, 'index']);
+            Route::post('/callflow-integration-profiles', [CallflowIntegrationProfileController::class, 'store'])
+                ->middleware('throttle:6,1');
+            Route::put('/callflow-integration-profiles/{profile}', [CallflowIntegrationProfileController::class, 'update'])
+                ->middleware('throttle:6,1');
+            Route::delete('/callflow-integration-profiles/{profile}', [CallflowIntegrationProfileController::class, 'destroy'])
+                ->middleware('throttle:6,1');
             Route::get('/callflows/editor', [CallflowController::class, 'createOptions']);
             Route::post('/callflows', [CallflowController::class, 'store']);
             Route::get('/callflows/{callflow}/editor', [CallflowController::class, 'edit']);
             Route::get('/callflows/{callflow}', [CallflowController::class, 'show']);
             Route::put('/callflows/{callflow}', [CallflowController::class, 'update']);
+            Route::patch('/callflows/{callflow}/entry-points', [CallflowController::class, 'updateEntryPoints']);
             Route::patch('/callflows/{callflow}/tree', [CallflowController::class, 'moveNode']);
             Route::patch('/callflows/{callflow}/tree/order', [CallflowController::class, 'reorderNodes']);
             Route::post('/callflows/{callflow}/tree/nodes', [CallflowController::class, 'createNode']);

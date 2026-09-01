@@ -10,6 +10,15 @@ import FormListbox from '@/shared/components/FormListbox.vue'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
 import SettingsPage from './SettingsPage.vue'
 
+vi.mock('@/domains/call-routing/api/callflowIntegrationProfileApi', () => ({
+  callflowIntegrationProfileApi: {
+    list: vi.fn().mockResolvedValue([]),
+    create: vi.fn(),
+    update: vi.fn(),
+    remove: vi.fn(),
+  },
+}))
+
 const permissions: Account['permissions'] = {
   can_manage_extensions: true,
   can_manage_devices: true,
@@ -89,6 +98,7 @@ describe('SettingsPage', () => {
       'Appearance',
       'Workspace',
       'Administration',
+      'Callflow integrations',
       'Access & security',
     ])
     expect(sectionTabs[0]?.attributes('aria-selected')).toBe('true')
@@ -106,6 +116,17 @@ describe('SettingsPage', () => {
     expect(wrapper.get('a[href="/accounts"]').text()).toContain('Account configuration')
     expect(wrapper.get('a[href="/system-status"]').text()).toContain('System status')
     expect(wrapper.get('a[href="/reseller"]').text()).toContain('Reseller administration')
+
+    await selectSettingsTab(wrapper, 'Callflow integrations')
+    expect(wrapper.get('#callflow-integrations').text()).toContain(
+      'No integration profiles configured',
+    )
+    expect(wrapper.get('#callflow-integrations').text()).toContain('Add integration')
+    expect(wrapper.get('#callflow-integrations').text()).not.toContain('Add Pivot profile')
+    expect(wrapper.get('#callflow-integrations').text()).not.toContain('Add Webhook profile')
+    expect(wrapper.get('#callflow-integrations').text()).not.toMatch(
+      /voice_url|custom_request_headers/,
+    )
   })
 
   it('selects only a mapped public account reference through the shared listbox', async () => {
@@ -116,6 +137,7 @@ describe('SettingsPage', () => {
       .find((listbox) => listbox.props('ariaLabel') === 'Settings workspace account')
 
     expect(accountSelector?.props('modelValue')).toBe('account-one')
+    expect(accountSelector?.attributes('class')).toContain('max-w-xl')
     expect(accountSelector?.props('options')).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ value: 'account-two', label: 'Branch Office' }),
@@ -140,6 +162,28 @@ describe('SettingsPage', () => {
     await wrapper.get('[role="switch"]').trigger('click')
     expect(ui.sidebarCollapsed).toBe(true)
     expect(window.localStorage.getItem('gridpbx.sidebar-collapsed.v1')).toBe('true')
+  })
+
+  it('persists the validated sidebar branding display preference', async () => {
+    const { ui, wrapper } = await mountPage()
+
+    await selectSettingsTab(wrapper, 'Workspace')
+    const brandingSelector = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Sidebar branding display')
+
+    expect(brandingSelector?.props('modelValue')).toBe('logo-and-name')
+    expect(brandingSelector?.attributes('class')).toContain('max-w-md')
+    expect(brandingSelector?.props('options')).toEqual([
+      expect.objectContaining({ value: 'logo-and-name', label: 'Logo and company name' }),
+      expect.objectContaining({ value: 'logo-only', label: 'Logo only' }),
+    ])
+
+    brandingSelector?.vm.$emit('update:modelValue', 'logo-only')
+    await wrapper.vm.$nextTick()
+
+    expect(ui.sidebarBrandDisplay).toBe('logo-only')
+    expect(window.localStorage.getItem('gridpbx.sidebar-brand-display.v1')).toBe('logo-only')
   })
 
   it('validates and saves only the application display name', async () => {

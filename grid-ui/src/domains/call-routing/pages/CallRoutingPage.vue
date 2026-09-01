@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  ArrowLeftIcon,
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
   BoltIcon,
@@ -14,10 +13,14 @@ import {
   XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import PageBackLink from '@/shared/components/PageBackLink.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallflowDetailPanel from '../components/CallflowDetailPanel.vue'
+import CallflowAddEntryNumberDialog, {
+  type CallflowEntryNumberAddition,
+} from '../components/CallflowAddEntryNumberDialog.vue'
 import CallflowEditorPanel from '../components/CallflowEditorPanel.vue'
 import CallflowInlineNodeEditorPanel from '../components/CallflowInlineNodeEditorPanel.vue'
 import CallflowNodeEditorPanel from '../components/CallflowNodeEditorPanel.vue'
@@ -26,6 +29,10 @@ import {
   isGuidedInlineCallflowModule,
 } from '../catalog/callflowActionCatalog'
 import { useCallflowStore } from '../stores/callflowStore'
+import {
+  listenForCallflowCapabilitiesChanged,
+  type CallflowCapabilitiesChanged,
+} from '../services/callflowCapabilityRefresh'
 import type {
   CallflowNodeEditorContext,
   CallflowCreateInput,
@@ -41,6 +48,8 @@ const accounts = useAccountStore()
 const route = useRoute()
 const callflows = useCallflowStore()
 const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
+const entryNumberOpen = ref(false)
+let stopCapabilityListener: (() => void) | null = null
 
 function nodeEditorAction(context: CallflowNodeEditorContext): unknown {
   return (
@@ -102,7 +111,10 @@ watch(
     callflows.reset()
     if (accountId) {
       void callflows.load(accountId, 1)
-      if (typeof callflowId === 'string') void callflows.loadDetail(accountId, callflowId)
+      if (typeof callflowId === 'string') {
+        void callflows.loadDetail(accountId, callflowId)
+        void callflows.loadTreeEditor(accountId, callflowId)
+      }
     }
   },
   { immediate: true },
@@ -122,7 +134,10 @@ function refreshCallflowNodes(): void {
 }
 
 function openDetail(id: string): void {
-  if (accounts.selectedId) void callflows.loadDetail(accounts.selectedId, id)
+  if (accounts.selectedId) {
+    void callflows.loadDetail(accounts.selectedId, id)
+    void callflows.loadTreeEditor(accounts.selectedId, id)
+  }
 }
 
 function closeWorkspace(): void {
@@ -136,9 +151,61 @@ function openEditor(): void {
   }
 }
 
+async function openEntryNumberDialog(): Promise<void> {
+  if (!accounts.selectedId || !callflows.detail) return
+
+  if (!callflows.treeEditor) {
+    const loaded = await callflows.loadTreeEditor(accounts.selectedId, callflows.detail.id)
+    if (!loaded) return
+  }
+
+  callflows.entryPointError = null
+  callflows.entryPointFieldErrors = {}
+  entryNumberOpen.value = true
+}
+
+async function addEntryNumber(addition: CallflowEntryNumberAddition): Promise<void> {
+  if (!accounts.selectedId || !callflows.detail || !callflows.treeEditor) return
+
+  const phoneNumberIds = callflows.treeEditor.phone_numbers
+    .filter(({ selected }) => selected)
+    .map(({ id }) => id)
+  const extensionNumbers = [...(callflows.treeEditor.extension_numbers ?? [])]
+
+  if (addition.type === 'phone_number') phoneNumberIds.push(addition.id)
+  else extensionNumbers.push(addition.value)
+
+  const callflowId = callflows.detail.id
+  const updated = await callflows.updateEntryPoints(accounts.selectedId, callflowId, {
+    phone_number_ids: [...new Set(phoneNumberIds)],
+    extension_numbers: [...new Set(extensionNumbers)],
+  })
+
+  if (!updated) return
+
+  entryNumberOpen.value = false
+  await callflows.loadTreeEditor(accounts.selectedId, callflowId)
+}
+
 function openCreateEditor(): void {
   if (accounts.selectedId) void callflows.openCreateEditor(accounts.selectedId)
 }
+
+function refreshCapabilities(change: CallflowCapabilitiesChanged): void {
+  if (change.accountId !== accounts.selectedId || !workspaceOpen.value) return
+
+  const callflowId = creatingRoute.value ? null : (callflows.detail?.id ?? null)
+  void callflows.refreshCapabilityOptions(change.accountId, callflowId)
+}
+
+onMounted(() => {
+  stopCapabilityListener = listenForCallflowCapabilitiesChanged(refreshCapabilities)
+})
+
+onBeforeUnmount(() => {
+  stopCapabilityListener?.()
+  stopCapabilityListener = null
+})
 
 function saveRoute(input: CallflowCreateInput): void {
   if (!accounts.selectedId) return
@@ -179,7 +246,7 @@ function openNodeEditor(context: CallflowNodeEditorContext): void {
     isGuidedInlineCallflowModule(context.module, nodeEditorAction(context)) &&
     !callflowInlineModuleNeedsEditorCatalog(context.module)
   ) {
-    callflows.closeTreeEditor()
+    callflows.clearTreeNodeErrors()
   } else {
     void callflows.loadTreeEditor(accounts.selectedId, callflows.detail.id)
   }
@@ -187,7 +254,7 @@ function openNodeEditor(context: CallflowNodeEditorContext): void {
 
 function closeNodeEditor(): void {
   nodeEditorContext.value = null
-  callflows.closeTreeEditor()
+  callflows.clearTreeNodeErrors()
 }
 
 async function saveTreeNode(
@@ -242,17 +309,15 @@ function routeTitle(route: {
     class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8"
   >
     <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
-      <button
-        v-if="viewingRoute"
-        type="button"
-        aria-label="Back to callflows"
-        class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-        @click="closeWorkspace"
-      >
-        <ArrowLeftIcon class="size-4" />
-      </button>
       <div class="min-w-0 flex-1">
-        <p class="mb-1 text-[11px] font-medium text-slate-400">{{ pageEyebrow }}</p>
+        <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+          <template v-if="viewingRoute">
+            <PageBackLink label="Back to callflows" @click="closeWorkspace" />
+            <span aria-hidden="true">/</span>
+            <span>Detail</span>
+          </template>
+          <template v-else>{{ pageEyebrow }}</template>
+        </p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">{{ pageTitle }}</h1>
         <p class="mt-1 text-xs text-slate-500">{{ pageDescription }}</p>
       </div>
@@ -340,8 +405,10 @@ function routeTitle(route: {
           :tree-moving="callflows.treeMoving"
           :tree-deleting="callflows.treeDeleting"
           :tree-mutation-error="callflows.treeMutationError"
+          :action-capabilities="callflows.treeEditor?.action_capabilities ?? {}"
           @delete="deleteRoute"
           @edit-entry="openEditor"
+          @add-entry="openEntryNumberDialog"
           @move-node="moveTreeNode"
           @reorder-nodes="reorderTreeNodes"
           @delete-node="deleteTreeNode"
@@ -573,6 +640,21 @@ function routeTitle(route: {
     :can-manage="canManage"
     @close="callflows.closeEditor"
     @save="saveRoute"
+  />
+  <CallflowAddEntryNumberDialog
+    v-if="callflows.treeEditor"
+    :open="entryNumberOpen"
+    :phone-numbers="callflows.treeEditor.phone_numbers"
+    :phone-number-ids="
+      callflows.treeEditor.phone_numbers.filter(({ selected }) => selected).map(({ id }) => id)
+    "
+    :extension-numbers="callflows.treeEditor.extension_numbers ?? []"
+    :preserved-numbers="callflows.treeEditor.preserved_numbers ?? []"
+    :saving="callflows.entryPointSaving"
+    :error="callflows.entryPointError"
+    :field-errors="callflows.entryPointFieldErrors"
+    @close="entryNumberOpen = false"
+    @add="addEntryNumber"
   />
   <CallflowNodeEditorPanel
     v-if="

@@ -35,6 +35,7 @@ const props = withDefaults(
     moving?: boolean
     dragSourcePath?: string[] | null
     paletteAction?: CallflowAction | null
+    capabilityGuidedModules?: string[]
   }>(),
   {
     depth: 1,
@@ -43,6 +44,7 @@ const props = withDefaults(
     moving: false,
     dragSourcePath: null,
     paletteAction: null,
+    capabilityGuidedModules: () => [],
   },
 )
 const emit = defineEmits<{
@@ -71,7 +73,8 @@ const movable = computed(
     !props.moving &&
     props.path.length > 0 &&
     props.node.branch?.kind !== 'preserved' &&
-    findCallflowAction(props.node.module)?.status === 'guided',
+    (findCallflowAction(props.node.module)?.status === 'guided' ||
+      props.capabilityGuidedModules.includes(props.node.module)),
 )
 const removable = computed(
   () =>
@@ -79,7 +82,8 @@ const removable = computed(
     !props.moving &&
     props.path.length > 0 &&
     props.node.branch?.kind !== 'preserved' &&
-    findCallflowAction(props.node.module)?.status === 'guided',
+    (findCallflowAction(props.node.module)?.status === 'guided' ||
+      props.capabilityGuidedModules.includes(props.node.module)),
 )
 const isDragSource = computed(() => samePath(props.path, props.dragSourcePath))
 const dropDecision = computed(() => decisionFor(props.paletteAction))
@@ -374,6 +378,7 @@ const branchClass = computed(() => {
             :moving="moving"
             :drag-source-path="dragSourcePath"
             :palette-action="paletteAction"
+            :capability-guided-modules="capabilityGuidedModules"
             @select="forwardSelection"
             @drag-start="emit('drag-start', $event)"
             @drag-end="emit('drag-end')"

@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftIcon,
   ArrowDownTrayIcon,
   EnvelopeIcon,
   KeyIcon,
@@ -18,6 +17,7 @@ import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
 import FormInput from '@/shared/components/FormInput.vue'
+import PageBackLink from '@/shared/components/PageBackLink.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import { voicemailApi } from '../api/voicemailApi'
@@ -178,13 +178,12 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
     <div class="page-container-narrow flex items-center gap-4">
-      <RouterLink
-        to="/voicemail"
-        class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:bg-brand-50 hover:text-brand-600"
-        ><ArrowLeftIcon class="size-4"
-      /></RouterLink>
       <div class="min-w-0">
-        <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Voicemail</p>
+        <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+          <PageBackLink label="Back to voicemail" to="/voicemail" />
+          <span aria-hidden="true">/</span>
+          <span>Detail</span>
+        </p>
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ voicemail.detail?.name ?? 'Voicemail box' }}
         </h1>

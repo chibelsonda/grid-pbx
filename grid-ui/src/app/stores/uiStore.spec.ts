@@ -94,6 +94,22 @@ describe('uiStore theme preferences', () => {
     expect(window.localStorage.getItem('gridpbx.sidebar-collapsed.v1')).toBe('false')
   })
 
+  it('persists a validated sidebar branding display preference', () => {
+    const ui = useUiStore()
+
+    ui.setSidebarBrandDisplay('logo-only')
+
+    expect(ui.sidebarBrandDisplay).toBe('logo-only')
+    expect(window.localStorage.getItem('gridpbx.sidebar-brand-display.v1')).toBe('logo-only')
+
+    setActivePinia(createPinia())
+    expect(useUiStore().sidebarBrandDisplay).toBe('logo-only')
+
+    window.localStorage.setItem('gridpbx.sidebar-brand-display.v1', 'untrusted-value')
+    setActivePinia(createPinia())
+    expect(useUiStore().sidebarBrandDisplay).toBe('logo-and-name')
+  })
+
   it('replaces global notifications and ignores stale dismiss timers', () => {
     const ui = useUiStore()
 

@@ -57,7 +57,7 @@ async function deleteDisposableRoute(page: Page, routeName: string): Promise<voi
   await viewRoute.click()
 
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-  const deleteRoute = workspace.getByRole('button', { name: 'Delete route' })
+  const deleteRoute = workspace.getByRole('button', { name: 'Delete callflow' })
 
   if (await deleteRoute.isDisabled()) {
     await workspace.getByRole('button', { name: 'Edit callflow' }).click()
@@ -78,13 +78,13 @@ async function deleteDisposableRoute(page: Page, routeName: string): Promise<voi
   }
 
   await deleteRoute.click()
-  const confirmation = page.getByRole('dialog', { name: 'Delete this route?' })
+  const confirmation = page.getByRole('dialog', { name: 'Delete this callflow?' })
   const deleteResponse = page.waitForResponse(
     (response) =>
       response.request().method() === 'DELETE' &&
       /\/api\/v1\/accounts\/[^/]+\/callflows\/[^/]+$/.test(new URL(response.url()).pathname),
   )
-  await confirmation.getByRole('button', { name: 'Delete route' }).click()
+  await confirmation.getByRole('button', { name: 'Delete callflow' }).click()
   expect((await deleteResponse).status()).toBe(204)
 }
 

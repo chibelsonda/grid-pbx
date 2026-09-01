@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { ChevronLeftIcon } from '@heroicons/vue/24/outline'
 
 withDefaults(
   defineProps<{
     title?: string
+    description?: string
     dockedClass?: string
   }>(),
   {
     title: 'Route structure',
-    dockedClass: 'xl:sticky xl:top-3',
+    dockedClass: 'w-full shadow-xl',
   },
 )
 
@@ -20,11 +22,13 @@ defineSlots<{
     floating: boolean
     startMoving: (event: PointerEvent) => void
     dock: () => void
+    collapse: () => void
   }): unknown
 }>()
 
 const paletteShell = ref<HTMLElement | null>(null)
 const paletteFloating = ref(false)
+const railCollapsed = ref(false)
 const palettePosition = ref({ left: 0, top: 0, width: 184 })
 let palettePointerOffset = { x: 0, y: 0 }
 
@@ -66,6 +70,15 @@ function dockPalette(): void {
   paletteFloating.value = false
 }
 
+function collapseRail(): void {
+  dockPalette()
+  railCollapsed.value = true
+}
+
+function expandRail(): void {
+  railCollapsed.value = false
+}
+
 const paletteStyle = computed(() =>
   paletteFloating.value
     ? {
@@ -81,39 +94,73 @@ onBeforeUnmount(stopMovingPalette)
 </script>
 
 <template>
-  <div
-    data-callflow-workspace-layout
-    class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_11.5rem] xl:items-start"
-  >
-    <section class="min-w-0">
+  <div data-callflow-workspace-layout class="grid min-w-0 gap-4">
+    <section data-callflow-canvas-shell class="relative min-w-0 overflow-hidden">
       <header
-        class="flex min-h-14 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-5"
+        class="flex min-h-14 flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-3 sm:px-6 lg:px-8"
       >
-        <h2 class="mr-auto text-sm font-semibold text-slate-700">{{ title }}</h2>
+        <div class="mr-auto">
+          <h2 class="text-sm font-semibold text-slate-700">{{ title }}</h2>
+          <p v-if="description" class="mt-0.5 text-[10px] text-slate-500">{{ description }}</p>
+        </div>
         <slot name="summary" />
       </header>
       <slot />
-    </section>
-
-    <aside class="grid min-w-0 gap-4">
       <div
-        ref="paletteShell"
-        data-callflow-palette-shell
-        :style="paletteStyle"
+        data-callflow-docked-rail
+        class="absolute top-32 right-4 z-20 grid min-w-0 transition-[width]"
         :class="
-          paletteFloating
-            ? 'fixed z-40 overflow-hidden rounded-lg shadow-2xl ring-1 ring-slate-300'
-            : dockedClass
+          railCollapsed
+            ? 'w-9 overflow-visible'
+            : 'max-h-[calc(100%_-_9rem)] w-[11.5rem] gap-3 overflow-x-hidden overflow-y-auto overscroll-contain pb-4'
         "
       >
-        <slot
-          name="palette"
-          :floating="paletteFloating"
-          :start-moving="startMovingPalette"
-          :dock="dockPalette"
-        />
+        <button
+          v-if="railCollapsed"
+          type="button"
+          aria-label="Expand action catalog and route details"
+          title="Show action catalog and route details"
+          aria-controls="callflow-docked-rail-content"
+          :aria-expanded="false"
+          class="grid size-9 place-items-center rounded-l-md border border-r-0 border-slate-700 bg-callflow-node text-slate-200 shadow-lg hover:bg-slate-800 hover:text-white"
+          @click="expandRail"
+        >
+          <ChevronLeftIcon class="size-4" />
+        </button>
+
+        <div
+          v-show="!railCollapsed"
+          id="callflow-docked-rail-content"
+          data-callflow-docked-rail-content
+          class="relative grid min-w-0 gap-3"
+        >
+          <div
+            ref="paletteShell"
+            data-callflow-palette-shell
+            :style="paletteStyle"
+            :class="
+              paletteFloating
+                ? 'fixed z-40 overflow-hidden rounded-lg shadow-2xl ring-1 ring-slate-300'
+                : ['min-w-0', dockedClass]
+            "
+          >
+            <slot
+              name="palette"
+              :floating="paletteFloating"
+              :start-moving="startMovingPalette"
+              :dock="dockPalette"
+              :collapse="collapseRail"
+            />
+          </div>
+
+          <aside
+            data-callflow-supporting-cards
+            class="grid min-w-0 grid-cols-1 gap-3 [&>*]:w-full [&>*]:min-w-0 [&>*]:break-words"
+          >
+            <slot name="sidebar" />
+          </aside>
+        </div>
       </div>
-      <slot name="sidebar" />
-    </aside>
+    </section>
   </div>
 </template>

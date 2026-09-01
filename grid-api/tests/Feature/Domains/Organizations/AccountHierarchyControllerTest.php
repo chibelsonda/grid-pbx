@@ -125,8 +125,26 @@ class AccountHierarchyControllerTest extends TestCase
             )
             ->assertJsonPath('data.mutations.promote.available', false)
             ->assertJsonPath('data.mutations.demote.available', false)
+            ->assertJsonPath('data.administration.account_creation_available', false)
+            ->assertJsonPath('data.administration.account_move_available', false)
+            ->assertJsonPath('data.administration.account_deletion_available', false)
+            ->assertJsonPath('data.administration.limit_mutations_available', false)
+            ->assertJsonPath('data.administration.service_plan_mutations_available', false)
+            ->assertJsonPath('data.administration.service_override_mutations_available', false)
+            ->assertJsonPath('data.administration.top_up_available', false)
+            ->assertJsonPath(
+                'data.administration.switch_service_synchronization_available',
+                false,
+            )
+            ->assertJsonPath(
+                'data.administration.switch_service_reconciliation_available',
+                false,
+            )
             ->assertJsonMissingPath('data.billing_reseller.switch_account_id')
-            ->assertJsonMissingPath('data.billing_reseller.account_id');
+            ->assertJsonMissingPath('data.billing_reseller.account_id')
+            ->assertJsonMissingPath('data.administration.accept_charges')
+            ->assertJsonMissingPath('data.administration.service_plan_ids')
+            ->assertJsonMissingPath('data.administration.switch_account_id');
     }
 
     public function test_hierarchy_includes_safe_descendant_service_ownership_and_projection_health(): void

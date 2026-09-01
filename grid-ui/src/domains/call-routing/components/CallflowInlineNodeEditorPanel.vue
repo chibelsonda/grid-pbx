@@ -183,6 +183,13 @@ const callerIdListOptions = computed<ListboxOptionValue[]>(() =>
     description: detail,
   })),
 )
+const dynamicCallerIdNumberOptions = computed<ListboxOptionValue[]>(() =>
+  (props.editor?.phone_numbers ?? []).map(({ id, number, state }) => ({
+    value: id,
+    label: number,
+    description: state ? `Account number · ${state.replaceAll('_', ' ')}` : 'Account number',
+  })),
+)
 const temporalRuleOptions = computed(() => props.editor?.temporal_rules ?? [])
 const callflowOptions = computed<ListboxOptionValue[]>(() =>
   (props.editor?.destinations.callflow ?? [])
@@ -200,6 +207,63 @@ const queueOptions = computed<ListboxOptionValue[]>(() =>
     description: detail,
   })),
 )
+const pivotEndpoints = computed(() => props.editor?.pivot_endpoints ?? [])
+const selectedPivotEndpoint = computed(() =>
+  pivotEndpoints.value.find(({ id }) => id === form.data.endpoint_id),
+)
+const pivotEndpointOptions = computed<ListboxOptionValue[]>(() =>
+  pivotEndpoints.value.map(({ id, label }) => ({ value: id, label })),
+)
+const pivotMethodOptions = computed<ListboxOptionValue[]>(() =>
+  (selectedPivotEndpoint.value?.methods ?? []).map((method) => ({
+    value: method,
+    label: method.toUpperCase(),
+  })),
+)
+const pivotFormatOptions = computed<ListboxOptionValue[]>(() =>
+  (selectedPivotEndpoint.value?.formats ?? []).map((format) => ({
+    value: format,
+    label: format === 'twiml' ? 'TwiML' : 'Kazoo Pivot',
+  })),
+)
+const webhookEndpoints = computed(() => props.editor?.webhook_endpoints ?? [])
+const selectedWebhookEndpoint = computed(() =>
+  webhookEndpoints.value.find(({ id }) => id === form.data.endpoint_id),
+)
+const webhookEndpointOptions = computed<ListboxOptionValue[]>(() =>
+  webhookEndpoints.value.map(({ id, label }) => ({ value: id, label })),
+)
+const webhookMethodOptions = computed<ListboxOptionValue[]>(() =>
+  (selectedWebhookEndpoint.value?.methods ?? []).map((method) => ({
+    value: method,
+    label: method.toUpperCase(),
+  })),
+)
+const disaAccessPolicies = computed(() => props.editor?.disa_access_policies ?? [])
+const disaOperationalSafety = computed(() => props.editor?.disa_operational_safety ?? null)
+const disaAccessPolicyOptions = computed<ListboxOptionValue[]>(() =>
+  disaAccessPolicies.value.map(({ id, label, retries, max_digits }) => ({
+    value: id,
+    label,
+    description: `${retries} attempts · up to ${max_digits} destination digits`,
+  })),
+)
+const carrierRouteOptions = computed<ListboxOptionValue[]>(() =>
+  (props.editor?.carrier_routes ?? [])
+    .filter(({ module: routeModule }) => routeModule === module.value)
+    .map(({ id, label, scope }) => ({
+      value: id,
+      label,
+      description:
+        scope === 'global'
+          ? 'Switch-managed global carrier pool'
+          : scope === 'reseller'
+            ? 'Nearest projected reseller resources'
+            : 'Current account resources',
+    })),
+)
+const webhookCustomDataJson = ref(JSON.stringify(form.data.custom_data ?? {}, null, 2))
+const webhookCustomDataError = ref<string | null>(null)
 const groupPickupOptions = computed<ListboxOptionValue[]>(() =>
   (
     [
@@ -230,6 +294,7 @@ const operationalModules = new Set([
   'acdc_queue',
   'hotdesk',
   'do_not_disturb',
+  'call_forward',
 ])
 const lockedReason = computed<string | null>(() => {
   if (props.context.operation !== 'update') return null
@@ -286,6 +351,18 @@ const lockedReason = computed<string | null>(() => {
     props.context.node.settings?.reference_status === 'unresolved'
   ) {
     return 'This Caller-ID List is not available in the current account projection. Synchronize Caller-ID Lists before editing this node.'
+  }
+  if (module.value === 'pivot' && props.context.node.settings?.supported_configuration !== true) {
+    return 'This Pivot node does not match an administrator-approved endpoint. GridPBX preserves its private URL, headers, and unsupported settings without exposing or rewriting them.'
+  }
+  if (
+    module.value === 'dynamic_cid' &&
+    props.context.node.settings?.supported_configuration !== true
+  ) {
+    return 'This Dynamic CID node uses manual entry, a Caller-ID List, or a number that is no longer projected under this account. GridPBX preserves the complete Switch node without exposing or rewriting its caller ID.'
+  }
+  if (module.value === 'disa' && props.context.node.settings?.supported_configuration !== true) {
+    return 'This DISA node does not match an active administrator-approved access policy. GridPBX preserves its private credential and unsupported settings without exposing or rewriting them.'
   }
   if (module.value !== 'check_cid') return null
   if (props.context.node.settings?.use_absolute_mode === true) {
@@ -453,6 +530,73 @@ function setAcdcQueue(value: ListboxValue): void {
   if (typeof value === 'string') form.data.queue_id = value
 }
 
+function setDynamicCallerIdNumber(value: ListboxValue): void {
+  if (typeof value === 'string') form.data.phone_number_id = value
+}
+
+function setPivotEndpoint(value: ListboxValue): void {
+  if (typeof value !== 'string') return
+  const endpoint = pivotEndpoints.value.find(({ id }) => id === value)
+  if (!endpoint) return
+
+  form.data.endpoint_id = endpoint.id
+  if (!endpoint.methods.includes(form.data.method ?? 'get')) {
+    form.data.method = endpoint.methods[0]
+  }
+  if (!endpoint.formats.includes(form.data.req_format ?? 'kazoo')) {
+    form.data.req_format = endpoint.formats[0]
+  }
+}
+
+function setPivotMethod(value: ListboxValue): void {
+  if (value === 'get' || value === 'post') form.data.method = value
+}
+
+function setPivotFormat(value: ListboxValue): void {
+  if (value === 'kazoo' || value === 'twiml') form.data.req_format = value
+}
+
+function setWebhookEndpoint(value: ListboxValue): void {
+  if (typeof value !== 'string') return
+  const endpoint = webhookEndpoints.value.find(({ id }) => id === value)
+  if (!endpoint) return
+
+  form.data.endpoint_id = endpoint.id
+  if (!endpoint.methods.includes(form.data.http_verb ?? 'post')) {
+    form.data.http_verb = endpoint.methods[0]
+  }
+  form.data.retries = Math.min(form.data.retries ?? 1, endpoint.max_retries)
+}
+
+function setWebhookMethod(value: ListboxValue): void {
+  if (value === 'get' || value === 'post') form.data.http_verb = value
+}
+
+function setDisaAccessPolicy(value: ListboxValue): void {
+  if (typeof value === 'string') form.data.access_policy_id = value
+}
+
+function setCarrierRoute(value: ListboxValue): void {
+  if (typeof value === 'string') form.data.route_profile_id = value
+}
+
+function parseWebhookCustomData(): boolean {
+  webhookCustomDataError.value = null
+
+  try {
+    const value: unknown = JSON.parse(webhookCustomDataJson.value || '{}')
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+      webhookCustomDataError.value = 'Enter a JSON object containing simple key/value pairs.'
+      return false
+    }
+    form.data.custom_data = value as Record<string, string | number | boolean>
+    return true
+  } catch {
+    webhookCustomDataError.value = 'Enter valid JSON custom data.'
+    return false
+  }
+}
+
 function setGroupPickupTarget(value: ListboxValue): void {
   if (typeof value !== 'string') return
 
@@ -523,6 +667,8 @@ function submit(): void {
     replacementError.value = 'Confirm that the existing next step will be replaced.'
     return
   }
+  if (module.value === 'webhook' && !parseWebhookCustomData()) return
+
   const input = validate()
   if (input) {
     if ('parent_path' in input && props.context.placement === 'replace') {
@@ -537,6 +683,8 @@ watch(
   () => {
     replacementConfirmed.value = false
     replacementError.value = null
+    webhookCustomDataJson.value = JSON.stringify(form.data.custom_data ?? {}, null, 2)
+    webhookCustomDataError.value = null
   },
 )
 </script>
@@ -671,6 +819,50 @@ watch(
           </div>
 
           <div
+            v-if="module === 'call_forward'"
+            class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+          >
+            Kazoo changes call forwarding for the authenticated caller's owner. This action does not
+            contain a destination number; activate and update collect or use the owner-level
+            forwarding configuration at call time. Keep it behind a trusted feature-code route.
+          </div>
+
+          <template v-if="module === 'dynamic_cid'">
+            <div
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+            >
+              Kazoo replaces the active caller ID for the remainder of this callflow. GridPBX only
+              permits a synchronized number owned by this account; arbitrary manual numbers and raw
+              Caller-ID List identifiers are never submitted by this form.
+            </div>
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-700">Caller-ID phone number</span>
+              <FormListbox
+                :model-value="form.data.phone_number_id ?? ''"
+                :options="dynamicCallerIdNumberOptions"
+                aria-label="Caller-ID phone number"
+                :invalid="Boolean(fieldError('data.phone_number_id'))"
+                placeholder="Select an account phone number"
+                @update:model-value="setDynamicCallerIdNumber"
+              />
+              <span
+                v-if="fieldError('data.phone_number_id')"
+                class="text-[10px] font-medium text-danger"
+              >
+                {{ fieldError('data.phone_number_id') }}
+              </span>
+            </label>
+            <FormInput
+              :model-value="form.data.caller_id_name ?? ''"
+              label="Caller-ID name"
+              description="Optional display name; carrier presentation rules still apply."
+              maxlength="128"
+              :error="fieldError('data.caller_id_name')"
+              @update:model-value="form.data.caller_id_name = String($event)"
+            />
+          </template>
+
+          <div
             v-if="module === 'acdc_queue'"
             class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
           >
@@ -748,6 +940,183 @@ watch(
               {{ fieldError('data.queue_id') }}
             </span>
           </label>
+
+          <template v-if="module === 'pivot'">
+            <div
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+            >
+              Pivot hands call control to an administrator-approved HTTPS application. Endpoint URLs
+              and authentication headers remain server-side and are never exposed in this form.
+            </div>
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-700">Voice application</span>
+              <FormListbox
+                :model-value="form.data.endpoint_id ?? ''"
+                :options="pivotEndpointOptions"
+                aria-label="Voice application"
+                :invalid="Boolean(fieldError('data.endpoint_id'))"
+                placeholder="Select an approved endpoint"
+                @update:model-value="setPivotEndpoint"
+              />
+            </label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-700">Request method</span>
+                <FormListbox
+                  :model-value="form.data.method ?? 'get'"
+                  :options="pivotMethodOptions"
+                  aria-label="Request method"
+                  :disabled="!selectedPivotEndpoint"
+                  :invalid="Boolean(fieldError('data.method'))"
+                  @update:model-value="setPivotMethod"
+                />
+              </label>
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-700">Response format</span>
+                <FormListbox
+                  :model-value="form.data.req_format ?? 'kazoo'"
+                  :options="pivotFormatOptions"
+                  aria-label="Response format"
+                  :disabled="!selectedPivotEndpoint"
+                  :invalid="Boolean(fieldError('data.req_format'))"
+                  @update:model-value="setPivotFormat"
+                />
+              </label>
+            </div>
+            <p v-if="fieldError('data.endpoint_id')" class="text-[10px] font-medium text-danger">
+              {{ fieldError('data.endpoint_id') }}
+            </p>
+          </template>
+
+          <template v-if="module === 'webhook'">
+            <div
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+            >
+              Webhook sends call context to an administrator-approved HTTPS receiver and then
+              continues the callflow. The private destination stays server-side.
+            </div>
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-700">Webhook receiver</span>
+              <FormListbox
+                :model-value="form.data.endpoint_id ?? ''"
+                :options="webhookEndpointOptions"
+                aria-label="Webhook receiver"
+                :invalid="Boolean(fieldError('data.endpoint_id'))"
+                placeholder="Select an approved endpoint"
+                @update:model-value="setWebhookEndpoint"
+              />
+            </label>
+            <div class="grid gap-4 sm:grid-cols-2">
+              <label class="grid gap-2">
+                <span class="text-xs font-semibold text-slate-700">Request method</span>
+                <FormListbox
+                  :model-value="form.data.http_verb ?? 'post'"
+                  :options="webhookMethodOptions"
+                  aria-label="Webhook request method"
+                  :disabled="!selectedWebhookEndpoint"
+                  :invalid="Boolean(fieldError('data.http_verb'))"
+                  @update:model-value="setWebhookMethod"
+                />
+              </label>
+              <FormInput
+                :model-value="form.data.retries ?? 1"
+                label="Attempts"
+                type="number"
+                min="1"
+                :max="selectedWebhookEndpoint?.max_retries ?? 5"
+                required
+                :error="fieldError('data.retries')"
+                :model-modifiers="{ number: true }"
+                @update:model-value="form.data.retries = Number($event)"
+              />
+            </div>
+            <FormTextarea
+              v-model="webhookCustomDataJson"
+              label="Custom data (JSON object)"
+              rows="6"
+              placeholder='{ "source": "support" }'
+              :error="webhookCustomDataError ?? fieldError('data.custom_data')"
+            />
+            <p v-if="fieldError('data.endpoint_id')" class="text-[10px] font-medium text-danger">
+              {{ fieldError('data.endpoint_id') }}
+            </p>
+          </template>
+
+          <template v-if="module === 'disa'">
+            <div
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+            >
+              DISA permits an authenticated caller to dial through this account. The PIN stays
+              encrypted server-side; account call restrictions are always enforced and the original
+              caller ID is retained.
+            </div>
+            <div
+              v-if="disaOperationalSafety"
+              class="rounded-md border p-4 text-[10px] leading-4"
+              :class="
+                disaOperationalSafety.ready
+                  ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                  : 'border-red-200 bg-red-50 text-red-800'
+              "
+            >
+              <strong class="block text-xs">
+                {{
+                  disaOperationalSafety.ready
+                    ? 'Operational ingress guard ready'
+                    : 'Operational ingress guard unavailable'
+                }}
+              </strong>
+              <span>
+                {{
+                  disaOperationalSafety.reason ??
+                  'Persistent lockout, rate and concurrency limits, destination policy, redacted monitoring, and emergency stop are enforced.'
+                }}
+              </span>
+            </div>
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-700">DISA access policy</span>
+              <FormListbox
+                :model-value="form.data.access_policy_id ?? ''"
+                :options="disaAccessPolicyOptions"
+                aria-label="DISA access policy"
+                :invalid="Boolean(fieldError('data.access_policy_id'))"
+                placeholder="Select an approved access policy"
+                @update:model-value="setDisaAccessPolicy"
+              />
+              <span
+                v-if="fieldError('data.access_policy_id')"
+                class="text-[10px] font-medium text-danger"
+              >
+                {{ fieldError('data.access_policy_id') }}
+              </span>
+            </label>
+          </template>
+
+          <template v-if="module === 'offnet' || module === 'resources'">
+            <div
+              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
+            >
+              This is a terminal outbound routing action. GridPBX submits only a public profile
+              reference; private carrier and reseller identifiers are resolved server-side.
+            </div>
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-700">Routing authorization</span>
+              <FormListbox
+                :model-value="form.data.route_profile_id ?? ''"
+                :options="carrierRouteOptions"
+                aria-label="Carrier routing authorization"
+                :invalid="Boolean(fieldError('data.route_profile_id'))"
+                placeholder="Select an approved carrier profile"
+                @update:model-value="setCarrierRoute"
+              />
+              <span
+                v-if="fieldError('data.route_profile_id')"
+                class="text-[10px] font-medium text-danger"
+              >
+                {{ fieldError('data.route_profile_id') }}
+              </span>
+            </label>
+          </template>
 
           <template v-if="module === 'sleep'">
             <div class="grid gap-4 sm:grid-cols-2">

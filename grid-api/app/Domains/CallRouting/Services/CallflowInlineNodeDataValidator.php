@@ -262,6 +262,43 @@ class CallflowInlineNodeDataValidator
                 'data.action' => ['required', 'string', Rule::in(['activate', 'deactivate', 'toggle'])],
                 'data.skip_module' => ['required', 'boolean'],
             ],
+            'call_forward' => [
+                'data' => ['required', 'array:action,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['activate', 'deactivate', 'update'])],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'dynamic_cid' => [
+                'data' => ['required', 'array:action,phone_number_id,caller_id_name,skip_module'],
+                'data.action' => ['required', 'string', Rule::in(['static'])],
+                'data.phone_number_id' => ['required', 'uuid'],
+                'data.caller_id_name' => ['present', 'nullable', 'string', 'max:128'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'pivot' => [
+                'data' => ['required', 'array:endpoint_id,method,req_format,skip_module'],
+                'data.endpoint_id' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9][a-z0-9_-]*$/'],
+                'data.method' => ['required', 'string', Rule::in(['get', 'post'])],
+                'data.req_format' => ['required', 'string', Rule::in(['kazoo', 'twiml'])],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'webhook' => [
+                'data' => ['required', 'array:endpoint_id,http_verb,retries,custom_data,skip_module'],
+                'data.endpoint_id' => ['required', 'uuid'],
+                'data.http_verb' => ['required', 'string', Rule::in(['get', 'post'])],
+                'data.retries' => ['required', 'integer', 'between:1,5'],
+                'data.custom_data' => ['present', 'array', 'max:20'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'disa' => [
+                'data' => ['required', 'array:access_policy_id,skip_module'],
+                'data.access_policy_id' => ['required', 'uuid'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
+            'offnet', 'resources' => [
+                'data' => ['required', 'array:route_profile_id,skip_module'],
+                'data.route_profile_id' => ['required', 'uuid'],
+                'data.skip_module' => ['required', 'boolean'],
+            ],
             default => throw ValidationException::withMessages([
                 'module' => ['This callflow action is not available in the guided editor.'],
             ]),

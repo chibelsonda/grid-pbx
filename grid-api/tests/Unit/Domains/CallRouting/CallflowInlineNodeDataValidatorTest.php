@@ -54,15 +54,87 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
     }
 
     #[Test]
-    public function it_rejects_capability_gated_call_forward_payloads(): void
+    public function it_accepts_only_schema_backed_call_forward_payloads(): void
     {
         $validator = app(CallflowInlineNodeDataValidator::class);
 
-        try {
-            $validator->validate('call_forward', ['action' => 'update', 'skip_module' => false]);
-            $this->fail('Call Forwarding must remain outside the guided mutation boundary.');
-        } catch (ValidationException $exception) {
-            $this->assertArrayHasKey('module', $exception->errors());
+        foreach (['activate', 'deactivate', 'update'] as $action) {
+            $this->assertSame(
+                ['action' => $action, 'skip_module' => false],
+                $validator->validate('call_forward', [
+                    'action' => $action,
+                    'skip_module' => false,
+                ]),
+            );
+        }
+
+        foreach ([
+            ['action' => 'toggle', 'skip_module' => false],
+            ['action' => 'activate', 'number' => '+15551234567', 'skip_module' => false],
+            ['action' => 'activate', 'id' => 'raw-user-id', 'skip_module' => false],
+        ] as $data) {
+            try {
+                $validator->validate('call_forward', $data);
+                $this->fail('Call Forwarding must reject unsupported actions and private fields.');
+            } catch (ValidationException) {
+                $this->assertTrue(true);
+            }
+        }
+    }
+
+    #[Test]
+    public function it_accepts_only_static_dynamic_cid_with_a_public_phone_number_reference(): void
+    {
+        $validator = app(CallflowInlineNodeDataValidator::class);
+        $phoneNumberId = '11111111-1111-4111-8111-111111111111';
+        $settings = [
+            'action' => 'static',
+            'phone_number_id' => $phoneNumberId,
+            'caller_id_name' => 'Support',
+            'skip_module' => false,
+        ];
+
+        $this->assertSame($settings, $validator->validate('dynamic_cid', $settings));
+
+        foreach ([
+            [...$settings, 'action' => 'manual'],
+            [...$settings, 'phone_number_id' => '+15551234567'],
+            [...$settings, 'caller_id_number' => '+15551234567'],
+        ] as $data) {
+            try {
+                $validator->validate('dynamic_cid', $data);
+                $this->fail('Dynamic CID must reject manual mode, raw numbers, and private fields.');
+            } catch (ValidationException) {
+                $this->assertTrue(true);
+            }
+        }
+    }
+
+    #[Test]
+    public function it_accepts_only_a_public_disa_policy_reference(): void
+    {
+        $validator = app(CallflowInlineNodeDataValidator::class);
+        $policyId = '11111111-1111-4111-8111-111111111111';
+
+        $this->assertSame(
+            ['access_policy_id' => $policyId, 'skip_module' => false],
+            $validator->validate('disa', [
+                'access_policy_id' => $policyId,
+                'skip_module' => false,
+            ]),
+        );
+
+        foreach ([
+            ['access_policy_id' => 'raw-switch-policy', 'skip_module' => false],
+            ['access_policy_id' => $policyId, 'pin' => '82736491', 'skip_module' => false],
+            ['access_policy_id' => $policyId, 'enforce_call_restriction' => false, 'skip_module' => false],
+        ] as $data) {
+            try {
+                $validator->validate('disa', $data);
+                $this->fail('DISA must reject raw credentials and browser-controlled security policy.');
+            } catch (ValidationException) {
+                $this->assertTrue(true);
+            }
         }
     }
 

@@ -107,22 +107,24 @@ describe('callflowActionCatalog', () => {
     expect(callflowInlineModuleNeedsEditorCatalog('group_pickup')).toBe(true)
     expect(callflowInlineModuleNeedsEditorCatalog('page_group')).toBe(true)
     expect(callflowInlineModuleNeedsEditorCatalog('missed_call_alert')).toBe(true)
+    expect(callflowInlineModuleNeedsEditorCatalog('dynamic_cid')).toBe(true)
+    expect(callflowInlineModuleNeedsEditorCatalog('pivot')).toBe(true)
     expect(callflowInlineModuleNeedsEditorCatalog('manual_presence')).toBe(false)
     expect(callflowInlineModuleNeedsEditorCatalog('device')).toBe(false)
   })
 
-  it('keeps audited high-risk actions gated and exposes resource-free actions', () => {
+  it('keeps capability-driven and high-risk actions fail-closed in the static catalog', () => {
     expect(findCallflowAction('pivot')).toMatchObject({
       status: 'restricted',
-      description: expect.stringContaining('allowlisted egress'),
+      description: expect.stringContaining('server-approved'),
     })
     expect(findCallflowAction('disa')).toMatchObject({
       status: 'restricted',
-      description: expect.stringContaining('mandatory PIN'),
+      description: expect.stringContaining('administrator-approved'),
     })
     expect(findCallflowAction('dynamic_cid')).toMatchObject({
-      status: 'restricted',
-      description: expect.stringContaining('anti-spoofing'),
+      status: 'guided',
+      description: expect.stringContaining('owned by this account'),
     })
     expect(findCallflowAction('offnet')).toMatchObject({
       status: 'restricted',
@@ -169,14 +171,15 @@ describe('callflowActionCatalog', () => {
     expect(callflowInlineModuleNeedsEditorCatalog('do_not_disturb')).toBe(false)
   })
 
-  it('keeps audited Call Forwarding actions capability-gated', () => {
+  it('exposes audited Call Forwarding operations as resource-free guided actions', () => {
     for (const action of ['activate', 'deactivate', 'update']) {
       expect(findCallflowAction('call_forward', action)).toMatchObject({
-        status: 'restricted',
-        description: expect.stringContaining('arbitrary destination'),
+        status: 'guided',
+        description: expect.stringContaining("authenticated caller's owner"),
       })
     }
-    expect(isGuidedInlineCallflowModule('call_forward', 'activate')).toBe(false)
+    expect(isGuidedInlineCallflowModule('call_forward', 'activate')).toBe(true)
+    expect(callflowInlineModuleNeedsEditorCatalog('call_forward')).toBe(false)
   })
 
   it('keeps audited ACDC Agent actions search-only and capability-gated', () => {
@@ -248,13 +251,9 @@ describe('callflowActionCatalog', () => {
     const restricted = actions.filter((action) => action.status === 'restricted')
 
     expect(actions).toHaveLength(49)
-    expect(guided).toHaveLength(40)
+    expect(guided).toHaveLength(44)
     expect(restricted.map((action) => action.id).sort()).toEqual([
-      'call_forward[action=activate]',
-      'call_forward[action=deactivate]',
-      'call_forward[action=update]',
       'disa',
-      'dynamic_cid',
       'offnet',
       'pivot',
       'resources',

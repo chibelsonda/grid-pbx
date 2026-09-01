@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftIcon,
   ArrowPathIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -20,6 +19,7 @@ import LineKeyPanel from '@/domains/line-keys/components/LineKeyPanel.vue'
 import { useLineKeyStore } from '@/domains/line-keys/stores/lineKeyStore'
 import type { LineKeyInput } from '@/domains/line-keys/types/lineKey'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
+import PageBackLink from '@/shared/components/PageBackLink.vue'
 import DeviceHotdeskPanel from '../components/DeviceHotdeskPanel.vue'
 import DeviceProvisioningEnrollmentPanel from '../components/DeviceProvisioningEnrollmentPanel.vue'
 import { supportsProvisioning } from '../deviceForm'
@@ -169,17 +169,11 @@ const confirmation = computed(() => {
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
     <div class="page-container flex flex-wrap items-start gap-4 sm:items-center">
-      <RouterLink
-        to="/devices"
-        class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
-        aria-label="Back to devices"
-      >
-        <ArrowLeftIcon class="size-4" />
-      </RouterLink>
       <div class="min-w-0 flex-1">
-        <p class="mb-1 text-[11px] font-medium text-slate-400">
-          <RouterLink to="/devices" class="hover:text-brand-600">GridPBX / Devices</RouterLink>
-          / Detail
+        <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+          <PageBackLink label="Back to devices" to="/devices" />
+          <span aria-hidden="true">/</span>
+          <span>Detail</span>
         </p>
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ device?.name ?? 'Device details' }}

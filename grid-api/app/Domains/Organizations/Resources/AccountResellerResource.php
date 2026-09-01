@@ -16,6 +16,7 @@ class AccountResellerResource extends JsonResource
             'billing_reseller_projected' => $this->resource['billing_reseller_projected'],
             'service_projection_last_synced_at' => $this->resource['service_projection_last_synced_at'],
             'mutations' => $this->resource['mutations'],
+            'administration' => $this->resource['administration'],
         ];
     }
 }

@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowLeftIcon,
   ArrowPathRoundedSquareIcon,
   CheckCircleIcon,
   ClockIcon,
@@ -16,6 +15,7 @@ import {
   UserIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import PageBackLink from '@/shared/components/PageBackLink.vue'
 import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
 import ExtensionDeletionPreviewPanel from '../components/ExtensionDeletionPreviewPanel.vue'
 import ExtensionEditPanel from '../components/ExtensionEditPanel.vue'
@@ -109,19 +109,11 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
 <template>
   <section class="border-b border-slate-200/80 bg-white py-5">
     <div class="page-container flex items-center gap-4">
-      <RouterLink
-        to="/extensions"
-        class="grid size-9 shrink-0 place-items-center rounded-md border border-slate-200 text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
-        aria-label="Back to extensions"
-      >
-        <ArrowLeftIcon class="size-4" />
-      </RouterLink>
       <div class="min-w-0">
-        <p class="mb-1 text-[11px] font-medium text-slate-400">
-          <RouterLink to="/extensions" class="hover:text-brand-600"
-            >GridPBX / People & Extensions</RouterLink
-          >
-          / Detail
+        <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
+          <PageBackLink label="Back to extensions" to="/extensions" />
+          <span aria-hidden="true">/</span>
+          <span>Detail</span>
         </p>
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ extension?.display_name ?? 'Extension details' }}

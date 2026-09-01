@@ -18,7 +18,8 @@ class OperationalStatusService
      *     webhooks: array{event_catalog_available: bool, available_event_count: int|null, configuration_summary_available: bool, configured_count: int|null, enabled_count: int|null, configuration_mutations_available: false, delivery_history_available: false},
      *     messaging: array{sms_inventory_available: bool, mms_inventory_available: bool, message_content_available: false, sending_available: false},
      *     number_porting: array{inventory_available: bool, request_details_available: false, documents_available: false, workflow_mutations_available: false},
-     *     number_management: array{carrier_configuration_available: bool, search_available: false, purchase_available: false, reservation_available: false, release_available: false}
+     *     number_management: array{carrier_configuration_available: bool, search_available: false, purchase_available: false, reservation_available: false, release_available: false},
+     *     connectivity: array{summary_available: bool, configured_pbx_count: int|null, local_resource_summary_available: bool, local_resource_count: int|null, configuration_mutations_available: false, resource_mutations_available: false, selector_mutations_available: false, limit_mutations_available: false, failover_mutations_available: false}
      * }
      */
     public function get(SwitchAccount $account): array
@@ -68,6 +69,17 @@ class OperationalStatusService
                         'purchase_available' => false,
                         'reservation_available' => false,
                         'release_available' => false,
+                    ],
+                    'connectivity' => [
+                        'summary_available' => $status['connectivity_summary_available'],
+                        'configured_pbx_count' => $status['connectivity_count'],
+                        'local_resource_summary_available' => $status['local_resource_summary_available'],
+                        'local_resource_count' => $status['local_resource_count'],
+                        'configuration_mutations_available' => false,
+                        'resource_mutations_available' => false,
+                        'selector_mutations_available' => false,
+                        'limit_mutations_available' => false,
+                        'failover_mutations_available' => false,
                     ],
                 ];
             },

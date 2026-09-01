@@ -78,6 +78,16 @@ final class OperationalStatusClientTest extends TestCase
                 'usable_creation_states' => ['available', 'in_service', 'reserved'],
                 'provider_credentials' => ['api_key' => 'private-carrier-key'],
             ]]),
+            $this->response(['data' => ['raw-connectivity-id']]),
+            $this->response(['data' => [[
+                'id' => 'raw-resource-id',
+                'name' => 'private-carrier-resource',
+                'gateways' => [[
+                    'server' => 'private-carrier.example.test',
+                    'username' => 'private-user',
+                    'password' => 'private-password',
+                ]],
+            ]]]),
         ]);
 
         $status = (new OperationalStatusClient($switch))->inspect('account/one')->toArray();
@@ -95,6 +105,10 @@ final class OperationalStatusClientTest extends TestCase
             'mms_inventory_available' => true,
             'port_request_inventory_available' => true,
             'number_carrier_configuration_available' => true,
+            'connectivity_summary_available' => true,
+            'connectivity_count' => 1,
+            'local_resource_summary_available' => true,
+            'local_resource_count' => 1,
         ], $status);
         self::assertSame('/v2/accounts/account%2Fone/presence', $this->history[0]['request']->getUri()->getPath());
         self::assertSame('/v2/accounts/account%2Fone/parked_calls', $this->history[1]['request']->getUri()->getPath());
@@ -107,6 +121,8 @@ final class OperationalStatusClientTest extends TestCase
         self::assertSame('/v2/accounts/account%2Fone/port_requests', $this->history[6]['request']->getUri()->getPath());
         self::assertSame('by_number=gridpbx-capability-probe', $this->history[6]['request']->getUri()->getQuery());
         self::assertSame('/v2/accounts/account%2Fone/phone_numbers/carriers_info', $this->history[7]['request']->getUri()->getPath());
+        self::assertSame('/v2/accounts/account%2Fone/connectivity', $this->history[8]['request']->getUri()->getPath());
+        self::assertSame('/v2/accounts/account%2Fone/resources', $this->history[9]['request']->getUri()->getPath());
         self::assertStringNotContainsString('private', json_encode($status, JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('raw-hook', json_encode($status, JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('raw-sms', json_encode($status, JSON_THROW_ON_ERROR));
@@ -114,6 +130,9 @@ final class OperationalStatusClientTest extends TestCase
         self::assertStringNotContainsString('raw-port', json_encode($status, JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('private-provider', json_encode($status, JSON_THROW_ON_ERROR));
         self::assertStringNotContainsString('private-carrier-key', json_encode($status, JSON_THROW_ON_ERROR));
+        self::assertStringNotContainsString('raw-connectivity', json_encode($status, JSON_THROW_ON_ERROR));
+        self::assertStringNotContainsString('raw-resource', json_encode($status, JSON_THROW_ON_ERROR));
+        self::assertStringNotContainsString('private-password', json_encode($status, JSON_THROW_ON_ERROR));
     }
 
     public function test_it_fails_each_probe_closed_without_hiding_other_results(): void
@@ -131,6 +150,8 @@ final class OperationalStatusClientTest extends TestCase
                 'usable_carriers' => 'invalid',
                 'usable_creation_states' => [],
             ]]),
+            $this->response(['data' => [null]]),
+            $this->response(['data' => []]),
         ]);
 
         self::assertSame([
@@ -146,6 +167,10 @@ final class OperationalStatusClientTest extends TestCase
             'mms_inventory_available' => true,
             'port_request_inventory_available' => false,
             'number_carrier_configuration_available' => false,
+            'connectivity_summary_available' => false,
+            'connectivity_count' => null,
+            'local_resource_summary_available' => true,
+            'local_resource_count' => 0,
         ], (new OperationalStatusClient($switch))->inspect('account-1')->toArray());
     }
 

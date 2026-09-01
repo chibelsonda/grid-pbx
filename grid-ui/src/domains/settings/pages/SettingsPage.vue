@@ -11,17 +11,19 @@ import {
   RectangleGroupIcon,
   ShieldCheckIcon,
   SignalIcon,
+  SquaresPlusIcon,
   SwatchIcon,
   TrashIcon,
   UserCircleIcon,
 } from '@heroicons/vue/24/outline'
-import { useUiStore } from '@/app/stores/uiStore'
+import { sidebarBrandDisplaySchema, useUiStore } from '@/app/stores/uiStore'
 import { findShellTheme } from '@/app/theme/themeCatalog'
 import { accountRoleLabel } from '@/domains/accounts/accountRole'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import type { Account } from '@/domains/accounts/types/account'
 import { profileFormSchema } from '@/domains/auth/schemas/profileFormSchema'
 import { useAuthStore } from '@/domains/auth/stores/authStore'
+import CallflowIntegrationProfilesPanel from '@/domains/call-routing/components/CallflowIntegrationProfilesPanel.vue'
 import { organizationLogoSchema } from '@/domains/settings/schemas/organizationLogoSchema'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
 import FormInput from '@/shared/components/FormInput.vue'
@@ -52,6 +54,7 @@ const settingsSections = [
   { id: 'appearance', label: 'Appearance', icon: SwatchIcon },
   { id: 'workspace-preferences', label: 'Workspace', icon: ComputerDesktopIcon },
   { id: 'administration', label: 'Administration', icon: RectangleGroupIcon },
+  { id: 'callflow-integrations', label: 'Callflow integrations', icon: SquaresPlusIcon },
   { id: 'access-security', label: 'Access & security', icon: ShieldCheckIcon },
 ] as const
 
@@ -88,6 +91,18 @@ const accountOptions = computed<ListboxOptionValue[]>(() =>
       }))
     : [{ value: null, label: 'No mapped account', disabled: true }],
 )
+const sidebarBrandDisplayOptions: ListboxOptionValue[] = [
+  {
+    value: 'logo-and-name',
+    label: 'Logo and company name',
+    description: 'Show the selected organization name beside its logo.',
+  },
+  {
+    value: 'logo-only',
+    label: 'Logo only',
+    description: 'Hide the company name and phone-system subtitle.',
+  },
+]
 const selectedAccount = computed(() => accounts.selected)
 const grantedPermissions = computed(() => {
   const account = selectedAccount.value
@@ -101,6 +116,12 @@ const profileNameError = computed(
 const organizationLogoError = computed(
   () => organizationLogoErrors.value.logo?.[0] ?? accounts.organizationLogoError,
 )
+
+function selectSidebarBrandDisplay(value: ListboxValue): void {
+  const result = sidebarBrandDisplaySchema.safeParse(value)
+
+  if (result.success) ui.setSidebarBrandDisplay(result.data)
+}
 
 watch(profileName, () => {
   profileValidationErrors.value = {}
@@ -522,6 +543,7 @@ async function signOut(): Promise<void> {
                   :model-value="accounts.selectedId"
                   :options="accountOptions"
                   aria-label="Settings workspace account"
+                  class="w-full max-w-xl"
                   placeholder="Select a mapped account"
                   @update:model-value="selectAccount"
                 />
@@ -531,6 +553,20 @@ async function signOut(): Promise<void> {
                 </span>
               </label>
               <div class="border-t border-slate-100 pt-5">
+                <label class="mb-5 grid gap-2">
+                  <span class="text-xs font-semibold text-slate-600">Sidebar branding</span>
+                  <FormListbox
+                    :model-value="ui.sidebarBrandDisplay"
+                    :options="sidebarBrandDisplayOptions"
+                    aria-label="Sidebar branding display"
+                    class="w-full max-w-md"
+                    @update:model-value="selectSidebarBrandDisplay"
+                  />
+                  <span class="text-[10px] leading-4 text-slate-400">
+                    Choose whether the expanded sidebar shows only the logo or also the selected
+                    organization name.
+                  </span>
+                </label>
                 <ToggleSwitch
                   :model-value="ui.sidebarCollapsed"
                   label="Use compact desktop sidebar"
@@ -605,6 +641,18 @@ async function signOut(): Promise<void> {
 
           <TabPanel
             v-show="activeSettingsIndex === 5"
+            as="section"
+            id="callflow-integrations"
+            class="card-surface overflow-hidden focus:outline-none"
+          >
+            <CallflowIntegrationProfilesPanel
+              :account-id="selectedAccount?.id ?? null"
+              :can-manage="Boolean(selectedAccount?.permissions.can_manage_account_settings)"
+            />
+          </TabPanel>
+
+          <TabPanel
+            v-show="activeSettingsIndex === 6"
             as="article"
             id="access-security"
             class="card-surface overflow-hidden focus:outline-none"

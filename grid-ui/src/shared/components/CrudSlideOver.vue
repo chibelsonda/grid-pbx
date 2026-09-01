@@ -3,12 +3,20 @@ import { nextTick, ref, watch } from 'vue'
 import { Dialog, DialogPanel, DialogTitle, TransitionChild, TransitionRoot } from '@headlessui/vue'
 import { XMarkIcon } from '@heroicons/vue/24/outline'
 
+type SlideOverWidth = 'medium' | 'wide' | 'extra-wide'
+
+const widthClasses: Record<SlideOverWidth, string> = {
+  medium: 'max-w-2xl',
+  wide: 'max-w-5xl',
+  'extra-wide': 'max-w-7xl',
+}
+
 const props = withDefaults(
   defineProps<{
     title: string
     eyebrow?: string
     description?: string
-    width?: 'medium' | 'wide'
+    width?: SlideOverWidth
     scrollKey?: string | number
     embedded?: boolean
     embeddedHeader?: boolean
@@ -89,7 +97,7 @@ watch(
                 data-testid="slide-over-panel"
                 :data-width="width"
                 class="pointer-events-auto flex min-w-0 w-screen flex-col bg-slate-50 shadow-2xl"
-                :class="width === 'medium' ? 'max-w-2xl' : 'max-w-5xl'"
+                :class="widthClasses[width]"
               >
                 <header
                   class="flex shrink-0 items-start gap-4 border-b border-slate-200 bg-white px-5 py-5 sm:px-7"
