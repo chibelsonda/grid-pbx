@@ -11,6 +11,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import { useDeviceStore } from '../stores/deviceStore'
 
 const accounts = useAccountStore()
@@ -22,12 +23,6 @@ const assignedOnPage = computed(
 const registeredOnPage = computed(
   () => devices.records.filter((device) => device.registration_status === 'registered').length,
 )
-const freshnessLabel = computed(() => {
-  if (!devices.sync.last_successful_at) return 'Not synchronized yet'
-
-  return `Last synchronized ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(devices.sync.last_successful_at))}`
-})
-
 watch(
   () => accounts.selectedId,
   (accountId) => {
@@ -154,18 +149,11 @@ function humanize(value: string): string {
             @search="search"
           />
         </form>
-        <span
-          class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold sm:ml-auto"
-          :class="
-            devices.sync.status === 'healthy'
-              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-              : devices.sync.status === 'error'
-                ? 'border-red-100 bg-red-50 text-danger'
-                : 'border-amber-100 bg-amber-50 text-amber-700'
-          "
-        >
-          <span class="size-2 rounded-full bg-current" /> {{ freshnessLabel }}
-        </span>
+        <ProjectionFreshness
+          class="sm:ml-auto"
+          :last-synchronized-at="devices.sync.last_successful_at"
+          :status="devices.sync.status"
+        />
       </div>
 
       <div

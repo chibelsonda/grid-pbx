@@ -12,6 +12,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SandboxPaymentPanel from '@/domains/payments/components/SandboxPaymentPanel.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import BillingRecordDetailPanel from '../components/BillingRecordDetailPanel.vue'
 import { useBillingStore } from '../stores/billingStore'
 import type { BillingRecord } from '../types/billing'
@@ -131,15 +132,21 @@ watch(
           Source-aware invoices, payment confirmations, and Switch billing activity.
         </p>
       </div>
-      <button
-        v-if="canView && accounts.selectedId"
-        type="button"
-        :disabled="billing.loading"
-        class="ml-auto inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 shadow-sm hover:border-brand-200 hover:text-brand-600 disabled:opacity-50"
-        @click="billing.load(accounts.selectedId)"
-      >
-        <ArrowPathIcon class="size-4" :class="billing.loading && 'animate-spin'" />Refresh
-      </button>
+      <div v-if="canView && accounts.selectedId" class="ml-auto flex flex-col items-end gap-1">
+        <button
+          type="button"
+          :disabled="billing.loading"
+          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-700 shadow-sm hover:border-brand-200 hover:text-brand-600 disabled:opacity-50"
+          @click="billing.load(accounts.selectedId)"
+        >
+          <ArrowPathIcon class="size-4" :class="billing.loading && 'animate-spin'" />Refresh
+        </button>
+        <ProjectionFreshness
+          v-if="overview"
+          :last-synchronized-at="overview.last_synced_at"
+          :status="overview.sync_status"
+        />
+      </div>
     </div>
   </section>
 
@@ -496,10 +503,6 @@ watch(
       <section v-if="accounts.selectedId" class="mt-5">
         <SandboxPaymentPanel :account-id="accounts.selectedId" />
       </section>
-
-      <p class="mt-5 text-right text-[10px] text-slate-500">
-        Last synchronized {{ dateTime(overview.last_synced_at) }}
-      </p>
     </template>
   </main>
 

@@ -907,8 +907,10 @@ the verified payload.
 | `cdr_url`, `recording_url`, runtime `call_recording_url` | Hidden pending outbound URL/SSRF allowlist policy. The installed schema exposes `recording_url`, but the installed ACDc queue FSM reads `call_recording_url`; existing values under both keys are preserved and never returned | Intentionally policy-gated |
 | safe unknown Queue fields | Authoritative pre-update GET merges unknown top-level, `announcements`, and nested prompt metadata; modeled fields win, while IDs, revisions, private/redacted values, and raw roster IDs are discarded | Implemented and focused-tested |
 | queue roster | Public Extension UUIDs resolved to Switch User identifiers and replaced separately | Implemented |
-| live agent status | Login, logout, pause, resume, and end-wrapup commands with conditional pause timeout and audit logging | Implemented; no automated live mutation of real agents |
-| runtime capability discovery | Safe account-level reads probe Queue configuration, aggregate Agent status, and Queue statistics independently; only three booleans enter the public contract, with a one-minute account cache | Implemented and live verified as configuration available, live controls unavailable, and statistics unavailable |
+| live agent status | Login, logout, pause, resume, and end-wrapup commands with conditional pause timeout and audit logging. The open panel refreshes every five seconds only while visible/capable, pauses during commands, prevents overlap, and retains the last observation on a background failure | Implemented; isolated polling lifecycle verified, with no automated live mutation of real agents |
+| runtime capability discovery | Safe account-level reads probe Queue configuration, aggregate Agent status, Agent statistics, and Queue statistics independently; only four booleans enter the public contract, with a one-minute account cache | Implemented and live verified as configuration available, live controls unavailable, Agent statistics unavailable, and Queue statistics unavailable |
+| account Queue statistics | Kazoo queues/stats exposes a deployment-configured recent window and raw call, caller, Agent, and Queue identifiers. The SDK retains only Queue/status/timing fields internally; Laravel resolves projected Queues and returns counts, average wait/talk, and longest current wait under public UUIDs. Unresolved rows are counted but never identified | Implemented behind statistics_available; privacy boundary and 15-second visibility-aware UI polling are focused/isolated tested, while the local live feed remains unavailable |
+| account Agent statistics | Kazoo agents/stats returns a compressed object keyed by private Agent ID, with total/answered/missed counts and a nested private Queue-ID breakdown. The SDK validates only the three aggregate counts and discards Queue keys and unknown fields; Laravel resolves account-scoped projected Agents and returns public UUIDs, display data, answer rates, aggregate totals, and only an unresolved-Agent count | Implemented behind agent_statistics_available; privacy boundary, manual refresh, last-good retention, and 15-second visibility-aware UI polling are focused/isolated tested, while the local live feed remains unavailable |
 
 The Queue additions remain virtual projections from the redacted response
 `data` object in `switch_json`; normalized MySQL columns are reserved for the
@@ -946,12 +948,52 @@ for Queue and Agent configuration, `500` for aggregate Agent status and Agent
 statistics, `503` for Queue statistics, and `404` for `acdc_call_stats`. The
 public Queue options response reduced that evidence to
 `configuration_available = true`, `live_agent_controls_available = false`,
-and `statistics_available = false`; no raw response body, account ID, Queue
-ID, or Agent ID crossed the API. Focused SDK, Laravel API, Zod/store/component,
+`agent_statistics_available = false`, and `statistics_available = false`; no
+raw response body, account ID, Queue ID, or Agent ID crossed the API. Focused
+SDK, Laravel API, Zod/store/component,
 Vue type, E2E TypeScript, and one isolated headless check passed. The browser
 confirmed Queue creation stayed available, live controls were visibly gated,
 and no Queue or Agent mutation request was sent. No live Agent state or call
 statistics were changed or claimed as verified.
+
+The 2026-09-01 live-status follow-through reused the shared visibility-aware
+poller for the capability-gated Agent panel. Initial/manual/periodic reads use
+the public Agent UUID while the server resolves the private Switch User ID.
+Polling stops when the panel closes or the account changes, pauses while the
+tab is hidden or a command/read is active, and never overlaps requests. An
+accepted command is no longer rendered as if its requested state was already
+observed because Kazoo may defer it while the Agent is on a call. Eleven
+focused Queue/poller tests, Vue and E2E TypeScript checks, and one isolated
+headless open/poll/close lifecycle passed without a Switch mutation.
+
+The 2026-09-01 statistics follow-through audited the installed
+cb_queues/acdc_stats implementation. Its current feed defaults to the
+configured ACDc cleanup window (one day by default), and its raw rows include
+call, caller, Agent, and Queue identifiers. GridPBX discards the caller/call/
+Agent fields in the typed client, resolves private Queue IDs server-side, and
+returns only public Queue UUIDs plus aggregated counts and durations. The UI
+polls at 15 seconds only when the capability and browser visibility allow it,
+prevents overlap, preserves the last good snapshot on failure, and supports a
+manual refresh. Focused SDK/API/Zod/store/component/type checks and an isolated
+headless initial/manual/periodic refresh test passed. The isolated browser used
+a safe intercepted public response because the connected local deployment
+still reports statistics_available = false; no live stats support is claimed.
+
+The 2026-09-01 Agent-statistics follow-through audited `cb_agents` rather than
+inferring Agent performance from Queue rows. Kazoo returns a compressed object
+keyed by private Agent ID; each entry contains total, answered, and missed call
+counts plus a nested private Queue-ID breakdown. The typed client validates the
+aggregate counts and discards the Queue breakdown and unknown fields. Laravel
+resolves account-scoped projected Agents and returns only public Agent UUIDs,
+names/extensions, aggregate totals, answer rates, and a generic unresolved
+count. The Agents tab performs non-overlapping 15-second reads only while the
+tab and browser are visible, supports manual refresh, and retains its last good
+snapshot after a background failure. The source implementation uses the
+deployment-configured ACDc cleanup window, which defaults to one day. Focused
+SDK/API/Zod/store/component/type checks and an isolated headless
+initial/manual/periodic refresh test passed against an intercepted public
+response. The connected deployment reports `agent_statistics_available =
+false`, so no live Agent-statistics support is claimed.
 
 The 2026-09-01 responsive/accessibility pass did not alter this field matrix,
 public contract, or preservation path. It added named tables with scoped
@@ -1053,7 +1095,7 @@ completion.
 | participant mute/unmute, deaf/undeaf, and kick actions | Runtime participants are fetched on demand and reduced to a strict public allowlist. A short-lived encrypted handle binds the raw participant ID to the account and Conference; every mutation resolves the handle server-side, verifies the participant is still active, audits safe metadata, and refreshes observed state | Implemented; focused SDK/API/UI tests passed |
 | whole-room and participant media play | Kazoo accepts either a Media ID or URL. GridPBX accepts only an account-scoped public Media UUID, resolves the raw Media ID server-side, requires audio/streamable capability plus an active-room or current-participant preflight, and requires confirmation in both the strict Zod command and Laravel request contracts. The 202 response represents acceptance, not completed playback | Implemented with focused SDK/API/UI and isolated headless acceptance coverage. Raw URL fields and URL-shaped media references are rejected; audible playback remains unverified without an active media-server room |
 | conference dial-out | Kazoo accepts Device/User IDs, raw numbers, arbitrary SIP URIs, participant flags, caller ID, profile, target call ID, and timeout; external number legs apply billing and limits | Intentionally disabled pending public-only destinations, caller-ID authorization, quote/limit policy, rate limits, confirmation, idempotency, compensation, and authoritative call-result reconciliation |
-| bulk participant controls | Kazoo's native participants endpoint supports room-wide mute/unmute and deaf/undeaf by filtering non-moderators whose speak/hear state needs changing. GridPBX shows the exact eligible count, requires explicit confirmation, re-reads the room under a lock, rejects changed room/target counts, sends one atomic Kazoo command, records safe audit counts, and performs four bounded live observations over 750 ms. The UI distinguishes fully observed, partially/pending, and changed-room outcomes. Kazoo does not return trustworthy per-participant completion, so GridPBX never turns an unobserved asynchronous state into an invented failure | Implemented with focused SDK/API/Zod/Vue and isolated headless coverage. Bulk kick remains disabled |
+| bulk participant controls | Kazoo's native participants endpoint supports room-wide mute/unmute and deaf/undeaf by filtering non-moderators whose speak/hear state needs changing. GridPBX shows the exact eligible count, requires explicit confirmation, re-reads the room under a lock, rejects changed room/target counts, sends one atomic Kazoo command, records safe audit counts, and performs four bounded live observations over 750 ms. The UI distinguishes fully observed, partially/pending, and changed-room outcomes. A five-second visibility-aware live-room poller pauses for hidden tabs and active commands, resumes immediately, and prevents overlaps. Kazoo does not return trustworthy per-participant completion, so GridPBX never turns an unobserved asynchronous state into an invented failure | Implemented with focused SDK/API/Zod/Vue and isolated headless coverage. Bulk kick remains disabled |
 
 The typed sound fields are read from the redacted response `data` stored in
 `switch_json`; no JSON-derived Conference column was added to MySQL. Public

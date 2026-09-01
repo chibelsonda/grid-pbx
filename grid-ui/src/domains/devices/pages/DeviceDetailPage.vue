@@ -158,9 +158,9 @@ const confirmation = computed(() => {
   }
 
   return {
-    title: 'Synchronize this device?',
+    title: 'Send check-sync to this device?',
     description: 'Switch will send a check-sync command without requesting an endpoint reboot.',
-    label: 'Synchronize device',
+    label: 'Send check-sync',
     tone: 'primary' as const,
   }
 })
@@ -215,7 +215,7 @@ const confirmation = computed(() => {
           class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 px-3 text-[11px] font-semibold text-slate-600 hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
           @click="pendingAction = 'sync'"
         >
-          <ArrowPathIcon class="size-4" /> Sync
+          <ArrowPathIcon class="size-4" /> Send check-sync
         </button>
         <button
           v-if="device.device_type && supportsProvisioning(device.device_type)"

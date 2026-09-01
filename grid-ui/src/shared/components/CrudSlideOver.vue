@@ -87,6 +87,7 @@ watch(
             >
               <DialogPanel
                 data-testid="slide-over-panel"
+                :data-width="width"
                 class="pointer-events-auto flex min-w-0 w-screen flex-col bg-slate-50 shadow-2xl"
                 :class="width === 'medium' ? 'max-w-2xl' : 'max-w-5xl'"
               >

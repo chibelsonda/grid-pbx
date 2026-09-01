@@ -73,6 +73,75 @@ test('keeps the polished workspace header usable on desktop and mobile', async (
   })
 })
 
+test('opens implemented profile destinations from the user menu', async ({ page }) => {
+  await page.goto('/')
+
+  const userMenuButton = page
+    .getByRole('banner')
+    .getByRole('button', { name: /^Open user menu for / })
+  await userMenuButton.click()
+
+  const userMenu = page.getByRole('menu')
+  await expect(userMenu.getByText('Current account', { exact: true })).toBeVisible()
+  await expect(userMenu.getByText('Profile & settings', { exact: true })).toBeVisible()
+  await expect(userMenu.getByText('Access & security', { exact: true })).toBeVisible()
+  await userMenu.getByRole('menuitem', { name: /Profile & settings/ }).click()
+
+  await expect(page).toHaveURL(/\/settings#profile$/)
+  await expect(page.getByRole('heading', { name: 'Profile', exact: true })).toBeVisible()
+
+  await userMenuButton.click()
+  const accessMenu = page.getByRole('menu')
+  await expect(accessMenu).toHaveCSS('opacity', '1')
+  await accessMenu.getByRole('menuitem', { name: /Access & security/ }).click()
+  await expect(page).toHaveURL(/\/settings#access-security$/)
+  await expect(page.getByRole('heading', { name: 'Access and security' })).toBeVisible()
+})
+
+test('keeps projection freshness with page actions instead of a standalone row', async ({
+  page,
+}) => {
+  const pages = [
+    { path: '/call-history', heading: 'Call History', sync: true },
+    { path: '/phone-numbers', heading: 'Phone Numbers', sync: true },
+    { path: '/call-routing', heading: 'Callflows', sync: true },
+    { path: '/media', heading: 'Media & Music on Hold', sync: true },
+    { path: '/business-hours', heading: 'Business Hours & Schedules', sync: true },
+    { path: '/extensions', heading: 'People & Extensions', sync: true },
+    { path: '/queues', heading: 'Queues & Agents', sync: true },
+    { path: '/billing', heading: 'Billing', sync: false },
+  ]
+
+  for (const item of pages) {
+    await page.goto(item.path)
+    await expect(page.getByRole('heading', { name: item.heading, exact: true })).toBeVisible()
+
+    const freshness = page.getByTestId('projection-freshness')
+    const pageHeader = page.locator('section').filter({ has: freshness }).first()
+    await expect(freshness).toBeVisible()
+    await expect(pageHeader).toContainText(item.heading)
+    await expect(freshness).toContainText(
+      /^(Last synchronized|Not synchronized yet|Last synchronization failed)/,
+    )
+
+    if (item.sync) {
+      await expect(pageHeader.getByRole('button', { name: 'Sync from Switch' })).toBeVisible()
+      await expect(pageHeader.getByRole('button', { name: 'Sync', exact: true })).toHaveCount(0)
+    }
+
+    const [freshnessBox, headerBox] = await Promise.all([
+      freshness.boundingBox(),
+      pageHeader.boundingBox(),
+    ])
+    expect(freshnessBox).not.toBeNull()
+    expect(headerBox).not.toBeNull()
+    expect(freshnessBox!.y).toBeGreaterThanOrEqual(headerBox!.y)
+    expect(freshnessBox!.y + freshnessBox!.height).toBeLessThanOrEqual(
+      headerBox!.y + headerBox!.height + 1,
+    )
+  }
+})
+
 test('keeps header controls legible with a dark theme', async ({ page }, testInfo) => {
   await page.addInitScript(() => {
     window.localStorage.setItem(

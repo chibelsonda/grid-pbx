@@ -945,16 +945,27 @@ form with conditional pause-timeout validation. Automated live status changes
 are intentionally not sent to real agents; the audited API boundary remains
 covered with an isolated gateway test.
 
+The runtime panel now refreshes from Kazoo's per-Agent status endpoint every
+five seconds only while its slide-over and the browser tab are visible. The
+shared poller pauses during initial reads and commands, prevents overlapping
+requests, resumes immediately when visibility returns, and stops on close or
+account change. Background failures retain the last observation and use a safe
+UI message. Command acceptance remains explicit and is not substituted for an
+observed status because Kazoo can defer pause, resume, and logout while an
+Agent is on a call. An isolated headless test verified open, periodic refresh,
+and cleanup without sending a live command.
+
 Queue capability discovery is now explicit rather than inferred from whether
 configuration documents exist. The installed runtime has `cb_queues` and
 `cb_agents` loaded, but does not run the ACDc OTP application and does not load
 `cb_acdc_call_stats`. Safe account reads returned `200` for Queue and Agent
 configuration, `500` for aggregate Agent status and Agent statistics, `503`
 for Queue statistics, and `404` for `acdc_call_stats`. GridPBX probes Queue
-configuration, aggregate Agent status, and Queue statistics independently,
-caches the three booleans for one minute, and returns only
+configuration, aggregate Agent status, Agent statistics, and Queue statistics
+independently, caches the four booleans for one minute, and returns only
 `configuration_available`, `live_agent_controls_available`, and
-`statistics_available`. Probe bodies and raw Switch identifiers are discarded.
+`agent_statistics_available`, and `statistics_available`. Probe bodies and raw
+Switch identifiers are discarded.
 
 An isolated headless run on 2026-08-31 confirmed the connected public response
 was `true`, `false`, and `false`, respectively. Queue creation remained enabled,
@@ -963,6 +974,33 @@ capability-gated, and the browser sent zero Queue or Agent mutations. The one
 browser test passed in 2.7 seconds. Focused SDK, Laravel, Zod, store/component,
 Vue type, and E2E TypeScript checks also passed. No disposable Queue, live Agent
 state change, or statistics request beyond the read-only probes was required.
+
+The capability-gated read-only statistics UI is now implemented for
+deployments where queues/stats is available. The installed Kazoo source shows
+that the endpoint returns a deployment-configured recent window and raw call,
+caller, Agent, and Queue fields. The typed Switch client deliberately keeps
+only Queue/status/timing values; Laravel aggregates them by account-local
+projected Queue and returns only public UUIDs, safe counts/durations, and an
+unresolved-row count. The panel refreshes every 15 seconds only while visible,
+does not overlap reads, preserves the last snapshot on failure, and includes a
+manual refresh. Focused tests and an isolated headless intercepted-capability
+walkthrough passed. The connected local Switch still returns the capability as
+unavailable, so live runtime statistics remain visibly gated there.
+
+Agent call-performance statistics use their own capability because Kazoo's
+`agents/stats` endpoint can fail independently of both aggregate Agent status
+and Queue statistics. The compressed response is keyed by private Agent ID and
+contains a nested private Queue-ID breakdown. GridPBX validates and retains
+only total, answered, and missed counts in the typed client. Laravel resolves
+account-scoped projected Agents and returns public UUIDs, names/extensions,
+answer rates, aggregate totals, and only a generic unresolved-Agent count. The
+Agents tab polls every 15 seconds only while selected and visible, offers manual
+refresh, prevents overlap, and keeps the last good snapshot after a background
+failure. The source implementation uses the configurable ACDc cleanup window,
+which defaults to one day. Focused SDK/API/UI/type checks and an isolated
+headless initial/manual/periodic refresh test passed with a safe intercepted
+public response. The connected deployment reports the capability unavailable,
+so live Agent-statistics verification remains pending.
 
 The preservation correction passed six focused SDK tests / 37 assertions and
 two focused Laravel Queue update tests / 12 assertions. Four Queue/Agent Vue
@@ -1317,8 +1355,13 @@ success. Vue follows acceptance with at most four live-room observations over
 using aggregate counts and never exposes participant identifiers in the
 result. Focused store coverage exercises both immediate observation and the
 complete bounded pending path, and the isolated headless walkthrough verifies
-the observed-state notice. Bulk kick and dial-out remain intentionally
-disabled.
+the observed-state notice. The live-room panel additionally uses a reusable
+five-second visibility-aware poller: it runs only while the panel and browser
+tab are visible, pauses during participant commands, bulk reconciliation, and
+media playback, resumes with an immediate refresh, prevents overlapping
+requests, and cleans up on close/unmount. Focused fake-timer tests cover active,
+paused, hidden, resumed, and stopped states; isolated headless coverage verifies
+the background refresh. Bulk kick and dial-out remain intentionally disabled.
 
 An isolated authenticated headless walkthrough now exercises the live-room
 drawer with a simulated active Switch feed. It verified the participant status

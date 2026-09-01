@@ -10,7 +10,7 @@ class QueueCapabilityService
 {
     public function __construct(private readonly SwitchQueueGateway $gateway) {}
 
-    /** @return array{configuration_available: bool, live_agent_controls_available: bool, statistics_available: bool} */
+    /** @return array{configuration_available: bool, live_agent_controls_available: bool, agent_statistics_available: bool, statistics_available: bool} */
     public function get(SwitchAccount $account): array
     {
         return Cache::remember(

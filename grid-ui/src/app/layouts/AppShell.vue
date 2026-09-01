@@ -13,21 +13,13 @@ const ui = useUiStore()
 const accounts = useAccountStore()
 const route = useRoute()
 const pageMinimumHeight = ref<number | null>(null)
-const accountChangeMessage = ref('')
-let accountChangeAlertTimer: ReturnType<typeof window.setTimeout> | null = null
+let notificationTimer: ReturnType<typeof window.setTimeout> | null = null
 
-function dismissAccountChangeAlert(): void {
-  accountChangeMessage.value = ''
-  if (accountChangeAlertTimer === null) return
+function clearNotificationTimer(): void {
+  if (notificationTimer === null) return
 
-  window.clearTimeout(accountChangeAlertTimer)
-  accountChangeAlertTimer = null
-}
-
-function showAccountChangeAlert(accountName: string): void {
-  dismissAccountChangeAlert()
-  accountChangeMessage.value = `Now viewing ${accountName}.`
-  accountChangeAlertTimer = window.setTimeout(dismissAccountChangeAlert, 4_000)
+  window.clearTimeout(notificationTimer)
+  notificationTimer = null
 }
 
 ui.initializeTheme()
@@ -39,7 +31,10 @@ watch(
 
     if (!accountId || !previousAccountId || accountId === previousAccountId) return
 
-    showAccountChangeAlert(accounts.selected?.name ?? 'the selected account')
+    ui.notify({
+      title: 'Account changed',
+      message: `Now viewing ${accounts.selected?.name ?? 'the selected account'}.`,
+    })
 
     const scrollPosition = window.scrollY
     pageMinimumHeight.value = Math.max(
@@ -51,13 +46,25 @@ watch(
   },
 )
 watch(
+  () => ui.notification?.id,
+  (notificationId) => {
+    clearNotificationTimer()
+    if (notificationId === undefined) return
+
+    notificationTimer = window.setTimeout(() => {
+      ui.dismissNotification(notificationId)
+      notificationTimer = null
+    }, 4_000)
+  },
+)
+watch(
   () => route.fullPath,
   () => {
     pageMinimumHeight.value = null
   },
 )
 onBeforeUnmount(() => {
-  dismissAccountChangeAlert()
+  clearNotificationTimer()
   accounts.releaseOrganizationLogo()
 })
 </script>
@@ -102,10 +109,11 @@ onBeforeUnmount(() => {
     </button>
     <ThemeCustomizerPanel />
     <AppNotification
-      :show="Boolean(accountChangeMessage)"
-      title="Account changed"
-      :message="accountChangeMessage"
-      @dismiss="dismissAccountChangeAlert"
+      :show="Boolean(ui.notification)"
+      :title="ui.notification?.title ?? ''"
+      :message="ui.notification?.message ?? ''"
+      :tone="ui.notification?.tone"
+      @dismiss="ui.dismissNotification()"
     />
   </div>
 </template>

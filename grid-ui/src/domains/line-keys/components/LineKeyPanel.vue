@@ -269,7 +269,7 @@ function submit(): void {
     width="wide"
     @close="emit('close')"
   >
-    <form class="grid gap-5" novalidate @submit.prevent="submit">
+    <form class="grid gap-4" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -279,8 +279,11 @@ function submit(): void {
       >
         {{ formError() }}
       </div>
-      <article class="card-surface overflow-hidden">
-        <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
+      <article
+        data-testid="line-key-provisioning-identity"
+        class="card-surface flex flex-wrap items-center gap-4 px-4 py-3"
+      >
+        <header class="flex min-w-48 items-center gap-3">
           <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"
             ><WrenchScrewdriverIcon class="size-5"
           /></span>
@@ -295,20 +298,20 @@ function submit(): void {
             </p>
           </div>
         </header>
-        <div class="grid gap-3 p-5 sm:grid-cols-3">
+        <div class="ml-auto grid min-w-full flex-1 grid-cols-3 gap-4 sm:min-w-0 sm:max-w-xl">
           <div>
             <p class="text-[10px] font-semibold text-slate-400 uppercase">Brand</p>
-            <p class="mt-1 text-xs font-medium text-slate-700">{{ preview.device.make ?? '—' }}</p>
+            <p class="text-xs font-medium text-slate-700">{{ preview.device.make ?? '—' }}</p>
           </div>
           <div>
             <p class="text-[10px] font-semibold text-slate-400 uppercase">Family</p>
-            <p class="mt-1 text-xs font-medium text-slate-700">
+            <p class="text-xs font-medium text-slate-700">
               {{ preview.device.endpoint_family ?? '—' }}
             </p>
           </div>
           <div>
             <p class="text-[10px] font-semibold text-slate-400 uppercase">Model</p>
-            <p class="mt-1 text-xs font-medium text-slate-700">{{ preview.device.model ?? '—' }}</p>
+            <p class="text-xs font-medium text-slate-700">{{ preview.device.model ?? '—' }}</p>
           </div>
         </div>
       </article>
@@ -320,7 +323,7 @@ function submit(): void {
         {{ preview.capability.reason }}
       </div>
       <article class="card-surface overflow-hidden">
-        <header class="border-b border-slate-100 px-5 py-4">
+        <header class="border-b border-slate-100 px-4 py-3">
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Key assignments</h2>
             <p class="text-[10px] text-slate-400">
@@ -339,7 +342,9 @@ function submit(): void {
         </header>
         <div class="divide-y divide-slate-100">
           <section v-for="group in slotGroups" :key="group.key">
-            <header class="flex items-center justify-between bg-slate-50 px-5 py-3">
+            <header
+              class="flex items-center justify-between border-l-2 border-brand-400 bg-brand-50/60 px-4 py-2.5"
+            >
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">{{ group.label }}</h3>
                 <p class="text-[10px] text-slate-400">{{ group.description }}</p>
@@ -369,7 +374,14 @@ function submit(): void {
                 <fieldset
                   v-if="isInGroup(key.position, group)"
                   :disabled="!canManage"
-                  class="grid items-start gap-3 p-5 sm:grid-cols-[minmax(100px,0.8fr)_90px_minmax(0,2fr)_minmax(0,2fr)_36px] disabled:opacity-70"
+                  data-testid="line-key-assignment"
+                  :data-key-category="key.category"
+                  class="grid items-start gap-3 border-l-2 px-4 py-3 sm:grid-cols-2 lg:grid-cols-[120px_80px_minmax(170px,1fr)_minmax(360px,2fr)_32px] disabled:opacity-70"
+                  :class="
+                    key.category === 'feature'
+                      ? 'border-violet-300 bg-violet-50/20'
+                      : 'border-brand-300 bg-brand-50/20'
+                  "
                 >
                   <label class="flex min-w-0 self-start flex-col">
                     <span class="text-xs font-semibold text-slate-600">Category</span>
@@ -420,7 +432,7 @@ function submit(): void {
                       {{ fieldError(index, 'type') }}
                     </span>
                   </label>
-                  <div class="grid min-w-0 self-start gap-2">
+                  <div class="grid min-w-0 self-start gap-2 lg:grid-cols-2">
                     <label
                       v-if="
                         key.type !== 'line' &&
@@ -460,8 +472,8 @@ function submit(): void {
                       <span v-else class="mt-1 text-[10px] leading-4 text-slate-500">
                         {{
                           key.type === 'presence' || key.type === 'personal_parking'
-                            ? 'Kazoo resolves this account-scoped user to its presence ID.'
-                            : 'The dialable extension is stored, never its internal resource ID.'
+                            ? 'Resolved server-side to the Kazoo presence ID.'
+                            : 'Stores the dialable value; internal IDs remain private.'
                         }}
                       </span>
                     </label>
@@ -512,7 +524,7 @@ function submit(): void {
                   <button
                     v-if="canManage"
                     type="button"
-                    class="mt-5 grid size-8 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-danger"
+                    class="mt-5 grid size-8 place-items-center justify-self-end rounded-md text-danger transition hover:bg-red-50 hover:text-red-700 focus-visible:bg-red-50 focus-visible:text-red-700"
                     aria-label="Remove key"
                     @click="remove(index)"
                   >
@@ -534,7 +546,7 @@ function submit(): void {
           class="mt-3 max-h-64 overflow-auto rounded-md bg-slate-950 p-4 text-[10px] text-slate-200"
           >{{ JSON.stringify(safePreview, null, 2) }}</pre>
       </DisclosureCard>
-      <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
+      <div class="slide-over-actions flex justify-end gap-3 pt-5">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"

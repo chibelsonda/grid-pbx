@@ -7,9 +7,3 @@ export type SessionUser = {
 export type Session = {
   user: SessionUser
 }
-
-export type LoginCredentials = {
-  email: string
-  password: string
-  remember: boolean
-}

@@ -1,12 +1,19 @@
 import { http, unwrapApiData, type ApiResponse, type PaginatedResponse } from '@/shared/api/http'
+import { agentQueueMembershipSchema } from '../schemas/agentQueueMembershipSchema'
+import { agentStatisticsSchema } from '../schemas/agentStatisticsSchema'
 import { queueOptionsSchema } from '../schemas/queueOptionsSchema'
+import { queueStatisticsSchema } from '../schemas/queueStatisticsSchema'
 import type {
   Agent,
+  AgentQueueMembership,
+  AgentQueueMembershipInput,
+  AgentStatistics,
   AgentStatus,
   AgentStatusInput,
   Queue,
   QueueInput,
   QueueOptions,
+  QueueStatistics,
   QueueSyncRun,
 } from '../types/queue'
 
@@ -27,6 +34,24 @@ export const queueApi = {
     return queueOptionsSchema.parse(
       unwrapApiData(
         await http.get<ApiResponse<QueueOptions>>(`/api/v1/accounts/${accountId}/queues/options`),
+      ),
+    )
+  },
+  async statistics(accountId: string): Promise<QueueStatistics> {
+    return queueStatisticsSchema.parse(
+      unwrapApiData(
+        await http.get<ApiResponse<QueueStatistics>>(
+          `/api/v1/accounts/${accountId}/queues/statistics`,
+        ),
+      ),
+    )
+  },
+  async agentStatistics(accountId: string): Promise<AgentStatistics> {
+    return agentStatisticsSchema.parse(
+      unwrapApiData(
+        await http.get<ApiResponse<AgentStatistics>>(
+          `/api/v1/accounts/${accountId}/agents/statistics`,
+        ),
       ),
     )
   },
@@ -53,6 +78,29 @@ export const queueApi = {
   async agentStatus(accountId: string, id: string): Promise<AgentStatus> {
     return unwrapApiData(
       await http.get<ApiResponse<AgentStatus>>(`/api/v1/accounts/${accountId}/agents/${id}/status`),
+    )
+  },
+  async agentQueueMemberships(accountId: string, id: string): Promise<AgentQueueMembership> {
+    return agentQueueMembershipSchema.parse(
+      unwrapApiData(
+        await http.get<ApiResponse<AgentQueueMembership>>(
+          `/api/v1/accounts/${accountId}/agents/${id}/queues`,
+        ),
+      ),
+    )
+  },
+  async updateAgentQueueMembership(
+    accountId: string,
+    id: string,
+    input: AgentQueueMembershipInput,
+  ): Promise<AgentQueueMembership> {
+    return agentQueueMembershipSchema.parse(
+      unwrapApiData(
+        await http.post<ApiResponse<AgentQueueMembership>>(
+          `/api/v1/accounts/${accountId}/agents/${id}/queues`,
+          input,
+        ),
+      ),
     )
   },
   async updateAgentStatus(accountId: string, id: string, input: AgentStatusInput): Promise<void> {

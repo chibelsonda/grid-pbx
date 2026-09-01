@@ -6,6 +6,7 @@ export const queueOptionsSchema = z.object({
   capabilities: z.object({
     configuration_available: z.boolean(),
     live_agent_controls_available: z.boolean(),
+    agent_statistics_available: z.boolean(),
     statistics_available: z.boolean(),
   }),
 })

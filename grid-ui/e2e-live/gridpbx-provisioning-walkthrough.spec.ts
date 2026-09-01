@@ -154,6 +154,66 @@ async function cleanupWalkthroughDevices(page: Page): Promise<void> {
   for (const device of devices) await deleteDevice(page, device.id)
 }
 
+test('keeps long slide-over actions visible while the panel content scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 600 })
+  await page.goto('/line-keys')
+  await expect(page.getByText('Loading projected line keys…')).toHaveCount(0)
+
+  const firstDevice = page.locator('tbody tr').first()
+  await expect(firstDevice).toBeVisible()
+  await firstDevice.click()
+
+  const panel = page.getByTestId('slide-over-panel')
+  const content = panel.getByTestId('slide-over-content')
+  const actions = panel.locator('.slide-over-actions')
+  const close = actions.getByRole('button', { name: 'Close', exact: true })
+  const apply = actions.getByRole('button', { name: 'Apply to device' })
+
+  await expect(panel.getByRole('heading', { name: 'Line keys' })).toBeVisible()
+  await expect(actions).toHaveCSS('position', 'fixed')
+  await expect(close).toBeVisible()
+  await expect(apply).toBeVisible()
+
+  const assignment = panel.getByTestId('line-key-assignment').first()
+  if ((await assignment.count()) === 0) {
+    await panel.getByRole('button', { name: 'Add key' }).first().click()
+  }
+
+  const [identityBox, assignmentBox] = await Promise.all([
+    panel.getByTestId('line-key-provisioning-identity').boundingBox(),
+    assignment.boundingBox(),
+  ])
+  expect(identityBox).not.toBeNull()
+  expect(assignmentBox).not.toBeNull()
+  expect(identityBox!.height).toBeLessThanOrEqual(90)
+  expect(assignmentBox!.height).toBeLessThanOrEqual(125)
+
+  const removeKey = assignment.getByRole('button', { name: 'Remove key' })
+  await expect(removeKey).toHaveCSS('color', 'rgb(217, 37, 80)')
+  await expect(assignment).toHaveAttribute('data-key-category', /^(combo|feature)$/)
+  expect(
+    await assignment.evaluate((element) => {
+      const style = getComputedStyle(element)
+      return style.borderLeftWidth === '2px' && style.backgroundColor !== 'rgba(0, 0, 0, 0)'
+    }),
+  ).toBe(true)
+
+  await content.evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
+  await expect(close).toBeVisible()
+  await expect(apply).toBeVisible()
+
+  const [panelBox, actionsBox] = await Promise.all([panel.boundingBox(), actions.boundingBox()])
+  expect(panelBox).not.toBeNull()
+  expect(actionsBox).not.toBeNull()
+  expect(
+    Math.abs(actionsBox!.x + actionsBox!.width - (panelBox!.x + panelBox!.width)),
+  ).toBeLessThanOrEqual(1)
+  expect(
+    Math.abs(actionsBox!.y + actionsBox!.height - (panelBox!.y + panelBox!.height)),
+  ).toBeLessThanOrEqual(1)
+  expect(Math.abs(actionsBox!.width - panelBox!.width)).toBeLessThanOrEqual(1)
+})
+
 test('walks through provisioning and line-key create, edit, and clear in isolation', async ({
   page,
 }, testInfo) => {

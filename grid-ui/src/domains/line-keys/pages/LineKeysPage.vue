@@ -1,15 +1,10 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  ArrowPathIcon,
-  CheckCircleIcon,
-  ChevronRightIcon,
-  ExclamationCircleIcon,
-  SquaresPlusIcon,
-  WrenchScrewdriverIcon,
-} from '@heroicons/vue/24/outline'
+import { ChevronRightIcon, SquaresPlusIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import LineKeyPanel from '../components/LineKeyPanel.vue'
 import { useLineKeyStore } from '../stores/lineKeyStore'
 import type { LineKeyInput } from '../types/lineKey'
@@ -21,17 +16,6 @@ const canManage = computed(() => accounts.selected?.permissions.can_manage_devic
 const assignedCount = computed(() =>
   lineKeys.records.reduce((total, device) => total + device.line_keys.length, 0),
 )
-const syncLabel = computed(() => {
-  if (lineKeys.synchronizing) {
-    const processed = lineKeys.syncRun?.processed_count ?? 0
-    return processed > 0 ? `Synchronizing · ${processed} processed` : 'Synchronizing from Switch…'
-  }
-
-  if (lineKeys.sync.status === 'error') return 'Last synchronization failed'
-  if (!lineKeys.sync.last_successful_at) return 'Not synchronized yet'
-
-  return `Last synchronized ${new Date(lineKeys.sync.last_successful_at).toLocaleString()}`
-})
 const syncSummary = computed(() => {
   const run = lineKeys.syncRun
 
@@ -69,28 +53,16 @@ async function save(keys: LineKeyInput[]): Promise<void> {
         </p>
       </div>
       <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
-        <button
-          type="button"
+        <ProjectionSyncButton
+          :synchronizing="lineKeys.synchronizing"
           :disabled="!accounts.selectedId || lineKeys.synchronizing"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:opacity-50"
-          @click="accounts.selectedId && lineKeys.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon class="size-4" :class="lineKeys.synchronizing && 'animate-spin'" />
-          {{ lineKeys.synchronizing ? 'Synchronizing…' : 'Sync from Switch' }}
-        </button>
-        <p
-          class="flex items-center gap-1 text-[10px]"
-          :class="lineKeys.sync.status === 'error' ? 'text-danger' : 'text-slate-500'"
-          aria-live="polite"
-        >
-          <ExclamationCircleIcon v-if="lineKeys.sync.status === 'error'" class="size-3.5" />
-          <CheckCircleIcon
-            v-else-if="lineKeys.sync.status === 'healthy'"
-            class="size-3.5 text-emerald-600"
-          />
-          <span>{{ syncLabel }}</span>
-          <span v-if="syncSummary" class="text-slate-400">· {{ syncSummary }}</span>
-        </p>
+          @sync="accounts.selectedId && lineKeys.synchronize(accounts.selectedId)"
+        />
+        <ProjectionFreshness
+          :last-synchronized-at="lineKeys.sync.last_successful_at"
+          :status="lineKeys.sync.status"
+          :detail="syncSummary"
+        />
       </div>
     </div>
   </section>

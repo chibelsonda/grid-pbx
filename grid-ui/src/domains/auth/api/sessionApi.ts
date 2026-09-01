@@ -1,6 +1,7 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
+import type { LoginCredentials } from '../schemas/loginFormSchema'
 import type { ProfileInput } from '../schemas/profileFormSchema'
-import type { LoginCredentials, Session } from '../types/session'
+import type { Session } from '../types/session'
 
 export const sessionApi = {
   async current(): Promise<Session> {
@@ -11,13 +12,15 @@ export const sessionApi = {
 
   async login(credentials: LoginCredentials): Promise<Session> {
     await http.get('/sanctum/csrf-cookie')
-    const response = await http.post<ApiResponse<Session>>('/login', credentials)
+    const response = await http.post<ApiResponse<Session>>('/login', credentials, {
+      globalNotification: false,
+    })
 
     return unwrapApiData(response)
   },
 
   async logout(): Promise<void> {
-    await http.post('/logout')
+    await http.post('/logout', undefined, { globalNotification: false })
   },
 
   async updateProfile(input: ProfileInput): Promise<Session> {

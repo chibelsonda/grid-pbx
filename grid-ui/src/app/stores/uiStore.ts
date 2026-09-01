@@ -1,9 +1,11 @@
 import { defineStore } from 'pinia'
 import { findShellTheme, type ShellThemeRegion } from '@/app/theme/themeCatalog'
+import type { AppNotificationInput, AppNotificationState } from '@/shared/types/appNotification'
 
 const themeStorageKey = 'gridpbx.shell-theme.v1'
 const sidebarStorageKey = 'gridpbx.sidebar-collapsed.v1'
 const defaultThemeId = 'light'
+let notificationSequence = 0
 
 type StoredThemePreferences = {
   header: string
@@ -43,6 +45,7 @@ export const useUiStore = defineStore('ui', {
       themePanelOpen: false,
       headerTheme: storedThemes.header,
       sidebarTheme: storedThemes.sidebar,
+      notification: null as AppNotificationState | null,
     }
   },
   actions: {
@@ -112,6 +115,19 @@ export const useUiStore = defineStore('ui', {
     },
     closeMobileSidebar(): void {
       this.mobileSidebarOpen = false
+    },
+    notify(input: AppNotificationInput): void {
+      this.notification = {
+        id: ++notificationSequence,
+        title: input.title,
+        message: input.message,
+        tone: input.tone ?? 'info',
+      }
+    },
+    dismissNotification(id?: number): void {
+      if (id !== undefined && this.notification?.id !== id) return
+
+      this.notification = null
     },
   },
 })

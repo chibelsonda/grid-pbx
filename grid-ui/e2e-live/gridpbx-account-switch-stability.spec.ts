@@ -82,6 +82,28 @@ test('keeps the current page and scroll position while switching accounts', asyn
   await expect(accountChangedAlert).toContainText('Account changed')
   await expect(accountChangedAlert).toContainText(`Now viewing ${targetAccount}.`)
   await expect(accountChangedAlert).not.toContainText('account-one')
+  expect(
+    await accountChangedAlert.evaluate((element) => {
+      const accent = getComputedStyle(document.documentElement)
+        .getPropertyValue('--app-header-accent')
+        .trim()
+      const probe = document.createElement('span')
+      probe.style.color = `color-mix(in srgb, ${accent} 42%, white)`
+      document.body.append(probe)
+      const expectedBorder = getComputedStyle(probe).color
+      probe.style.color = accent
+      const expectedAccent = getComputedStyle(probe).color
+      probe.remove()
+
+      const icon = element.querySelector<SVGElement>('.app-notification-accent')
+
+      return (
+        getComputedStyle(element).borderTopColor === expectedBorder &&
+        icon !== null &&
+        getComputedStyle(icon).color === expectedAccent
+      )
+    }),
+  ).toBe(true)
   const duringRefreshScroll = await page.evaluate(() => window.scrollY)
   await expect(page.getByText('Loading the operational overview…')).toHaveCount(0)
   await expect(page.getByText('Loading recent missed calls…')).toHaveCount(0)

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
-  ArrowPathIcon,
   ChevronRightIcon,
   PlusIcon,
   UserGroupIcon,
@@ -12,6 +11,8 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useDeviceStore } from '@/domains/devices/stores/deviceStore'
 import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import { useExtensionStore } from '../stores/extensionStore'
 import ExtensionCreatePanel from '../components/ExtensionCreatePanel.vue'
 import ExtensionRecoveryPanel from '../components/ExtensionRecoveryPanel.vue'
@@ -24,12 +25,6 @@ const voicemail = useVoicemailStore()
 const extensions = useExtensionStore()
 const creating = ref(false)
 const recoveryOpen = ref(false)
-const freshnessLabel = computed(() => {
-  if (!extensions.sync.last_successful_at) return 'Not synchronized yet'
-
-  return `Last synchronized ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(extensions.sync.last_successful_at))}`
-})
-
 watch(
   () => accounts.selectedId,
   (accountId) => {
@@ -85,35 +80,37 @@ function recoverOperation(
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">People & Extensions</h1>
         <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Switch.</p>
       </div>
-      <div class="flex w-full flex-wrap gap-2 sm:w-auto xl:ml-auto">
-        <button
-          v-if="accounts.selected?.permissions.can_manage_extensions"
-          type="button"
-          :disabled="!accounts.selectedId"
-          class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-          @click="openRecovery"
-        >
-          <WrenchScrewdriverIcon class="size-4" /> Recovery queue
-        </button>
-        <button
-          type="button"
-          :disabled="!accounts.selectedId || extensions.syncing"
-          class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-          :aria-busy="extensions.syncing"
-          @click="synchronize"
-        >
-          <ArrowPathIcon class="size-4" :class="extensions.syncing && 'animate-spin'" />
-          {{ extensions.syncing ? 'Synchronizing…' : 'Sync from Switch' }}
-        </button>
-        <button
-          v-if="accounts.selected?.permissions.can_manage_extensions"
-          type="button"
-          :disabled="!accounts.selectedId"
-          class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
-          @click="creating = true"
-        >
-          <PlusIcon class="size-4" /> Create extension
-        </button>
+      <div class="flex flex-col items-start gap-1 xl:ml-auto xl:items-end">
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <button
+            v-if="accounts.selected?.permissions.can_manage_extensions"
+            type="button"
+            :disabled="!accounts.selectedId"
+            class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-brand-50 hover:text-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            @click="openRecovery"
+          >
+            <WrenchScrewdriverIcon class="size-4" /> Recovery queue
+          </button>
+          <ProjectionSyncButton
+            :synchronizing="extensions.syncing"
+            :disabled="!accounts.selectedId"
+            class="flex-auto sm:flex-none"
+            @sync="synchronize"
+          />
+          <button
+            v-if="accounts.selected?.permissions.can_manage_extensions"
+            type="button"
+            :disabled="!accounts.selectedId"
+            class="inline-flex h-9 flex-auto items-center justify-center gap-2 whitespace-nowrap rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none"
+            @click="creating = true"
+          >
+            <PlusIcon class="size-4" /> Create extension
+          </button>
+        </div>
+        <ProjectionFreshness
+          :last-synchronized-at="extensions.sync.last_successful_at"
+          :status="extensions.sync.status"
+        />
       </div>
     </div>
   </section>
@@ -145,23 +142,6 @@ function recoverOperation(
             @search="search"
           />
         </form>
-        <div class="sm:ml-auto">
-          <span
-            class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold"
-            role="status"
-            aria-live="polite"
-            :class="
-              extensions.sync.status === 'healthy'
-                ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-                : extensions.sync.status === 'error'
-                  ? 'border-red-100 bg-red-50 text-danger'
-                  : 'border-amber-100 bg-amber-50 text-amber-700'
-            "
-          >
-            <span class="size-2 rounded-full bg-current" aria-hidden="true" />
-            {{ freshnessLabel }}
-          </span>
-        </div>
       </div>
 
       <div

@@ -91,7 +91,6 @@ async function deleteMediaByName(page: Page, mediaName: string): Promise<void> {
   await page.goto('/media')
   await expect(page.getByRole('heading', { name: 'Media & Music on Hold' })).toBeVisible()
   await page.getByPlaceholder('Search name, description, language…').fill(mediaName)
-  await page.getByRole('button', { name: 'Apply filters' }).click()
   await page.getByRole('button', { name: `View ${mediaName}` }).click()
   await page.getByRole('button', { name: 'Delete', exact: true }).click()
   await page.getByRole('textbox', { name: `Type ${mediaName} to confirm` }).fill(mediaName)
@@ -118,7 +117,6 @@ async function cleanupExistingDeviceFieldFixtures(page: Page): Promise<void> {
     )
   })
   await page.getByPlaceholder('Search name, model, MAC, extension…').fill(search)
-  await page.getByPlaceholder('Search name, model, MAC, extension…').press('Enter')
   const devices = ((await (await results).json()).data ?? []) as Array<{ id: string }>
 
   for (const device of devices) {
@@ -136,7 +134,6 @@ async function cleanupExistingDeviceFieldFixtures(page: Page): Promise<void> {
       url.searchParams.get('search') === 'E2E device hold'
     )
   })
-  await page.getByRole('button', { name: 'Apply filters' }).click()
   const media = ((await (await mediaResults).json()).data ?? []) as Array<{ name: string }>
 
   for (const item of media) {

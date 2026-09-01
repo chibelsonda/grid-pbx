@@ -15,7 +15,9 @@ import {
 } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import FormInput from '@/shared/components/FormInput.vue'
+import { validateForm } from '@/shared/forms/zod'
 import { useAuthorizeNetAcceptUi } from '../composables/useAuthorizeNetAcceptUi'
+import { createSandboxRefundFormSchema } from '../schemas/paymentSchema'
 import { usePaymentStore } from '../stores/paymentStore'
 import type { PaymentAttempt, PaymentAttemptEvent } from '../types/payment'
 
@@ -80,16 +82,12 @@ const operationsAvailable = computed(
 const refundAmountMinor = ref<number>(100)
 const expandedAttemptId = ref<string | null>(null)
 const confirmation = ref<'void' | 'refund' | 'profile' | null>(null)
-const refundError = computed(() => {
-  if (!Number.isInteger(refundAmountMinor.value) || refundAmountMinor.value < 1) {
-    return 'Enter a whole amount of at least 1 cent.'
-  }
-  if (refundAmountMinor.value > refundLimitMinor.value) {
-    return `The maximum refundable amount is ${formatMinor(refundLimitMinor.value)}.`
-  }
-
-  return null
-})
+const refundValidation = computed(() =>
+  validateForm(createSandboxRefundFormSchema(refundLimitMinor.value), {
+    amount_minor: refundAmountMinor.value,
+  }),
+)
+const refundError = computed(() => refundValidation.value.errors.amount_minor?.[0] ?? null)
 const confirmationDetails = computed(() => {
   if (confirmation.value === 'void') {
     return {
@@ -161,11 +159,11 @@ const confirmOperation = async (): Promise<void> => {
   let succeeded = false
   if (confirmation.value === 'void') {
     succeeded = await payments.sandboxVoid(props.accountId, sourceAttemptId)
-  } else if (confirmation.value === 'refund' && !refundError.value) {
+  } else if (confirmation.value === 'refund' && refundValidation.value.success) {
     succeeded = await payments.sandboxRefund(
       props.accountId,
       sourceAttemptId,
-      refundAmountMinor.value,
+      refundValidation.value.data.amount_minor,
     )
   } else if (confirmation.value === 'profile') {
     succeeded = await payments.createSandboxCustomerProfile(props.accountId, sourceAttemptId)

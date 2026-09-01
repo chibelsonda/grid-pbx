@@ -14,6 +14,8 @@ import {
   XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallflowDetailPanel from '../components/CallflowDetailPanel.vue'
 import CallflowEditorPanel from '../components/CallflowEditorPanel.vue'
@@ -93,12 +95,6 @@ const pageDescription = computed(() =>
       ? 'The full-width route map stays on the main page; select a node to inspect it in a modal.'
       : 'Understand incoming entry points and the safe structural path each call follows.',
 )
-const freshnessLabel = computed(() =>
-  callflows.sync.last_successful_at
-    ? `PBX projection synchronized ${new Date(callflows.sync.last_successful_at).toLocaleString()}`
-    : 'PBX projection not synchronized yet',
-)
-
 watch(
   [() => accounts.selectedId, () => route.query.callflow],
   ([accountId, callflowId]) => {
@@ -270,16 +266,12 @@ function routeTitle(route: {
         >
           <PlusIcon class="size-4" /> Create callflow
         </button>
-        <button
+        <ProjectionSyncButton
           v-if="!workspaceOpen"
-          type="button"
+          :synchronizing="callflows.synchronizing"
           :disabled="!accounts.selectedId || callflows.synchronizing"
-          class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50"
-          @click="synchronize"
-        >
-          <ArrowPathIcon class="size-4" :class="callflows.synchronizing && 'animate-spin'" />
-          {{ callflows.synchronizing ? 'Synchronizing…' : 'Synchronize routing' }}
-        </button>
+          @sync="synchronize"
+        />
         <template v-else-if="viewingRoute">
           <button
             type="button"
@@ -312,6 +304,12 @@ function routeTitle(route: {
         >
           <XMarkIcon class="size-5" />
         </button>
+        <ProjectionFreshness
+          v-if="!workspaceOpen"
+          class="w-full justify-end"
+          :last-synchronized-at="callflows.sync.last_successful_at"
+          :status="callflows.sync.status"
+        />
       </div>
     </div>
   </section>
@@ -449,13 +447,6 @@ function routeTitle(route: {
       >
         {{ callflows.error }}
       </div>
-      <div class="mb-4 flex justify-end">
-        <span
-          class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-500"
-          >{{ freshnessLabel }}</span
-        >
-      </div>
-
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full min-w-[900px] text-left" :aria-busy="callflows.loading">

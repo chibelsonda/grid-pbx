@@ -556,7 +556,7 @@ watch(
         <ShieldCheckIcon class="mt-0.5 size-5 shrink-0" />
         <p>{{ lockedReason }}</p>
       </div>
-      <div class="flex justify-end">
+      <div class="slide-over-actions flex justify-end">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-700"
@@ -1894,7 +1894,7 @@ watch(
         {{ error }}
       </p>
 
-      <div class="flex justify-end gap-3">
+      <div class="slide-over-actions flex justify-end gap-3">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-700"

@@ -1,14 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  ArrowPathIcon,
-  Bars3BottomLeftIcon,
-  ChevronRightIcon,
-  PlusIcon,
-} from '@heroicons/vue/24/outline'
+import { Bars3BottomLeftIcon, ChevronRightIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import MenuFormPanel from '../components/MenuFormPanel.vue'
 import { useMenuStore } from '../stores/menuStore'
 import type { MenuInput } from '../types/menu'
@@ -18,6 +16,7 @@ const menus = useMenuStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(menus.records))
 
 watch(
   [() => accounts.selectedId, globalSearchQuery],
@@ -53,24 +52,23 @@ async function remove(): Promise<void> {
           Manage voice menus, digit collection, prompts, and call-routing destinations.
         </p>
       </div>
-      <div class="ml-auto flex gap-2">
-        <button
-          v-if="canManage"
-          :disabled="menus.synchronizing"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
-          @click="accounts.selectedId && menus.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon
-            class="size-4"
-            :class="menus.synchronizing && 'animate-spin'"
-          />Sync</button
-        ><button
-          v-if="canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
-          @click="open()"
-        >
-          <PlusIcon class="size-4" />New menu
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex gap-2">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="menus.synchronizing"
+            :disabled="menus.synchronizing"
+            @sync="accounts.selectedId && menus.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+            @click="open()"
+          >
+            <PlusIcon class="size-4" />New menu
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>

@@ -14,6 +14,7 @@ describe('QueueFormPanel', () => {
           capabilities: {
             configuration_available: true,
             live_agent_controls_available: false,
+            agent_statistics_available: false,
             statistics_available: false,
           },
         },
@@ -57,6 +58,7 @@ describe('QueueFormPanel', () => {
           capabilities: {
             configuration_available: true,
             live_agent_controls_available: false,
+            agent_statistics_available: false,
             statistics_available: false,
           },
         },

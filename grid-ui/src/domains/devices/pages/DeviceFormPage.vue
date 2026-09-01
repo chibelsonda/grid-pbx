@@ -194,14 +194,16 @@ function close(): void {
         @update:configuration="Object.assign(configuration, $event)"
       />
 
-      <button
-        type="submit"
-        :disabled="devices.mutationLoading || !accounts.selectedId"
-        class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
-      >
-        <CheckCircleIcon class="size-4" />
-        {{ devices.mutationLoading ? 'Saving…' : isEditing ? 'Save changes' : 'Create device' }}
-      </button>
+      <div class="slide-over-actions flex justify-end">
+        <button
+          type="submit"
+          :disabled="devices.mutationLoading || !accounts.selectedId"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+        >
+          <CheckCircleIcon class="size-4" />
+          {{ devices.mutationLoading ? 'Saving…' : isEditing ? 'Save changes' : 'Create device' }}
+        </button>
+      </div>
     </form>
   </CrudSlideOver>
 </template>

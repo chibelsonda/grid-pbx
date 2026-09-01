@@ -285,6 +285,7 @@ async function signOut(): Promise<void> {
               v-else
               aria-label="Edit profile"
               class="grid gap-4 p-5"
+              novalidate
               @submit.prevent="saveProfile"
             >
               <FormInput
@@ -376,6 +377,7 @@ async function signOut(): Promise<void> {
                 v-if="selectedAccount.permissions.can_manage_account_settings"
                 aria-label="Organization branding"
                 class="grid gap-4"
+                novalidate
                 @submit.prevent="uploadOrganizationLogo"
               >
                 <FormFileInput

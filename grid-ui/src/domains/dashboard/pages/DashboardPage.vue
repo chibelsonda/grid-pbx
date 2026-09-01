@@ -20,6 +20,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CircularCountBadge from '@/shared/components/CircularCountBadge.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import StatCard from '@/shared/components/StatCard.vue'
 import CallGeographyPanel from '../components/CallGeographyPanel.vue'
 import CallInsightsPanel from '../components/CallInsightsPanel.vue'
@@ -147,16 +148,6 @@ const inventory = computed(() => {
       tone: 'bg-amber-50 text-amber-600',
     },
   ]
-})
-
-const freshnessLabel = computed(() => {
-  const timestamp = dashboard.overview.value?.data_as_of
-  if (!timestamp) return 'No successful synchronization yet'
-
-  return `Data as of ${new Intl.DateTimeFormat(undefined, {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(new Date(timestamp))}`
 })
 
 const syncLabel = computed(() => {
@@ -401,7 +392,10 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
           <ExclamationTriangleIcon v-else class="size-3.5" />
           {{ syncLabel }}
         </span>
-        <span class="text-[11px] font-medium text-slate-500">{{ freshnessLabel }}</span>
+        <ProjectionFreshness
+          :last-synchronized-at="dashboard.overview.value.data_as_of"
+          :status="dashboard.overview.value.synchronization.status"
+        />
         <span class="text-[11px] text-slate-400">
           · {{ dashboard.overview.value.account.timezone }}
         </span>

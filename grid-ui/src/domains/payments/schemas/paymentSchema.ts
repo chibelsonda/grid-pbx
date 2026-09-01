@@ -1,5 +1,21 @@
 import { z } from 'zod'
 
+export function createSandboxRefundFormSchema(maximumAmountMinor: number) {
+  return z.object({
+    amount_minor: z
+      .number('Enter a whole refund amount in cents.')
+      .int('Enter a whole refund amount in cents.')
+      .min(1, 'Enter a whole amount of at least 1 cent.')
+      .max(
+        maximumAmountMinor,
+        `The maximum refundable amount is ${new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: 'USD',
+        }).format(maximumAmountMinor / 100)}.`,
+      ),
+  })
+}
+
 export const paymentCapabilitySchema = z.object({
   enabled: z.boolean(),
   provider: z.string(),

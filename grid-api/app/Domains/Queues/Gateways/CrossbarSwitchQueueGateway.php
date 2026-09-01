@@ -22,6 +22,11 @@ class CrossbarSwitchQueueGateway implements SwitchQueueGateway
         return $this->capabilities->discover($account->switch_account_id)->toArray();
     }
 
+    public function statistics(SwitchAccount $account): array
+    {
+        return $this->queues->statistics($account->switch_account_id)->toArray();
+    }
+
     public function all(SwitchAccount $account): Generator
     {
         foreach ($this->queues->allDetails($account->switch_account_id) as $queue) {

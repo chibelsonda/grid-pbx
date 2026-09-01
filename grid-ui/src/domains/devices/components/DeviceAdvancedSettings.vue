@@ -740,6 +740,7 @@ function toggleEncryptionMethod(method: string): void {
               <label
                 v-for="restriction in restrictionRows"
                 :key="restriction.key"
+                data-testid="device-restriction-row"
                 class="grid gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_220px] sm:items-center"
               >
                 <span>

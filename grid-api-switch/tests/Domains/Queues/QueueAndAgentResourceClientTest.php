@@ -12,6 +12,7 @@ use GridPbx\Switch\Domains\Queues\Dto\QueueAnnouncementsWriteData;
 use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Domains\Queues\QueueResourceClient;
 use GridPbx\Switch\Shared\Authentication\TokenProvider;
+use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
 use GridPbx\Switch\SwitchConfig;
 use GuzzleHttp\Client;
@@ -174,6 +175,58 @@ final class QueueAndAgentResourceClientTest extends TestCase
         new QueueWriteData(name: 'Support', ringSimultaneously: 101);
     }
 
+    public function test_queue_statistics_discards_private_call_data_and_maps_public_and_event_keys(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'current_timestamp' => 63800001000,
+                'stats' => [
+                    [
+                        'queue_id' => 'queue-1',
+                        'status' => 'processed',
+                        'entered_timestamp' => 63800000000,
+                        'wait_time' => 20,
+                        'talk_time' => 180,
+                        'call_id' => 'private-call-id',
+                        'agent_id' => 'private-agent-id',
+                        'caller_id_number' => '+15551234567',
+                    ],
+                    [
+                        'Queue-ID' => 'queue-2',
+                        'Status' => 'waiting',
+                        'Entered-Timestamp' => 63800000990,
+                        'Call-ID' => 'private-call-id-2',
+                    ],
+                ],
+            ]]),
+        ]);
+
+        $snapshot = (new QueueResourceClient($switch))->statistics('account-1')->toArray();
+
+        self::assertSame('/v2/accounts/account-1/queues/stats', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame('processed', $snapshot['statistics'][0]['status']);
+        self::assertSame(180, $snapshot['statistics'][0]['talk_time']);
+        self::assertSame('waiting', $snapshot['statistics'][1]['status']);
+        self::assertSame(63800000990, $snapshot['statistics'][1]['entered_timestamp']);
+        self::assertArrayNotHasKey('call_id', $snapshot['statistics'][0]);
+        self::assertArrayNotHasKey('agent_id', $snapshot['statistics'][0]);
+        self::assertArrayNotHasKey('caller_id_number', $snapshot['statistics'][0]);
+    }
+
+    public function test_queue_statistics_rejects_an_unknown_status(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'current_timestamp' => 63800001000,
+                'stats' => [['queue_id' => 'queue-1', 'status' => 'future-status']],
+            ]]),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+
+        (new QueueResourceClient($switch))->statistics('account-1');
+    }
+
     public function test_agent_client_maps_user_memberships_and_sends_operational_commands(): void
     {
         $switch = $this->switchWithResponses([
@@ -203,12 +256,76 @@ final class QueueAndAgentResourceClientTest extends TestCase
         self::assertSame(['queue-1', 'queue-2'], $queues);
     }
 
+    public function test_agent_client_reads_queue_memberships_and_rejects_invalid_identifiers(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => ['queue-1', 'queue-2']]),
+            $this->response(['data' => ['queue-1', '']]),
+        ]);
+        $client = new AgentResourceClient($switch);
+
+        self::assertSame(['queue-1', 'queue-2'], $client->queueIds('account-1', 'user-1'));
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+        $client->queueIds('account-1', 'user-1');
+    }
+
+    public function test_agent_statistics_keep_only_valid_aggregate_counts(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'private-agent-1' => [
+                    'total_calls' => 12,
+                    'answered_calls' => 9,
+                    'missed_calls' => 3,
+                    'queues' => [
+                        'private-queue-1' => [
+                            'total_calls' => 12,
+                            'answered_calls' => 9,
+                            'missed_calls' => 3,
+                        ],
+                    ],
+                    'caller_id_number' => '+15551234567',
+                ],
+            ]]),
+        ]);
+
+        $statistics = (new AgentResourceClient($switch))->statistics('account-1')->toArray();
+
+        self::assertSame('/v2/accounts/account-1/agents/stats', $this->history[0]['request']->getUri()->getPath());
+        self::assertSame([[
+            'agent_id' => 'private-agent-1',
+            'total_calls' => 12,
+            'answered_calls' => 9,
+            'missed_calls' => 3,
+        ]], $statistics);
+        self::assertArrayNotHasKey('queues', $statistics[0]);
+        self::assertArrayNotHasKey('caller_id_number', $statistics[0]);
+    }
+
+    public function test_agent_statistics_reject_inconsistent_counts(): void
+    {
+        $switch = $this->switchWithResponses([
+            $this->response(['data' => [
+                'private-agent-1' => [
+                    'total_calls' => 2,
+                    'answered_calls' => 3,
+                ],
+            ]]),
+        ]);
+
+        $this->expectException(InvalidSwitchPayloadException::class);
+
+        (new AgentResourceClient($switch))->statistics('account-1');
+    }
+
     public function test_acdc_capabilities_are_probed_independently_without_returning_switch_data(): void
     {
         $switch = $this->switchWithResponses([
             $this->response(['data' => [['id' => 'private-queue-id']]]),
             new Response(500, [], json_encode(['status' => 'error'], JSON_THROW_ON_ERROR)),
             new Response(503, [], json_encode(['status' => 'error'], JSON_THROW_ON_ERROR)),
+            new Response(404, [], json_encode(['status' => 'error'], JSON_THROW_ON_ERROR)),
         ]);
 
         $capabilities = (new AcdcCapabilityClient($switch))->discover('account-1');
@@ -216,12 +333,14 @@ final class QueueAndAgentResourceClientTest extends TestCase
         self::assertSame([
             'configuration_available' => true,
             'live_agent_controls_available' => false,
+            'agent_statistics_available' => false,
             'statistics_available' => false,
         ], $capabilities->toArray());
         self::assertSame('/v2/accounts/account-1/queues', $this->history[0]['request']->getUri()->getPath());
         self::assertSame('paginate=true&page_size=1', $this->history[0]['request']->getUri()->getQuery());
         self::assertSame('/v2/accounts/account-1/agents/status', $this->history[1]['request']->getUri()->getPath());
-        self::assertSame('/v2/accounts/account-1/queues/stats', $this->history[2]['request']->getUri()->getPath());
+        self::assertSame('/v2/accounts/account-1/agents/stats', $this->history[2]['request']->getUri()->getPath());
+        self::assertSame('/v2/accounts/account-1/queues/stats', $this->history[3]['request']->getUri()->getPath());
     }
 
     /** @param list<Response> $responses */

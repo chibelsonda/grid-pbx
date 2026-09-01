@@ -171,6 +171,13 @@ describe('SettingsPage', () => {
 
     expect(logoInput.props('dropzone')).toBe(true)
     expect(logoInput.props('dropPrompt')).toBe('Drag and drop your logo here')
+    expect(wrapper.get('form[aria-label="Organization branding"]').attributes('novalidate')).toBe(
+      '',
+    )
+
+    await wrapper.get('form[aria-label="Organization branding"]').trigger('submit')
+    expect(wrapper.text()).toContain('Choose a logo image.')
+    expect(uploadLogo).not.toHaveBeenCalled()
 
     logoInput.vm.$emit(
       'update:modelValue',

@@ -49,6 +49,7 @@ test('separates available Queue configuration from unavailable live ACDc control
       capabilities: {
         configuration_available: boolean
         live_agent_controls_available: boolean
+        agent_statistics_available: boolean
         statistics_available: boolean
       }
     }
@@ -58,6 +59,7 @@ test('separates available Queue configuration from unavailable live ACDc control
   expect(payload.data.capabilities).toEqual({
     configuration_available: true,
     live_agent_controls_available: false,
+    agent_statistics_available: false,
     statistics_available: false,
   })
   await expect(page.getByRole('button', { name: 'New queue' })).toBeEnabled()
@@ -68,6 +70,226 @@ test('separates available Queue configuration from unavailable live ACDc control
   ).toBeVisible()
   expect(JSON.stringify(payload.data.capabilities)).not.toContain('private')
   expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
+test('polls an open live agent panel and stops after it closes', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const agentId = '11111111-1111-4111-8111-111111111111'
+  let statusFetches = 0
+
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/options$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          agents: [],
+          media: [],
+          capabilities: {
+            configuration_available: true,
+            live_agent_controls_available: true,
+            agent_statistics_available: false,
+            statistics_available: false,
+          },
+        },
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/agents$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: [
+          {
+            id: agentId,
+            name: 'Isolated Agent',
+            extension: '1001',
+            queues: [{ id: '22222222-2222-4222-8222-222222222222', name: 'Support' }],
+          },
+        ],
+      }),
+    })
+  })
+  await page.route(
+    new RegExp(`/api/v1/accounts/[^/]+/agents/${agentId}/status$`),
+    async (route) => {
+      statusFetches += 1
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: { id: agentId, status: 'connected', timestamp: 63800000000 },
+        }),
+      })
+    },
+  )
+
+  await page.goto('/queues')
+  await page.getByRole('tab', { name: 'Agents' }).click()
+  await page.getByRole('button', { name: 'Isolated Agent' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Agent status' })
+  const panel = dialog.getByTestId('slide-over-panel')
+
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText('connected')).toBeVisible()
+  await expect(panel.getByText('Auto-refresh · 5s', { exact: false })).toBeVisible()
+  await expect.poll(() => statusFetches, { timeout: 7_000 }).toBeGreaterThanOrEqual(2)
+
+  await dialog.getByRole('button', { name: 'Close panel' }).click()
+  const fetchesAfterClose = statusFetches
+  await page.waitForTimeout(5_500)
+
+  expect(statusFetches).toBe(fetchesAfterClose)
+  expect(issues).toEqual([])
+})
+
+test('shows and refreshes privacy-safe live Queue activity when the capability is available', async ({
+  page,
+}) => {
+  test.setTimeout(35_000)
+  const issues = collectPageIssues(page)
+  let statisticsFetches = 0
+
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/options$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          agents: [],
+          media: [],
+          capabilities: {
+            configuration_available: true,
+            live_agent_controls_available: true,
+            agent_statistics_available: false,
+            statistics_available: true,
+          },
+        },
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/statistics$/, async (route) => {
+    statisticsFetches += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          observed_at: '2026-09-01T04:05:06+00:00',
+          totals: {
+            waiting: statisticsFetches,
+            handled: 1,
+            abandoned: 2,
+            processed: 4,
+            average_wait_seconds: 65,
+            average_talk_seconds: 120,
+            longest_current_wait_seconds: 130,
+          },
+          queues: [
+            {
+              id: '11111111-1111-4111-8111-111111111111',
+              name: 'Isolated Support',
+              waiting: statisticsFetches,
+              handled: 1,
+              abandoned: 2,
+              processed: 4,
+              average_wait_seconds: 65,
+              average_talk_seconds: 120,
+              longest_current_wait_seconds: 130,
+            },
+          ],
+          unresolved_records: 0,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/queues')
+  const activity = page.getByRole('region', { name: 'Live queue activity' })
+
+  await expect(activity).toBeVisible()
+  await expect(activity.getByText('Isolated Support')).toBeVisible()
+  await expect(activity.getByRole('cell', { name: '1m 5s' })).toBeVisible()
+  await expect.poll(() => statisticsFetches).toBe(1)
+  await activity.getByRole('button', { name: 'Refresh' }).click()
+  await expect.poll(() => statisticsFetches).toBe(2)
+  await expect.poll(() => statisticsFetches, { timeout: 17_000 }).toBeGreaterThanOrEqual(3)
+
+  expect(await activity.textContent()).not.toContain('caller_id')
+  expect(await activity.textContent()).not.toContain('agent_id')
+  expect(issues).toEqual([])
+})
+
+test('shows and refreshes privacy-safe agent performance on the Agents tab', async ({ page }) => {
+  test.setTimeout(35_000)
+  const issues = collectPageIssues(page)
+  let statisticsFetches = 0
+
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/queues\/options$/, async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          agents: [],
+          media: [],
+          capabilities: {
+            configuration_available: true,
+            live_agent_controls_available: true,
+            agent_statistics_available: true,
+            statistics_available: false,
+          },
+        },
+      }),
+    })
+  })
+  await page.route(/\/api\/v1\/accounts\/[^/]+\/agents\/statistics$/, async (route) => {
+    statisticsFetches += 1
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          observed_at: '2026-09-01T04:05:06+00:00',
+          totals: {
+            total_calls: 12,
+            answered_calls: 9,
+            missed_calls: 3,
+            answer_rate_percentage: 75,
+          },
+          agents: [
+            {
+              id: '11111111-1111-4111-8111-111111111111',
+              name: 'Isolated Agent',
+              extension: '1001',
+              total_calls: 10,
+              answered_calls: 8,
+              missed_calls: 2,
+              answer_rate_percentage: 80,
+            },
+          ],
+          unresolved_agents: 0,
+        },
+      }),
+    })
+  })
+
+  await page.goto('/queues')
+  await page.getByRole('tab', { name: 'Agents' }).click()
+  const performance = page.getByRole('region', { name: 'Live agent performance' })
+
+  await expect(performance).toBeVisible()
+  await expect(performance.getByText('Isolated Agent')).toBeVisible()
+  await expect(performance.getByRole('cell', { name: '80%' })).toBeVisible()
+  await expect.poll(() => statisticsFetches).toBe(1)
+  await performance.getByRole('button', { name: 'Refresh' }).click()
+  await expect.poll(() => statisticsFetches).toBe(2)
+  await expect.poll(() => statisticsFetches, { timeout: 17_000 }).toBeGreaterThanOrEqual(3)
+
+  expect(await performance.textContent()).not.toContain('agent_id')
+  expect(await performance.textContent()).not.toContain('queue_id')
   expect(issues).toEqual([])
 })
 

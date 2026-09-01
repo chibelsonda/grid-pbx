@@ -53,9 +53,26 @@ test('keeps personal settings honest, persistent, and responsive', async ({ page
   await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible()
   await expect(page.getByText('Scheduled for a later slice', { exact: false })).toHaveCount(0)
 
+  let profileRequestCount = 0
   await page.route('**/api/v1/profile', async (route) => {
+    profileRequestCount += 1
     expect(route.request().method()).toBe('PATCH')
-    expect(route.request().postDataJSON()).toEqual({ name: 'E2E Profile Preview' })
+    expect(route.request().postDataJSON()).toEqual({
+      name: profileRequestCount === 1 ? 'E2E Profile Preview' : 'Rejected Profile Preview',
+    })
+
+    if (profileRequestCount === 2) {
+      await route.fulfill({
+        status: 422,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          message: 'The given data was invalid.',
+          errors: { name: ['This preview name was rejected.'] },
+        }),
+      })
+      return
+    }
+
     await route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({
@@ -73,6 +90,22 @@ test('keeps personal settings honest, persistent, and responsive', async ({ page
   await page.getByRole('textbox', { name: 'Display name' }).fill('E2E Profile Preview')
   await page.getByRole('button', { name: 'Save name' }).click()
   await expect(page.getByText('E2E Profile Preview', { exact: true }).first()).toBeVisible()
+  const globalNotification = page.getByTestId('global-notification')
+  await expect(globalNotification).toContainText('Update successful')
+  await expect(globalNotification).toContainText('The changes were saved successfully.')
+  await globalNotification.getByRole('button', { name: 'Dismiss notification' }).click()
+
+  await page.getByRole('button', { name: 'Edit display name' }).click()
+  await page.getByRole('textbox', { name: 'Display name' }).fill('Rejected Profile Preview')
+  await page.getByRole('button', { name: 'Save name' }).click()
+  await expect(page.getByText('This preview name was rejected.')).toBeVisible()
+  await expect(globalNotification).toContainText('Update failed')
+  await expect(globalNotification).toContainText(
+    'The changes could not be saved. Review the form or try again.',
+  )
+  await expect(globalNotification).toHaveAttribute('role', 'alert')
+  await globalNotification.getByRole('button', { name: 'Dismiss notification' }).click()
+  await page.getByRole('button', { name: 'Cancel' }).click()
 
   await settingsNavigation.getByRole('tab', { name: 'Appearance' }).click()
   await expect(page.getByText('Stored only in this browser', { exact: false })).toBeVisible()
@@ -216,6 +249,9 @@ test('uploads and removes private organization branding through public account s
   await expect(page.getByRole('heading', { name: 'Organization branding' })).toBeVisible()
   await expect(page.getByText('The default GridPBX mark is currently used.')).toBeVisible()
 
+  await page.getByRole('button', { name: 'Upload logo' }).click()
+  await expect(page.getByText('Choose a logo image.')).toBeVisible()
+
   const dropzone = page.getByTestId('file-dropzone')
   await expect(dropzone.getByText('Drag and drop your logo here')).toBeVisible()
   const dataTransfer = await page.evaluateHandle((bytes) => {
@@ -241,6 +277,10 @@ test('uploads and removes private organization branding through public account s
 
   await expect(page.getByRole('button', { name: 'Update logo' })).toBeVisible()
   await expect(page.getByText('Custom logo is active in the GridPBX sidebar.')).toBeVisible()
+  const globalNotification = page.getByTestId('global-notification')
+  await expect(globalNotification).toContainText('Upload successful')
+  await expect(globalNotification).toContainText('The file was uploaded successfully.')
+  await globalNotification.getByRole('button', { name: 'Dismiss notification' }).click()
   await expect(page.locator('aside img[alt="Organization logo"]')).toBeVisible()
   await expect(page.locator('body')).not.toContainText('organization-branding/')
   await expect(page.locator('body')).not.toContainText('switch_account_id')
@@ -249,6 +289,8 @@ test('uploads and removes private organization branding through public account s
   await page.getByRole('button', { name: 'Confirm removal' }).click()
 
   await expect(page.getByText('The default GridPBX mark is currently used.')).toBeVisible()
+  await expect(globalNotification).toContainText('Delete successful')
+  await expect(globalNotification).toContainText('The record was deleted successfully.')
   await expect(page.getByRole('button', { name: 'Upload logo' })).toBeVisible()
   await expect(page.locator('aside img[alt="Organization logo"]')).toHaveCount(0)
 })

@@ -156,9 +156,7 @@ defineExpose({ currentInput, validatedInput })
       @update:notification-callback="Object.assign(notificationCallback, $event)"
     />
 
-    <footer
-      class="sticky bottom-0 z-30 -mx-4 -mb-4 flex justify-end gap-3 border-t border-slate-200 bg-white/95 px-5 py-4 backdrop-blur sm:-mx-6 sm:-mb-6 sm:px-6 lg:-mx-7 lg:-mb-7 lg:px-7"
-    >
+    <footer class="slide-over-actions flex justify-end gap-3 py-4">
       <button
         type="button"
         class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"

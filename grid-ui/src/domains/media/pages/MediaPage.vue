@@ -2,13 +2,14 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowPathIcon,
   ChevronRightIcon,
   MusicalNoteIcon,
   PlusIcon,
   SpeakerWaveIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import MediaAudioPanel from '../components/MediaAudioPanel.vue'
 import MediaDeletePanel from '../components/MediaDeletePanel.vue'
@@ -28,12 +29,6 @@ const currentMoh = computed(() => media.records.find((record) => record.is_music
 const audioCount = computed(
   () => media.records.filter((record) => record.content_length !== null).length,
 )
-const freshness = computed(() =>
-  media.sync.last_successful_at
-    ? `Last synchronized ${new Date(media.sync.last_successful_at).toLocaleString()}`
-    : 'Not synchronized yet',
-)
-
 watch(
   [() => accounts.selectedId, () => route.query.media],
   ([accountId, mediaId], previous) => {
@@ -153,31 +148,34 @@ function formatSize(bytes: number | null): string {
           Manage Switch-hosted audio through a safe metadata projection.
         </p>
       </div>
-      <div class="flex flex-wrap gap-2 lg:ml-auto">
-        <button
-          v-if="canManage"
-          type="button"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm"
-          @click="openMoh"
-        >
-          <SpeakerWaveIcon class="size-4" />Music on hold
-        </button>
-        <button
-          type="button"
-          :disabled="!accounts.selectedId || media.synchronizing || !canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm disabled:opacity-40"
-          @click="accounts.selectedId && media.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon class="size-4" :class="media.synchronizing && 'animate-spin'" />Synchronize
-        </button>
-        <button
-          v-if="canManage"
-          type="button"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
-          @click="openCreate"
-        >
-          <PlusIcon class="size-4" />Upload media
-        </button>
+      <div class="grid gap-1 lg:ml-auto lg:justify-items-end">
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-if="canManage"
+            type="button"
+            class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm"
+            @click="openMoh"
+          >
+            <SpeakerWaveIcon class="size-4" />Music on hold
+          </button>
+          <ProjectionSyncButton
+            :synchronizing="media.synchronizing"
+            :disabled="!accounts.selectedId || media.synchronizing || !canManage"
+            @sync="accounts.selectedId && media.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            type="button"
+            class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
+            @click="openCreate"
+          >
+            <PlusIcon class="size-4" />Upload media
+          </button>
+        </div>
+        <ProjectionFreshness
+          :last-synchronized-at="media.sync.last_successful_at"
+          :status="media.sync.status"
+        />
       </div>
     </div>
   </section>
@@ -254,13 +252,6 @@ function formatSize(bytes: number | null): string {
     >
       {{ media.error }}
     </div>
-    <div class="mb-4 flex justify-end">
-      <span
-        class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-500"
-        >{{ freshness }}</span
-      >
-    </div>
-
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[820px] text-left">

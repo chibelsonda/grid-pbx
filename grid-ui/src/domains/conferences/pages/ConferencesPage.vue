@@ -11,6 +11,10 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { useVisibilityAwarePolling } from '@/shared/composables/useVisibilityAwarePolling'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import ConferenceFormPanel from '../components/ConferenceFormPanel.vue'
 import ConferenceParticipantsPanel from '../components/ConferenceParticipantsPanel.vue'
 import { useConferenceStore } from '../stores/conferenceStore'
@@ -28,16 +32,38 @@ const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
 const liveConference = ref<Conference | null>(null)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(conferences.records))
 const activeParticipants = computed(() =>
   conferences.records.reduce(
     (sum, item) => sum + item.runtime.members + item.runtime.moderators,
     0,
   ),
 )
+const liveRoomPollingPaused = computed(
+  () =>
+    conferences.participantsLoading ||
+    conferences.participantControlId !== null ||
+    conferences.bulkControllingAction !== null ||
+    conferences.playingMedia,
+)
+
+async function refreshLiveParticipants(): Promise<void> {
+  if (!accounts.selectedId || !liveConference.value) return
+  await conferences.loadParticipants(accounts.selectedId, liveConference.value.id)
+}
+
+useVisibilityAwarePolling({
+  active: computed(() => accounts.selectedId !== null && liveConference.value !== null),
+  paused: liveRoomPollingPaused,
+  intervalMs: 5_000,
+  task: refreshLiveParticipants,
+})
+
 watch(
   [() => accounts.selectedId, globalSearchQuery],
   ([id, searchQuery]) => {
     panelOpen.value = false
+    liveConference.value = null
     conferences.reset()
     conferences.search = searchQuery
     if (id) void conferences.load(id)
@@ -115,24 +141,23 @@ async function playMedia(mediaId: string, participantId: string | null): Promise
           Manage conference rooms, role-based access, and last-observed runtime status.
         </p>
       </div>
-      <div class="ml-auto flex gap-2">
-        <button
-          v-if="canManage"
-          :disabled="conferences.synchronizing"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
-          @click="accounts.selectedId && conferences.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon
-            class="size-4"
-            :class="conferences.synchronizing && 'animate-spin'"
-          />Sync</button
-        ><button
-          v-if="canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
-          @click="open()"
-        >
-          <PlusIcon class="size-4" />New conference
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex gap-2">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="conferences.synchronizing"
+            :disabled="conferences.synchronizing"
+            @sync="accounts.selectedId && conferences.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+            @click="open()"
+          >
+            <PlusIcon class="size-4" />New conference
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>
@@ -323,9 +348,7 @@ async function playMedia(mediaId: string, participantId: string | null): Promise
     :error="conferences.participantError"
     :can-manage="canManage"
     @close="liveConference = null"
-    @refresh="
-      accounts.selectedId && conferences.loadParticipants(accounts.selectedId, liveConference.id)
-    "
+    @refresh="refreshLiveParticipants"
     @control="controlParticipant"
     @bulk-control="controlParticipants"
     @play-media="playMedia"

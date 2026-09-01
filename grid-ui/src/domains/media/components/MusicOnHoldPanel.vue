@@ -1,16 +1,19 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { SpeakerWaveIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
+import { validateForm, type FormErrors } from '@/shared/forms/zod'
+import { musicOnHoldFormSchema } from '../schemas/mediaFormSchema'
 import type { Media } from '../types/media'
 
 const props = defineProps<{ records: Media[]; saving: boolean; error: string | null }>()
 const emit = defineEmits<{ close: []; save: [mediaId: string | null] }>()
 const selected = ref(props.records.find((record) => record.is_music_on_hold)?.id ?? '')
+const validationErrors = ref<FormErrors>({})
 const options: ListboxOptionValue[] = [
   { value: null, label: 'No account default' },
   ...props.records.map((record) => ({
@@ -23,6 +26,14 @@ const options: ListboxOptionValue[] = [
 function select(value: ListboxValue): void {
   selected.value = typeof value === 'string' ? value : ''
 }
+
+watch(selected, () => (validationErrors.value = {}))
+
+function submit(): void {
+  const result = validateForm(musicOnHoldFormSchema, { media_id: selected.value || null })
+  validationErrors.value = result.errors
+  if (result.success) emit('save', result.data.media_id)
+}
 </script>
 
 <template>
@@ -33,7 +44,7 @@ function select(value: ListboxValue): void {
     width="medium"
     @close="emit('close')"
   >
-    <form class="grid gap-5" novalidate @submit.prevent="emit('save', selected || null)">
+    <form class="grid gap-5" novalidate @submit.prevent="submit">
       <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
         {{ error }}
       </div>
@@ -51,11 +62,15 @@ function select(value: ListboxValue): void {
             :model-value="selected || null"
             :options="options"
             aria-label="Hold media"
+            :invalid="Boolean(validationErrors.media_id)"
             @update:model-value="select"
           />
+          <span v-if="validationErrors.media_id" class="text-[10px] text-danger">
+            {{ validationErrors.media_id[0] }}
+          </span>
         </label>
       </article>
-      <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
+      <div class="slide-over-actions flex justify-end gap-3 pt-5">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"

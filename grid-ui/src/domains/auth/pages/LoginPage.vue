@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LockClosedIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
+import { validateForm, type FormErrors } from '@/shared/forms/zod'
+import { loginFormSchema } from '../schemas/loginFormSchema'
 import { useAuthStore } from '../stores/authStore'
 
 const auth = useAuthStore()
@@ -13,10 +15,17 @@ const credentials = reactive({
   password: 'admin-change-me',
   remember: true,
 })
+const validationErrors = ref<FormErrors>({})
+
+watch(credentials, () => (validationErrors.value = {}), { deep: true })
 
 async function submit(): Promise<void> {
+  const result = validateForm(loginFormSchema, credentials)
+  validationErrors.value = result.errors
+  if (!result.success) return
+
   try {
-    await auth.login(credentials)
+    await auth.login(result.data)
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
     await router.push(redirect)
   } catch {
@@ -58,7 +67,7 @@ async function submit(): Promise<void> {
         <p class="text-[11px] text-white/45">Secure first-party session authentication</p>
       </div>
 
-      <form class="p-7 sm:p-10" @submit.prevent="submit">
+      <form class="p-7 sm:p-10" novalidate @submit.prevent="submit">
         <span class="grid size-11 place-items-center rounded-full bg-brand-50 text-brand-500"
           ><LockClosedIcon class="size-5"
         /></span>
@@ -77,8 +86,10 @@ async function submit(): Promise<void> {
           label="Email address"
           class="mt-7"
           type="email"
+          name="email"
           autocomplete="username"
           required
+          :error="validationErrors.email"
           input-class="h-11 px-3.5 text-sm"
         />
         <FormInput
@@ -86,8 +97,10 @@ async function submit(): Promise<void> {
           label="Password"
           class="mt-5"
           type="password"
+          name="password"
           autocomplete="current-password"
           required
+          :error="validationErrors.password"
           input-class="h-11 px-3.5 text-sm"
         />
         <ToggleSwitch v-model="credentials.remember" label="Remember me" class="mt-5" />

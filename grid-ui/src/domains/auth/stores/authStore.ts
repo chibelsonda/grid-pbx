@@ -1,8 +1,9 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { sessionApi } from '../api/sessionApi'
+import type { LoginCredentials } from '../schemas/loginFormSchema'
 import type { ProfileInput } from '../schemas/profileFormSchema'
-import type { LoginCredentials, SessionUser } from '../types/session'
+import type { SessionUser } from '../types/session'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({

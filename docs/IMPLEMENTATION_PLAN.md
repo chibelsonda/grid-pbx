@@ -889,7 +889,28 @@ Acceptance criteria:
   Switch state. Read-only account probes expose Queue configuration, live Agent
   controls, and statistics as separate cached capabilities; failures close the
   affected UI boundary without exposing probe payloads or Switch identifiers.
-  Statistics remain a later capability-gated slice.
+  When live controls are available, the Agent status panel performs a
+  non-overlapping five-second refresh only while the panel and browser tab are
+  visible, pauses during commands, stops on close/account change, and keeps
+  command acceptance separate from an observed runtime transition.
+  Queue statistics are read-only and capability-gated: the typed Switch
+  client discards caller, call, and Agent details; Laravel aggregates the
+  current deployment-configured ACDc window by projected Queue; and the UI
+  performs non-overlapping 15-second refreshes only while visible. Raw Queue
+  identifiers never cross the API, while unprojected rows are reported only
+  as a count. The local deployment still reports this capability unavailable,
+  so no live statistic feed is claimed as verified.
+  Agent call-performance statistics are an independent read-only capability.
+  Kazoo's `/agents/stats` response is keyed by private Agent identifiers and
+  may contain private per-Queue keys, so the typed Switch client retains only
+  total, answered, and missed call counts. Laravel resolves account-scoped
+  projected Agents and returns public UUIDs, display data, aggregate totals,
+  answer rates, and only a generic unresolved-Agent count. The Agents tab uses
+  the same visibility-aware 15-second refresh lifecycle and preserves its last
+  good snapshot after a background failure. The source implementation uses the
+  deployment-configured ACDc cleanup window, which defaults to one day; the
+  connected local deployment does not expose the live feed, so browser coverage
+  uses a safe intercepted public response and does not claim live verification.
 - Menu/IVR foundation: typed Menu CRUD, normalized prompt and behavior
   projection with full redacted `switch_json`, media relationship resolution,
   dependency-safe deletion, queued synchronization, guided call-routing
@@ -974,7 +995,11 @@ Acceptance criteria:
   kick remains disabled. After acceptance, Vue performs four bounded live-room
   observations over 750 ms and reports fully observed, partially/pending, or
   changed-room status without misrepresenting Kazoo's asynchronous acceptance
-  as per-participant completion. Dial-out remains disabled because
+  as per-participant completion. While the live-room panel remains open, a
+  shared visibility-aware poller refreshes every five seconds, pauses in hidden
+  tabs and during commands/playback, resumes immediately when visible, avoids
+  overlapping requests, and removes its timer/listener on close. Dial-out
+  remains disabled because
   Kazoo accepts Device/User IDs, raw numbers, and arbitrary SIP URIs, creates
   outbound legs, and applies billing and account limits.
 - Fax foundation: typed fax-box CRUD, normalized fax-box and bounded

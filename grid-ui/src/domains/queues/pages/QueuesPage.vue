@@ -1,20 +1,25 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
-import {
-  ArrowPathIcon,
-  ChevronRightIcon,
-  PlusIcon,
-  QueueListIcon,
-  UsersIcon,
-} from '@heroicons/vue/24/outline'
+import { ChevronRightIcon, PlusIcon, QueueListIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { useVisibilityAwarePolling } from '@/shared/composables/useVisibilityAwarePolling'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
+import AgentStatisticsPanel from '../components/AgentStatisticsPanel.vue'
 import AgentStatusPanel from '../components/AgentStatusPanel.vue'
 import QueueFormPanel from '../components/QueueFormPanel.vue'
+import QueueStatisticsPanel from '../components/QueueStatisticsPanel.vue'
 import { useQueueStore } from '../stores/queueStore'
-import type { Agent, AgentStatusInput, QueueInput } from '../types/queue'
+import type {
+  Agent,
+  AgentQueueMembershipInput,
+  AgentStatusInput,
+  QueueInput,
+} from '../types/queue'
 
 const accounts = useAccountStore()
 const queues = useQueueStore()
@@ -24,9 +29,65 @@ const queuePanel = ref(false)
 const agentPanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const configurationAvailable = computed(() => queues.options.capabilities.configuration_available)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(queues.records))
 const liveAgentControlsAvailable = computed(
   () => queues.options.capabilities.live_agent_controls_available,
 )
+const statisticsAvailable = computed(() => queues.options.capabilities.statistics_available)
+const agentStatisticsAvailable = computed(
+  () => queues.options.capabilities.agent_statistics_available,
+)
+const agentStatusPollingPaused = computed(() => queues.statusLoading || queues.statusRefreshing)
+const statisticsPollingPaused = computed(
+  () => queues.loading || queues.statisticsLoading || queues.statisticsRefreshing,
+)
+const agentStatisticsPollingPaused = computed(
+  () => queues.loading || queues.agentStatisticsLoading || queues.agentStatisticsRefreshing,
+)
+
+async function refreshAgentStatus(): Promise<void> {
+  if (!accounts.selectedId || !agentPanel.value || !liveAgentControlsAvailable.value) return
+  await queues.refreshAgentStatus(accounts.selectedId)
+}
+
+useVisibilityAwarePolling({
+  active: computed(
+    () =>
+      accounts.selectedId !== null &&
+      agentPanel.value &&
+      queues.selectedAgent !== null &&
+      liveAgentControlsAvailable.value,
+  ),
+  paused: agentStatusPollingPaused,
+  intervalMs: 5_000,
+  task: refreshAgentStatus,
+})
+
+async function refreshAgentStatistics(): Promise<void> {
+  if (!accounts.selectedId || !agentStatisticsAvailable.value) return
+  await queues.refreshAgentStatistics(accounts.selectedId)
+}
+
+useVisibilityAwarePolling({
+  active: computed(
+    () => accounts.selectedId !== null && tab.value === 'agents' && agentStatisticsAvailable.value,
+  ),
+  paused: agentStatisticsPollingPaused,
+  intervalMs: 15_000,
+  task: refreshAgentStatistics,
+})
+
+async function refreshQueueStatistics(): Promise<void> {
+  if (!accounts.selectedId || !statisticsAvailable.value) return
+  await queues.refreshStatistics(accounts.selectedId)
+}
+
+useVisibilityAwarePolling({
+  active: computed(() => accounts.selectedId !== null && statisticsAvailable.value),
+  paused: statisticsPollingPaused,
+  intervalMs: 15_000,
+  task: refreshQueueStatistics,
+})
 
 watch(
   [() => accounts.selectedId, globalSearchQuery],
@@ -58,8 +119,16 @@ async function remove(): Promise<void> {
   if (accounts.selectedId && (await queues.remove(accounts.selectedId))) queuePanel.value = false
 }
 async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
-  if (accounts.selectedId && (await queues.updateAgentStatus(accounts.selectedId, input)))
-    agentPanel.value = false
+  if (!accounts.selectedId) return
+  await queues.updateAgentStatus(accounts.selectedId, input)
+}
+async function refreshAgentQueueMemberships(): Promise<void> {
+  if (!accounts.selectedId) return
+  await queues.refreshAgentQueueMemberships(accounts.selectedId)
+}
+async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Promise<void> {
+  if (!accounts.selectedId) return
+  await queues.updateAgentQueueMembership(accounts.selectedId, input)
 }
 </script>
 
@@ -73,27 +142,31 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
           Manage ACDc caller queues, projected rosters, and live agent state.
         </p>
       </div>
-      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-        <button
-          v-if="canManage"
-          :disabled="queues.synchronizing || !configurationAvailable"
-          :title="configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
-          @click="accounts.selectedId && queues.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon
-            class="size-4"
-            :class="queues.synchronizing && 'animate-spin'"
-          />Sync</button
-        ><button
-          v-if="canManage"
-          :disabled="!configurationAvailable"
-          :title="configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-40 sm:flex-none"
-          @click="openQueue()"
-        >
-          <PlusIcon class="size-4" />New queue
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="queues.synchronizing"
+            :disabled="queues.synchronizing || !configurationAvailable"
+            :title="
+              configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'
+            "
+            class="flex-1 sm:flex-none"
+            @sync="accounts.selectedId && queues.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            :disabled="!configurationAvailable"
+            :title="
+              configurationAvailable ? undefined : 'Switch Queue configuration is unavailable.'
+            "
+            class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-40 sm:flex-none"
+            @click="openQueue()"
+          >
+            <PlusIcon class="size-4" />New queue
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>
@@ -117,6 +190,22 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
         Queue statistics are also unavailable in this deployment.
       </span>
     </div>
+    <div
+      v-else-if="!queues.loading && !statisticsAvailable"
+      class="mb-4 rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-600"
+      role="status"
+    >
+      The connected Switch did not report live queue statistics as available. Queue configuration
+      and agent controls remain available.
+    </div>
+    <QueueStatisticsPanel
+      v-if="statisticsAvailable"
+      :statistics="queues.statistics"
+      :loading="queues.statisticsLoading"
+      :refreshing="queues.statisticsRefreshing"
+      :error="queues.statisticsError"
+      @refresh="refreshQueueStatistics"
+    />
     <div class="mb-5 grid gap-4 sm:grid-cols-2">
       <article class="card-surface flex items-center gap-4 p-4">
         <span class="grid size-10 place-items-center rounded-md bg-brand-50 text-brand-600"
@@ -263,8 +352,24 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
             </div>
           </div>
         </TabPanel>
-        <TabPanel class="card-surface overflow-hidden focus:outline-none">
-          <div class="overflow-x-auto">
+        <TabPanel class="focus:outline-none">
+          <AgentStatisticsPanel
+            v-if="agentStatisticsAvailable"
+            :statistics="queues.agentStatistics"
+            :loading="queues.agentStatisticsLoading"
+            :refreshing="queues.agentStatisticsRefreshing"
+            :error="queues.agentStatisticsError"
+            @refresh="refreshAgentStatistics"
+          />
+          <div
+            v-else-if="!queues.loading"
+            class="mb-4 rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-600"
+            role="status"
+          >
+            The connected Switch did not report aggregate agent statistics as available. Agent
+            inventory and any separately available live status controls remain accessible.
+          </div>
+          <div class="card-surface overflow-x-auto">
             <table class="w-full min-w-[620px] text-left" :aria-busy="queues.loading">
               <caption class="sr-only">
                 Queue agents for the selected Switch account
@@ -341,10 +446,22 @@ async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
     :agent="queues.selectedAgent"
     :current="queues.agentStatus"
     :loading="queues.statusLoading"
+    :refreshing="queues.statusRefreshing"
+    :last-observed-at="queues.statusLastObservedAt"
+    :refresh-error="queues.statusRefreshError"
+    :command-accepted="queues.statusCommandAccepted"
+    :membership="queues.agentQueueMembership"
+    :membership-loading="queues.membershipLoading"
+    :membership-saving="queues.membershipSaving"
+    :membership-error="queues.membershipError"
+    :membership-command-accepted="queues.membershipCommandAccepted"
     :error="queues.mutationError"
     :field-errors="queues.fieldErrors"
     :can-manage="canManage && liveAgentControlsAvailable"
     @close="agentPanel = false"
+    @refresh="refreshAgentStatus"
+    @refresh-memberships="refreshAgentQueueMemberships"
+    @change-membership="changeAgentQueueMembership"
     @save="saveAgentStatus"
   />
 </template>

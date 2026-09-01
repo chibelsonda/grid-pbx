@@ -9,6 +9,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import { presentFeatureCode } from '../services/featureCodePresentation'
 import { useFeatureCodeStore } from '../stores/featureCodeStore'
 
@@ -41,12 +42,6 @@ const visibleRecords = computed(() => {
     ].some((value) => value?.toLocaleLowerCase().includes(query)),
   )
 })
-const freshnessLabel = computed(() =>
-  featureCodes.lastSuccessfulAt
-    ? `PBX projection synchronized ${new Date(featureCodes.lastSuccessfulAt).toLocaleString()}`
-    : 'PBX projection not synchronized yet',
-)
-
 watch(
   () => accounts.selectedId,
   (accountId) => {
@@ -136,11 +131,10 @@ watch(
         input-class="h-10 bg-white text-xs shadow-sm"
         class="w-full sm:max-w-md"
       />
-      <span
-        class="max-w-full rounded-md border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold break-words text-slate-500 sm:ml-auto"
-      >
-        {{ freshnessLabel }}
-      </span>
+      <ProjectionFreshness
+        class="max-w-full sm:ml-auto"
+        :last-synchronized-at="featureCodes.lastSuccessfulAt"
+      />
     </div>
 
     <div

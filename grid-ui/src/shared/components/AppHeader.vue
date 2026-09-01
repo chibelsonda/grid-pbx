@@ -5,7 +5,10 @@ import { Menu, MenuButton, MenuItem, MenuItems, TransitionRoot } from '@headless
 import {
   ArrowRightStartOnRectangleIcon,
   Bars3Icon,
+  BuildingOffice2Icon,
   ChevronDownIcon,
+  ShieldCheckIcon,
+  UserCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { accountRoleLabel } from '@/domains/accounts/accountRole'
@@ -103,15 +106,72 @@ async function signOut(): Promise<void> {
               class="absolute right-0 z-40 mt-2 w-64 origin-top-right overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl ring-1 ring-slate-900/5 focus:outline-none"
             >
               <div class="border-b border-slate-100 px-3 py-3">
-                <p class="truncate text-xs font-semibold text-slate-700">
-                  {{ auth.user?.name ?? 'Grid Admin' }}
-                </p>
-                <p class="mt-0.5 truncate text-[10px] text-slate-500">
-                  {{ auth.user?.email ?? 'Signed in to GridPBX' }}
-                </p>
+                <div class="flex items-center gap-3">
+                  <span
+                    class="grid size-9 shrink-0 place-items-center rounded-full bg-brand-500 text-xs font-bold text-white"
+                  >
+                    {{ initials }}
+                  </span>
+                  <div class="min-w-0">
+                    <p class="truncate text-xs font-semibold text-slate-700">
+                      {{ auth.user?.name ?? 'Grid Admin' }}
+                    </p>
+                    <p class="mt-0.5 truncate text-[10px] text-slate-500">
+                      {{ auth.user?.email ?? 'Signed in to GridPBX' }}
+                    </p>
+                  </div>
+                </div>
+                <div
+                  v-if="accounts.selected"
+                  class="mt-3 flex items-start gap-2 border-t border-slate-100 pt-2.5"
+                >
+                  <BuildingOffice2Icon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+                  <div class="min-w-0">
+                    <p class="text-[9px] font-bold tracking-wide text-slate-400 uppercase">
+                      Current account
+                    </p>
+                    <p class="truncate text-[11px] font-semibold text-slate-700">
+                      {{ accounts.selected.name }}
+                    </p>
+                    <p class="truncate text-[10px] text-slate-500">{{ userContext }}</p>
+                  </div>
+                </div>
               </div>
 
               <div class="p-1.5">
+                <MenuItem v-slot="{ active }">
+                  <RouterLink
+                    :to="{ name: 'settings', hash: '#profile' }"
+                    class="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition"
+                    :class="active ? 'bg-brand-50 text-brand-700' : 'text-slate-600'"
+                  >
+                    <UserCircleIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <span class="min-w-0">
+                      <span class="block text-xs font-semibold">Profile & settings</span>
+                      <span class="mt-0.5 block text-[10px] text-slate-500">
+                        Identity, appearance, and workspace
+                      </span>
+                    </span>
+                  </RouterLink>
+                </MenuItem>
+                <MenuItem v-slot="{ active }">
+                  <RouterLink
+                    :to="{ name: 'settings', hash: '#access-security' }"
+                    class="flex w-full items-start gap-2.5 rounded-md px-2 py-2 text-left transition"
+                    :class="active ? 'bg-brand-50 text-brand-700' : 'text-slate-600'"
+                  >
+                    <ShieldCheckIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                    <span class="min-w-0">
+                      <span class="block text-xs font-semibold">Access & security</span>
+                      <span class="mt-0.5 block text-[10px] text-slate-500">
+                        Role and granted capabilities
+                      </span>
+                    </span>
+                  </RouterLink>
+                </MenuItem>
+              </div>
+
+              <div class="border-t border-slate-100 p-1.5">
                 <MenuItem v-slot="{ active }">
                   <button
                     type="button"

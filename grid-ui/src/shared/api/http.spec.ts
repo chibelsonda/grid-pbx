@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { sanitizeApiErrorPayload, unexpectedServerErrorMessage, unwrapApiData } from './http'
+import {
+  mutationNotification,
+  sanitizeApiErrorPayload,
+  unexpectedServerErrorMessage,
+  unwrapApiData,
+} from './http'
 
 describe('unwrapApiData', () => {
   it('returns the Laravel data envelope from an Axios-shaped response', () => {
@@ -31,5 +36,38 @@ describe('sanitizeApiErrorPayload', () => {
     }
 
     expect(sanitizeApiErrorPayload(422, validation)).toBe(validation)
+  })
+})
+
+describe('mutationNotification', () => {
+  it('classifies successful record updates without exposing request details', () => {
+    expect(
+      mutationNotification(
+        { method: 'patch', url: '/api/v1/accounts/private-id/records/raw-id' },
+        true,
+      ),
+    ).toEqual({
+      title: 'Update successful',
+      message: 'The changes were saved successfully.',
+      tone: 'success',
+    })
+  })
+
+  it('classifies failed uploads and deletes with actionable generic messages', () => {
+    expect(mutationNotification({ method: 'post', data: new FormData() }, false)).toEqual({
+      title: 'Upload failed',
+      message: 'The file could not be uploaded. Review the form or try again.',
+      tone: 'error',
+    })
+    expect(mutationNotification({ method: 'delete' }, false)).toEqual({
+      title: 'Delete failed',
+      message: 'The record could not be deleted. Try again.',
+      tone: 'error',
+    })
+  })
+
+  it('ignores reads and explicitly silent session mutations', () => {
+    expect(mutationNotification({ method: 'get' }, true)).toBeNull()
+    expect(mutationNotification({ method: 'post', globalNotification: false }, false)).toBeNull()
   })
 })

@@ -333,17 +333,20 @@ function duration(seconds: number): string {
         <div>
           <p class="text-sm font-semibold text-slate-700">Active participants</p>
           <p class="mt-1 text-[11px] text-slate-500">
-            Commands are asynchronous and the list refreshes from Switch afterward.
+            Live state refreshes from Switch every five seconds while this panel is visible.
           </p>
         </div>
-        <button
-          type="button"
-          :disabled="loading || controllingId !== null || bulkControllingAction !== null"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 disabled:opacity-50"
-          @click="emit('refresh')"
-        >
-          <ArrowPathIcon class="size-4" :class="loading && 'animate-spin'" />Refresh
-        </button>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] font-semibold text-emerald-700">Auto-refresh · 5s</span>
+          <button
+            type="button"
+            :disabled="loading || controllingId !== null || bulkControllingAction !== null"
+            class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 disabled:opacity-50"
+            @click="emit('refresh')"
+          >
+            <ArrowPathIcon class="size-4" :class="loading && 'animate-spin'" />Refresh
+          </button>
+        </div>
       </div>
 
       <div

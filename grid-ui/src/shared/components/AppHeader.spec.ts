@@ -48,6 +48,7 @@ async function mountHeader() {
     routes: [
       { path: '/', name: 'home', component: { template: '<div />' } },
       { path: '/login', name: 'login', component: { template: '<div />' } },
+      { path: '/settings', name: 'settings', component: { template: '<div />' } },
     ],
   })
   await router.push('/')
@@ -63,7 +64,7 @@ async function mountHeader() {
     },
   })
 
-  return { accounts, wrapper }
+  return { accounts, router, wrapper }
 }
 
 describe('AppHeader', () => {
@@ -96,7 +97,19 @@ describe('AppHeader', () => {
     await nextTick()
 
     expect(wrapper.text()).toContain('admin@example.test')
+    expect(wrapper.text()).toContain('Current account')
+    expect(wrapper.text()).toContain('Profile & settings')
+    expect(wrapper.text()).toContain('Access & security')
     expect(wrapper.find('input[aria-label="Search accounts"]').exists()).toBe(false)
+  })
+
+  it('links directly to the implemented profile and access settings sections', async () => {
+    const { wrapper } = await mountHeader()
+
+    await wrapper.get('[aria-label="Open user menu for Grid Admin"]').trigger('click')
+    await nextTick()
+    expect(wrapper.get('a[href="/settings#profile"]').text()).toContain('Profile & settings')
+    expect(wrapper.get('a[href="/settings#access-security"]').text()).toContain('Access & security')
   })
 
   it('prevents disabled accounts from being selected in the responsive menu', async () => {

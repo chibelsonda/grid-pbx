@@ -123,7 +123,7 @@ const formattedSize = computed(() => {
           </div>
         </div>
       </article>
-      <div v-if="canManage" class="grid gap-3 border-t border-slate-200 pt-5 sm:grid-cols-3">
+      <div v-if="canManage" class="slide-over-actions grid gap-3 pt-5 sm:grid-cols-3">
         <button
           type="button"
           class="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white text-xs font-semibold text-slate-600"

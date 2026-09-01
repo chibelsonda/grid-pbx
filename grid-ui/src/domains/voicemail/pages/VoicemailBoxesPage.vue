@@ -11,6 +11,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import { useVoicemailStore } from '../stores/voicemailStore'
 
 const accounts = useAccountStore()
@@ -24,11 +25,6 @@ const transcribedOnPage = computed(
 const messagesOnPage = computed(() =>
   voicemail.records.reduce((total, record) => total + record.message_counts.total, 0),
 )
-const freshnessLabel = computed(() => {
-  if (!voicemail.sync.last_successful_at) return 'Not synchronized yet'
-  return `Last synchronized ${new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(voicemail.sync.last_successful_at))}`
-})
-
 watch(
   () => accounts.selectedId,
   (accountId) => {
@@ -143,18 +139,11 @@ function loadFirstPage(): void {
             @search="loadFirstPage"
           />
         </form>
-        <span
-          class="inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold sm:ml-auto"
-          :class="
-            voicemail.sync.status === 'healthy'
-              ? 'border-emerald-100 bg-emerald-50 text-emerald-700'
-              : voicemail.sync.status === 'error'
-                ? 'border-red-100 bg-red-50 text-danger'
-                : 'border-amber-100 bg-amber-50 text-amber-700'
-          "
-        >
-          <span class="size-2 rounded-full bg-current" /> {{ freshnessLabel }}
-        </span>
+        <ProjectionFreshness
+          class="sm:ml-auto"
+          :last-synchronized-at="voicemail.sync.last_successful_at"
+          :status="voicemail.sync.status"
+        />
       </div>
 
       <div

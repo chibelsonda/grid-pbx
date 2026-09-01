@@ -15,6 +15,11 @@ describe('organizationLogoSchema', () => {
     ).toBe(false)
     expect(
       organizationLogoSchema.safeParse({
+        logo: new File(['png'], 'brand.svg', { type: 'image/png' }),
+      }).success,
+    ).toBe(false)
+    expect(
+      organizationLogoSchema.safeParse({
         logo: new File([new Uint8Array(2 * 1024 * 1024 + 1)], 'large.webp', {
           type: 'image/webp',
         }),

@@ -6,6 +6,7 @@ namespace GridPbx\Switch\Domains\Queues;
 
 use Generator;
 use GridPbx\Switch\Domains\Queues\Dto\QueueSnapshot;
+use GridPbx\Switch\Domains\Queues\Dto\QueueStatisticsSnapshot;
 use GridPbx\Switch\Domains\Queues\Dto\QueueWriteData;
 use GridPbx\Switch\Shared\Exceptions\InvalidSwitchPayloadException;
 use GridPbx\Switch\SwitchClient;
@@ -119,6 +120,22 @@ final readonly class QueueResourceClient
         }
 
         return array_values($data);
+    }
+
+    public function statistics(string $accountId): QueueStatisticsSnapshot
+    {
+        $accountId = $this->requiredIdentifier($accountId, 'account');
+        $payload = $this->client->request(
+            'GET',
+            sprintf('accounts/%s/queues/stats', rawurlencode($accountId)),
+        );
+        $data = $payload['data'] ?? null;
+
+        if (! is_array($data)) {
+            throw new InvalidSwitchPayloadException('Switch queue statistics response data must be an object.');
+        }
+
+        return new QueueStatisticsSnapshot($data);
     }
 
     /** @param list<string> $agentIds */

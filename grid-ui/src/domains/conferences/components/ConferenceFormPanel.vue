@@ -546,7 +546,7 @@ function setToneMode(
           <TrashIcon class="size-4" />Delete conference
         </button>
       </div>
-      <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
+      <div class="slide-over-actions flex justify-end gap-3 pt-5">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"

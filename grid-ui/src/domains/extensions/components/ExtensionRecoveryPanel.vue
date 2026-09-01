@@ -169,7 +169,7 @@ function canRecover(operation: ExtensionRecoveryOperation): boolean {
         </div>
       </article>
 
-      <div class="flex justify-end border-t border-slate-200 pt-5">
+      <div class="slide-over-actions flex justify-end pt-5">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-200 bg-white px-5 text-xs font-semibold text-slate-600"

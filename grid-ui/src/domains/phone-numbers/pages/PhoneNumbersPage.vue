@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import {
-  ArrowPathIcon,
   CheckCircleIcon,
   ChevronRightIcon,
   HashtagIcon,
@@ -10,6 +9,8 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import PhoneNumberDetailPanel from '../components/PhoneNumberDetailPanel.vue'
 import { usePhoneNumberStore } from '../stores/phoneNumberStore'
@@ -30,11 +31,6 @@ const panelOpen = computed(
   () =>
     phoneNumbers.detailLoading || phoneNumbers.detail !== null || phoneNumbers.detailError !== null,
 )
-const freshnessLabel = computed(() => {
-  if (!phoneNumbers.sync.last_successful_at) return 'Not synchronized yet'
-  return `Last synchronized ${new Date(phoneNumbers.sync.last_successful_at).toLocaleString()}`
-})
-
 watch(
   [() => accounts.selectedId, globalSearchQuery],
   ([accountId, searchQuery]) => {
@@ -74,16 +70,17 @@ function humanize(value: string | null): string {
           Carrier inventory, feature state, and incoming callflow assignments projected from Switch.
         </p>
       </div>
-      <button
-        type="button"
-        :disabled="!accounts.selectedId || phoneNumbers.synchronizing"
-        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50 sm:ml-auto"
-        @click="synchronize"
-      >
-        <ArrowPathIcon class="size-4" :class="phoneNumbers.synchronizing && 'animate-spin'" />{{
-          phoneNumbers.synchronizing ? 'Synchronizing…' : 'Synchronize numbers'
-        }}
-      </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <ProjectionSyncButton
+          :synchronizing="phoneNumbers.synchronizing"
+          :disabled="!accounts.selectedId"
+          @sync="synchronize"
+        />
+        <ProjectionFreshness
+          :last-synchronized-at="phoneNumbers.sync.last_successful_at"
+          :status="phoneNumbers.sync.status"
+        />
+      </div>
     </div>
   </section>
 
@@ -178,13 +175,6 @@ function humanize(value: string | null): string {
     >
       {{ phoneNumbers.error }}
     </div>
-    <div class="mb-4 flex justify-end">
-      <span
-        class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-500"
-        >{{ freshnessLabel }}</span
-      >
-    </div>
-
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[900px] text-left">

@@ -3,7 +3,6 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDownLeftIcon,
-  ArrowPathIcon,
   ArrowUpRightIcon,
   ChevronRightIcon,
   ClockIcon,
@@ -12,6 +11,8 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormInput from '@/shared/components/FormInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallDetailRecordPanel from '../components/CallDetailRecordPanel.vue'
 import { useCallDetailRecordFilters } from '../composables/useCallDetailRecordFilters'
@@ -36,10 +37,6 @@ const inboundOnPage = computed(
 const totalDurationOnPage = computed(() =>
   calls.records.reduce((total, record) => total + record.duration_seconds, 0),
 )
-const freshnessLabel = computed(() => {
-  if (!calls.sync.last_successful_at) return 'Not synchronized yet'
-  return `Last synchronized ${new Date(calls.sync.last_successful_at).toLocaleString()}`
-})
 const dashboardPeriod = computed<CallDetailRecordDrilldown | null>(() => {
   const result = callDetailRecordDrilldownSchema.safeParse({
     started_after: calls.filters.started_after,
@@ -254,16 +251,19 @@ function humanize(value: string | null): string {
           Searchable MySQL projection of approved Switch call-leg metadata.
         </p>
       </div>
-      <button
-        v-if="accounts.selected?.permissions.can_sync_call_detail_records"
-        type="button"
-        :disabled="!accounts.selectedId || calls.synchronizing"
-        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50 sm:ml-auto"
-        @click="synchronize"
-      >
-        <ArrowPathIcon class="size-4" :class="calls.synchronizing && 'animate-spin'" />
-        {{ calls.synchronizing ? 'Synchronizing…' : `Sync last ${calls.importWindowDays} days` }}
-      </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <ProjectionSyncButton
+          v-if="accounts.selected?.permissions.can_sync_call_detail_records"
+          :synchronizing="calls.synchronizing"
+          :disabled="!accounts.selectedId || calls.synchronizing"
+          @sync="synchronize"
+        />
+        <ProjectionFreshness
+          :last-synchronized-at="calls.sync.last_successful_at"
+          :status="calls.sync.status"
+          :detail="`Import window: ${calls.importWindowDays} days`"
+        />
+      </div>
     </div>
   </section>
 
@@ -456,13 +456,6 @@ function humanize(value: string | null): string {
     >
       {{ calls.error }}
     </div>
-    <div class="mb-4 flex justify-end">
-      <span
-        class="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-[11px] font-semibold text-slate-500"
-        >{{ freshnessLabel }}</span
-      >
-    </div>
-
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[980px] text-left">

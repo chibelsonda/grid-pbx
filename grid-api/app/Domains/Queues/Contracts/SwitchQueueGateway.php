@@ -7,8 +7,11 @@ use Generator;
 
 interface SwitchQueueGateway
 {
-    /** @return array{configuration_available: bool, live_agent_controls_available: bool, statistics_available: bool} */
+    /** @return array{configuration_available: bool, live_agent_controls_available: bool, agent_statistics_available: bool, statistics_available: bool} */
     public function capabilities(SwitchAccount $account): array;
+
+    /** @return array{current_timestamp: int, statistics: list<array{queue_id: string, status: string, entered_timestamp: int|null, wait_time: int|null, talk_time: int|null}>} */
+    public function statistics(SwitchAccount $account): array;
 
     /** @return Generator<int, array<string, mixed>> */
     public function all(SwitchAccount $account): Generator;

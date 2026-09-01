@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  ArrowPathIcon,
-  BookOpenIcon,
-  ChevronRightIcon,
-  PlusIcon,
-  UsersIcon,
-} from '@heroicons/vue/24/outline'
+import { BookOpenIcon, ChevronRightIcon, PlusIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import DirectoryFormPanel from '../components/DirectoryFormPanel.vue'
 import { useDirectoryStore } from '../stores/directoryStore'
 import type { DirectoryInput } from '../types/directory'
@@ -19,6 +16,7 @@ const directories = useDirectoryStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const panel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(directories.records))
 watch(
   [() => accounts.selectedId, globalSearchQuery],
   ([id, searchQuery]) => {
@@ -53,24 +51,24 @@ async function remove(): Promise<void> {
           Route callers by first or last name without exposing Switch identifiers.
         </p>
       </div>
-      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-        <button
-          v-if="canManage"
-          :disabled="directories.synchronizing"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
-          @click="accounts.selectedId && directories.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon
-            class="size-4"
-            :class="directories.synchronizing && 'animate-spin'"
-          />Sync</button
-        ><button
-          v-if="canManage"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm sm:flex-none"
-          @click="open()"
-        >
-          <PlusIcon class="size-4" />New directory
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="directories.synchronizing"
+            :disabled="directories.synchronizing"
+            class="flex-1 sm:flex-none"
+            @sync="accounts.selectedId && directories.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm sm:flex-none"
+            @click="open()"
+          >
+            <PlusIcon class="size-4" />New directory
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>

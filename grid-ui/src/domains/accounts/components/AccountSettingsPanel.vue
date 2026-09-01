@@ -419,7 +419,7 @@ function selectRestriction(key: string, value: ListboxValue): void {
         </template>
       </BasicAdvancedFormTabs>
 
-      <div class="flex justify-end gap-3 border-t border-slate-200 pt-5">
+      <div class="slide-over-actions flex justify-end gap-3 pt-5">
         <button
           type="button"
           class="h-10 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-600"

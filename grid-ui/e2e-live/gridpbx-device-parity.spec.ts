@@ -60,14 +60,35 @@ test('shows the dedicated hotdesk panel on an existing device', async ({ page })
   await expect(page.getByText(/without exposing Switch IDs/)).toBeVisible()
 })
 
-test('keeps the final restriction menu visible inside the viewport', async ({ page }) => {
+test('keeps the final restriction and its menu clear of the fixed action footer', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1024, height: 600 })
   await page.goto('/devices')
   await page.getByRole('link', { name: 'Add device' }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: 'Restrictions', exact: true }).click()
 
+  const panel = page.getByTestId('slide-over-panel')
+  const content = panel.getByTestId('slide-over-content')
+  const actions = panel.locator('.slide-over-actions')
+  const finalRestrictionRow = panel.getByTestId('device-restriction-row').last()
   const restrictionButtons = page.getByRole('button', { name: /^Restriction for / })
   const finalRestriction = restrictionButtons.last()
+
+  await content.evaluate((element) => element.scrollTo({ top: element.scrollHeight }))
+
+  const [rowBox, actionsBox, bottomClearance] = await Promise.all([
+    finalRestrictionRow.boundingBox(),
+    actions.boundingBox(),
+    content.evaluate((element) => Number.parseFloat(getComputedStyle(element).paddingBottom)),
+  ])
+
+  expect(rowBox).not.toBeNull()
+  expect(actionsBox).not.toBeNull()
+  expect(bottomClearance).toBeGreaterThanOrEqual(actionsBox!.height)
+  expect(rowBox!.y + rowBox!.height).toBeLessThanOrEqual(actionsBox!.y)
+
   await finalRestriction.click()
 
   const options = page.getByRole('listbox')

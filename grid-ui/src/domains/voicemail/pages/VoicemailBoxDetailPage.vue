@@ -19,7 +19,9 @@ import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import { voicemailApi } from '../api/voicemailApi'
+import { voicemailGreetingFormSchema } from '../schemas/voicemailGreetingFormSchema'
 import { useVoicemailStore } from '../stores/voicemailStore'
 import type { VoicemailMessage, VoicemailMessageFolder } from '../types/voicemail'
 
@@ -37,7 +39,9 @@ const allMessagesSelected = computed(
 const greetingPanelOpen = ref(false)
 const greetingName = ref('')
 const greetingAudio = ref<File | null>(null)
-const greetingFileError = ref<string | null>(null)
+const greetingValidationErrors = ref<FormErrors>({})
+
+watch(greetingName, () => (greetingValidationErrors.value = {}))
 
 watch(
   [() => accounts.selectedId, voicemailBoxId],
@@ -92,41 +96,31 @@ function greetingAudioUrl(): string {
 function openGreetingPanel(): void {
   greetingName.value = voicemail.detail?.unavailable_greeting?.name ?? ''
   greetingAudio.value = null
-  greetingFileError.value = null
+  greetingValidationErrors.value = {}
   voicemail.greetingMutationError = null
   greetingPanelOpen.value = true
 }
 
 function selectGreetingAudio(file: File | null): void {
-  const accepted = ['audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/x-wav', 'audio/ogg']
-  greetingFileError.value = null
-
-  if (file && !accepted.includes(file.type)) {
-    greetingAudio.value = null
-    greetingFileError.value = 'Choose an MP3, WAV, or OGG audio file.'
-    return
-  }
-
-  if (file && file.size > 10 * 1024 * 1024) {
-    greetingAudio.value = null
-    greetingFileError.value = 'Greeting audio must be 10 MB or smaller.'
-    return
-  }
-
   greetingAudio.value = file
+  greetingValidationErrors.value = {}
 }
 
 async function uploadGreeting(): Promise<void> {
-  if (!accounts.selectedId || !greetingAudio.value) {
-    greetingFileError.value = 'Choose an audio file to upload.'
-    return
-  }
+  if (!accounts.selectedId) return
+
+  const result = validateForm(voicemailGreetingFormSchema, {
+    name: greetingName.value,
+    audio: greetingAudio.value,
+  })
+  greetingValidationErrors.value = result.errors
+  if (!result.success) return
 
   const succeeded = await voicemail.uploadGreeting(
     accounts.selectedId,
     voicemailBoxId.value,
-    greetingName.value,
-    greetingAudio.value,
+    result.data.name,
+    result.data.audio,
   )
   if (succeeded) greetingPanelOpen.value = false
 }
@@ -683,7 +677,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
     width="medium"
     @close="greetingPanelOpen = false"
   >
-    <form class="grid gap-5" @submit.prevent="uploadGreeting">
+    <form class="grid gap-5" novalidate @submit.prevent="uploadGreeting">
       <article class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
           <CloudArrowUpIcon class="size-5 text-brand-500" />
@@ -698,13 +692,14 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
             label="Display name"
             maxlength="128"
             placeholder="Reception unavailable greeting"
+            :error="greetingValidationErrors.name"
           />
           <FormFileInput
             v-model="greetingAudio"
             label="Audio file"
             required
             accept=".mp3,.wav,.ogg,audio/mpeg,audio/wav,audio/ogg"
-            :error="greetingFileError"
+            :error="greetingValidationErrors.audio"
             @change="selectGreetingAudio"
           />
           <div
@@ -721,15 +716,17 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
       >
         {{ voicemail.greetingMutationError }}
       </div>
-      <button
-        type="submit"
-        :disabled="voicemail.greetingMutationLoading || !greetingAudio"
-        class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
-      >
-        <CloudArrowUpIcon class="size-4" />{{
-          voicemail.greetingMutationLoading ? 'Uploading…' : 'Upload and assign'
-        }}
-      </button>
+      <div class="slide-over-actions flex justify-end">
+        <button
+          type="submit"
+          :disabled="voicemail.greetingMutationLoading"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+        >
+          <CloudArrowUpIcon class="size-4" />{{
+            voicemail.greetingMutationLoading ? 'Uploading…' : 'Upload and assign'
+          }}
+        </button>
+      </div>
     </form>
   </CrudSlideOver>
 </template>

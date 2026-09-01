@@ -15,6 +15,8 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CircularCountBadge from '@/shared/components/CircularCountBadge.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import DescendantOnboardingPanel from '../components/DescendantOnboardingPanel.vue'
 import ResellerDiagnosticDetails from '../components/ResellerDiagnosticDetails.vue'
 import { useResellerStore } from '../stores/resellerStore'
@@ -788,32 +790,22 @@ watch(
                 </span>
               </div>
 
-              <div>
-                <p class="text-[10px] font-semibold tracking-wide text-slate-500 uppercase">
-                  Last successful sync
-                </p>
-                <p class="mt-1 text-xs text-slate-700">
-                  {{ dateTime(descendant.service_projection.last_successful_at) }}
-                </p>
-              </div>
+              <ProjectionFreshness
+                :last-synchronized-at="descendant.service_projection.last_successful_at"
+                :status="descendant.service_projection.status"
+              />
 
-              <button
-                type="button"
+              <ProjectionSyncButton
                 :aria-label="`Synchronize services for ${descendant.name}`"
+                :synchronizing="reseller.syncingDescendantId === descendant.id"
                 :disabled="
                   !descendant.enabled ||
                   reseller.syncingDescendantId !== null ||
                   descendant.service_projection.status === 'syncing'
                 "
-                class="inline-flex h-9 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-                @click="synchronizeDescendant(descendant.id)"
-              >
-                <ArrowPathIcon
-                  class="size-4"
-                  :class="reseller.syncingDescendantId === descendant.id && 'animate-spin'"
-                />
-                {{ reseller.syncingDescendantId === descendant.id ? 'Synchronizing…' : 'Sync' }}
-              </button>
+                class="px-3"
+                @sync="synchronizeDescendant(descendant.id)"
+              />
             </article>
           </div>
         </section>

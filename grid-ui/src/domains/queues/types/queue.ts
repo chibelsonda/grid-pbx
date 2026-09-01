@@ -63,6 +63,12 @@ export type QueueInput = {
 }
 
 export type { QueueOption, QueueOptions } from '../schemas/queueOptionsSchema'
+export type { AgentStatistics, AgentStatisticsMetrics } from '../schemas/agentStatisticsSchema'
+export type {
+  AgentQueueMembership,
+  AgentQueueMembershipInput,
+} from '../schemas/agentQueueMembershipSchema'
+export type { QueueStatistics, QueueStatisticsMetrics } from '../schemas/queueStatisticsSchema'
 export type QueueSyncRun = {
   id: string
   status: 'queued' | 'running' | 'succeeded' | 'failed'

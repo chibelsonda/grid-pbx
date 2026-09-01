@@ -2,7 +2,6 @@
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowPathIcon,
   ChevronRightIcon,
   InboxArrowDownIcon,
   PaperAirplaneIcon,
@@ -11,6 +10,9 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import FaxBoxFormPanel from '../components/FaxBoxFormPanel.vue'
 import FaxDetailPanel from '../components/FaxDetailPanel.vue'
 import { useFaxStore } from '../stores/faxStore'
@@ -22,6 +24,7 @@ const router = useRouter()
 const boxPanel = ref(false)
 const messagePanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(faxes.boxes))
 type FaxOperation = keyof FaxOperationCapabilities
 const operationLabels: Record<FaxOperation, string> = {
   send: 'Send fax',
@@ -114,24 +117,23 @@ function clearFaxBoxQuery(): void {
           Configure inbound fax boxes and securely access projected message documents.
         </p>
       </div>
-      <div class="ml-auto flex gap-2">
-        <button
-          v-if="canManage"
-          :disabled="faxes.synchronizing"
-          class="inline-flex h-9 items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40"
-          @click="accounts.selectedId && faxes.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon
-            class="size-4"
-            :class="faxes.synchronizing && 'animate-spin'"
-          />Sync</button
-        ><button
-          v-if="canManage"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
-          @click="openBox()"
-        >
-          <PlusIcon class="size-4" />New fax box
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex gap-2">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="faxes.synchronizing"
+            :disabled="faxes.synchronizing"
+            @sync="accounts.selectedId && faxes.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
+            @click="openBox()"
+          >
+            <PlusIcon class="size-4" />New fax box
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>

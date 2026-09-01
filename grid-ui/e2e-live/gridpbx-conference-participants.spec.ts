@@ -61,6 +61,7 @@ test('manages an isolated active participant using only an opaque public handle'
   const mediaId = '11111111-1111-4111-8111-111111111111'
   let canSpeak = true
   let canHear = false
+  let participantFetches = 0
   const commands: Array<{ participant_id: string; action: string }> = []
   const bulkCommands: Array<{
     action: string
@@ -100,6 +101,7 @@ test('manages an isolated active participant using only an opaque public handle'
   await page.route(
     /\/api\/v1\/accounts\/[^/]+\/conferences\/conference-public-id\/participants(?:\?.*)?$/,
     async (route) => {
+      participantFetches += 1
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
@@ -212,6 +214,7 @@ test('manages an isolated active participant using only an opaque public handle'
   await expect(page.getByText('Deafened')).toBeVisible()
   await expect(page.getByText('participant-42')).toHaveCount(0)
   await expect(page.getByText('raw-call-id')).toHaveCount(0)
+  await expect.poll(() => participantFetches, { timeout: 7_000 }).toBeGreaterThanOrEqual(2)
 
   await page.getByRole('button', { name: /Mute members/ }).click()
   await expect(page.getByText('Confirm mute for 1 eligible participant(s)?')).toBeVisible()

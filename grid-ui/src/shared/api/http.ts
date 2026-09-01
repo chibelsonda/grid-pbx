@@ -1,4 +1,14 @@
-import axios from 'axios'
+import axios, { type AxiosRequestConfig } from 'axios'
+
+declare module 'axios' {
+  export interface AxiosRequestConfig {
+    globalNotification?: boolean
+  }
+
+  export interface InternalAxiosRequestConfig {
+    globalNotification?: boolean
+  }
+}
 
 export const unexpectedServerErrorMessage =
   'An unexpected server error occurred. Try again. If the problem continues, contact support.'
@@ -6,6 +16,92 @@ export const unexpectedServerErrorMessage =
 type ApiErrorPayload = {
   message: string
   error_id?: string
+}
+
+export type HttpNotification = {
+  title: string
+  message: string
+  tone: 'success' | 'error'
+}
+
+type HttpNotificationHandler = (notification: HttpNotification) => void
+type MutationKind = 'upload' | 'delete' | 'update' | 'request'
+
+let notificationHandler: HttpNotificationHandler | null = null
+
+const mutationMessages: Record<
+  MutationKind,
+  { success: Omit<HttpNotification, 'tone'>; error: Omit<HttpNotification, 'tone'> }
+> = {
+  upload: {
+    success: { title: 'Upload successful', message: 'The file was uploaded successfully.' },
+    error: {
+      title: 'Upload failed',
+      message: 'The file could not be uploaded. Review the form or try again.',
+    },
+  },
+  delete: {
+    success: { title: 'Delete successful', message: 'The record was deleted successfully.' },
+    error: { title: 'Delete failed', message: 'The record could not be deleted. Try again.' },
+  },
+  update: {
+    success: { title: 'Update successful', message: 'The changes were saved successfully.' },
+    error: {
+      title: 'Update failed',
+      message: 'The changes could not be saved. Review the form or try again.',
+    },
+  },
+  request: {
+    success: { title: 'Request successful', message: 'The request completed successfully.' },
+    error: {
+      title: 'Request failed',
+      message: 'The request could not be completed. Review the form or try again.',
+    },
+  },
+}
+
+export function configureHttpNotifications(handler: HttpNotificationHandler | null): void {
+  notificationHandler = handler
+}
+
+function isMultipartRequest(config: AxiosRequestConfig): boolean {
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) return true
+
+  return String(
+    config.headers?.['Content-Type'] ?? config.headers?.['content-type'] ?? '',
+  ).includes('multipart/form-data')
+}
+
+function mutationKind(config: AxiosRequestConfig): MutationKind | null {
+  if (config.globalNotification === false) return null
+
+  const method = config.method?.toLowerCase()
+  if (!method || !['post', 'put', 'patch', 'delete'].includes(method)) return null
+  if (isMultipartRequest(config)) return 'upload'
+  if (method === 'delete') return 'delete'
+  if (method === 'put' || method === 'patch') return 'update'
+
+  return 'request'
+}
+
+export function mutationNotification(
+  config: AxiosRequestConfig | undefined,
+  successful: boolean,
+): HttpNotification | null {
+  if (!config) return null
+
+  const kind = mutationKind(config)
+  if (!kind) return null
+
+  return {
+    ...mutationMessages[kind][successful ? 'success' : 'error'],
+    tone: successful ? 'success' : 'error',
+  }
+}
+
+function notifyMutation(config: AxiosRequestConfig | undefined, successful: boolean): void {
+  const notification = mutationNotification(config, successful)
+  if (notification) notificationHandler?.(notification)
 }
 
 export function sanitizeApiErrorPayload(status: number, payload: unknown): unknown {
@@ -34,13 +130,24 @@ export const http = axios.create({
   withXSRFToken: true,
 })
 
-http.interceptors.response.use(undefined, (error: unknown) => {
-  if (axios.isAxiosError(error) && error.response) {
-    error.response.data = sanitizeApiErrorPayload(error.response.status, error.response.data)
-  }
+http.interceptors.response.use(
+  (response) => {
+    notifyMutation(response.config, true)
 
-  return Promise.reject(error)
-})
+    return response
+  },
+  (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        error.response.data = sanitizeApiErrorPayload(error.response.status, error.response.data)
+      }
+
+      if (error.code !== 'ERR_CANCELED') notifyMutation(error.config, false)
+    }
+
+    return Promise.reject(error)
+  },
+)
 
 export type ApiResponse<T> = {
   data: T

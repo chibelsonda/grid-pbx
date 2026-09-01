@@ -2,7 +2,6 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  ArrowPathIcon,
   ChevronRightIcon,
   HashtagIcon,
   IdentificationIcon,
@@ -11,6 +10,9 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import CallerIdListFormPanel from '../components/CallerIdListFormPanel.vue'
 import { useCallerIdListStore } from '../stores/callerIdListStore'
 import type { CallerIdListInput } from '../types/callerIdList'
@@ -22,6 +24,7 @@ const router = useRouter()
 const panel = ref(false)
 const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(lists.records))
 const visibleEntryCount = computed(() =>
   lists.records.reduce((total, record) => total + (record.entry_count ?? 0), 0),
 )
@@ -106,22 +109,24 @@ function clearCallerIdListQuery(): void {
           Reusable caller-number and pattern matches for visual Callflow branches.
         </p>
       </div>
-      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-        <button
-          v-if="canManage"
-          :disabled="lists.synchronizing"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
-          @click="accounts.selectedId && lists.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon class="size-4" :class="lists.synchronizing && 'animate-spin'" />Sync
-        </button>
-        <button
-          v-if="canManage"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
-          @click="open()"
-        >
-          <PlusIcon class="size-4" />New list
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="lists.synchronizing"
+            :disabled="lists.synchronizing"
+            class="flex-1 sm:flex-none"
+            @sync="accounts.selectedId && lists.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
+            @click="open()"
+          >
+            <PlusIcon class="size-4" />New list
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>

@@ -165,15 +165,17 @@ async function save(): Promise<void> {
       >
         {{ voicemail.mutationError }}
       </div>
-      <button
-        type="submit"
-        :disabled="voicemail.mutationLoading || !accounts.selectedId"
-        class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
-      >
-        <CheckCircleIcon class="size-4" />{{
-          voicemail.mutationLoading ? 'Saving…' : isEditing ? 'Save changes' : 'Create mailbox'
-        }}
-      </button>
+      <div class="slide-over-actions flex justify-end">
+        <button
+          type="submit"
+          :disabled="voicemail.mutationLoading || !accounts.selectedId"
+          class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+        >
+          <CheckCircleIcon class="size-4" />{{
+            voicemail.mutationLoading ? 'Saving…' : isEditing ? 'Save changes' : 'Create mailbox'
+          }}
+        </button>
+      </div>
     </form>
   </CrudSlideOver>
 </template>

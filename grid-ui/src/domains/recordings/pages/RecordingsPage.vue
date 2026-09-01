@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ArrowPathIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  MicrophoneIcon,
-} from '@heroicons/vue/24/outline'
+import { ChevronRightIcon, ClockIcon, MicrophoneIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormInput from '@/shared/components/FormInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import RecordingDetailPanel from '../components/RecordingDetailPanel.vue'
 import { useRecordingFilters } from '../composables/useRecordingFilters'
@@ -89,20 +86,21 @@ function formatDuration(seconds: number): string {
           Metadata projection with protected, audited playback and downloads.
         </p>
       </div>
-      <button
+      <div
         v-if="accounts.selected?.permissions.can_sync_call_detail_records"
-        type="button"
-        :disabled="!accounts.selectedId || recordings.synchronizing"
-        class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-50 sm:ml-auto"
-        @click="synchronize"
+        class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end"
       >
-        <ArrowPathIcon class="size-4" :class="recordings.synchronizing && 'animate-spin'" />
-        {{
-          recordings.synchronizing
-            ? 'Synchronizing…'
-            : `Sync last ${recordings.importWindowDays} days`
-        }}
-      </button>
+        <ProjectionSyncButton
+          :synchronizing="recordings.synchronizing"
+          :disabled="!accounts.selectedId"
+          @sync="synchronize"
+        />
+        <ProjectionFreshness
+          :last-synchronized-at="recordings.sync.last_successful_at"
+          :status="recordings.sync.status"
+          :detail="`Import window: ${recordings.importWindowDays} days`"
+        />
+      </div>
     </div>
   </section>
 

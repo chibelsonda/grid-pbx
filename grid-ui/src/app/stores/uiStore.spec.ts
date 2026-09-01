@@ -93,4 +93,23 @@ describe('uiStore theme preferences', () => {
     expect(useUiStore().sidebarCollapsed).toBe(false)
     expect(window.localStorage.getItem('gridpbx.sidebar-collapsed.v1')).toBe('false')
   })
+
+  it('replaces global notifications and ignores stale dismiss timers', () => {
+    const ui = useUiStore()
+
+    ui.notify({ title: 'Saved', message: 'The record was saved.', tone: 'success' })
+    const firstId = ui.notification?.id
+    ui.notify({ title: 'Failed', message: 'The update failed.', tone: 'error' })
+
+    expect(ui.notification).toMatchObject({
+      title: 'Failed',
+      message: 'The update failed.',
+      tone: 'error',
+    })
+    ui.dismissNotification(firstId)
+    expect(ui.notification?.title).toBe('Failed')
+
+    ui.dismissNotification(ui.notification?.id)
+    expect(ui.notification).toBeNull()
+  })
 })

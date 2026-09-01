@@ -1,12 +1,22 @@
 <script setup lang="ts">
 import { TransitionRoot } from '@headlessui/vue'
-import { CheckCircleIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { computed } from 'vue'
+import type { AppNotificationTone } from '@/shared/types/appNotification'
 
-defineProps<{
-  show: boolean
-  title: string
-  message: string
-}>()
+const props = withDefaults(
+  defineProps<{
+    show: boolean
+    title: string
+    message: string
+    tone?: AppNotificationTone
+  }>(),
+  { tone: 'info' },
+)
+
+const notificationIcon = computed(() =>
+  props.tone === 'error' ? ExclamationTriangleIcon : CheckCircleIcon,
+)
 
 defineEmits<{ dismiss: [] }>()
 </script>
@@ -27,11 +37,16 @@ defineEmits<{ dismiss: [] }>()
     >
       <div
         data-testid="global-notification"
-        role="status"
-        aria-live="polite"
-        class="pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border border-emerald-200 bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5"
+        :role="tone === 'error' ? 'alert' : 'status'"
+        :aria-live="tone === 'error' ? 'assertive' : 'polite'"
+        class="app-notification pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5"
       >
-        <CheckCircleIcon class="mt-0.5 size-5 shrink-0 text-emerald-600" aria-hidden="true" />
+        <component
+          :is="notificationIcon"
+          class="mt-0.5 size-5 shrink-0"
+          :class="tone === 'error' ? 'text-red-600' : 'app-notification-accent'"
+          aria-hidden="true"
+        />
         <div class="min-w-0 flex-1">
           <p class="text-xs font-semibold text-slate-800">{{ title }}</p>
           <p class="mt-0.5 text-[11px] text-slate-600">{{ message }}</p>

@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import {
-  ArrowPathIcon,
   BanknotesIcon,
   ChevronRightIcon,
   CircleStackIcon,
@@ -9,6 +8,8 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import ServiceDetailPanel from '../components/ServiceDetailPanel.vue'
 import { useServiceStore } from '../stores/serviceStore'
 const accounts = useAccountStore()
@@ -47,20 +48,25 @@ const amount = (value: number): string =>
           Read-only service plans, quantities, limits, and billing-impact summary.
         </p>
       </div>
-      <div v-if="canView" class="ml-auto flex gap-2">
-        <button
-          v-if="services.overview"
-          class="h-9 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600"
-          @click="services.detailsOpen = true"
-        >
-          View details</button
-        ><button
-          :disabled="services.synchronizing"
-          class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-50"
-          @click="accounts.selectedId && services.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon class="size-4" :class="services.synchronizing && 'animate-spin'" />Sync
-        </button>
+      <div v-if="canView" class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex gap-2">
+          <button
+            v-if="services.overview"
+            class="h-9 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600"
+            @click="services.detailsOpen = true"
+          >
+            View details
+          </button>
+          <ProjectionSyncButton
+            :synchronizing="services.synchronizing"
+            :disabled="!accounts.selectedId"
+            @sync="accounts.selectedId && services.synchronize(accounts.selectedId)"
+          />
+        </div>
+        <ProjectionFreshness
+          :last-synchronized-at="services.overview?.last_synced_at ?? null"
+          :status="services.overview?.sync_status"
+        />
       </div>
     </div>
   </section>

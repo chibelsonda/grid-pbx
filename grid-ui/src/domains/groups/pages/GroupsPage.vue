@@ -1,16 +1,13 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  ArrowPathIcon,
-  ChevronRightIcon,
-  PlusIcon,
-  UserGroupIcon,
-  UsersIcon,
-} from '@heroicons/vue/24/outline'
+import { ChevronRightIcon, PlusIcon, UserGroupIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import GroupFormPanel from '../components/GroupFormPanel.vue'
 import { useGroupStore } from '../stores/groupStore'
 import type { GroupInput } from '../types/group'
@@ -21,6 +18,7 @@ const globalSearchQuery = useGlobalSearchListQuery()
 const panel = ref(false)
 const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() => latestSynchronizedAt(groups.records))
 watch(
   [() => accounts.selectedId, globalSearchQuery],
   ([id, searchQuery]) => {
@@ -58,24 +56,24 @@ async function remove(): Promise<void> {
           Build reusable user, device, and nested-group membership for routing.
         </p>
       </div>
-      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-        <button
-          v-if="canManage"
-          :disabled="groups.synchronizing"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
-          @click="accounts.selectedId && groups.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon
-            class="size-4"
-            :class="groups.synchronizing && 'animate-spin'"
-          />Sync</button
-        ><button
-          v-if="canManage"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
-          @click="open()"
-        >
-          <PlusIcon class="size-4" />New group
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="groups.synchronizing"
+            :disabled="groups.synchronizing"
+            class="flex-1 sm:flex-none"
+            @sync="accounts.selectedId && groups.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
+            @click="open()"
+          >
+            <PlusIcon class="size-4" />New group
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>

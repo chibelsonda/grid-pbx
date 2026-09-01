@@ -120,6 +120,7 @@ class QueueControllerTest extends TestCase
             ->andReturn([
                 'configuration_available' => true,
                 'live_agent_controls_available' => false,
+                'agent_statistics_available' => false,
                 'statistics_available' => false,
             ]);
 
@@ -128,9 +129,145 @@ class QueueControllerTest extends TestCase
             ->assertOk()
             ->assertJsonPath('data.capabilities.configuration_available', true)
             ->assertJsonPath('data.capabilities.live_agent_controls_available', false)
+            ->assertJsonPath('data.capabilities.agent_statistics_available', false)
             ->assertJsonPath('data.capabilities.statistics_available', false)
             ->assertJsonMissingPath('data.switch_account_id')
             ->assertDontSee($account->switch_account_id);
+    }
+
+    public function test_read_only_user_receives_aggregated_queue_statistics_without_private_switch_data(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $support = SwitchQueue::factory()->for($account)->create([
+            'name' => 'Support',
+            'switch_resource_id' => 'switch-queue-1',
+        ]);
+        $sales = SwitchQueue::factory()->for($account)->create([
+            'name' => 'Sales',
+            'switch_resource_id' => 'switch-queue-2',
+        ]);
+        $gateway = $this->mock(SwitchQueueGateway::class);
+        $gateway->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => true,
+            'agent_statistics_available' => false,
+            'statistics_available' => true,
+        ]);
+        $gateway->shouldReceive('statistics')->once()->withArgs(
+            fn (SwitchAccount $received): bool => $received->is($account),
+        )->andReturn([
+            'current_timestamp' => 63800001000,
+            'statistics' => [
+                ['queue_id' => 'switch-queue-1', 'status' => 'waiting', 'entered_timestamp' => 63800000990, 'wait_time' => null, 'talk_time' => null],
+                ['queue_id' => 'switch-queue-1', 'status' => 'processed', 'entered_timestamp' => 63800000000, 'wait_time' => 10, 'talk_time' => 120],
+                ['queue_id' => 'switch-queue-2', 'status' => 'abandoned', 'entered_timestamp' => 63800000950, 'wait_time' => 20, 'talk_time' => null],
+                ['queue_id' => 'unprojected-private-id', 'status' => 'handled', 'entered_timestamp' => 63800000980, 'wait_time' => 5, 'talk_time' => null],
+            ],
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/queues/statistics")
+            ->assertOk()
+            ->assertJsonPath('data.totals.waiting', 1)
+            ->assertJsonPath('data.totals.processed', 1)
+            ->assertJsonPath('data.totals.average_wait_seconds', 12)
+            ->assertJsonPath('data.totals.longest_current_wait_seconds', 10)
+            ->assertJsonPath('data.unresolved_records', 1)
+            ->assertJsonPath('data.queues.0.id', $sales->id)
+            ->assertJsonPath('data.queues.1.id', $support->id)
+            ->assertJsonMissing(['switch-queue-1', 'switch-queue-2', 'unprojected-private-id'])
+            ->assertJsonMissingPath('data.current_timestamp')
+            ->assertJsonMissingPath('data.statistics');
+
+        $this->assertStringNotContainsString('caller', $response->getContent());
+        $this->assertStringNotContainsString('agent_id', $response->getContent());
+    }
+
+    public function test_queue_statistics_stays_disabled_when_switch_capability_is_unavailable(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $gateway = $this->mock(SwitchQueueGateway::class);
+        $gateway->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => false,
+            'agent_statistics_available' => false,
+            'statistics_available' => false,
+        ]);
+        $gateway->shouldNotReceive('statistics');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/queues/statistics")
+            ->assertConflict()
+            ->assertExactJson([
+                'message' => 'Live queue statistics are unavailable for this Switch deployment.',
+            ]);
+    }
+
+    public function test_read_only_user_receives_projected_agent_statistics_without_private_switch_data(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $agent = SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Ada Lovelace',
+            'extension' => '1001',
+            'switch_resource_id' => 'switch-user-1',
+        ]);
+        $queue = SwitchQueue::factory()->for($account)->create();
+        $queue->agents()->create([
+            'switch_extension_id' => $agent->getKey(),
+            'switch_user_resource_id' => 'switch-user-1',
+        ]);
+        $gateway = $this->mock(SwitchQueueGateway::class);
+        $gateway->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => true,
+            'agent_statistics_available' => true,
+            'statistics_available' => false,
+        ]);
+        $this->mock(SwitchAgentGateway::class)
+            ->shouldReceive('statistics')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received): bool => $received->is($account))
+            ->andReturn([
+                ['agent_id' => 'switch-user-1', 'total_calls' => 10, 'answered_calls' => 8, 'missed_calls' => 2],
+                ['agent_id' => 'unprojected-private-agent', 'total_calls' => 2, 'answered_calls' => 1, 'missed_calls' => 1],
+            ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/agents/statistics")
+            ->assertOk()
+            ->assertJsonPath('data.totals.total_calls', 12)
+            ->assertJsonPath('data.totals.answered_calls', 9)
+            ->assertJsonPath('data.totals.missed_calls', 3)
+            ->assertJsonPath('data.totals.answer_rate_percentage', 75)
+            ->assertJsonPath('data.agents.0.id', $agent->id)
+            ->assertJsonPath('data.agents.0.name', 'Ada Lovelace')
+            ->assertJsonPath('data.agents.0.answer_rate_percentage', 80)
+            ->assertJsonPath('data.unresolved_agents', 1)
+            ->assertJsonMissing(['switch-user-1', 'unprojected-private-agent'])
+            ->assertJsonMissingPath('data.agents.0.agent_id');
+
+        $this->assertStringNotContainsString('queue_id', $response->getContent());
+        $this->assertStringNotContainsString('caller', $response->getContent());
+    }
+
+    public function test_agent_statistics_stays_disabled_when_its_switch_capability_is_unavailable(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $gateway = $this->mock(SwitchQueueGateway::class);
+        $gateway->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => true,
+            'agent_statistics_available' => false,
+            'statistics_available' => true,
+        ]);
+        $this->mock(SwitchAgentGateway::class)->shouldNotReceive('statistics');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/agents/statistics")
+            ->assertConflict()
+            ->assertExactJson([
+                'message' => 'Live agent statistics are unavailable for this Switch deployment.',
+            ]);
     }
 
     public function test_update_rejects_create_only_priority_and_partial_custom_announcement_media(): void
@@ -210,6 +347,131 @@ class QueueControllerTest extends TestCase
             'status' => 'pause', 'pause_timeout' => 60,
         ])->assertAccepted()->assertJsonPath('data.id', $agent->id)->assertJsonMissing(['switch-user-1']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'agent.status_requested', 'outcome' => 'succeeded', 'resource_type' => 'agent']);
+    }
+
+    public function test_read_only_user_receives_authoritative_agent_queue_memberships_without_switch_ids(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $agent = SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Ada Lovelace',
+            'switch_resource_id' => 'switch-user-1',
+        ]);
+        $support = SwitchQueue::factory()->for($account)->create([
+            'name' => 'Support',
+            'switch_resource_id' => 'switch-queue-1',
+        ]);
+        $sales = SwitchQueue::factory()->for($account)->create([
+            'name' => 'Sales',
+            'switch_resource_id' => 'switch-queue-2',
+        ]);
+        $support->agents()->create([
+            'switch_extension_id' => $agent->getKey(),
+            'switch_user_resource_id' => 'switch-user-1',
+        ]);
+        $this->mock(SwitchQueueGateway::class)->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => true,
+            'agent_statistics_available' => false,
+            'statistics_available' => false,
+        ]);
+        $this->mock(SwitchAgentGateway::class)
+            ->shouldReceive('queueIds')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $switchUserId): bool => $received->is($account) && $switchUserId === 'switch-user-1')
+            ->andReturn(['switch-queue-2', 'unprojected-private-queue']);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/agents/{$agent->id}/queues")
+            ->assertOk()
+            ->assertJsonPath('data.agent.id', $agent->id)
+            ->assertJsonPath('data.assigned_queues.0.id', $sales->id)
+            ->assertJsonPath('data.available_queues.0.id', $support->id)
+            ->assertJsonPath('data.unresolved_queues', 1)
+            ->assertJsonMissing(['switch-user-1', 'switch-queue-1', 'switch-queue-2', 'unprojected-private-queue']);
+
+        $this->assertStringNotContainsString('switch_resource_id', $response->getContent());
+    }
+
+    public function test_operator_requests_audited_agent_queue_login_and_reconciles_known_projection(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $agent = SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Ada Lovelace',
+            'switch_resource_id' => 'switch-user-1',
+        ]);
+        $support = SwitchQueue::factory()->for($account)->create([
+            'name' => 'Support',
+            'switch_resource_id' => 'switch-queue-1',
+        ]);
+        $sales = SwitchQueue::factory()->for($account)->create([
+            'name' => 'Sales',
+            'switch_resource_id' => 'switch-queue-2',
+        ]);
+        $support->agents()->create([
+            'switch_extension_id' => $agent->getKey(),
+            'switch_user_resource_id' => 'switch-user-1',
+        ]);
+        $this->mock(SwitchQueueGateway::class)->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => true,
+            'agent_statistics_available' => false,
+            'statistics_available' => false,
+        ]);
+        $this->mock(SwitchAgentGateway::class)
+            ->shouldReceive('updateQueueMembership')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $switchUserId, string $action, string $switchQueueId): bool => $received->is($account)
+                && $switchUserId === 'switch-user-1'
+                && $action === 'login'
+                && $switchQueueId === 'switch-queue-2')
+            ->andReturn(['switch-queue-1', 'switch-queue-2']);
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/agents/{$agent->id}/queues", [
+                'action' => 'login',
+                'queue_id' => $sales->id,
+            ])
+            ->assertOk()
+            ->assertJsonPath('data.assigned_queues.0.id', $sales->id)
+            ->assertJsonPath('data.assigned_queues.1.id', $support->id)
+            ->assertJsonMissing(['switch-user-1', 'switch-queue-1', 'switch-queue-2']);
+
+        $this->assertDatabaseHas('switch_queue_agents', [
+            'switch_queue_id' => $sales->getKey(),
+            'switch_extension_id' => $agent->getKey(),
+            'switch_user_resource_id' => 'switch-user-1',
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'agent.queue_membership_requested',
+            'outcome' => 'succeeded',
+            'resource_type' => 'agent',
+        ]);
+    }
+
+    public function test_agent_queue_membership_mutation_is_gated_when_live_controls_are_unavailable(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $agent = SwitchExtension::factory()->for($account)->create(['switch_resource_id' => 'switch-user-1']);
+        $queue = SwitchQueue::factory()->for($account)->create(['switch_resource_id' => 'switch-queue-1']);
+        $queue->agents()->create([
+            'switch_extension_id' => $agent->getKey(),
+            'switch_user_resource_id' => 'switch-user-1',
+        ]);
+        $this->mock(SwitchQueueGateway::class)->shouldReceive('capabilities')->once()->andReturn([
+            'configuration_available' => true,
+            'live_agent_controls_available' => false,
+            'agent_statistics_available' => false,
+            'statistics_available' => false,
+        ]);
+        $this->mock(SwitchAgentGateway::class)->shouldNotReceive('updateQueueMembership');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/agents/{$agent->id}/queues", [
+                'action' => 'logout',
+                'queue_id' => $queue->id,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('queue_id');
     }
 
     /** @return array<string, mixed> */

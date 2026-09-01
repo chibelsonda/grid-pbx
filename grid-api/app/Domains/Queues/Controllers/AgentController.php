@@ -5,6 +5,7 @@ namespace App\Domains\Queues\Controllers;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\Queues\Models\SwitchQueue;
+use App\Domains\Queues\Requests\UpdateAgentQueueMembershipRequest;
 use App\Domains\Queues\Requests\UpdateAgentStatusRequest;
 use App\Domains\Queues\Services\AgentService;
 use App\Http\Controllers\Controller;
@@ -32,6 +33,32 @@ class AgentController extends Controller
         Gate::authorize('viewAny', [SwitchQueue::class, $switchAccount]);
 
         return ApiResponse::data($agents->status($switchAccount, $agent));
+    }
+
+    public function queueMemberships(Request $request, string $account, string $agent, SwitchAccountService $accounts, AgentService $agents): JsonResponse
+    {
+        /** @var User $user */ $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        Gate::authorize('viewAny', [SwitchQueue::class, $switchAccount]);
+
+        return ApiResponse::data($agents->queueMemberships($switchAccount, $agent));
+    }
+
+    public function updateQueueMembership(UpdateAgentQueueMembershipRequest $request, string $account, string $agent, SwitchAccountService $accounts, AgentService $agents): JsonResponse
+    {
+        /** @var User $user */ $user = $request->user();
+        $switchAccount = $accounts->findAccessible($user, $account);
+        Gate::authorize('create', [SwitchQueue::class, $switchAccount]);
+        $validated = $request->validated();
+
+        return ApiResponse::data($agents->updateQueueMembership(
+            $switchAccount,
+            $agent,
+            $validated['queue_id'],
+            $validated['action'],
+            $user,
+            $request->ip(),
+        ));
     }
 
     public function updateStatus(UpdateAgentStatusRequest $request, string $account, string $agent, SwitchAccountService $accounts, AgentService $agents): JsonResponse

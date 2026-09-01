@@ -27,6 +27,7 @@ final readonly class AcdcCapabilityClient
                 ['query' => ['paginate' => 'true', 'page_size' => 1]],
             ),
             liveAgentControlsAvailable: $this->respondsSuccessfully($accountPath.'/agents/status'),
+            agentStatisticsAvailable: $this->respondsSuccessfully($accountPath.'/agents/stats'),
             statisticsAvailable: $this->respondsSuccessfully($accountPath.'/queues/stats'),
         );
     }

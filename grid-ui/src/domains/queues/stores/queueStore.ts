@@ -1,13 +1,18 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { queueApi } from '../api/queueApi'
+import { agentQueueMembershipInputSchema } from '../schemas/agentQueueMembershipSchema'
 import type {
   Agent,
+  AgentQueueMembership,
+  AgentQueueMembershipInput,
+  AgentStatistics,
   AgentStatus,
   AgentStatusInput,
   Queue,
   QueueInput,
   QueueOptions,
+  QueueStatistics,
 } from '../types/queue'
 
 function emptyOptions(): QueueOptions {
@@ -17,6 +22,7 @@ function emptyOptions(): QueueOptions {
     capabilities: {
       configuration_available: false,
       live_agent_controls_available: false,
+      agent_statistics_available: false,
       statistics_available: false,
     },
   }
@@ -33,6 +39,7 @@ export const useQueueStore = defineStore('queues', {
     agents: [] as Agent[],
     selectedAgent: null as Agent | null,
     agentStatus: null as AgentStatus | null,
+    agentQueueMembership: null as AgentQueueMembership | null,
     search: '',
     page: 1,
     lastPage: 1,
@@ -41,6 +48,22 @@ export const useQueueStore = defineStore('queues', {
     saving: false,
     synchronizing: false,
     statusLoading: false,
+    statusRefreshing: false,
+    statusLastObservedAt: null as string | null,
+    statusRefreshError: null as string | null,
+    statusCommandAccepted: false,
+    membershipLoading: false,
+    membershipSaving: false,
+    membershipError: null as string | null,
+    membershipCommandAccepted: false,
+    agentStatistics: null as AgentStatistics | null,
+    agentStatisticsLoading: false,
+    agentStatisticsRefreshing: false,
+    agentStatisticsError: null as string | null,
+    statistics: null as QueueStatistics | null,
+    statisticsLoading: false,
+    statisticsRefreshing: false,
+    statisticsError: null as string | null,
     error: null as string | null,
     mutationError: null as string | null,
     fieldErrors: {} as Record<string, string[]>,
@@ -53,6 +76,23 @@ export const useQueueStore = defineStore('queues', {
       this.agents = []
       this.selectedAgent = null
       this.agentStatus = null
+      this.agentQueueMembership = null
+      this.statusRefreshing = false
+      this.statusLastObservedAt = null
+      this.statusRefreshError = null
+      this.statusCommandAccepted = false
+      this.membershipLoading = false
+      this.membershipSaving = false
+      this.membershipError = null
+      this.membershipCommandAccepted = false
+      this.agentStatistics = null
+      this.agentStatisticsLoading = false
+      this.agentStatisticsRefreshing = false
+      this.agentStatisticsError = null
+      this.statistics = null
+      this.statisticsLoading = false
+      this.statisticsRefreshing = false
+      this.statisticsError = null
       this.total = 0
       this.error = null
       this.clearMutationError()
@@ -81,10 +121,52 @@ export const useQueueStore = defineStore('queues', {
         this.total = response.meta.total
         this.agents = agents
         this.options = options
+        await Promise.all([
+          options.capabilities.statistics_available
+            ? this.refreshStatistics(accountId, true)
+            : Promise.resolve(false),
+          options.capabilities.agent_statistics_available
+            ? this.refreshAgentStatistics(accountId, true)
+            : Promise.resolve(false),
+        ])
       } catch (error) {
         this.error = message(error, 'Unable to load queues and agents.')
       } finally {
         this.loading = false
+      }
+    },
+    async refreshStatistics(accountId: string, initial = false): Promise<boolean> {
+      if (this.statisticsLoading || this.statisticsRefreshing) return false
+
+      if (initial) this.statisticsLoading = true
+      else this.statisticsRefreshing = true
+      try {
+        this.statistics = await queueApi.statistics(accountId)
+        this.statisticsError = null
+        return true
+      } catch (error) {
+        this.statisticsError = message(error, 'Unable to refresh live queue activity.')
+        return false
+      } finally {
+        this.statisticsLoading = false
+        this.statisticsRefreshing = false
+      }
+    },
+    async refreshAgentStatistics(accountId: string, initial = false): Promise<boolean> {
+      if (this.agentStatisticsLoading || this.agentStatisticsRefreshing) return false
+
+      if (initial) this.agentStatisticsLoading = true
+      else this.agentStatisticsRefreshing = true
+      try {
+        this.agentStatistics = await queueApi.agentStatistics(accountId)
+        this.agentStatisticsError = null
+        return true
+      } catch (error) {
+        this.agentStatisticsError = message(error, 'Unable to refresh live agent performance.')
+        return false
+      } finally {
+        this.agentStatisticsLoading = false
+        this.agentStatisticsRefreshing = false
       }
     },
     async prepare(accountId: string, id?: string): Promise<void> {
@@ -106,14 +188,61 @@ export const useQueueStore = defineStore('queues', {
     async prepareAgent(accountId: string, agent: Agent): Promise<void> {
       this.selectedAgent = agent
       this.agentStatus = null
+      this.statusLastObservedAt = null
+      this.statusRefreshError = null
+      this.statusCommandAccepted = false
+      this.agentQueueMembership = null
+      this.membershipError = null
+      this.membershipCommandAccepted = false
       this.statusLoading = true
       this.clearMutationError()
       try {
         this.agentStatus = await queueApi.agentStatus(accountId, agent.id)
+        this.statusLastObservedAt = new Date().toISOString()
       } catch (error) {
         this.capture(error, 'Unable to load live agent status.')
       } finally {
         this.statusLoading = false
+      }
+      await this.refreshAgentQueueMemberships(accountId, true)
+    },
+    async refreshAgentQueueMemberships(accountId: string, initial = false): Promise<boolean> {
+      const agent = this.selectedAgent
+      if (!agent || this.membershipLoading || this.membershipSaving) return false
+
+      if (initial) this.membershipLoading = true
+      try {
+        const membership = await queueApi.agentQueueMemberships(accountId, agent.id)
+        if (this.selectedAgent?.id !== agent.id) return false
+
+        this.agentQueueMembership = membership
+        this.membershipError = null
+        return true
+      } catch (error) {
+        this.membershipError = message(error, 'Unable to refresh Agent Queue memberships.')
+        return false
+      } finally {
+        this.membershipLoading = false
+      }
+    },
+    async refreshAgentStatus(accountId: string): Promise<boolean> {
+      const agent = this.selectedAgent
+      if (!agent || this.statusLoading || this.statusRefreshing) return false
+
+      this.statusRefreshing = true
+      try {
+        const status = await queueApi.agentStatus(accountId, agent.id)
+        if (this.selectedAgent?.id !== agent.id) return false
+
+        this.agentStatus = status
+        this.statusLastObservedAt = new Date().toISOString()
+        this.statusRefreshError = null
+        return true
+      } catch (error) {
+        this.statusRefreshError = message(error, 'Unable to refresh live agent status.')
+        return false
+      } finally {
+        this.statusRefreshing = false
       }
     },
     replace(record: Queue): void {
@@ -164,16 +293,54 @@ export const useQueueStore = defineStore('queues', {
     async updateAgentStatus(accountId: string, input: AgentStatusInput): Promise<boolean> {
       if (!this.selectedAgent) return false
       this.statusLoading = true
+      this.statusCommandAccepted = false
       this.clearMutationError()
       try {
         await queueApi.updateAgentStatus(accountId, this.selectedAgent.id, input)
-        this.agentStatus = { id: this.selectedAgent.id, status: input.status, timestamp: null }
+        this.statusCommandAccepted = true
         return true
       } catch (error) {
         this.capture(error, 'Unable to update agent status.')
         return false
       } finally {
         this.statusLoading = false
+      }
+    },
+    async updateAgentQueueMembership(
+      accountId: string,
+      input: AgentQueueMembershipInput,
+    ): Promise<boolean> {
+      const agent = this.selectedAgent
+      if (!agent || this.membershipSaving) return false
+      const parsed = agentQueueMembershipInputSchema.safeParse(input)
+
+      if (!parsed.success) {
+        this.membershipError = parsed.error.issues[0]?.message ?? 'Select a valid Queue.'
+        return false
+      }
+
+      this.membershipSaving = true
+      this.membershipCommandAccepted = false
+      this.membershipError = null
+      try {
+        const membership = await queueApi.updateAgentQueueMembership(
+          accountId,
+          agent.id,
+          parsed.data,
+        )
+        if (this.selectedAgent?.id !== agent.id) return false
+
+        this.agentQueueMembership = membership
+        this.selectedAgent.queues = membership.assigned_queues
+        const index = this.agents.findIndex(({ id }) => id === agent.id)
+        if (index >= 0) this.agents[index] = { ...this.selectedAgent }
+        this.membershipCommandAccepted = true
+        return true
+      } catch (error) {
+        this.membershipError = message(error, 'Unable to update Agent Queue membership.')
+        return false
+      } finally {
+        this.membershipSaving = false
       }
     },
     async synchronize(accountId: string): Promise<void> {

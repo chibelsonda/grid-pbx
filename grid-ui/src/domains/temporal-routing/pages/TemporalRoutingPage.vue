@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
-import {
-  ArrowPathIcon,
-  CalendarDaysIcon,
-  ChevronRightIcon,
-  ClockIcon,
-  PlusIcon,
-} from '@heroicons/vue/24/outline'
+import { CalendarDaysIcon, ChevronRightIcon, ClockIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import TemporalRulePanel from '../components/TemporalRulePanel.vue'
 import TemporalRuleSetPanel from '../components/TemporalRuleSetPanel.vue'
 import { useTemporalRoutingStore } from '../stores/temporalRoutingStore'
@@ -26,6 +23,9 @@ const tab = ref<'rules' | 'sets'>('rules')
 const rulePanel = ref(false)
 const setPanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const lastSynchronizedAt = computed(() =>
+  latestSynchronizedAt([...temporal.rules, ...temporal.sets]),
+)
 
 watch(
   () => accounts.selectedId,
@@ -110,22 +110,24 @@ function statusLabel(status: TemporalEffectiveStatus): string {
           Build recurring rules and reusable rule sets for time-based routing.
         </p>
       </div>
-      <div class="flex w-full flex-wrap gap-2 sm:ml-auto sm:w-auto">
-        <button
-          v-if="canManage"
-          :disabled="temporal.synchronizing"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 disabled:opacity-40 sm:flex-none"
-          @click="accounts.selectedId && temporal.synchronize(accounts.selectedId)"
-        >
-          <ArrowPathIcon class="size-4" :class="temporal.synchronizing && 'animate-spin'" />Sync
-        </button>
-        <button
-          v-if="canManage"
-          class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
-          @click="tab === 'rules' ? openRule() : openSet()"
-        >
-          <PlusIcon class="size-4" />New {{ tab === 'rules' ? 'rule' : 'rule set' }}
-        </button>
+      <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
+        <div class="flex w-full flex-wrap gap-2 sm:w-auto">
+          <ProjectionSyncButton
+            v-if="canManage"
+            :synchronizing="temporal.synchronizing"
+            :disabled="temporal.synchronizing"
+            class="flex-1 sm:flex-none"
+            @sync="accounts.selectedId && temporal.synchronize(accounts.selectedId)"
+          />
+          <button
+            v-if="canManage"
+            class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
+            @click="tab === 'rules' ? openRule() : openSet()"
+          >
+            <PlusIcon class="size-4" />New {{ tab === 'rules' ? 'rule' : 'rule set' }}
+          </button>
+        </div>
+        <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
       </div>
     </div>
   </section>

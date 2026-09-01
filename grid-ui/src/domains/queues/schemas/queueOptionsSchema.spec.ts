@@ -9,6 +9,7 @@ describe('queueOptionsSchema', () => {
       capabilities: {
         configuration_available: true,
         live_agent_controls_available: false,
+        agent_statistics_available: false,
         statistics_available: false,
         raw_status_response: { agent_id: 'private-agent-id' },
       },
@@ -18,6 +19,7 @@ describe('queueOptionsSchema', () => {
     expect(result.capabilities).toEqual({
       configuration_available: true,
       live_agent_controls_available: false,
+      agent_statistics_available: false,
       statistics_available: false,
     })
     expect(result).not.toHaveProperty('switch_account_id')
