@@ -2,6 +2,7 @@ import axios from 'axios'
 import { defineStore } from 'pinia'
 import { sessionApi } from '../api/sessionApi'
 import type { LoginCredentials } from '../schemas/loginFormSchema'
+import type { PasswordInput } from '../schemas/passwordFormSchema'
 import type { ProfileInput } from '../schemas/profileFormSchema'
 import type { SessionUser } from '../types/session'
 
@@ -14,6 +15,9 @@ export const useAuthStore = defineStore('auth', {
     profileSaving: false,
     profileError: null as string | null,
     profileFieldErrors: {} as Record<string, string[]>,
+    passwordSaving: false,
+    passwordError: null as string | null,
+    passwordFieldErrors: {} as Record<string, string[]>,
   }),
   getters: {
     authenticated: (state) => state.user !== null,
@@ -79,6 +83,32 @@ export const useAuthStore = defineStore('auth', {
         return false
       } finally {
         this.profileSaving = false
+      }
+    },
+    clearPasswordError(): void {
+      this.passwordError = null
+      this.passwordFieldErrors = {}
+    },
+    async updatePassword(input: PasswordInput): Promise<boolean> {
+      this.passwordSaving = true
+      this.clearPasswordError()
+
+      try {
+        await sessionApi.updatePassword(input)
+        return true
+      } catch (error) {
+        this.passwordFieldErrors = axios.isAxiosError(error)
+          ? (error.response?.data?.errors ?? {})
+          : {}
+        this.passwordError =
+          Object.keys(this.passwordFieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to change your password.')
+              : 'Unable to change your password.'
+        return false
+      } finally {
+        this.passwordSaving = false
       }
     },
   },

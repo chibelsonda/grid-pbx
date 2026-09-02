@@ -11,7 +11,7 @@ class AuditService
 {
     /** @param array<string, mixed> $metadata */
     public function record(
-        User $actor,
+        ?User $actor,
         ?SwitchAccount $account,
         string $action,
         string $outcome,
@@ -21,7 +21,7 @@ class AuditService
         string $resourceType = 'device',
     ): AuditLog {
         return AuditLog::query()->create([
-            'user_id' => $actor->getKey(),
+            'user_id' => $actor?->getKey(),
             'organization_id' => $account?->organization_id,
             'switch_account_id' => $account?->getKey(),
             'request_id' => (string) Str::uuid(),

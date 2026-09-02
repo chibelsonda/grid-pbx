@@ -30,6 +30,12 @@ class SessionControllerTest extends TestCase
             ->assertJsonPath('data.user.email', $user->email);
 
         $this->assertAuthenticatedAs($user);
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->getKey(),
+            'action' => 'auth.login',
+            'outcome' => 'succeeded',
+            'resource_type' => 'session',
+        ]);
 
         $this->getJson('/api/v1/session')
             ->assertOk()
@@ -45,6 +51,12 @@ class SessionControllerTest extends TestCase
         $this->actingAs($user)->postJson('/logout')->assertNoContent();
 
         $this->assertGuest();
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => $user->getKey(),
+            'action' => 'auth.logout',
+            'outcome' => 'succeeded',
+            'resource_type' => 'session',
+        ]);
     }
 
     public function test_invalid_credentials_are_rejected(): void
@@ -57,6 +69,26 @@ class SessionControllerTest extends TestCase
         ])->assertUnprocessable()->assertJsonValidationErrors('email');
 
         $this->assertGuest();
+        $this->assertDatabaseHas('audit_logs', [
+            'user_id' => null,
+            'action' => 'auth.login',
+            'outcome' => 'failed',
+            'resource_type' => 'session',
+        ]);
+        $this->assertDatabaseMissing('audit_logs', [
+            'resource_id' => 'incorrect-password',
+        ]);
+    }
+
+    public function test_oversized_login_fields_are_rejected_before_authentication(): void
+    {
+        $this->postJson('/login', [
+            'email' => str_repeat('a', 255).'@example.test',
+            'password' => str_repeat('x', 1025),
+        ])->assertUnprocessable()->assertJsonValidationErrors(['email', 'password']);
+
+        $this->assertGuest();
+        $this->assertDatabaseCount('audit_logs', 0);
     }
 
     public function test_an_unauthenticated_api_request_returns_json(): void

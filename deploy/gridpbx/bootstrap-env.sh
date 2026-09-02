@@ -34,6 +34,7 @@ umask 077
     printf 'GRID_UI_IMAGE=%s\n' "${GRID_UI_IMAGE:-ghcr.io/chibelsonda/grid-pbx-ui}"
     printf 'GRID_IMAGE_TAG=%s\n' "${GRID_IMAGE_TAG:-bootstrap}"
     printf 'GRID_HTTP_PORT=%s\n' "${GRID_HTTP_PORT:-8080}"
+    printf 'GRID_MYSQL_TUNNEL_PORT=%s\n' "${GRID_MYSQL_TUNNEL_PORT:-3309}"
     printf '\n'
     printf 'APP_KEY=%s\n' "${app_key}"
     printf 'APP_URL=%s\n' "${public_url}"

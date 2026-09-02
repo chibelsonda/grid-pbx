@@ -36,7 +36,7 @@ class PhoneNumberController extends Controller
         ))->additional(['meta' => ['sync' => [
             'status' => $checkpoint?->status->value ?? 'stale',
             'last_successful_at' => $checkpoint?->last_successful_at?->toIso8601String(),
-            'error_message' => $checkpoint?->error_message,
+            'error_message' => $checkpoint?->publicErrorMessage(),
         ]]]);
     }
 

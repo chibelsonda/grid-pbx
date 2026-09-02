@@ -21,6 +21,7 @@ WORKDIR /app
 COPY grid-api-switch /grid-api-switch
 COPY grid-api /app
 COPY docker/grid-api/nginx.production.conf /etc/nginx/http.d/gridpbx.conf
+COPY docker/grid-api/php-security.ini /usr/local/etc/php/conf.d/gridpbx-security.ini
 COPY docker/grid-api/production-entrypoint.sh /usr/local/bin/gridpbx-api-entrypoint
 
 RUN composer install \

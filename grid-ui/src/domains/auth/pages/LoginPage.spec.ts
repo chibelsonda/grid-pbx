@@ -34,4 +34,17 @@ describe('LoginPage', () => {
     expect(login).not.toHaveBeenCalled()
     expect(push).not.toHaveBeenCalled()
   })
+
+  it('shows and hides the password from the eye control', async () => {
+    const wrapper = mount(LoginPage, {
+      global: { stubs: { ToggleSwitch: true } },
+    })
+    const password = wrapper.get('input[name="password"]')
+
+    expect(password.attributes('type')).toBe('password')
+    await wrapper.get('button[aria-label="Show password"]').trigger('click')
+    expect(password.attributes('type')).toBe('text')
+    await wrapper.get('button[aria-label="Hide password"]').trigger('click')
+    expect(password.attributes('type')).toBe('password')
+  })
 })

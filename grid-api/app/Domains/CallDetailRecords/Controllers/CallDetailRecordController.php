@@ -40,7 +40,7 @@ class CallDetailRecordController extends Controller
             'sync' => [
                 'status' => $checkpoint?->status->value ?? 'stale',
                 'last_successful_at' => $checkpoint?->last_successful_at?->toIso8601String(),
-                'error_message' => $checkpoint?->error_message,
+                'error_message' => $checkpoint?->publicErrorMessage(),
             ],
             'import_window_days' => (int) config('switch.cdr_import_window_days'),
         ]]);

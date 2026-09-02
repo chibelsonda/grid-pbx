@@ -1,8 +1,12 @@
 <?php
 
 use App\Domains\SwitchSynchronization\Commands\PollExtensionProjectionsCommand;
+use App\Http\Middleware\ApplySecurityHeaders;
+use App\Http\Middleware\EnforceRequestSize;
+use App\Http\Middleware\ThrottleApiIngress;
 use App\Support\Http\ApiResponse;
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
+use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -22,6 +26,16 @@ return Application::configure(basePath: dirname(__DIR__))
     ])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
+        $middleware->append(ApplySecurityHeaders::class);
+        $middleware->api(prepend: [EnforceRequestSize::class]);
+        $middleware->alias(['api-ingress' => ThrottleApiIngress::class]);
+        $middleware->prependToPriorityList(AuthenticatesRequests::class, ThrottleApiIngress::class);
+        $middleware->trustProxies(
+            headers: Request::HEADER_X_FORWARDED_FOR
+                | Request::HEADER_X_FORWARDED_PORT
+                | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         $middleware->redirectGuestsTo(
             fn (Request $request): ?string => $request->is('api/*') ? null : route('login'),
         );

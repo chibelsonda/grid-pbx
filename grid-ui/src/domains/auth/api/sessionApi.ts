@@ -1,5 +1,6 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
 import type { LoginCredentials } from '../schemas/loginFormSchema'
+import type { PasswordInput } from '../schemas/passwordFormSchema'
 import type { ProfileInput } from '../schemas/profileFormSchema'
 import type { Session } from '../types/session'
 
@@ -25,5 +26,9 @@ export const sessionApi = {
 
   async updateProfile(input: ProfileInput): Promise<Session> {
     return unwrapApiData(await http.patch<ApiResponse<Session>>('/api/v1/profile', input))
+  },
+
+  async updatePassword(input: PasswordInput): Promise<void> {
+    await http.patch('/api/v1/password', input, { globalNotification: false })
   },
 }

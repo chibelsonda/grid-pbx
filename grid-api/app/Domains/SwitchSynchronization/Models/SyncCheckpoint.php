@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class SyncCheckpoint extends Model
 {
+    public const PUBLIC_FAILURE_MESSAGE = 'Synchronization failed. Try again or contact an administrator.';
+
     use HasPublicUuid;
 
     protected $primaryKey = 'sync_checkpoint_id';
@@ -36,6 +38,13 @@ class SyncCheckpoint extends Model
     public function lastSyncRun(): BelongsTo
     {
         return $this->belongsTo(SyncRun::class, 'last_sync_run_id', 'sync_run_id');
+    }
+
+    public function publicErrorMessage(): ?string
+    {
+        return $this->status === ProjectionStatus::Error
+            ? self::PUBLIC_FAILURE_MESSAGE
+            : null;
     }
 
     /** @return array<string, string> */

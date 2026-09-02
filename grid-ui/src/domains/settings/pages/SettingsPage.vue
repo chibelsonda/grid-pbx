@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowRightStartOnRectangleIcon,
@@ -22,6 +22,7 @@ import { accountRoleLabel } from '@/domains/accounts/accountRole'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import type { Account } from '@/domains/accounts/types/account'
 import { profileFormSchema } from '@/domains/auth/schemas/profileFormSchema'
+import { passwordFormSchema } from '@/domains/auth/schemas/passwordFormSchema'
 import { useAuthStore } from '@/domains/auth/stores/authStore'
 import CallflowIntegrationProfilesPanel from '@/domains/call-routing/components/CallflowIntegrationProfilesPanel.vue'
 import { organizationLogoSchema } from '@/domains/settings/schemas/organizationLogoSchema'
@@ -31,6 +32,7 @@ import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
+import PasswordInput from '@/shared/components/PasswordInput.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 
@@ -42,6 +44,13 @@ const ui = useUiStore()
 const editingProfile = ref(false)
 const profileName = ref(auth.user?.name ?? '')
 const profileValidationErrors = ref<FormErrors>({})
+const passwordForm = reactive({
+  current_password: '',
+  password: '',
+  password_confirmation: '',
+})
+const passwordValidationErrors = ref<FormErrors>({})
+const passwordChanged = ref(false)
 const organizationLogo = ref<File | null>(null)
 const organizationLogoErrors = ref<FormErrors>({})
 const organizationLogoInputKey = ref(0)
@@ -114,6 +123,22 @@ const applicationTheme = computed(() => findApplicationTheme(ui.applicationTheme
 const profileNameError = computed(
   () => profileValidationErrors.value.name?.[0] ?? auth.profileFieldErrors.name?.[0] ?? null,
 )
+const currentPasswordError = computed(
+  () =>
+    passwordValidationErrors.value.current_password?.[0] ??
+    auth.passwordFieldErrors.current_password?.[0] ??
+    null,
+)
+const newPasswordError = computed(
+  () =>
+    passwordValidationErrors.value.password?.[0] ?? auth.passwordFieldErrors.password?.[0] ?? null,
+)
+const passwordConfirmationError = computed(
+  () =>
+    passwordValidationErrors.value.password_confirmation?.[0] ??
+    auth.passwordFieldErrors.password_confirmation?.[0] ??
+    null,
+)
 const organizationLogoError = computed(
   () => organizationLogoErrors.value.logo?.[0] ?? accounts.organizationLogoError,
 )
@@ -128,6 +153,15 @@ watch(profileName, () => {
   profileValidationErrors.value = {}
   auth.clearProfileError()
 })
+watch(
+  passwordForm,
+  () => {
+    passwordValidationErrors.value = {}
+    passwordChanged.value = false
+    auth.clearPasswordError()
+  },
+  { deep: true },
+)
 watch(
   () => auth.user?.name,
   (name) => {
@@ -183,6 +217,21 @@ async function saveProfile(): Promise<void> {
   if (!result.success) return
 
   if (await auth.updateProfile(result.data)) editingProfile.value = false
+}
+
+async function changePassword(): Promise<void> {
+  const result = validateForm(passwordFormSchema, passwordForm)
+  passwordValidationErrors.value = result.errors
+  passwordChanged.value = false
+  if (!result.success) return
+
+  if (await auth.updatePassword(result.data)) {
+    passwordForm.current_password = ''
+    passwordForm.password = ''
+    passwordForm.password_confirmation = ''
+    await nextTick()
+    passwordChanged.value = true
+  }
 }
 
 function selectOrganizationLogo(file: File | null): void {
@@ -346,8 +395,8 @@ async function signOut(): Promise<void> {
               </div>
             </form>
             <p class="border-t border-slate-100 px-5 py-3 text-[10px] leading-4 text-slate-500">
-              Your login email remains read-only. Email verification, password changes, MFA, and
-              session management require separate security contracts.
+              Your login email remains read-only. Email verification, MFA, and session management
+              require separate security contracts.
             </p>
           </TabPanel>
 
@@ -683,11 +732,73 @@ async function signOut(): Promise<void> {
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Access and security</h2>
                 <p class="mt-0.5 text-[10px] text-slate-500">
-                  Account-scoped access from the authenticated session.
+                  Protect your sign-in and review account-scoped access.
                 </p>
               </div>
             </header>
             <div class="grid gap-4 p-5">
+              <form
+                aria-label="Change password"
+                class="grid max-w-xl gap-4 rounded-md border border-slate-200 p-4"
+                novalidate
+                @submit.prevent="changePassword"
+              >
+                <div>
+                  <h3 class="text-xs font-semibold text-slate-700">Change password</h3>
+                  <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                    Confirm your current password, then choose a new password with at least 12
+                    characters.
+                  </p>
+                </div>
+                <PasswordInput
+                  v-model="passwordForm.current_password"
+                  name="current_password"
+                  label="Current password"
+                  autocomplete="current-password"
+                  :error="currentPasswordError"
+                  :disabled="auth.passwordSaving"
+                  required
+                />
+                <PasswordInput
+                  v-model="passwordForm.password"
+                  name="password"
+                  label="New password"
+                  autocomplete="new-password"
+                  :error="newPasswordError"
+                  :disabled="auth.passwordSaving"
+                  required
+                />
+                <PasswordInput
+                  v-model="passwordForm.password_confirmation"
+                  name="password_confirmation"
+                  label="Confirm new password"
+                  autocomplete="new-password"
+                  :error="passwordConfirmationError"
+                  :disabled="auth.passwordSaving"
+                  required
+                />
+                <p
+                  v-if="auth.passwordError"
+                  role="alert"
+                  class="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-[10px] text-danger"
+                >
+                  {{ auth.passwordError }}
+                </p>
+                <p
+                  v-if="passwordChanged"
+                  role="status"
+                  class="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-[10px] text-emerald-700"
+                >
+                  Your password has been changed.
+                </p>
+                <button
+                  type="submit"
+                  :disabled="auth.passwordSaving"
+                  class="h-9 w-fit rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
+                >
+                  {{ auth.passwordSaving ? 'Changing…' : 'Change password' }}
+                </button>
+              </form>
               <div class="rounded-md border border-slate-200 bg-slate-50 p-4">
                 <p class="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
                   Current role

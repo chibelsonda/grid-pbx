@@ -3,6 +3,7 @@ import { reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LockClosedIcon, Squares2X2Icon } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
+import PasswordInput from '@/shared/components/PasswordInput.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import { loginFormSchema } from '../schemas/loginFormSchema'
 import { useAuthStore } from '../stores/authStore'
@@ -11,8 +12,8 @@ const auth = useAuthStore()
 const route = useRoute()
 const router = useRouter()
 const credentials = reactive({
-  email: 'admin@gridpbx.local',
-  password: 'admin-change-me',
+  email: '',
+  password: '',
   remember: true,
 })
 const validationErrors = ref<FormErrors>({})
@@ -92,11 +93,10 @@ async function submit(): Promise<void> {
           :error="validationErrors.email"
           input-class="h-11 px-3.5 text-sm"
         />
-        <FormInput
+        <PasswordInput
           v-model="credentials.password"
           label="Password"
           class="mt-5"
-          type="password"
           name="password"
           autocomplete="current-password"
           required
@@ -112,9 +112,6 @@ async function submit(): Promise<void> {
         >
           {{ auth.loading ? 'Signing in…' : 'Sign in' }}
         </button>
-        <p class="mt-5 text-center text-[11px] text-slate-400">
-          Local defaults are prefilled for development only.
-        </p>
       </form>
     </section>
   </main>

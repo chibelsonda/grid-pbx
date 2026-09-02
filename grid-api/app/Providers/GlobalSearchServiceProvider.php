@@ -18,7 +18,10 @@ final class GlobalSearchServiceProvider extends ServiceProvider
                 (string) $request->ip(),
             ]);
 
-            return Limit::perMinute(120)->by($key);
+            return Limit::perMinute(max(
+                1,
+                (int) config('security.rate_limits.global_search_per_minute'),
+            ))->by($key);
         });
     }
 }

@@ -30,6 +30,8 @@ class PublicIdentifierConventionTest extends TestCase
 
     public function test_database_seeder_generates_public_uuids(): void
     {
+        config(['gridpbx.admin.password' => 'a-strong-bootstrap-password']);
+
         $this->seed(DatabaseSeeder::class);
 
         $this->assertTrue(Str::isUuid(User::query()->firstOrFail()->id));

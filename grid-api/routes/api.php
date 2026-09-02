@@ -37,6 +37,7 @@ use App\Domains\Faxes\Controllers\FaxSyncController;
 use App\Domains\GlobalSearch\Controllers\GlobalSearchController;
 use App\Domains\Groups\Controllers\GroupController;
 use App\Domains\Groups\Controllers\GroupSyncController;
+use App\Domains\IdentityAccess\Controllers\PasswordController;
 use App\Domains\IdentityAccess\Controllers\ProfileController;
 use App\Domains\IdentityAccess\Controllers\SessionController;
 use App\Domains\LineKeys\Controllers\LineKeyController;
@@ -94,21 +95,28 @@ Route::prefix('v1')->group(function (): void {
         'timestamp' => now()->toIso8601String(),
     ]));
 
-    Route::post('/webhooks/authorize-net', AuthorizeNetWebhookController::class);
+    Route::post('/webhooks/authorize-net', AuthorizeNetWebhookController::class)
+        ->middleware('throttle:authorize-net-webhook');
 
-    Route::middleware('auth:sanctum')->group(function (): void {
+    Route::middleware([
+        'api-ingress',
+        'auth:sanctum',
+        'throttle:authenticated-api',
+    ])->group(function (): void {
         Route::get('/session', [SessionController::class, 'show']);
         Route::patch('/profile', [ProfileController::class, 'update'])
-            ->middleware('throttle:6,1');
+            ->middleware('throttle:sensitive-mutation');
+        Route::patch('/password', [PasswordController::class, 'update'])
+            ->middleware('throttle:sensitive-mutation');
         Route::get('/accounts', AccountController::class);
 
         Route::prefix('accounts/{account}')->group(function (): void {
             Route::get('/', [AccountController::class, 'show']);
             Route::get('/organization-logo', [OrganizationLogoController::class, 'show']);
             Route::post('/organization-logo', [OrganizationLogoController::class, 'store'])
-                ->middleware('throttle:6,1');
+                ->middleware('throttle:sensitive-mutation');
             Route::delete('/organization-logo', [OrganizationLogoController::class, 'destroy'])
-                ->middleware('throttle:6,1');
+                ->middleware('throttle:sensitive-mutation');
             Route::get('/search', GlobalSearchController::class)
                 ->middleware('throttle:global-search');
             Route::get('/dashboard', DashboardController::class);
@@ -225,11 +233,11 @@ Route::prefix('v1')->group(function (): void {
             Route::get('/callflows', [CallflowController::class, 'index']);
             Route::get('/callflow-integration-profiles', [CallflowIntegrationProfileController::class, 'index']);
             Route::post('/callflow-integration-profiles', [CallflowIntegrationProfileController::class, 'store'])
-                ->middleware('throttle:6,1');
+                ->middleware('throttle:sensitive-mutation');
             Route::put('/callflow-integration-profiles/{profile}', [CallflowIntegrationProfileController::class, 'update'])
-                ->middleware('throttle:6,1');
+                ->middleware('throttle:sensitive-mutation');
             Route::delete('/callflow-integration-profiles/{profile}', [CallflowIntegrationProfileController::class, 'destroy'])
-                ->middleware('throttle:6,1');
+                ->middleware('throttle:sensitive-mutation');
             Route::get('/callflows/editor', [CallflowController::class, 'createOptions']);
             Route::post('/callflows', [CallflowController::class, 'store']);
             Route::get('/callflows/{callflow}/editor', [CallflowController::class, 'edit']);

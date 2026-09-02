@@ -9,6 +9,7 @@ vi.mock('../api/sessionApi', () => ({
     login: vi.fn(),
     logout: vi.fn(),
     updateProfile: vi.fn(),
+    updatePassword: vi.fn(),
   },
 }))
 
@@ -54,5 +55,28 @@ describe('useAuthStore profile updates', () => {
     expect(auth.user.name).toBe('Grid Admin')
     expect(auth.profileFieldErrors).toEqual({ name: ['Enter your display name.'] })
     expect(auth.profileError).toBeNull()
+  })
+
+  it('exposes password validation and clears the saving state', async () => {
+    vi.mocked(sessionApi.updatePassword).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        data: { errors: { current_password: ['The current password is incorrect.'] } },
+      },
+    })
+    const auth = useAuthStore()
+
+    const saved = await auth.updatePassword({
+      current_password: 'wrong-password',
+      password: 'new-secure-password',
+      password_confirmation: 'new-secure-password',
+    })
+
+    expect(saved).toBe(false)
+    expect(auth.passwordFieldErrors).toEqual({
+      current_password: ['The current password is incorrect.'],
+    })
+    expect(auth.passwordError).toBeNull()
+    expect(auth.passwordSaving).toBe(false)
   })
 })

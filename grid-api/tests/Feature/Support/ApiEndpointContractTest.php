@@ -46,6 +46,59 @@ class ApiEndpointContractTest extends TestCase
         $this->assertSame([], $violations, implode(PHP_EOL, $violations));
     }
 
+    public function test_api_routes_use_the_expected_rate_limit_boundary(): void
+    {
+        $violations = [];
+
+        foreach ($this->allApiRoutes() as $route) {
+            $middleware = $route->gatherMiddleware();
+
+            foreach ($this->documentedMethods($route) as $httpMethod) {
+                $boundary = "{$httpMethod} {$route->uri()}";
+                $expectedLimiter = match ($boundary) {
+                    'GET api/v1/health' => null,
+                    'POST api/v1/webhooks/authorize-net' => 'throttle:authorize-net-webhook',
+                    default => 'throttle:authenticated-api',
+                };
+
+                if ($expectedLimiter === null || in_array($expectedLimiter, $middleware, true)) {
+                    continue;
+                }
+
+                $violations[] = sprintf(
+                    '%s (%s) is missing %s middleware.',
+                    $boundary,
+                    $route->getActionName(),
+                    $expectedLimiter,
+                );
+            }
+        }
+
+        $this->assertSame([], $violations, implode(PHP_EOL, $violations));
+    }
+
+    public function test_authenticated_api_routes_have_an_ip_ingress_limit_before_authentication(): void
+    {
+        $violations = [];
+
+        foreach ($this->apiRoutes() as $route) {
+            $middleware = $route->gatherMiddleware();
+
+            if (! in_array('auth:sanctum', $middleware, true)
+                || in_array('api-ingress', $middleware, true)) {
+                continue;
+            }
+
+            $violations[] = sprintf(
+                '%s (%s) is missing api-ingress middleware.',
+                $route->uri(),
+                $route->getActionName(),
+            );
+        }
+
+        $this->assertSame([], $violations, implode(PHP_EOL, $violations));
+    }
+
     public function test_api_mutations_use_form_requests_or_an_explicit_bodyless_boundary(): void
     {
         $violations = [];

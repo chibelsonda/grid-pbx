@@ -76,7 +76,10 @@ class PaymentServiceProvider extends ServiceProvider
                 (string) $request->ip(),
             ]);
 
-            return Limit::perMinute(3)->by($key);
+            return Limit::perMinute(max(
+                1,
+                (int) config('security.rate_limits.payment_sandbox_per_minute'),
+            ))->by($key);
         });
     }
 }

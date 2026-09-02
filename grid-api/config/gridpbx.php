@@ -4,7 +4,7 @@ return [
     'admin' => [
         'name' => env('GRID_ADMIN_NAME', 'Grid Admin'),
         'email' => env('GRID_ADMIN_EMAIL', 'admin@gridpbx.local'),
-        'password' => env('GRID_ADMIN_PASSWORD', 'admin-change-me'),
+        'password' => env('GRID_ADMIN_PASSWORD'),
     ],
 
     'switch_account' => [

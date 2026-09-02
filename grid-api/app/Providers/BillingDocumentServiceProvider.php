@@ -45,7 +45,10 @@ final class BillingDocumentServiceProvider extends ServiceProvider
                 (string) $request->ip(),
             ]);
 
-            return Limit::perMinute(30)->by($key);
+            return Limit::perMinute(max(
+                1,
+                (int) config('security.rate_limits.billing_documents_per_minute'),
+            ))->by($key);
         });
     }
 

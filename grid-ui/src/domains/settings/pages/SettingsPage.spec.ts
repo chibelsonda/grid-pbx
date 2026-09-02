@@ -207,6 +207,37 @@ describe('SettingsPage', () => {
     expect(wrapper.text()).toContain('Operations Admin')
   })
 
+  it('changes the signed-in users password from access and security', async () => {
+    const { auth, wrapper } = await mountPage()
+    const updatePassword = vi.spyOn(auth, 'updatePassword').mockResolvedValue(true)
+
+    await selectSettingsTab(wrapper, 'Access & security')
+    const form = wrapper.get('form[aria-label="Change password"]')
+    await form.trigger('submit')
+
+    expect(wrapper.text()).toContain('Enter your current password.')
+    expect(updatePassword).not.toHaveBeenCalled()
+
+    await wrapper.get('input[name="current_password"]').setValue('current-secure-password')
+    await wrapper.get('input[name="password"]').setValue('new-secure-password')
+    await wrapper.get('input[name="password_confirmation"]').setValue('new-secure-password')
+    await form.trigger('submit')
+
+    expect(updatePassword).toHaveBeenCalledWith({
+      current_password: 'current-secure-password',
+      password: 'new-secure-password',
+      password_confirmation: 'new-secure-password',
+    })
+    await vi.waitFor(() => expect(wrapper.text()).toContain('Your password has been changed.'))
+    expect((wrapper.get('input[name="current_password"]').element as HTMLInputElement).value).toBe(
+      '',
+    )
+    expect((wrapper.get('input[name="password"]').element as HTMLInputElement).value).toBe('')
+    expect(
+      (wrapper.get('input[name="password_confirmation"]').element as HTMLInputElement).value,
+    ).toBe('')
+  })
+
   it('validates and submits organization branding only for authorized account settings roles', async () => {
     const { accounts, wrapper } = await mountPage()
     const uploadLogo = vi.spyOn(accounts, 'uploadOrganizationLogo').mockResolvedValue(true)
