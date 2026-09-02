@@ -28,18 +28,30 @@ done
 
 export GRID_API_IMAGE GRID_UI_IMAGE GRID_IMAGE_TAG
 
+# sudo intentionally resets most caller environment variables. Pass the
+# immutable release coordinates explicitly so Compose does not fall back to
+# the bootstrap values stored in the persistent .env file.
+run_compose() {
+    sudo -n env \
+        GRID_API_IMAGE="${GRID_API_IMAGE}" \
+        GRID_UI_IMAGE="${GRID_UI_IMAGE}" \
+        GRID_IMAGE_TAG="${GRID_IMAGE_TAG}" \
+        GRID_HTTP_PORT="${GRID_HTTP_PORT:-8080}" \
+        docker compose "$@"
+}
+
 sudo -n docker network inspect gridpbx-switch-backplane >/dev/null 2>&1 \
     || sudo -n docker network create gridpbx-switch-backplane >/dev/null
 
-sudo -n docker compose pull
-sudo -n docker compose up -d mysql redis
-sudo -n docker compose run --rm grid-api php artisan migrate --force
-sudo -n docker compose run --rm grid-api php artisan db:seed --force
-sudo -n docker compose up -d --remove-orphans
+run_compose pull
+run_compose up -d mysql redis
+run_compose run --rm grid-api php artisan migrate --force
+run_compose run --rm grid-api php artisan db:seed --force
+run_compose up -d --remove-orphans
 
 for attempt in $(seq 1 36); do
     if curl -fsS "${health_url}" >/dev/null; then
-        sudo -n docker compose ps
+        run_compose ps
         echo "GridPBX deployment ${GRID_IMAGE_TAG} is healthy."
         exit 0
     fi
@@ -47,7 +59,7 @@ for attempt in $(seq 1 36); do
     sleep 5
 done
 
-sudo -n docker compose ps >&2
-sudo -n docker compose logs --tail=100 grid-api grid-ui edge >&2
+run_compose ps >&2
+run_compose logs --tail=100 grid-api grid-ui edge >&2
 echo "GridPBX deployment failed its health check." >&2
 exit 1
