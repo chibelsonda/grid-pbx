@@ -38,7 +38,7 @@ test('shows schema-backed Conference sounds with inline validation and bounded l
   const issues = collectPageIssues(page)
   await page.goto('/conferences')
   await expect(page.getByRole('heading', { name: 'Conferences' })).toBeVisible()
-  await page.getByRole('button', { name: 'New conference' }).click()
+  await page.getByRole('button', { name: 'Create conference' }).click()
   await expect(page.getByRole('heading', { name: 'Create conference' })).toBeVisible()
 
   await expect(page.getByRole('tablist', { name: 'Form sections' }).getByRole('tab')).toHaveText([
@@ -97,7 +97,7 @@ test('round-trips Conference access, advanced profiles, and tone configuration',
 
   try {
     await page.goto('/conferences')
-    await page.getByRole('button', { name: 'New conference' }).click()
+    await page.getByRole('button', { name: 'Create conference' }).click()
     await page.getByLabel('Name', { exact: true }).fill(name)
     await page.getByLabel('Member numbers').fill(`7${suffix}`)
     await page.getByRole('textbox', { name: 'Member PINs', exact: true }).fill('1234, 5678')

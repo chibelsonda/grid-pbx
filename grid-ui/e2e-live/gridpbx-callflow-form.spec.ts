@@ -2803,12 +2803,9 @@ test('refreshes profile-gated create actions without resetting the unsaved callf
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
   const workspace = page.getByRole('region', { name: 'Create callflow' })
-  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+  const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
 
-  await canvas
-    .getByRole('button', { name: 'Add callflow entry number' })
-    .first()
-    .click()
+  await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
   const addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2997')
@@ -3075,11 +3072,8 @@ test('refreshes profile-gated actions across tabs without resetting the open dra
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
   const workspace = page.getByRole('region', { name: 'Create callflow' })
-  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
-  await canvas
-    .getByRole('button', { name: 'Add callflow entry number' })
-    .first()
-    .click()
+  const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
+  await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
   const addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2996')
@@ -3217,7 +3211,7 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await expect(page.getByRole('button', { name: 'Close create callflow' })).toBeVisible()
   const workspace = page.getByRole('region', { name: 'Create callflow' })
   await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
-  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
+  const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
   const workspaceLayout = workspace.locator('[data-callflow-workspace-layout]')
   const supportingCards = workspace.locator('[data-callflow-supporting-cards]')
   const actionPalette = workspace.getByRole('region', { name: 'Callflow action catalog' })
@@ -3243,10 +3237,7 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   expect(supportingCardsBox!.y).toBeGreaterThanOrEqual(paletteBox!.y + paletteBox!.height)
   expect(Math.abs(supportingCardsBox!.x - paletteBox!.x)).toBeLessThanOrEqual(1)
   await expect(canvas).toContainText('Click to add number')
-  await canvas
-    .getByRole('button', { name: 'Add callflow entry number' })
-    .first()
-    .click()
+  await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
   let addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2999')
@@ -3256,10 +3247,7 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2999')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await expect(addNumber.getByLabel('Extension number')).toHaveAttribute(
-    'aria-invalid',
-    'true',
-  )
+  await expect(addNumber.getByLabel('Extension number')).toHaveAttribute('aria-invalid', 'true')
   await expect(
     addNumber.getByText('This number is already configured on the callflow.'),
   ).toBeVisible()
@@ -3439,11 +3427,8 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
   const workspace = page.getByRole('region', { name: 'Create callflow' })
-  const canvas = workspace.getByRole('region', { name: 'New callflow canvas' })
-  await canvas
-    .getByRole('button', { name: 'Add callflow entry number' })
-    .first()
-    .click()
+  const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
+  await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
 
   let addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
   await addNumber.getByRole('radio', { name: 'Extension' }).click()

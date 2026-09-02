@@ -92,7 +92,7 @@ test('keeps Call Routing inventory, workspace, palette, and node dialog usable o
   await page.getByRole('button', { name: 'Back to callflows' }).click()
   await expect(page.getByRole('heading', { name: 'Callflows', level: 1 })).toBeVisible()
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  await expect(page.getByRole('region', { name: 'New callflow canvas' })).toBeVisible()
+  await expect(page.getByRole('region', { name: 'Create callflow canvas' })).toBeVisible()
 
   const catalog = page.getByRole('region', { name: 'Callflow action catalog' })
   await catalog.scrollIntoViewIfNeeded()

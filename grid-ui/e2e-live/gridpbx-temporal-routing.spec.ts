@@ -39,6 +39,26 @@ async function deleteApiResource(page: Page, url: string): Promise<number> {
   return response.status()
 }
 
+test('keeps all seven Temporal weekdays on one line', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  await page.goto('/business-hours')
+  await page.getByRole('button', { name: 'Create rule' }).click()
+
+  const weekdayOptions = page.getByRole('group', { name: 'Weekdays' })
+  const weekdayCheckboxes = weekdayOptions.getByRole('checkbox')
+  await expect(weekdayCheckboxes).toHaveCount(7)
+
+  const weekdayTops = await weekdayCheckboxes.evaluateAll((checkboxes) =>
+    checkboxes.map((checkbox) => Math.round(checkbox.getBoundingClientRect().top)),
+  )
+  expect(new Set(weekdayTops).size).toBe(1)
+  const weekdayScroller = weekdayOptions.locator('..')
+  expect(await weekdayScroller.evaluate((element) => element.scrollWidth)).toBeLessThanOrEqual(
+    await weekdayScroller.evaluate((element) => element.clientWidth),
+  )
+  expect(issues).toEqual([])
+})
+
 test('shows accessible schema-aware Temporal fields and responsive inventories', async ({
   page,
 }, testInfo) => {
@@ -56,7 +76,7 @@ test('shows accessible schema-aware Temporal fields and responsive inventories',
 
   await page.goto('/business-hours')
   await expect(page.getByRole('heading', { name: 'Business Hours & Schedules' })).toBeVisible()
-  await page.getByRole('button', { name: 'New rule' }).click()
+  await page.getByRole('button', { name: 'Create rule' }).click()
   await expect(page.getByRole('heading', { name: 'Create temporal rule' })).toBeVisible()
 
   await expectControlRowAligned(
@@ -100,8 +120,8 @@ test('shows accessible schema-aware Temporal fields and responsive inventories',
   await page.setViewportSize({ width: 390, height: 844 })
 
   for (const action of [
-    page.getByRole('button', { name: 'Sync', exact: true }),
-    page.getByRole('button', { name: 'New rule', exact: true }),
+    page.getByRole('button', { name: 'Sync from Switch', exact: true }),
+    page.getByRole('button', { name: 'Create rule', exact: true }),
     page.getByRole('button', { name: 'Search', exact: true }),
   ]) {
     await expect(action).toBeVisible()
@@ -162,7 +182,7 @@ test('creates, edits, controls, orders, and removes Temporal routing resources',
 
   try {
     await page.goto('/business-hours')
-    await page.getByRole('button', { name: 'New rule' }).click()
+    await page.getByRole('button', { name: 'Create rule' }).click()
     await page.getByLabel('Name', { exact: true }).fill(ruleName)
     const creation = page.waitForResponse(
       (response) =>
@@ -180,7 +200,10 @@ test('creates, edits, controls, orders, and removes Temporal routing resources',
     ruleId = created.data.id
     expect(created.data.enabled).toBeNull()
 
-    await page.getByText(ruleName, { exact: true }).click()
+    await page
+      .getByRole('row', { name: new RegExp(ruleName) })
+      .getByRole('cell', { name: 'weekly', exact: true })
+      .click()
     const rulePanel = page.getByRole('dialog', { name: 'Edit temporal rule' })
     const forceInactive = rulePanel.getByRole('button', { name: 'Force inactive' })
     await expect(forceInactive).toBeEnabled()
@@ -246,7 +269,7 @@ test('creates, edits, controls, orders, and removes Temporal routing resources',
     await expect(page.getByRole('heading', { name: 'Edit temporal rule' })).toHaveCount(0)
 
     await page.getByRole('tab', { name: 'Rule Sets' }).click()
-    await page.getByRole('button', { name: 'New rule set' }).click()
+    await page.getByRole('button', { name: 'Create rule set' }).click()
     await page.getByLabel('Name', { exact: true }).fill(setName)
     await page.getByText(updatedRuleName, { exact: true }).click()
     await expect(page.getByText('Evaluation order')).toBeVisible()

@@ -428,7 +428,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
               :to="{ name: 'device-create' }"
               class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm transition hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             >
-              Add device
+              Create device
             </RouterLink>
             <RouterLink
               v-if="accounts.selected?.permissions.can_manage_call_routing"

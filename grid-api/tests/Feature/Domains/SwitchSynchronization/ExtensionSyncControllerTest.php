@@ -22,10 +22,19 @@ class ExtensionSyncControllerTest extends TestCase
         $organization->users()->attach($user, ['role' => 'account_operator']);
         $account = SwitchAccount::factory()->for($organization)->create();
 
-        $this->actingAs($user)
+        $runId = $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/sync/extensions")
             ->assertAccepted()
-            ->assertJsonPath('data.status', 'queued');
+            ->assertJsonPath('data.status', 'queued')
+            ->assertJsonMissingPath('data.sync_run_id')
+            ->json('data.id');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/sync/extensions/{$runId}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $runId)
+            ->assertJsonPath('data.status', 'queued')
+            ->assertJsonMissingPath('data.sync_run_id');
 
         $this->assertDatabaseHas('switch_sync_runs', [
             'switch_account_id' => $account->getKey(),

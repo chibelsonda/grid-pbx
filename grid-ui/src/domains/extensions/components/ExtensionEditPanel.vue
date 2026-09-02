@@ -434,13 +434,12 @@ function submit(): void {
         />
       </div>
 
-      <div
+      <ExtensionAdvancedTabSelector
+        v-model="selectedAdvancedSection"
         v-show="selectedFormSection === 1"
         data-testid="extension-advanced-section"
-        class="contents"
+        extended
       >
-        <ExtensionAdvancedTabSelector v-model="selectedAdvancedSection" extended />
-
         <div
           v-show="selectedAdvancedSection === 'caller-id'"
           data-testid="extension-advanced-caller-id"
@@ -611,7 +610,7 @@ function submit(): void {
             @update:model-value="updateMetaflows"
           />
         </div>
-      </div>
+      </ExtensionAdvancedTabSelector>
 
       <article v-show="selectedFormSection === 0" class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">

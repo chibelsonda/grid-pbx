@@ -130,7 +130,7 @@ function clearFaxBoxQuery(): void {
             class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
             @click="openBox()"
           >
-            <PlusIcon class="size-4" />New fax box
+            <PlusIcon class="size-4" />Create fax box
           </button>
         </div>
         <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />

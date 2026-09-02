@@ -30,6 +30,41 @@ class DirectoryControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_json');
     }
 
+    public function test_accessible_user_views_directory_options_and_account_scoped_detail(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Ada Lovelace',
+            'extension' => '1001',
+        ]);
+        SwitchCallflow::factory()->for($account)->for($extension, 'extension')->create(['name' => 'Ada route']);
+        $directory = SwitchDirectory::factory()->for($account)->create([
+            'name' => 'People',
+            'switch_resource_id' => 'private-directory-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $foreign = SwitchDirectory::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/directories/options")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.extensions')
+            ->assertJsonPath('data.extensions.0.id', $extension->id)
+            ->assertJsonPath('data.extensions.0.label', 'Ada Lovelace')
+            ->assertJsonMissingPath('data.extensions.0.switch_resource_id');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/directories/{$directory->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $directory->id)
+            ->assertJsonPath('data.name', 'People')
+            ->assertJsonMissing(['private-directory-id', 'server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/directories/{$foreign->id}")
+            ->assertNotFound();
+    }
+
     public function test_operator_creates_directory_and_resolves_members_server_side(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -65,6 +100,62 @@ class DirectoryControllerTest extends TestCase
         $this->assertDatabaseHas('switch_directory_members', ['switch_user_resource_id' => 'switch-user-1']);
         $this->assertSame([], SwitchDirectory::query()->firstOrFail()->switch_json['flags']);
         $this->assertDatabaseHas('audit_logs', ['action' => 'directory.created']);
+    }
+
+    public function test_operator_updates_and_deletes_an_unreferenced_directory(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $directory = SwitchDirectory::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-directory-1',
+            'name' => 'Old people',
+            'switch_json' => ['id' => 'switch-directory-1', 'flags' => []],
+        ]);
+        $snapshot = [
+            'id' => 'switch-directory-1',
+            'name' => 'Updated people',
+            'confirm_match' => true,
+            'min_dtmf' => 3,
+            'max_dtmf' => 0,
+            'sort_by' => 'last_name',
+            'flags' => [],
+            'users' => [],
+        ];
+        $gateway = $this->mock(SwitchDirectoryGateway::class);
+        $gateway->shouldReceive('update')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $data): bool => $received->is($account)
+                && $resourceId === 'switch-directory-1'
+                && $data['name'] === 'Updated people',
+        )->andReturn($snapshot);
+        $gateway->shouldReceive('replaceMembers')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $members): bool => $received->is($account)
+                && $resourceId === 'switch-directory-1'
+                && $members === [],
+        )->andReturn($snapshot);
+
+        $this->actingAs($user)
+            ->putJson(
+                "/api/v1/accounts/{$account->id}/directories/{$directory->id}",
+                $this->payload([], ['name' => 'Updated people']),
+            )
+            ->assertOk()
+            ->assertJsonPath('data.name', 'Updated people');
+
+        $gateway->shouldReceive('replaceMembers')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $members): bool => $received->is($account)
+                && $resourceId === 'switch-directory-1'
+                && $members === [],
+        )->andReturn($snapshot);
+        $gateway->shouldReceive('delete')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId): bool => $received->is($account)
+                && $resourceId === 'switch-directory-1',
+        );
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/directories/{$directory->id}")
+            ->assertNoContent();
+
+        $this->assertSoftDeleted($directory);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'directory.deleted']);
     }
 
     public function test_externally_owned_flags_are_rejected_before_switch_mutation(): void

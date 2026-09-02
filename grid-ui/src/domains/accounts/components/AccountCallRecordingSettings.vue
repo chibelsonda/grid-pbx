@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { BuildingOffice2Icon, DevicePhoneMobileIcon } from '@heroicons/vue/24/outline'
+import AdvancedFormTabs from '@/shared/components/AdvancedFormTabs.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
-import FormTabBar from '@/shared/components/FormTabBar.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import type { AccountCallRecording } from '../types/account'
 
@@ -43,27 +43,22 @@ function error(target: string, direction: string, network: string, field: string
 </script>
 
 <template>
-  <article class="card-surface overflow-hidden">
-    <header class="border-b border-slate-200 px-5 py-4">
-      <h2 class="text-sm font-semibold text-slate-700">Call-recording defaults</h2>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
-        Configure account and endpoint inheritance without exposing external storage URLs.
-      </p>
-    </header>
-
-    <FormTabBar
-      v-model="selectedTarget"
-      :tabs="targets"
-      aria-label="Call-recording targets"
-      class="rounded-none border-x-0 border-t-0"
-    />
+  <AdvancedFormTabs v-model="selectedTarget" :tabs="targets" aria-label="Call-recording targets">
+    <template #header>
+      <header class="border-b border-slate-200 px-5 py-4">
+        <h2 class="text-sm font-semibold text-slate-700">Call-recording defaults</h2>
+        <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          Configure account and endpoint inheritance without exposing external storage URLs.
+        </p>
+      </header>
+    </template>
 
     <div
       v-for="(target, index) in targets"
       v-show="selectedTarget === index"
       :key="target.value"
       role="tabpanel"
-      class="grid gap-4 p-5"
+      class="grid gap-4"
     >
       <p class="text-[10px] text-slate-500">{{ target.description }}</p>
       <section
@@ -160,5 +155,5 @@ function error(target: string, direction: string, network: string, field: string
         </div>
       </section>
     </div>
-  </article>
+  </AdvancedFormTabs>
 </template>

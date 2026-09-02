@@ -167,6 +167,60 @@ class GroupControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_resource_id');
     }
 
+    public function test_accessible_user_views_group_options_and_account_scoped_detail(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $extension = SwitchExtension::factory()->for($account)->create(['display_name' => 'Ada Lovelace']);
+        $device = SwitchDevice::factory()->for($account)->create(['name' => 'Reception phone']);
+        $media = SwitchMedia::factory()->for($account)->create(['name' => 'Main hold music']);
+        $group = SwitchGroup::factory()->for($account)->create([
+            'name' => 'Support',
+            'switch_resource_id' => 'private-group-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $foreign = SwitchGroup::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/groups/options")
+            ->assertOk()
+            ->assertJsonPath('data.users.0.id', $extension->id)
+            ->assertJsonPath('data.devices.0.id', $device->id)
+            ->assertJsonPath('data.groups.0.id', $group->id)
+            ->assertJsonPath('data.media.0.id', $media->id)
+            ->assertJsonMissingPath('data.users.0.switch_resource_id');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/groups/{$group->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $group->id)
+            ->assertJsonPath('data.name', 'Support')
+            ->assertJsonMissing(['private-group-id', 'server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/groups/{$foreign->id}")
+            ->assertNotFound();
+    }
+
+    public function test_operator_deletes_an_unreferenced_group(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-group-delete',
+        ]);
+        $this->mock(SwitchGroupGateway::class)
+            ->shouldReceive('delete')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $resourceId): bool => $received->is($account)
+                && $resourceId === 'switch-group-delete');
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/groups/{$group->id}")
+            ->assertNoContent();
+
+        $this->assertSoftDeleted($group);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'group.deleted']);
+    }
+
     /** @return array{User, SwitchAccount} */
     private function accessibleAccount(OrganizationRole $role = OrganizationRole::AccountOperator): array
     {

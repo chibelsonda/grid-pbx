@@ -92,6 +92,84 @@ async function deleteDirectoryByUrl(page: Page, deleteUrl: string): Promise<void
   }
 }
 
+test('opens the directory editor from the full inventory row', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  const directoryId = '00000000-0000-4000-8000-000000000031'
+  const directory = {
+    id: directoryId,
+    name: 'Directory row edit regression',
+    confirm_match: true,
+    min_dtmf: 2,
+    max_dtmf: 8,
+    sort_by: 'last_name',
+    flags: [],
+    member_count: 0,
+    members: [],
+    sync_status: 'healthy',
+    last_synced_at: '2026-09-02T00:00:00Z',
+  }
+  let detailRequests = 0
+
+  await page.route('**/api/v1/accounts/*/directories**', async (route) => {
+    const path = new URL(route.request().url()).pathname
+
+    if (path.endsWith('/directories/options')) {
+      await route.fulfill({ status: 200, json: { data: { extensions: [] } } })
+
+      return
+    }
+
+    if (path.endsWith(`/directories/${directoryId}`)) {
+      detailRequests += 1
+      await route.fulfill({ status: 200, json: { data: directory } })
+
+      return
+    }
+
+    await route.fulfill({
+      status: 200,
+      json: {
+        data: [directory],
+        links: { first: null, last: null, prev: null, next: null },
+        meta: {
+          current_page: 1,
+          from: 1,
+          last_page: 1,
+          per_page: 25,
+          to: 1,
+          total: 1,
+        },
+      },
+    })
+  })
+
+  await page.goto('/directories')
+  const row = page.getByRole('row', { name: new RegExp(directory.name) })
+  await expect(row).toBeVisible()
+  await expect(row).toHaveClass(/cursor-pointer/)
+
+  await row.getByRole('cell', { name: '0' }).click()
+
+  await expect(page.getByRole('heading', { name: 'Edit directory' })).toBeVisible()
+  await expect(page.getByLabel('Name', { exact: true })).toHaveValue(directory.name)
+  const dialog = page.getByRole('dialog', { name: 'Edit directory' })
+  await dialog.getByRole('tab', { name: 'Advanced' }).click()
+  const sortControl = dialog.getByRole('button', { name: 'Sort names by' })
+  const confirmMatchControl = dialog
+    .getByRole('switch', { name: 'Confirm a single match' })
+    .locator('..')
+  const [sortBounds, confirmMatchBounds] = await Promise.all([
+    sortControl.boundingBox(),
+    confirmMatchControl.boundingBox(),
+  ])
+  expect(sortBounds).not.toBeNull()
+  expect(confirmMatchBounds).not.toBeNull()
+  expect(Math.abs(confirmMatchBounds!.y - sortBounds!.y)).toBeLessThanOrEqual(1)
+  expect(Math.round(confirmMatchBounds!.height)).toBe(Math.round(sortBounds!.height))
+  expect(detailRequests).toBe(1)
+  expect(issues).toEqual([])
+})
+
 test('keeps the Directory inventory and form accessible on mobile', async ({ page }, testInfo) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
@@ -112,7 +190,7 @@ test('keeps the Directory inventory and form accessible on mobile', async ({ pag
 
   for (const action of [
     page.getByRole('button', { name: 'Sync', exact: true }),
-    page.getByRole('button', { name: 'New directory' }),
+    page.getByRole('button', { name: 'Create directory' }),
     page.getByRole('button', { name: 'Search', exact: true }),
   ]) {
     await expect(action).toBeVisible()
@@ -124,7 +202,7 @@ test('keeps the Directory inventory and form accessible on mobile', async ({ pag
   await expect(table.getByRole('columnheader')).toHaveCount(5)
   await expect(table).toHaveAttribute('aria-busy', 'false')
 
-  await page.getByRole('button', { name: 'New directory' }).click()
+  await page.getByRole('button', { name: 'Create directory' }).click()
   await expect(page.getByRole('heading', { name: 'Create directory' })).toBeVisible()
   const dialog = page.getByRole('dialog', { name: 'Create directory' })
   const panel = dialog.getByTestId('slide-over-panel')
@@ -218,7 +296,7 @@ test('creates, edits, clears, and deletes a Directory with a public Extension me
 
     await page.goto('/directories')
     await expect(page.getByRole('heading', { name: 'Directories' })).toBeVisible()
-    await page.getByRole('button', { name: 'New directory' }).click()
+    await page.getByRole('button', { name: 'Create directory' }).click()
     await page.getByLabel('Name', { exact: true }).fill(directoryName)
     const member = page.getByRole('checkbox', { name: new RegExp(memberName) })
     await expect(member).toBeVisible()

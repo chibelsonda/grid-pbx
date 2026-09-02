@@ -49,6 +49,16 @@ class PaymentWebhookDeliveryControllerTest extends TestCase
         $this->assertStringNotContainsString('notification_hash', $response->getContent());
     }
 
+    public function test_webhook_health_rejects_an_invalid_limit(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/payments/webhook-deliveries?limit=none")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('limit');
+    }
+
     public function test_account_operator_cannot_view_webhook_health(): void
     {
         [$user, $account] = $this->accessibleAccount(OrganizationRole::AccountOperator);
@@ -95,6 +105,24 @@ class PaymentWebhookDeliveryControllerTest extends TestCase
             ReconcilePaymentWebhookJob::class,
             fn (ReconcilePaymentWebhookJob $job): bool => $job->deliveryId === $delivery->id,
         );
+    }
+
+    public function test_account_operator_cannot_retry_a_failed_delivery(): void
+    {
+        Queue::fake([ReconcilePaymentWebhookJob::class]);
+        $this->configureRecovery();
+        [$operator, $account] = $this->accessibleAccount(OrganizationRole::AccountOperator);
+        $delivery = $this->delivery($this->attempt($account), PaymentWebhookDeliveryStatus::Failed);
+
+        $this->actingAs($operator)
+            ->postJson("/api/v1/accounts/{$account->id}/payments/webhook-deliveries/{$delivery->id}/retry")
+            ->assertForbidden();
+
+        Queue::assertNothingPushed();
+        $this->assertDatabaseHas('payment_webhook_deliveries', [
+            'payment_webhook_delivery_id' => $delivery->getKey(),
+            'status' => 'failed',
+        ]);
     }
 
     public function test_retry_does_not_disclose_or_recover_another_accounts_delivery(): void

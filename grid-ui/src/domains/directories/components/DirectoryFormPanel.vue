@@ -136,7 +136,7 @@ function submit(): void {
               <ToggleSwitch
                 v-model="form.confirm_match"
                 label="Confirm a single match"
-                class="self-end rounded-md border border-slate-200 p-3"
+                class="h-10 self-end rounded-md border border-slate-200 px-3"
                 :class="validationControlClass(fieldError('confirm_match'))"
                 :invalid="Boolean(fieldError('confirm_match'))"
               />

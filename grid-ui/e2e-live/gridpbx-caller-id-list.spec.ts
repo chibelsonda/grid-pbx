@@ -93,8 +93,8 @@ test('keeps Caller-ID List inventory and form accessible on mobile', async ({ pa
   await expect(page.getByRole('heading', { name: 'Caller-ID Lists', exact: true })).toBeVisible()
 
   for (const action of [
-    page.getByRole('button', { name: 'Sync', exact: true }),
-    page.getByRole('button', { name: 'New list' }),
+    page.getByRole('button', { name: 'Sync from Switch', exact: true }),
+    page.getByRole('button', { name: 'Create Caller-ID list' }),
     page.getByRole('button', { name: 'Search', exact: true }),
   ]) {
     await expect(action).toBeVisible()
@@ -108,22 +108,30 @@ test('keeps Caller-ID List inventory and form accessible on mobile', async ({ pa
   await expect(table.getByRole('columnheader')).toHaveCount(5)
   await expect(table).toHaveAttribute('aria-busy', 'false')
 
+  await table.getByRole('cell', { name: record.organization, exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Edit Caller-ID list' })).toBeVisible()
+  await page
+    .getByRole('dialog', { name: 'Edit Caller-ID list' })
+    .getByRole('button', { name: 'Cancel' })
+    .click()
+  await expect(page).not.toHaveURL(/(?:\?|&)caller_id_list=/)
+
   const recordButton = table.getByRole('button', { name: record.name })
   await recordButton.focus()
   await expect(recordButton).toBeFocused()
   await page.keyboard.press('Enter')
-  await expect(page.getByRole('heading', { name: 'Edit Caller-ID List' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Edit Caller-ID list' })).toBeVisible()
   await page
-    .getByRole('dialog', { name: 'Edit Caller-ID List' })
+    .getByRole('dialog', { name: 'Edit Caller-ID list' })
     .getByRole('button', { name: 'Cancel' })
     .click()
-  await expect(page.getByRole('heading', { name: 'Edit Caller-ID List' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: 'Edit Caller-ID list' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'New list' }).click()
+  await page.getByRole('button', { name: 'Create Caller-ID list' }).click()
 
-  const dialog = page.getByRole('dialog', { name: 'Create Caller-ID List' })
+  const dialog = page.getByRole('dialog', { name: 'Create Caller-ID list' })
   const panel = page.getByTestId('slide-over-panel')
-  await expect(page.getByRole('heading', { name: 'Create Caller-ID List' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create Caller-ID list' })).toBeVisible()
   await expect(panel).toBeVisible()
   await expect(dialog.getByRole('tab', { name: 'Basic' })).toHaveAttribute('aria-selected', 'true')
   await expect(dialog.getByLabel('Name', { exact: true })).toBeVisible()
@@ -207,9 +215,9 @@ test('round-trips a Caller-ID List through the live GridPBX and Switch APIs', as
     if (staleIds.length) await page.reload()
 
     await expect(page.getByRole('heading', { name: 'Caller-ID Lists', exact: true })).toBeVisible()
-    await page.getByRole('button', { name: 'New list' }).click()
+    await page.getByRole('button', { name: 'Create Caller-ID list' }).click()
 
-    let dialog = page.getByRole('dialog', { name: 'Create Caller-ID List' })
+    let dialog = page.getByRole('dialog', { name: 'Create Caller-ID list' })
     await dialog.getByLabel('Name', { exact: true }).fill(listName)
     await dialog.getByRole('tab', { name: 'Advanced' }).click()
     await dialog.getByLabel('Description').fill('Isolated lifecycle verification')
@@ -231,7 +239,7 @@ test('round-trips a Caller-ID List through the live GridPBX and Switch APIs', as
     let row = page.getByRole('row', { name: new RegExp(listName) })
     await expect(row).toBeVisible()
     await row.getByRole('button', { name: listName }).click()
-    dialog = page.getByRole('dialog', { name: 'Edit Caller-ID List' })
+    dialog = page.getByRole('dialog', { name: 'Edit Caller-ID list' })
     await dialog.getByRole('button', { name: 'Match type' }).click()
     await page.getByRole('option', { name: 'Regular expression' }).click()
     await dialog.getByLabel('Regular expression').fill('^\\+632[0-9]+$')
@@ -247,7 +255,7 @@ test('round-trips a Caller-ID List through the live GridPBX and Switch APIs', as
 
     row = page.getByRole('row', { name: new RegExp(listName) })
     await row.getByRole('button', { name: listName }).click()
-    dialog = page.getByRole('dialog', { name: 'Edit Caller-ID List' })
+    dialog = page.getByRole('dialog', { name: 'Edit Caller-ID list' })
     await expect(dialog.getByLabel('Regular expression')).toHaveValue('^\\+632[0-9]+$')
     await dialog.getByRole('button', { name: 'Remove entry 1' }).click()
     const clearResponsePromise = page.waitForResponse(
@@ -260,7 +268,7 @@ test('round-trips a Caller-ID List through the live GridPBX and Switch APIs', as
     row = page.getByRole('row', { name: new RegExp(listName) })
     await expect(row.getByText('0', { exact: true })).toBeVisible()
     await row.getByRole('button', { name: listName }).click()
-    dialog = page.getByRole('dialog', { name: 'Edit Caller-ID List' })
+    dialog = page.getByRole('dialog', { name: 'Edit Caller-ID list' })
     await expect(
       dialog.getByText('No match entries yet. An empty list never matches a caller.'),
     ).toBeVisible()

@@ -94,6 +94,33 @@ class TemporalOperationalControlControllerTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_operational_command_requires_an_action(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $rule = SwitchTemporalRule::factory()->for($account)->create();
+        $this->mock(SwitchTemporalRuleGateway::class)->shouldNotReceive('setOverride');
+
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/temporal-rules/{$rule->id}/commands")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('action');
+    }
+
+    public function test_operational_command_rejects_an_unknown_action(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $rule = SwitchTemporalRule::factory()->for($account)->create();
+        $this->mock(SwitchTemporalRuleGateway::class)->shouldNotReceive('setOverride');
+
+        $this->actingAs($user)
+            ->postJson(
+                "/api/v1/accounts/{$account->id}/temporal-rules/{$rule->id}/commands",
+                ['action' => 'restart'],
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('action');
+    }
+
     /** @return array<string, mixed> */
     private function snapshot(string $id, ?bool $enabled): array
     {

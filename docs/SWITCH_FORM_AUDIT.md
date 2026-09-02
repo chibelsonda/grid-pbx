@@ -2766,6 +2766,30 @@ focused Menu, Queue, Directory, and embedded Voicemail checks remain valid; no
 Switch resource mutation was required for this presentation-only consistency
 pass.
 
+The 2026-09-02 inner-tab consolidation removed Device's remaining custom
+`TabGroup`/`TabList` row and introduced `AdvancedFormTabs` as the shared owner
+of the containing card, embedded `FormTabBar`, and padded active-panel area.
+Device, Extension/User, Voicemail, Conference, Menu, and nested Account
+recording sections therefore keep the tab header and current form content in
+one Device-style surface instead of rendering sibling tab and content cards.
+They also share the same muted row, icons, active underline, overflow, keyboard
+behavior, and ARIA contract. Domain-owned tab definitions and panels remain
+local, and the compact outer Basic/Advanced segmented selector remains a
+distinct shared control. Focused verification passed 8 UI files / 60 tests,
+Vue and isolated E2E typechecks, and two non-mutating isolated headless checks
+covering the integrated Device mobile and Extension desktop surfaces.
+
+The 2026-09-02 entity-action terminology pass also standardizes standalone
+resource entry points as `Create {entity}` across list actions, creation panel
+titles, submit controls, breadcrumbs, and accessible names. `Add` remains the
+intentional verb for child members, keys, branches, headers, formatters, and
+Callflow actions inside an existing resource. `New` remains valid only for a
+state or replacement value such as a new voicemail message, password, or PIN.
+This presentation-only change does not alter any Switch or public API payload.
+Focused verification passed 3 UI files / 23 tests, Vue and isolated E2E
+typechecks, and one isolated headless read-only walkthrough covering all 13
+standalone entity entry points.
+
 ## Delivery order
 
 After Device, audit mutation-capable entities in dependency order:

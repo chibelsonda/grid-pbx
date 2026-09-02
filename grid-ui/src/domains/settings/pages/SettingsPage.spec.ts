@@ -121,9 +121,9 @@ describe('SettingsPage', () => {
     expect(wrapper.get('#callflow-integrations').text()).toContain(
       'No integration profiles configured',
     )
-    expect(wrapper.get('#callflow-integrations').text()).toContain('Add integration')
-    expect(wrapper.get('#callflow-integrations').text()).not.toContain('Add Pivot profile')
-    expect(wrapper.get('#callflow-integrations').text()).not.toContain('Add Webhook profile')
+    expect(wrapper.get('#callflow-integrations').text()).toContain('Create integration')
+    expect(wrapper.get('#callflow-integrations').text()).not.toContain('Create Pivot profile')
+    expect(wrapper.get('#callflow-integrations').text()).not.toContain('Create Webhook profile')
     expect(wrapper.get('#callflow-integrations').text()).not.toMatch(
       /voice_url|custom_request_headers/,
     )

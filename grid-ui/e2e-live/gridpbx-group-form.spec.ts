@@ -53,7 +53,7 @@ test('keeps the Group inventory and form accessible on mobile', async ({ page },
 
   for (const action of [
     page.getByRole('button', { name: 'Sync', exact: true }),
-    page.getByRole('button', { name: 'New group' }),
+    page.getByRole('button', { name: 'Create group' }),
     page.getByRole('button', { name: 'Search', exact: true }),
   ]) {
     await expect(action).toBeVisible()
@@ -65,7 +65,7 @@ test('keeps the Group inventory and form accessible on mobile', async ({ page },
   await expect(table.getByRole('columnheader')).toHaveCount(4)
   await expect(table).toHaveAttribute('aria-busy', 'false')
 
-  await page.getByRole('button', { name: 'New group' }).click()
+  await page.getByRole('button', { name: 'Create group' }).click()
   await expect(page.getByRole('heading', { name: 'Create group' })).toBeVisible()
   const dialog = page.getByRole('dialog', { name: 'Create group' })
   const panel = dialog.getByTestId('slide-over-panel')
@@ -118,7 +118,7 @@ test('creates, edits, clears, and deletes a disposable Switch Group', async ({ p
 
   await page.goto('/groups')
   await expect(page.getByRole('heading', { name: 'Groups & Ring Groups' })).toBeVisible()
-  await page.getByRole('button', { name: 'New group' }).click()
+  await page.getByRole('button', { name: 'Create group' }).click()
   await expect(page.getByRole('heading', { name: 'Create group' })).toBeVisible()
   await page.getByLabel('Name', { exact: true }).fill(createdName)
 

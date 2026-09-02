@@ -88,7 +88,7 @@ async function attachScreenshot(page: Page, testInfo: TestInfo, name: string): P
 async function createProvisionedDevice(page: Page, name: string, mac: string): Promise<string> {
   await page.goto('/devices')
   await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
   await page.getByLabel('Device name').fill(name)
 
   await page.getByRole('button', { name: 'Select device brand' }).click()

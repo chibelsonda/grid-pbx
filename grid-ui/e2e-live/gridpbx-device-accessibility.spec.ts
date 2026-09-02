@@ -63,7 +63,7 @@ test('keeps Devices inventory and form navigation usable on mobile', async ({ pa
 
   for (const action of [
     page.getByRole('button', { name: 'Reload projection' }),
-    page.getByRole('link', { name: 'Add device' }),
+    page.getByRole('link', { name: 'Create device' }),
   ]) {
     await expect(action).toBeVisible()
     const bounds = await action.boundingBox()
@@ -88,9 +88,9 @@ test('keeps Devices inventory and form navigation usable on mobile', async ({ pa
     fullPage: true,
   })
 
-  const firstDeviceLink = table.locator('tbody tr a').first()
-  await expect(firstDeviceLink).toBeVisible()
-  await firstDeviceLink.click()
+  const firstDeviceRow = table.locator('tbody tr').first()
+  await expect(firstDeviceRow).toBeVisible()
+  await firstDeviceRow.getByRole('cell').nth(1).click()
   await expect(page.getByRole('link', { name: 'Edit' })).toBeVisible()
   for (const action of [
     page.getByRole('link', { name: 'Edit' }),
@@ -113,8 +113,8 @@ test('keeps Devices inventory and form navigation usable on mobile', async ({ pa
   await page.getByRole('link', { name: 'Back to devices' }).click()
   await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Add device' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Add device' })
+  await page.getByRole('link', { name: 'Create device' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create device' })
   await expect(dialog).toHaveAttribute('data-headlessui-state', 'open')
   const panel = dialog.getByTestId('slide-over-panel')
   const closeButton = dialog.getByRole('button', { name: 'Close panel' })
@@ -133,6 +133,9 @@ test('keeps Devices inventory and form navigation usable on mobile', async ({ pa
 
   const advancedSections = dialog.getByRole('tablist', { name: 'Device advanced sections' })
   await expect(advancedSections).toBeVisible()
+  await expect(advancedSections).toHaveClass(/border-b/)
+  await expect(advancedSections).toHaveClass(/bg-slate-50\/70/)
+  await expect(advancedSections.locator('xpath=ancestor::article[1]')).toHaveClass(/card-surface/)
   expect(
     await advancedSections.evaluate((element) => element.scrollWidth > element.clientWidth),
   ).toBe(true)

@@ -22,6 +22,27 @@ class MediaControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_accessible_user_views_the_selected_music_on_hold_without_switch_identifiers(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $media = SwitchMedia::factory()->for($account)->create([
+            'name' => 'Main hold music',
+            'switch_resource_id' => 'private-media-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $account->update(['music_on_hold_media_id' => $media->getKey()]);
+        $this->mock(SwitchMediaGateway::class)->shouldIgnoreMissing();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/media/music-on-hold")
+            ->assertOk()
+            ->assertJsonPath('data.media.id', $media->id)
+            ->assertJsonPath('data.media.name', 'Main hold music')
+            ->assertJsonMissing(['private-media-id', 'server-only'])
+            ->assertJsonMissingPath('data.media.switch_resource_id')
+            ->assertJsonMissingPath('data.media.switch_json');
+    }
+
     public function test_accessible_user_lists_and_views_safe_media_with_dependencies(): void
     {
         [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);

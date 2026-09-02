@@ -56,7 +56,7 @@ const integrationTypes = [
 
 <template>
   <CrudSlideOver
-    title="Add Callflow integration"
+    title="Create callflow integration"
     eyebrow="GridPBX / Settings / Callflow integrations"
     description="Configure private server-side profiles that authorize account-scoped Callflow actions."
     width="medium"
@@ -74,7 +74,7 @@ const integrationTypes = [
             : 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-65'
         "
         :disabled="!integration.available"
-        :aria-label="integration.available ? `Add ${integration.label} profile` : undefined"
+        :aria-label="integration.available ? `Create ${integration.label} profile` : undefined"
         @click="integration.available && emit('select', integration.type)"
       >
         <span class="flex items-start gap-3">

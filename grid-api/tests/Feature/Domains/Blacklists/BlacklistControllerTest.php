@@ -15,6 +15,38 @@ class BlacklistControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_accessible_user_lists_and_views_only_account_blacklists(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $blacklist = SwitchBlacklist::factory()->for($account)->create([
+            'name' => 'Known spam',
+            'switch_resource_id' => 'private-blacklist-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $blacklist->entries()->create(['number' => '+15550001000']);
+        $foreign = SwitchBlacklist::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/blacklists?search=Known")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $blacklist->id)
+            ->assertJsonPath('data.0.number_count', 1)
+            ->assertJsonMissing(['private-blacklist-id', 'server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/blacklists/{$blacklist->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $blacklist->id)
+            ->assertJsonPath('data.numbers.0.number', '+15550001000')
+            ->assertJsonMissingPath('data.switch_resource_id')
+            ->assertJsonMissingPath('data.switch_json');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/blacklists/{$foreign->id}")
+            ->assertNotFound();
+    }
+
     public function test_operator_creates_and_activates_a_blacklist_with_public_safe_entries(): void
     {
         [$user, $account] = $this->accessibleAccount();

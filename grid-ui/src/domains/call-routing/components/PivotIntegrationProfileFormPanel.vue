@@ -101,7 +101,7 @@ function submit(): void {
 
 <template>
   <CrudSlideOver
-    :title="profile ? 'Replace Pivot profile' : 'Add Pivot profile'"
+    :title="profile ? 'Replace Pivot profile' : 'Create Pivot profile'"
     eyebrow="GridPBX / Settings / Callflow integrations"
     description="Private URLs and request headers are encrypted at rest and never returned to the browser after saving."
     width="medium"
@@ -305,7 +305,7 @@ function submit(): void {
           :disabled="saving"
           class="h-9 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
         >
-          {{ saving ? 'Saving…' : profile ? 'Replace configuration' : 'Add profile' }}
+          {{ saving ? 'Saving…' : profile ? 'Replace configuration' : 'Create profile' }}
         </button>
       </div>
     </form>

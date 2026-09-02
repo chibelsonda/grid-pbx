@@ -161,6 +161,46 @@ class SandboxReversalControllerTest extends TestCase
         $this->assertDatabaseCount('payment_attempts', 2);
     }
 
+    public function test_reversals_require_account_administration_and_hide_other_tenants(): void
+    {
+        [$operator, $account] = $this->accessibleAccount(OrganizationRole::AccountOperator);
+        $source = $this->successfulCharge($account);
+        $this->configureSandbox();
+        $this->mock(PaymentReversalGateway::class, function (MockInterface $mock): void {
+            $mock->shouldNotReceive('void');
+            $mock->shouldNotReceive('refund');
+        });
+
+        $operatorRequest = $this->actingAs($operator)
+            ->withHeader('Idempotency-Key', 'operator-reversal-key-0001');
+        $operatorRequest
+            ->postJson($this->voidEndpoint($account, $source), ['confirmation' => true])
+            ->assertForbidden();
+        $operatorRequest
+            ->postJson($this->refundEndpoint($account, $source), [
+                'amount_minor' => 100,
+                'currency' => 'USD',
+                'confirmation' => true,
+            ])
+            ->assertForbidden();
+
+        [$administrator] = $this->accessibleAccount();
+        $administratorRequest = $this->actingAs($administrator)
+            ->withHeader('Idempotency-Key', 'cross-tenant-reversal-0001');
+        $administratorRequest
+            ->postJson($this->voidEndpoint($account, $source), ['confirmation' => true])
+            ->assertNotFound();
+        $administratorRequest
+            ->postJson($this->refundEndpoint($account, $source), [
+                'amount_minor' => 100,
+                'currency' => 'USD',
+                'confirmation' => true,
+            ])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('payment_attempts', 1);
+    }
+
     private function configureSandbox(bool $enabled = true): void
     {
         config()->set([

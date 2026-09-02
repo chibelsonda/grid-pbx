@@ -154,7 +154,7 @@ async function playMedia(mediaId: string, participantId: string | null): Promise
             class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
             @click="open()"
           >
-            <PlusIcon class="size-4" />New conference
+            <PlusIcon class="size-4" />Create conference
           </button>
         </div>
         <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />

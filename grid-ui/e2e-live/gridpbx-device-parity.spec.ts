@@ -6,9 +6,9 @@ test('matches the expected Advanced tab matrix without using the desktop pointer
 }) => {
   await page.goto('/devices')
   await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
 
-  await expect(page.getByRole('heading', { name: 'Add device' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create device' })).toBeVisible()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
 
   for (const device of deviceParityMatrix) {
@@ -24,7 +24,7 @@ test('matches the expected Advanced tab matrix without using the desktop pointer
 
 test('reorders codec priority without using the desktop pointer', async ({ page }) => {
   await page.goto('/devices')
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: 'Audio', exact: true }).click()
 
@@ -39,7 +39,7 @@ test('reorders codec priority without using the desktop pointer', async ({ page 
 
 test('exposes schema-backed routing editors in Device Options', async ({ page }) => {
   await page.goto('/devices')
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: 'Options', exact: true }).click()
 
@@ -65,7 +65,7 @@ test('keeps the final restriction and its menu clear of the fixed action footer'
 }) => {
   await page.setViewportSize({ width: 1024, height: 600 })
   await page.goto('/devices')
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: 'Restrictions', exact: true }).click()
 
@@ -115,7 +115,7 @@ test('uses the connected Device schema and reports provisioning discovery state'
   const optionsResponse = page.waitForResponse(
     (response) => response.url().includes('/devices/options') && response.status() === 200,
   )
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
 
   const options = (await (await optionsResponse).json()).data
   expect(options.device_schema.source).toBe('connected_switch')
@@ -140,7 +140,7 @@ test('shows notify when unregistered in Basic without duplicating it in Advanced
   page,
 }) => {
   await page.goto('/devices')
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
 
   await expect(page.getByRole('switch', { name: 'Notify when unregistered' })).toBeVisible()
 
@@ -153,7 +153,7 @@ test('shows notify when unregistered in Basic without duplicating it in Advanced
 
 test('discovers and selects a provisioner brand, family, and model', async ({ page }) => {
   await page.goto('/devices')
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
 
   const brandButton = page.getByRole('button', { name: 'Select device brand' })
   await brandButton.click()
@@ -194,7 +194,7 @@ test('discovers and selects a provisioner brand, family, and model', async ({ pa
 
 test('matches the minimal SIP URI Options workflow', async ({ page }) => {
   await page.goto('/devices')
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
   await page.getByRole('button', { name: /^SIP URI/ }).click()
   await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
   await page.getByRole('tab', { name: 'Options', exact: true }).click()
@@ -212,7 +212,7 @@ test('matches the minimal SIP URI Options workflow', async ({ page }) => {
 test('matches Cellphone and Landline forwarding workflows', async ({ page }) => {
   for (const label of ['Cell phone', 'Landline']) {
     await page.goto('/devices')
-    await page.getByRole('link', { name: 'Add device' }).click()
+    await page.getByRole('link', { name: 'Create device' }).click()
     await page.getByRole('button', { name: new RegExp(`^${label}`) }).click()
 
     await expect(page.getByRole('switch', { name: 'Enabled' })).toBeVisible()
@@ -266,7 +266,7 @@ test('matches registered-endpoint T.38 and completed-elsewhere capabilities', as
 
   for (const endpoint of endpoints) {
     await page.goto('/devices')
-    await page.getByRole('link', { name: 'Add device' }).click()
+    await page.getByRole('link', { name: 'Create device' }).click()
     await page.getByRole('button', { name: new RegExp(`^${endpoint.label}`) }).click()
     await page.getByRole('tab', { name: 'Advanced', exact: true }).click()
     for (const tab of endpoint.tabs) {

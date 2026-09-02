@@ -62,7 +62,7 @@ test('separates available Queue configuration from unavailable live ACDc control
     agent_statistics_available: false,
     statistics_available: false,
   })
-  await expect(page.getByRole('button', { name: 'New queue' })).toBeEnabled()
+  await expect(page.getByRole('button', { name: 'Create queue' })).toBeEnabled()
   await expect(
     page.getByText(
       'Queue configuration is available, but the connected Switch did not report live agent controls as available.',
@@ -144,7 +144,7 @@ test('keeps Queue memberships readable when live Agent controls are unavailable'
 
   await page.goto('/queues')
   await page.getByRole('tab', { name: 'Agents' }).click()
-  await page.getByRole('button', { name: 'Isolated Agent' }).click()
+  await page.getByRole('cell', { name: '1001', exact: true }).click()
   const panel = page.getByRole('dialog', { name: 'Agent status' }).getByTestId('slide-over-panel')
 
   await expect(panel.getByText('Live Agent status unavailable')).toBeVisible()
@@ -541,7 +541,7 @@ test('keeps Queue inventories and the schema-backed form accessible on mobile', 
   await expect(queueTable.getByRole('columnheader')).toHaveCount(5)
   await expect(queueTable).toHaveAttribute('aria-busy', 'false')
 
-  await page.getByRole('button', { name: 'New queue' }).click()
+  await page.getByRole('button', { name: 'Create queue' }).click()
   await expect(page.getByRole('heading', { name: 'Create queue' })).toBeVisible()
   const dialog = page.getByRole('dialog', { name: 'Create queue' })
 
@@ -600,7 +600,7 @@ test('keeps Queue inventories and the schema-backed form accessible on mobile', 
   await expect(page.getByRole('heading', { name: 'Create queue' })).toHaveCount(0)
   for (const action of [
     page.getByRole('button', { name: 'Sync', exact: true }),
-    page.getByRole('button', { name: 'New queue' }),
+    page.getByRole('button', { name: 'Create queue' }),
     page.getByRole('button', { name: 'Search', exact: true }),
   ]) {
     await expect(action).toBeVisible()
@@ -626,7 +626,7 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
 
   try {
     await page.goto('/queues')
-    await page.getByRole('button', { name: 'New queue' }).click()
+    await page.getByRole('button', { name: 'Create queue' }).click()
     await page.getByLabel('Name', { exact: true }).fill(name)
     await page.getByRole('tab', { name: 'Advanced' }).click()
     await page.getByLabel('Maximum priority').fill('12')
@@ -653,7 +653,10 @@ test('creates, edits, clears, and removes Queue announcement configuration', asy
     expect(created.data.announcements).toMatchObject({ enabled: true, interval: 30 })
 
     await expect(page.getByRole('heading', { name: 'Create queue' })).toHaveCount(0)
-    await page.getByRole('button', { name, exact: true }).click()
+    await page
+      .getByRole('row', { name: new RegExp(name) })
+      .getByRole('cell', { name: 'Round robin', exact: true })
+      .click()
     await expect(page.getByRole('heading', { name: 'Edit queue' })).toBeVisible()
     await page.getByRole('tab', { name: 'Advanced' }).click()
     await expect(page.getByLabel('Maximum priority')).toBeDisabled()

@@ -29,7 +29,7 @@ const isEditing = computed(() => route.name === 'voicemail-edit')
 const voicemailBoxId = computed(() =>
   isEditing.value ? String(route.params.voicemailBoxId) : null,
 )
-const title = computed(() => (isEditing.value ? 'Edit voicemail box' : 'Add voicemail box'))
+const title = computed(() => (isEditing.value ? 'Edit voicemail box' : 'Create voicemail box'))
 const canManage = computed(() => accounts.selected?.permissions.can_manage_voicemail ?? false)
 const pinConfigured = computed(() => voicemail.detail?.pin_configured ?? false)
 const form = reactive<VoicemailBoxBasicForm>(defaultVoicemailBoxBasicForm())
@@ -172,7 +172,11 @@ async function save(): Promise<void> {
           class="inline-flex h-11 items-center justify-center gap-2 rounded-md bg-brand-500 px-5 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
         >
           <CheckCircleIcon class="size-4" />{{
-            voicemail.mutationLoading ? 'Saving…' : isEditing ? 'Save changes' : 'Create mailbox'
+            voicemail.mutationLoading
+              ? 'Saving…'
+              : isEditing
+                ? 'Save changes'
+                : 'Create voicemail box'
           }}
         </button>
       </div>

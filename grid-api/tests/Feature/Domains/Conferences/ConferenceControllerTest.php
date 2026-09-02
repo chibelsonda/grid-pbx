@@ -19,6 +19,27 @@ class ConferenceControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_accessible_user_lists_only_account_conferences_with_safe_summary_fields(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $conference = SwitchConference::factory()->for($account)->create([
+            'name' => 'Daily standup',
+            'switch_resource_id' => 'private-conference-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        SwitchConference::factory()->create(['name' => 'Other tenant']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/conferences?search=standup")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $conference->id)
+            ->assertJsonPath('data.0.name', 'Daily standup')
+            ->assertJsonMissing(['private-conference-id', 'server-only'])
+            ->assertJsonMissingPath('data.0.switch_resource_id')
+            ->assertJsonMissingPath('data.0.switch_json');
+    }
+
     public function test_options_separate_all_media_from_streamable_audio_playback_choices(): void
     {
         [$user, $account] = $this->accessibleAccount();

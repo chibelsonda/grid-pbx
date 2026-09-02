@@ -17,6 +17,62 @@ class TemporalRoutingControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_accessible_user_lists_and_views_account_scoped_rules_and_rule_sets(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $account->update(['timezone' => 'UTC']);
+        $rule = SwitchTemporalRule::factory()->for($account)->create([
+            'name' => 'Business hours',
+            'switch_resource_id' => 'private-rule-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $set = SwitchTemporalRuleSet::factory()->for($account)->create([
+            'name' => 'Office schedule',
+            'switch_resource_id' => 'private-set-id',
+            'switch_json' => ['private' => 'set-server-only'],
+        ]);
+        $set->rules()->create([
+            'switch_temporal_rule_id' => $rule->getKey(),
+            'switch_rule_resource_id' => 'private-rule-id',
+            'position' => 0,
+        ]);
+        $foreignRule = SwitchTemporalRule::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/temporal-rules?search=Business")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $rule->id)
+            ->assertJsonPath('data.0.name', 'Business hours')
+            ->assertJsonMissing(['private-rule-id', 'server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/temporal-rules/{$rule->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $rule->id)
+            ->assertJsonMissingPath('data.switch_resource_id')
+            ->assertJsonMissingPath('data.switch_json');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/temporal-rule-sets?search=Office")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $set->id)
+            ->assertJsonPath('data.0.rule_count', 1)
+            ->assertJsonMissing(['private-set-id', 'set-server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/temporal-rule-sets/{$set->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $set->id)
+            ->assertJsonPath('data.rules.0.rule.id', $rule->id)
+            ->assertJsonMissing(['private-rule-id', 'private-set-id']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/temporal-rules/{$foreignRule->id}")
+            ->assertNotFound();
+    }
+
     public function test_operator_creates_a_rule_with_a_public_safe_projection(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -139,6 +195,30 @@ class TemporalRoutingControllerTest extends TestCase
 
         $response->assertCreated()->assertJsonPath('data.rules.0.rule.id', $second->id)->assertJsonPath('data.rules.1.rule.id', $first->id)->assertJsonMissingPath('data.switch_resource_id');
         $this->assertDatabaseHas('switch_temporal_rule_set_rules', ['switch_rule_resource_id' => 'switch-rule-2', 'position' => 0]);
+    }
+
+    public function test_rule_set_options_return_ordered_public_rule_references(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $later = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'private-rule-zulu',
+            'name' => 'Zulu schedule',
+            'cycle' => 'weekly',
+        ]);
+        $earlier = SwitchTemporalRule::factory()->for($account)->create([
+            'switch_resource_id' => 'private-rule-alpha',
+            'name' => 'Alpha schedule',
+            'cycle' => 'monthly',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/temporal-rule-sets/options")
+            ->assertOk()
+            ->assertJsonPath('data.rules.0.id', $earlier->id)
+            ->assertJsonPath('data.rules.0.label', 'Alpha schedule')
+            ->assertJsonPath('data.rules.0.detail', 'monthly')
+            ->assertJsonPath('data.rules.1.id', $later->id)
+            ->assertJsonMissing(['private-rule-alpha', 'private-rule-zulu']);
     }
 
     public function test_read_only_user_cannot_mutate_and_cross_tenant_rules_are_rejected(): void

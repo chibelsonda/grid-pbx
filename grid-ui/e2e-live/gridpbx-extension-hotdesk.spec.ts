@@ -1026,14 +1026,26 @@ test('shows schema-backed managed User calling fields without clipping or leakin
   }
 })
 
+test('opens Voicemail detail from the full inventory row', async ({ page }) => {
+  const issues = collectPageIssues(page)
+  await page.goto('/voicemail')
+  await expect(page.getByRole('heading', { name: 'Voicemail boxes' })).toBeVisible()
+
+  const firstMailboxRow = page.locator('table tbody tr').first()
+  await expect(firstMailboxRow).toBeVisible()
+  await firstMailboxRow.getByRole('cell').nth(2).click()
+  await expect(page).toHaveURL(/\/voicemail\/[0-9a-f-]+$/)
+  expect(issues).toEqual([])
+})
+
 test('keeps Voicemail validation inline and its assignment listbox inside the viewport', async ({
   page,
 }) => {
   const issues = collectPageIssues(page)
   await page.goto('/voicemail')
   await expect(page.getByRole('heading', { name: 'Voicemail boxes' })).toBeVisible()
-  await page.getByRole('link', { name: 'Add mailbox' }).click()
-  await expect(page.getByRole('heading', { name: 'Add voicemail box' })).toBeVisible()
+  await page.getByRole('link', { name: 'Create voicemail box' }).click()
+  await expect(page.getByRole('heading', { name: 'Create voicemail box' })).toBeVisible()
 
   const assignment = page.locator('article').filter({ hasText: 'Assignment' })
   await assignment.getByRole('button').click()
@@ -1064,7 +1076,7 @@ test('keeps Voicemail validation inline and its assignment listbox inside the vi
   await page.getByRole('button', { name: 'Callback notification' }).click()
   await page.getByRole('switch', { name: 'Configure callback notification' }).click()
 
-  await page.getByRole('button', { name: 'Create mailbox' }).click()
+  await page.getByRole('button', { name: 'Create voicemail box' }).click()
   const mailboxName = page.getByLabel('Mailbox name')
   await expect(mailboxName).toHaveAttribute('aria-invalid', 'true')
   await expect(mailboxName).toHaveClass(/border-red-400/)
@@ -1134,8 +1146,8 @@ test('reports unavailable voicemail transcription without allowing a mutation', 
 
   await page.goto('/voicemail')
   await expect(page.getByRole('heading', { name: 'Voicemail boxes' })).toBeVisible()
-  await page.getByRole('link', { name: 'Add mailbox' }).click()
-  await expect(page.getByRole('heading', { name: 'Add voicemail box' })).toBeVisible()
+  await page.getByRole('link', { name: 'Create voicemail box' }).click()
+  await expect(page.getByRole('heading', { name: 'Create voicemail box' })).toBeVisible()
 
   await selectVoicemailSection(page, 'Options')
   const features = page.locator('article').filter({ hasText: 'Features' })
@@ -1157,7 +1169,7 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
 
   try {
     await page.goto('/voicemail')
-    await page.getByRole('link', { name: 'Add mailbox' }).click()
+    await page.getByRole('link', { name: 'Create voicemail box' }).click()
     await page.getByLabel('Mailbox name').fill(name)
     await page.getByLabel('Mailbox number').fill(mailbox)
     await selectVoicemailSection(page, 'Options')
@@ -1175,7 +1187,7 @@ test('preserves a write-only PIN while editing and clearing a Voicemail callback
         response.request().method() === 'POST' &&
         /\/api\/v1\/accounts\/[^/]+\/voicemail-boxes$/.test(new URL(response.url()).pathname),
     )
-    await page.getByRole('button', { name: 'Create mailbox' }).click()
+    await page.getByRole('button', { name: 'Create voicemail box' }).click()
     const createdResponse = await createResponse
     expect(createdResponse.status()).toBe(201)
     createdId = ((await createdResponse.json()) as { data: { id: string } }).data.id

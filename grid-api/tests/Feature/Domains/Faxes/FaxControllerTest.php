@@ -22,6 +22,27 @@ class FaxControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
 
+    public function test_accessible_user_lists_only_account_fax_boxes_with_safe_summary_fields(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $box = SwitchFaxBox::factory()->for($account)->create([
+            'name' => 'Main fax',
+            'switch_resource_id' => 'private-fax-box-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        SwitchFaxBox::factory()->create(['name' => 'Other tenant']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/fax-boxes?search=Main")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $box->id)
+            ->assertJsonPath('data.0.name', 'Main fax')
+            ->assertJsonMissing(['private-fax-box-id', 'server-only'])
+            ->assertJsonMissingPath('data.0.switch_resource_id')
+            ->assertJsonMissingPath('data.0.switch_json');
+    }
+
     public function test_operator_creates_fax_box_with_public_owner_and_safe_response(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -132,6 +153,17 @@ class FaxControllerTest extends TestCase
         $response = $this->actingAs($user)->get("/api/v1/accounts/{$account->id}/faxes/{$fax->id}/document?download=1");
         $response->assertOk()->assertHeader('content-type', 'application/pdf')->assertHeader('cache-control', 'no-store, private');
         $this->assertSame('%PDF', $response->streamedContent());
+    }
+
+    public function test_fax_document_rejects_an_invalid_download_option_before_calling_switch(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchFaxGateway::class)->shouldNotReceive('document');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/faxes/not-needed/document?download=sometimes")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('download');
     }
 
     public function test_fax_history_exposes_safe_disabled_operation_capabilities(): void

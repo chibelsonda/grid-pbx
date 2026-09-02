@@ -82,7 +82,7 @@ test('uses non-clipping Fax choices and shared inline validation', async ({ page
   await expect(page.getByRole('button', { name: /send|forward|resubmit|delete fax/i })).toHaveCount(
     0,
   )
-  await page.getByRole('button', { name: 'New fax box' }).click()
+  await page.getByRole('button', { name: 'Create fax box' }).click()
   const dialog = page.getByRole('dialog', { name: 'Create fax box' })
 
   await dialog.getByRole('tab', { name: 'Advanced' }).click()

@@ -32,7 +32,7 @@ test('keeps Menu validation inline and its media listbox inside the viewport', a
   const issues = collectPageIssues(page)
   await page.goto('/menus')
   await expect(page.getByRole('heading', { name: 'Menus & IVR' })).toBeVisible()
-  await page.getByRole('button', { name: 'New menu' }).click()
+  await page.getByRole('button', { name: 'Create menu' }).click()
   await expect(page.getByRole('heading', { name: 'Create menu' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Greeting media' }).click()
@@ -113,7 +113,7 @@ test('round-trips Menu runtime prompt suppression and write-only PIN clearing', 
     }
     if (initialPayload.data.some((menu) => menu.name.startsWith('E2E Menu '))) await page.reload()
 
-    await page.getByRole('button', { name: 'New menu' }).click()
+    await page.getByRole('button', { name: 'Create menu' }).click()
     let dialog = page.getByRole('dialog', { name: 'Create menu' })
     await dialog.getByLabel('Name', { exact: true }).fill(menuName)
     await dialog.getByRole('textbox', { name: 'Recording PIN', exact: true }).fill('4826')

@@ -124,7 +124,7 @@ function statusLabel(status: TemporalEffectiveStatus): string {
             class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
             @click="tab === 'rules' ? openRule() : openSet()"
           >
-            <PlusIcon class="size-4" />New {{ tab === 'rules' ? 'rule' : 'rule set' }}
+            <PlusIcon class="size-4" />Create {{ tab === 'rules' ? 'rule' : 'rule set' }}
           </button>
         </div>
         <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
@@ -251,12 +251,18 @@ function statusLabel(status: TemporalEffectiveStatus): string {
                     No temporal rules are projected.
                   </td>
                 </tr>
-                <tr v-for="rule in temporal.rules" v-else :key="rule.id" class="hover:bg-slate-50">
+                <tr
+                  v-for="rule in temporal.rules"
+                  v-else
+                  :key="rule.id"
+                  class="cursor-pointer transition hover:bg-slate-50"
+                  @click="openRule(rule.id)"
+                >
                   <td class="px-5 py-4">
                     <button
                       type="button"
                       class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-                      @click="openRule(rule.id)"
+                      @click.stop="openRule(rule.id)"
                     >
                       {{ rule.name }}
                     </button>
@@ -314,12 +320,18 @@ function statusLabel(status: TemporalEffectiveStatus): string {
                     No rule sets are projected.
                   </td>
                 </tr>
-                <tr v-for="set in temporal.sets" v-else :key="set.id" class="hover:bg-slate-50">
+                <tr
+                  v-for="set in temporal.sets"
+                  v-else
+                  :key="set.id"
+                  class="cursor-pointer transition hover:bg-slate-50"
+                  @click="openSet(set.id)"
+                >
                   <td class="px-5 py-4">
                     <button
                       type="button"
                       class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-                      @click="openSet(set.id)"
+                      @click.stop="openSet(set.id)"
                     >
                       {{ set.name }}
                     </button>

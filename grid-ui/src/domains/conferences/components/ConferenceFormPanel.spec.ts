@@ -58,13 +58,14 @@ describe('ConferenceFormPanel', () => {
 
     expect(viewTabs.map((tab) => tab.text())).toEqual(['Basic', 'Advanced'])
     expect(advancedTabs.map((tab) => tab.text())).toEqual(['Basic', 'Options', 'Conference Server'])
-    expect(advancedTabList.classes()).toContain('hidden')
+    expect(advancedTabList.attributes('style')).toContain('display: none')
     expect(wrapper.find('input[aria-label="Profile name"]').isVisible()).toBe(false)
     expect(wrapper.find('input[aria-label="General conference numbers"]').isVisible()).toBe(false)
 
     await viewTabs[1]!.trigger('click')
 
-    expect(advancedTabList.classes()).not.toContain('hidden')
+    expect(advancedTabList.attributes('style') ?? '').not.toContain('display: none')
+    expect(advancedTabList.element.closest('article')?.classList).toContain('card-surface')
     expect(wrapper.find('input[aria-label="Name"]').isVisible()).toBe(true)
     expect(wrapper.find('input[aria-label="Profile name"]').isVisible()).toBe(false)
 

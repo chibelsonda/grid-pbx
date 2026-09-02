@@ -64,6 +64,10 @@ function openRecovery(): void {
   void extensions.loadRecoveryQueue(accounts.selectedId)
 }
 
+function openExtension(id: string): void {
+  void router.push({ name: 'extension-detail', params: { extensionId: id } })
+}
+
 function recoverOperation(
   operation: ExtensionRecoveryOperation,
   confirmation: string | null,
@@ -185,12 +189,14 @@ function recoverOperation(
                 v-for="record in extensions.records"
                 v-else
                 :key="record.id"
-                class="hover:bg-slate-50/60"
+                class="cursor-pointer transition hover:bg-slate-50/60"
+                @click="openExtension(record.id)"
               >
                 <td class="px-5 py-3.5">
                   <RouterLink
                     :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
                     class="font-semibold text-slate-700 hover:text-brand-600"
+                    @click.stop
                     >{{ record.display_name }}</RouterLink
                   >
                   <div class="mt-1 text-[10px] text-slate-400">
@@ -200,6 +206,7 @@ function recoverOperation(
                 <td class="px-5 py-3.5 font-mono font-semibold text-brand-600">
                   <RouterLink
                     :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
+                    @click.stop
                     >{{ record.extension ?? '—' }}</RouterLink
                   >
                 </td>
@@ -221,6 +228,7 @@ function recoverOperation(
                     :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
                     :aria-label="`View ${record.display_name}`"
                     class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
+                    @click.stop
                     ><ChevronRightIcon class="size-4"
                   /></RouterLink>
                 </td>

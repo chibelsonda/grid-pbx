@@ -652,7 +652,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
       </template>
 
       <section
-        aria-label="New callflow canvas"
+        aria-label="Create callflow canvas"
         data-callflow-root-drop-zone
         class="relative flex h-[calc(100dvh-7rem)] min-h-[36rem] w-full flex-col overflow-hidden bg-slate-50/70 transition"
         :class="rootDropActive && 'ring-2 ring-inset ring-emerald-300'"
@@ -900,7 +900,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
   <CallflowNodeInfoDialog
     :open="metadataOpen"
     title="Callflow"
-    breadcrumb="New route / Name and numbers"
+    breadcrumb="Create callflow / Name and numbers"
     @close="metadataOpen = false"
   >
     <div class="grid gap-5">
@@ -948,7 +948,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
   <CallflowNodeInfoDialog
     :open="actionOpen && selectedAction !== null && !isInlineRootModule(selectedAction.module)"
     :title="selectedAction ? `Configure ${selectedAction.label}` : 'Configure action'"
-    breadcrumb="New route / Root action"
+    breadcrumb="Create callflow / Root action"
     @close="actionOpen = false"
   >
     <div v-if="selectedAction" class="grid gap-5">
@@ -1109,7 +1109,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
   <CallflowNodeInfoDialog
     :open="fallbackOpen"
     title="Configure fallback"
-    breadcrumb="New callflow / Wildcard branch"
+    breadcrumb="Create callflow / Wildcard branch"
     @close="fallbackOpen = false"
   >
     <div class="grid gap-5">
@@ -1174,7 +1174,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
   <CallflowNodeInfoDialog
     :open="pendingRootAction !== null"
     title="Replace root action?"
-    breadcrumb="New callflow / Root action"
+    breadcrumb="Create callflow / Root action"
     @close="cancelRootActionReplacement"
   >
     <div class="grid gap-5">

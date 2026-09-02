@@ -173,7 +173,7 @@ test('creates, edits, and clears Device music on hold', async ({ page }) => {
 
     await page.goto('/devices')
     await expect(page.getByRole('heading', { name: 'Devices' })).toBeVisible()
-    await page.getByRole('link', { name: 'Add device' }).click()
+    await page.getByRole('link', { name: 'Create device' }).click()
     await page.getByLabel('Device name').fill(deviceName)
 
     await openAdvancedTab(page, 'SIP')

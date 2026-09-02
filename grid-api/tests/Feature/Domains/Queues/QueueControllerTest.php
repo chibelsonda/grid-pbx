@@ -110,6 +110,70 @@ class QueueControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_resource_id');
     }
 
+    public function test_operator_deletes_an_unreferenced_queue_after_clearing_its_roster(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $queue = SwitchQueue::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-queue-delete',
+        ]);
+        $gateway = $this->mock(SwitchQueueGateway::class);
+        $gateway->shouldReceive('replaceRoster')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId, array $agentIds): bool => $received->is($account)
+                && $resourceId === 'switch-queue-delete'
+                && $agentIds === [],
+        )->andReturn(['id' => 'switch-queue-delete', 'agents' => []]);
+        $gateway->shouldReceive('delete')->once()->withArgs(
+            fn (SwitchAccount $received, string $resourceId): bool => $received->is($account)
+                && $resourceId === 'switch-queue-delete',
+        );
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/queues/{$queue->id}")
+            ->assertNoContent();
+
+        $this->assertSoftDeleted($queue);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'queue.deleted']);
+    }
+
+    public function test_read_only_user_lists_unique_account_agents_with_public_queue_references(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $this->mock(SwitchAgentGateway::class)->shouldNotReceive('status', 'statistics', 'updateStatus');
+        $this->mock(SwitchQueueGateway::class)->shouldNotReceive('capabilities');
+        $agent = SwitchExtension::factory()->for($account)->create([
+            'display_name' => 'Ada Lovelace',
+            'extension' => '1001',
+            'switch_resource_id' => 'switch-user-1',
+        ]);
+        $support = SwitchQueue::factory()->for($account)->create(['name' => 'Support']);
+        $sales = SwitchQueue::factory()->for($account)->create(['name' => 'Sales']);
+        $foreignQueue = SwitchQueue::factory()->create();
+
+        foreach ([$support, $sales] as $queue) {
+            $queue->agents()->create([
+                'switch_extension_id' => $agent->getKey(),
+                'switch_user_resource_id' => 'switch-user-1',
+            ]);
+        }
+
+        $foreignQueue->agents()->create([
+            'switch_extension_id' => SwitchExtension::factory()->create()->getKey(),
+            'switch_user_resource_id' => 'private-foreign-agent',
+        ]);
+
+        $response = $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/agents")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $agent->id)
+            ->assertJsonPath('data.0.name', 'Ada Lovelace')
+            ->assertJsonPath('data.0.extension', '1001')
+            ->assertJsonCount(2, 'data.0.queues')
+            ->assertJsonMissing(['switch-user-1', 'private-foreign-agent']);
+
+        $this->assertStringNotContainsString('switch_resource_id', $response->getContent());
+    }
+
     public function test_options_expose_separate_acdc_capabilities_without_switch_identifiers(): void
     {
         [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
@@ -323,6 +387,7 @@ class QueueControllerTest extends TestCase
     public function test_operator_requests_live_status_with_a_public_agent_id(): void
     {
         [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchQueueGateway::class)->shouldNotReceive('capabilities');
         $agent = SwitchExtension::factory()->for($account)->create(['switch_resource_id' => 'switch-user-1']);
         $queue = SwitchQueue::factory()->for($account)->create();
         $queue->agents()->create(['switch_extension_id' => $agent->getKey(), 'switch_user_resource_id' => 'switch-user-1']);
@@ -337,6 +402,7 @@ class QueueControllerTest extends TestCase
     public function test_operator_requests_an_audited_agent_status_change(): void
     {
         [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchQueueGateway::class)->shouldNotReceive('capabilities');
         $agent = SwitchExtension::factory()->for($account)->create(['switch_resource_id' => 'switch-user-1']);
         $queue = SwitchQueue::factory()->for($account)->create();
         $queue->agents()->create(['switch_extension_id' => $agent->getKey(), 'switch_user_resource_id' => 'switch-user-1']);

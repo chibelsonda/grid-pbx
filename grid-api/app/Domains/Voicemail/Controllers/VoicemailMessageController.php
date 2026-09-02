@@ -15,8 +15,8 @@ use App\Domains\Voicemail\Services\VoicemailMessageMutationService;
 use App\Domains\Voicemail\Services\VoicemailMessageService;
 use App\Http\Controllers\Controller;
 use App\Support\Http\ApiResponse;
+use App\Support\Http\Requests\StreamBinaryResourceRequest;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\Gate;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -47,7 +47,7 @@ class VoicemailMessageController extends Controller
     }
 
     public function audio(
-        Request $request,
+        StreamBinaryResourceRequest $request,
         string $account,
         string $voicemailBox,
         string $message,

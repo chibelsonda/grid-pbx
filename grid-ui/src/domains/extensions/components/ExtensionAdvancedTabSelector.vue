@@ -12,7 +12,7 @@ import {
   SparklesIcon,
   UserCircleIcon,
 } from '@heroicons/vue/24/outline'
-import FormTabBar from '@/shared/components/FormTabBar.vue'
+import AdvancedFormTabs from '@/shared/components/AdvancedFormTabs.vue'
 import type { ExtensionAdvancedSection } from '../extensionAdvancedSections'
 
 const props = withDefaults(defineProps<{ extended?: boolean }>(), { extended: false })
@@ -51,11 +51,13 @@ const selectedIndex = computed({
 </script>
 
 <template>
-  <FormTabBar
+  <AdvancedFormTabs
     v-model="selectedIndex"
     :tabs="tabs"
     aria-label="Extension advanced sections"
     compact
     sticky
-  />
+  >
+    <slot />
+  </AdvancedFormTabs>
 </template>

@@ -24,10 +24,10 @@ test('keeps the Devices page visible behind the create slide-over', async ({ pag
   await expect(devicesHeading).toBeVisible()
   await expect(page.getByText('Projected devices', { exact: true })).toBeVisible()
 
-  await page.getByRole('link', { name: 'Add device' }).click()
+  await page.getByRole('link', { name: 'Create device' }).click()
 
   await expect(page).toHaveURL(/\/devices\/new$/)
-  await expect(page.getByRole('heading', { name: 'Add device', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Create device', exact: true })).toBeVisible()
   await expect(page.getByTestId('slide-over-panel')).toBeVisible()
   await expect(devicesHeading).toBeVisible()
   await expect(page.getByText('Projected devices', { exact: true })).toBeVisible()

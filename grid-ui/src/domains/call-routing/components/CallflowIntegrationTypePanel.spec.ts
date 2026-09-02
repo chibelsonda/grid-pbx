@@ -28,10 +28,10 @@ describe('CallflowIntegrationTypePanel', () => {
   it('uses one capability picker for every safely supported integration type', async () => {
     const wrapper = mountPanel()
 
-    const pivot = wrapper.get('button[aria-label="Add Pivot profile"]')
-    const webhook = wrapper.get('button[aria-label="Add Webhook profile"]')
-    const globalCarrier = wrapper.get('button[aria-label="Add Global carrier profile"]')
-    const accountCarrier = wrapper.get('button[aria-label="Add Account carrier profile"]')
+    const pivot = wrapper.get('button[aria-label="Create Pivot profile"]')
+    const webhook = wrapper.get('button[aria-label="Create Webhook profile"]')
+    const globalCarrier = wrapper.get('button[aria-label="Create Global carrier profile"]')
+    const accountCarrier = wrapper.get('button[aria-label="Create Account carrier profile"]')
 
     await pivot.trigger('click')
     await webhook.trigger('click')

@@ -26,6 +26,13 @@
 
 @layer base {
   :root {
+    --app-canvas: #f1f4f6;
+    --app-surface: #ffffff;
+    --app-surface-muted: #f8fafc;
+    --app-border: #dce2ea;
+    --app-foreground: #343a40;
+    --app-muted: #5f6f85;
+    --app-focus: rgb(63 106 216 / 24%);
     --app-header-background: #ffffff;
     --app-header-border: #e2e8f0;
     --app-header-foreground: #334155;
@@ -89,12 +96,17 @@
   }
 
   :focus-visible {
-    outline: 3px solid rgb(63 106 216 / 24%);
+    outline: 3px solid var(--app-focus);
     outline-offset: 2px;
   }
 }
 
 @layer components {
+  .app-workspace {
+    background: var(--app-canvas);
+    color: var(--app-foreground);
+  }
+
   .app-header {
     border-color: var(--app-header-border);
     background: var(--app-header-background);
@@ -288,10 +300,21 @@
   }
 
   .card-surface {
-    border: 1px solid var(--color-slate-200);
+    border: 1px solid var(--app-border);
     border-radius: 0.375rem;
-    background: white;
+    background: var(--app-surface);
     box-shadow: var(--shadow-card);
+  }
+
+  /*
+   * Keep framed card headings compact and aligned across forms and detail pages.
+   * Semantic headers are preferred; the second selector supports older cards whose
+   * heading is still a first-child div or section. Wrapped content may grow naturally.
+   */
+  .card-surface.overflow-hidden > header,
+  .card-surface.overflow-hidden > :first-child:is(div, section)[class*='border-b'] {
+    min-height: 3.5rem;
+    padding-block: 0.5rem !important;
   }
 
   /* Keep primary panel actions available while long slide-over forms scroll. */

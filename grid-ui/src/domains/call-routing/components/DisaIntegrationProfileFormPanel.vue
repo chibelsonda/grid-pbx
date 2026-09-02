@@ -75,7 +75,7 @@ function submit(): void {
 
 <template>
   <CrudSlideOver
-    :title="profile ? 'Replace DISA access policy' : 'Add DISA access policy'"
+    :title="profile ? 'Replace DISA access policy' : 'Create DISA access policy'"
     eyebrow="GridPBX / Settings / Callflow integrations"
     description="The PIN is encrypted and write-only. Callflow editors select only this policy's public UUID."
     width="medium"

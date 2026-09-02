@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domains\Payments;
 
 use App\Domains\IdentityAccess\Models\User;
+use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
 use App\Domains\Organizations\Models\SwitchAccount;
 use App\Domains\Payments\Contracts\PaymentProfileGateway;
@@ -90,6 +91,48 @@ class SandboxPaymentProfileControllerTest extends TestCase
         $this->assertDatabaseCount('payment_customer_profiles', 0);
     }
 
+    public function test_profile_creation_requires_confirmation_and_rejects_raw_card_data(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $source = $this->successfulCharge($account);
+        $this->mock(PaymentProfileGateway::class)->shouldNotReceive('createFromTransaction');
+
+        $this->actingAs($user)
+            ->postJson($this->endpoint($account, $source), [
+                'confirmation' => false,
+                'card_number' => '4111111111111111',
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'idempotency_key',
+                'confirmation',
+                'card_number',
+            ]);
+    }
+
+    public function test_profile_creation_requires_account_administration_and_hides_other_tenants(): void
+    {
+        [$operator, $account] = $this->accessibleAccount(OrganizationRole::AccountOperator);
+        $source = $this->successfulCharge($account);
+        $this->configureSandbox();
+        $this->mock(PaymentProfileGateway::class)->shouldNotReceive('createFromTransaction');
+
+        $this->actingAs($operator)
+            ->withHeader('Idempotency-Key', 'operator-profile-key-0001')
+            ->postJson($this->endpoint($account, $source), ['confirmation' => true])
+            ->assertForbidden();
+
+        [$administrator] = $this->accessibleAccount();
+
+        $this->actingAs($administrator)
+            ->withHeader('Idempotency-Key', 'cross-tenant-profile-0001')
+            ->postJson($this->endpoint($account, $source), ['confirmation' => true])
+            ->assertNotFound();
+
+        $this->assertDatabaseCount('payment_attempts', 1);
+        $this->assertDatabaseCount('payment_customer_profiles', 0);
+    }
+
     private function configureSandbox(bool $enabled = true): void
     {
         config()->set([
@@ -126,11 +169,12 @@ class SandboxPaymentProfileControllerTest extends TestCase
     }
 
     /** @return array{User, SwitchAccount} */
-    private function accessibleAccount(): array
-    {
+    private function accessibleAccount(
+        OrganizationRole $role = OrganizationRole::AccountAdministrator,
+    ): array {
         $user = User::factory()->create();
         $organization = Organization::factory()->create();
-        $organization->users()->attach($user, ['role' => 'account_administrator']);
+        $organization->users()->attach($user, ['role' => $role->value]);
 
         return [$user, SwitchAccount::factory()->for($organization)->create()];
     }

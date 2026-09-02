@@ -71,8 +71,8 @@ test('keeps the Blacklist inventory and form accessible on mobile', async ({ pag
   await expect(page.getByRole('heading', { name: 'Blacklists', exact: true })).toBeVisible()
 
   for (const action of [
-    page.getByRole('button', { name: 'Sync', exact: true }),
-    page.getByRole('button', { name: 'New blacklist' }),
+    page.getByRole('button', { name: 'Sync from Switch', exact: true }),
+    page.getByRole('button', { name: 'Create blacklist' }),
     page.getByRole('button', { name: 'Search', exact: true }),
   ]) {
     await expect(action).toBeVisible()
@@ -83,6 +83,14 @@ test('keeps the Blacklist inventory and form accessible on mobile', async ({ pag
   await expect(table).toBeVisible()
   await expect(table.getByRole('columnheader')).toHaveCount(5)
   await expect(table).toHaveAttribute('aria-busy', 'false')
+
+  await table.getByRole('cell', { name: '1', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'Edit blacklist' })).toBeVisible()
+  await page
+    .getByRole('dialog', { name: 'Edit blacklist' })
+    .getByRole('button', { name: 'Cancel' })
+    .click()
+  await expect(page).not.toHaveURL(/(?:\?|&)blacklist=/)
 
   const recordButton = table.getByRole('button', { name: record.name })
   await recordButton.focus()
@@ -95,7 +103,7 @@ test('keeps the Blacklist inventory and form accessible on mobile', async ({ pag
     .click()
   await expect(page.getByRole('heading', { name: 'Edit blacklist' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'New blacklist' }).click()
+  await page.getByRole('button', { name: 'Create blacklist' }).click()
   const dialog = page.getByRole('dialog', { name: 'Create blacklist' })
   const panel = dialog.getByTestId('slide-over-panel')
   const closeButton = dialog.getByRole('button', { name: 'Close panel' })

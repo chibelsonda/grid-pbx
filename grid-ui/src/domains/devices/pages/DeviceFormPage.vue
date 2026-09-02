@@ -22,7 +22,7 @@ const accounts = useAccountStore()
 const devices = useDeviceStore()
 const isEditing = computed(() => route.name === 'device-edit')
 const deviceId = computed(() => (isEditing.value ? String(route.params.deviceId) : null))
-const title = computed(() => (isEditing.value ? 'Edit device' : 'Add device'))
+const title = computed(() => (isEditing.value ? 'Edit device' : 'Create device'))
 const canManage = computed(() => accounts.selected?.permissions.can_manage_devices ?? false)
 const form = reactive<DeviceBasicForm>({
   name: '',

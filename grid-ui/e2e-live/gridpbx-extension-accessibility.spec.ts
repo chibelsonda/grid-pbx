@@ -88,6 +88,13 @@ test('keeps People and Extensions inventory and form navigation usable on mobile
     fullPage: true,
   })
 
+  const firstExtensionRow = table.locator('tbody tr').first()
+  await expect(firstExtensionRow).toBeVisible()
+  await firstExtensionRow.getByRole('cell').nth(2).click()
+  await expect(page).toHaveURL(/\/extensions\/[0-9a-f-]+$/)
+  await page.goBack()
+  await expect(page.getByRole('heading', { name: 'People & Extensions' })).toBeVisible()
+
   await page.getByRole('button', { name: 'Create extension' }).click()
   const dialog = page.getByRole('dialog', { name: 'Create extension' })
   await expect(dialog).toHaveAttribute('data-headlessui-state', 'open')
@@ -157,6 +164,10 @@ test.describe('desktop extension form', () => {
     const advancedSections = dialog.getByRole('tablist', {
       name: 'Extension advanced sections',
     })
+    await expect(advancedSections).toHaveClass(/border-b/)
+    await expect(advancedSections).toHaveClass(/bg-slate-50\/70/)
+    const advancedSurface = advancedSections.locator('xpath=ancestor::article[1]')
+    await expect(advancedSurface).toHaveClass(/card-surface/)
     const advancedTabLabels = (await advancedSections.getByRole('tab').allTextContents()).map(
       (label) => label.trim(),
     )
@@ -180,8 +191,10 @@ test.describe('desktop extension form', () => {
     ).toBeVisible()
 
     await advancedSections.getByRole('tab', { name: 'Options', exact: true }).click()
-    await expect(dialog.getByRole('heading', { name: 'User calling options' })).toBeVisible()
-    await expect(dialog.getByRole('heading', { name: 'Music on hold' })).toBeVisible()
+    await expect(
+      advancedSurface.getByRole('heading', { name: 'User calling options' }),
+    ).toBeVisible()
+    await expect(advancedSurface.getByRole('heading', { name: 'Music on hold' })).toBeVisible()
     await expect(
       dialog.getByTestId('extension-advanced-options').getByText('Presence ID', { exact: true }),
     ).toHaveCount(0)

@@ -97,6 +97,14 @@ checkout has no Queue editor. Basic-only resources and read-only projections
 remain tabless. This presentation rule does not expand any public payload or
 change existing public-UUID/private-resource mapping.
 
+The 2026-09-02 follow-through made that rule structural rather than visual
+convention: shared `AdvancedFormTabs` now owns one Device-style card containing
+the embedded `FormTabBar` and active form panel for Device, Extension/User,
+Voicemail, Conference, Menu, and Account recording. Embedded and standalone
+surfaces share one underline-row implementation without separating the header
+from its content; domain field grouping and every Switch payload contract
+remain unchanged.
+
 ## 4. All-entity registry
 
 `Detailed matrix` identifies the field-level audit status, not implementation

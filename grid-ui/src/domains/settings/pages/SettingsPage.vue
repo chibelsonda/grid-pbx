@@ -17,7 +17,7 @@ import {
   UserCircleIcon,
 } from '@heroicons/vue/24/outline'
 import { sidebarBrandDisplaySchema, useUiStore } from '@/app/stores/uiStore'
-import { findShellTheme } from '@/app/theme/themeCatalog'
+import { findApplicationTheme, findShellTheme } from '@/app/theme/themeCatalog'
 import { accountRoleLabel } from '@/domains/accounts/accountRole'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import type { Account } from '@/domains/accounts/types/account'
@@ -110,6 +110,7 @@ const grantedPermissions = computed(() => {
 })
 const headerTheme = computed(() => findShellTheme('header', ui.headerTheme))
 const sidebarTheme = computed(() => findShellTheme('sidebar', ui.sidebarTheme))
+const applicationTheme = computed(() => findApplicationTheme(ui.applicationTheme))
 const profileNameError = computed(
   () => profileValidationErrors.value.name?.[0] ?? auth.profileFieldErrors.name?.[0] ?? null,
 )
@@ -477,7 +478,27 @@ async function signOut(): Promise<void> {
                 </p>
               </div>
             </header>
-            <div class="grid gap-4 p-5 sm:grid-cols-2">
+            <div class="grid gap-4 p-5 sm:grid-cols-3">
+              <div class="rounded-md border border-slate-200 p-4">
+                <div class="flex items-center gap-3">
+                  <span class="flex shrink-0 -space-x-2">
+                    <span
+                      v-for="swatch in applicationTheme.swatches"
+                      :key="swatch"
+                      class="size-7 rounded-full border-2 border-white shadow-sm"
+                      :style="{ background: swatch }"
+                    />
+                  </span>
+                  <div>
+                    <p class="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
+                      Application
+                    </p>
+                    <p class="mt-0.5 text-xs font-semibold text-slate-700">
+                      {{ applicationTheme.label }}
+                    </p>
+                  </div>
+                </div>
+              </div>
               <div class="rounded-md border border-slate-200 p-4">
                 <div class="flex items-center gap-3">
                   <span
@@ -513,7 +534,7 @@ async function signOut(): Promise<void> {
               <button
                 type="button"
                 aria-label="Customize appearance"
-                class="h-9 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 sm:col-span-2 sm:justify-self-start"
+                class="h-9 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 sm:col-span-3 sm:justify-self-start"
                 @click="ui.openThemePanel"
               >
                 Customize appearance

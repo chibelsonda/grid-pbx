@@ -17,6 +17,7 @@ async function routeBillingWorkspace(
   page: Page,
   invoices: Array<Record<string, unknown>>,
   receipts: Array<Record<string, unknown>>,
+  reconciliationChecks: Array<Record<string, unknown>> = [],
 ): Promise<void> {
   await page.route('**/api/v1/accounts/*/services', (route) =>
     route.fulfill({
@@ -37,7 +38,11 @@ async function routeBillingWorkspace(
             recurring_amount: 150.5,
           },
           billing: null,
-          reconciliation: { status: 'healthy', checks: [], sync_history: [] },
+          reconciliation: {
+            status: reconciliationChecks.length ? 'attention' : 'healthy',
+            checks: reconciliationChecks,
+            sync_history: [],
+          },
           documents: {
             invoices: {
               available: invoices.length > 0,
@@ -79,15 +84,86 @@ test('shows the account-scoped read-only billing workspace', async ({ page }) =>
   await page.goto('/billing')
 
   await expect(page.getByRole('heading', { level: 1, name: 'Billing' })).toBeVisible()
-  await expect(page.getByText('Invoice source', { exact: true })).toBeVisible()
-  await expect(page.getByText('Receipt source', { exact: true })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Invoices' })).toBeVisible()
+  const workspace = page.getByTestId('billing-workspace-card')
+  const sections = workspace.getByRole('tablist', { name: 'Billing workspace sections' })
+  await expect(sections.getByRole('tab')).toHaveCount(5)
+  await expect(sections.getByRole('tab', { name: 'Overview' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(workspace.getByRole('heading', { name: 'Billing sources' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'Invoices' })).toHaveCount(0)
+
+  await sections.getByRole('tab', { name: 'Documents' }).click()
+  await expect(page.getByRole('heading', { level: 2, name: 'Invoices' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Receipts' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Payment confirmations' })).toBeVisible()
-  await expect(page.getByRole('heading', { name: 'Reconciliation health' })).toBeVisible()
+
+  await sections.getByRole('tab', { name: 'Transactions' }).click()
   await expect(page.getByRole('heading', { name: 'Recent Switch billing activity' })).toBeVisible()
+
+  await sections.getByRole('tab', { name: 'Reconciliation' }).click()
+  await expect(page.getByRole('heading', { name: 'Reconciliation health' })).toBeVisible()
+
+  await sections.getByRole('tab', { name: 'Payment testing' }).click()
   await expect(page.getByRole('heading', { name: 'Sandbox payment verification' })).toBeVisible()
+  for (const heading of [
+    'Sandbox payment verification',
+    'Saved payment profiles',
+    'Webhook reconciliation health',
+    'Recent payment activity',
+  ]) {
+    const icon = page
+      .getByRole('heading', { name: heading })
+      .locator('xpath=../..')
+      .locator('svg')
+      .first()
+
+    await expect(icon).toBeVisible()
+    await expect
+      .poll(() =>
+        icon.evaluate((element) => {
+          const bounds = element.getBoundingClientRect()
+
+          return { height: bounds.height, width: bounds.width }
+        }),
+      )
+      .toEqual({ height: 20, width: 20 })
+  }
   await expect(page.getByRole('button', { name: /production/i })).toHaveCount(0)
   await expect(page.getByText(/SQLSTATE|password|provider_reference/i)).toHaveCount(0)
+
+  expect(issues).toEqual([])
+})
+
+test('promotes reconciliation attention and opens its recovery section', async ({ page }) => {
+  const issues = collectPageIssues(page)
+
+  await routeBillingWorkspace(
+    page,
+    [],
+    [],
+    [
+      {
+        code: 'billing_projection',
+        label: 'Billing projection',
+        status: 'failed',
+        message: 'The latest projection did not complete.',
+        guidance: 'Synchronize Services & Limits and review the latest safe run status.',
+      },
+    ],
+  )
+  await page.goto('/billing')
+
+  await page.getByRole('button', { name: /1 reconciliation check requires attention/i }).click()
+
+  await expect(page.getByRole('tab', { name: 'Reconciliation' })).toHaveAttribute(
+    'aria-selected',
+    'true',
+  )
+  await expect(page.getByRole('heading', { name: 'Reconciliation health' })).toBeVisible()
+  await expect(page.getByText('The latest projection did not complete.')).toBeVisible()
+  await expect(page.getByText(/Synchronize Services & Limits/)).toBeVisible()
 
   expect(issues).toEqual([])
 })
@@ -158,6 +234,7 @@ test('loads provider-neutral invoice detail before offering its safe PDF downloa
   )
 
   await page.goto('/billing')
+  await page.getByRole('tab', { name: 'Documents' }).click()
   await page.getByText('INV-E2E-100', { exact: true }).click()
 
   const panel = page.getByRole('dialog', { name: 'INV-E2E-100' })
@@ -212,6 +289,7 @@ test('keeps provider receipts separate and safely downloads their confirmed PDF'
   )
 
   await page.goto('/billing')
+  await page.getByRole('tab', { name: 'Documents' }).click()
   await page.getByText('RCT-E2E-100', { exact: true }).click()
 
   await expect(page.getByRole('button', { name: 'Download receipt PDF' })).toBeVisible()

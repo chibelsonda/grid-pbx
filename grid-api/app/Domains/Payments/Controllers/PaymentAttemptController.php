@@ -5,6 +5,7 @@ namespace App\Domains\Payments\Controllers;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Services\SwitchAccountService;
 use App\Domains\Payments\Models\PaymentAttempt;
+use App\Domains\Payments\Requests\ListPaymentAttemptsRequest;
 use App\Domains\Payments\Resources\PaymentAttemptDetailResource;
 use App\Domains\Payments\Resources\PaymentAttemptResource;
 use App\Domains\Payments\Services\PaymentAttemptHistoryService;
@@ -17,7 +18,7 @@ use Illuminate\Support\Facades\Gate;
 class PaymentAttemptController extends Controller
 {
     public function index(
-        Request $request,
+        ListPaymentAttemptsRequest $request,
         string $account,
         SwitchAccountService $accounts,
         PaymentAttemptHistoryService $history,
@@ -25,7 +26,7 @@ class PaymentAttemptController extends Controller
         /** @var User $user */ $user = $request->user();
         $switchAccount = $accounts->findAccessible($user, $account);
         Gate::authorize('viewAny', [PaymentAttempt::class, $switchAccount]);
-        $attempts = $history->recent($switchAccount, (int) $request->integer('limit', 25));
+        $attempts = $history->recent($switchAccount, $request->integer('limit', 25));
 
         return ApiResponse::data(
             PaymentAttemptResource::collection($attempts)->resolve($request),

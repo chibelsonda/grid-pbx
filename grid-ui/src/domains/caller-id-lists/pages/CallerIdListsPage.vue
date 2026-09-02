@@ -41,8 +41,12 @@ watch(
       if (accountId) void lists.load(accountId)
     }
 
-    if (accountId && typeof callerIdListId === 'string' && callerIdListId !== lists.detail?.id) {
-      void loadDetail(accountId, callerIdListId)
+    if (accountId && typeof callerIdListId === 'string') {
+      if (callerIdListId === lists.detail?.id) {
+        panel.value = true
+      } else {
+        void loadDetail(accountId, callerIdListId)
+      }
     }
   },
   { immediate: true },
@@ -123,7 +127,7 @@ function clearCallerIdListQuery(): void {
             class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white sm:flex-none"
             @click="open()"
           >
-            <PlusIcon class="size-4" />New list
+            <PlusIcon class="size-4" />Create Caller-ID list
           </button>
         </div>
         <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
@@ -218,12 +222,18 @@ function clearCallerIdListQuery(): void {
                 No Caller-ID Lists are projected.
               </td>
             </tr>
-            <tr v-for="record in lists.records" v-else :key="record.id" class="hover:bg-slate-50">
+            <tr
+              v-for="record in lists.records"
+              v-else
+              :key="record.id"
+              class="cursor-pointer transition hover:bg-slate-50"
+              @click="open(record.id)"
+            >
               <td class="px-5 py-4">
                 <button
                   type="button"
                   class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-                  @click="open(record.id)"
+                  @click.stop="open(record.id)"
                 >
                   {{ record.name }}
                 </button>

@@ -11,6 +11,7 @@ use App\Domains\Payments\Dto\PaymentMutationResult;
 use App\Domains\Payments\Enums\PaymentAttemptStatus;
 use Illuminate\Foundation\Testing\LazilyRefreshDatabase;
 use Mockery\MockInterface;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class SandboxChargeControllerTest extends TestCase
@@ -47,6 +48,60 @@ class SandboxChargeControllerTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['idempotency_key', 'card_number', 'cvv']);
+
+        $this->assertDatabaseCount('payment_attempts', 0);
+    }
+
+    #[DataProvider('privatePaymentFieldProvider')]
+    public function test_it_rejects_every_private_payment_field_from_the_public_charge_api(
+        string $field,
+        mixed $value,
+    ): void {
+        [$user, $account] = $this->accessibleAccount();
+        $this->configureSandbox();
+        $this->mock(PaymentChargeGateway::class, function (MockInterface $mock): void {
+            $mock->shouldNotReceive('charge');
+        });
+
+        $this->actingAs($user)
+            ->withHeader('Idempotency-Key', 'private-field-rejection-0001')
+            ->postJson($this->endpoint($account), [
+                ...$this->payload(),
+                $field => $value,
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors($field);
+
+        $this->assertDatabaseCount('payment_attempts', 0);
+    }
+
+    public function test_it_rejects_invalid_charge_amount_currency_confirmation_and_token_shape(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->configureSandbox();
+        $this->mock(PaymentChargeGateway::class, function (MockInterface $mock): void {
+            $mock->shouldNotReceive('charge');
+        });
+
+        $this->actingAs($user)
+            ->withHeader('Idempotency-Key', 'invalid-charge-fields-0001')
+            ->postJson($this->endpoint($account), [
+                'amount_minor' => 101,
+                'currency' => 'EUR',
+                'confirmation' => false,
+                'opaque_data' => [
+                    'dataDescriptor' => 'RAW.CARD.DATA',
+                    'dataValue' => 'short',
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'amount_minor',
+                'currency',
+                'confirmation',
+                'opaque_data.dataDescriptor',
+                'opaque_data.dataValue',
+            ]);
 
         $this->assertDatabaseCount('payment_attempts', 0);
     }
@@ -161,6 +216,22 @@ class SandboxChargeControllerTest extends TestCase
                 'dataValue' => $token,
             ],
         ];
+    }
+
+    /** @return iterable<string, array{string, mixed}> */
+    public static function privatePaymentFieldProvider(): iterable
+    {
+        yield 'card object' => ['card', ['number' => '4111111111111111']];
+        yield 'card data object' => ['card_data', ['number' => '4111111111111111']];
+        yield 'snake-case card number' => ['card_number', '4111111111111111'];
+        yield 'camel-case card number' => ['cardNumber', '4111111111111111'];
+        yield 'snake-case card code' => ['card_code', '123'];
+        yield 'camel-case card code' => ['cardCode', '123'];
+        yield 'cvv' => ['cvv', '123'];
+        yield 'expiration' => ['expiration', '12/30'];
+        yield 'expiry' => ['expiry', '12/30'];
+        yield 'provider reference' => ['provider_reference', 'private-provider-reference'];
+        yield 'transaction id' => ['transaction_id', 'private-provider-reference'];
     }
 
     private function configureSandbox(bool $chargeEnabled = true): void

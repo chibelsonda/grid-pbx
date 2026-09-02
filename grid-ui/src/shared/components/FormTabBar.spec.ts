@@ -21,6 +21,8 @@ describe('FormTabBar', () => {
 
     expect(tabList.attributes('aria-label')).toBe('Test form sections')
     expect(tabList.classes()).toContain('overflow-x-auto')
+    expect(tabList.classes()).toContain('border-b')
+    expect(tabList.classes()).toContain('bg-slate-50/70')
     expect(tabList.classes()).toContain('mb-5')
     expect(tabs.map((tab) => tab.text())).toEqual(['Basic', 'Options'])
     expect(tabs[0]!.attributes('aria-selected')).toBe('true')
@@ -37,5 +39,21 @@ describe('FormTabBar', () => {
     expect(tabs[0]!.attributes('aria-selected')).toBe('true')
     expect(tabs[0]!.classes()).toContain('border-brand-500')
     expect(tabs[1]!.classes()).toContain('border-transparent')
+  })
+
+  it('reuses the Device tab row inside an existing form surface', () => {
+    const wrapper = mount(FormTabBar, {
+      props: {
+        tabs: [{ key: 'basic', label: 'Basic' }],
+        embedded: true,
+      },
+      slots: { default: '<div data-testid="tab-content">Device fields</div>' },
+    })
+
+    const tabList = wrapper.get('[role="tablist"]')
+    expect(tabList.classes()).toContain('border-b')
+    expect(tabList.classes()).toContain('bg-slate-50/70')
+    expect(tabList.classes()).not.toContain('card-surface')
+    expect(wrapper.get('[data-testid="tab-content"]').text()).toBe('Device fields')
   })
 })

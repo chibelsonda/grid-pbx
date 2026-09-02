@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   CheckCircleIcon,
@@ -16,6 +17,7 @@ import { useDeviceStore } from '../stores/deviceStore'
 
 const accounts = useAccountStore()
 const devices = useDeviceStore()
+const router = useRouter()
 const enabledOnPage = computed(() => devices.records.filter((device) => device.is_enabled).length)
 const assignedOnPage = computed(
   () => devices.records.filter((device) => device.assigned_extension !== null).length,
@@ -42,6 +44,10 @@ function refresh(): void {
 
 function humanize(value: string): string {
   return value.replaceAll('_', ' ').replace(/\b\w/g, (character) => character.toUpperCase())
+}
+
+function openDevice(id: string): void {
+  void router.push({ name: 'device-detail', params: { deviceId: id } })
 }
 </script>
 
@@ -70,7 +76,7 @@ function humanize(value: string): string {
           :to="{ name: 'device-create' }"
           class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
         >
-          <PlusIcon class="size-4" /> Add device
+          <PlusIcon class="size-4" /> Create device
         </RouterLink>
       </div>
     </div>
@@ -197,12 +203,14 @@ function humanize(value: string): string {
                 v-for="device in devices.records"
                 v-else
                 :key="device.id"
-                class="hover:bg-slate-50/60"
+                class="cursor-pointer transition hover:bg-slate-50/60"
+                @click="openDevice(device.id)"
               >
                 <td class="px-5 py-3.5">
                   <RouterLink
                     :to="{ name: 'device-detail', params: { deviceId: device.id } }"
                     class="font-semibold text-slate-700 hover:text-brand-600"
+                    @click.stop
                   >
                     {{ device.name ?? 'Unnamed device' }}
                   </RouterLink>
@@ -221,6 +229,7 @@ function humanize(value: string): string {
                       params: { extensionId: device.assigned_extension.id },
                     }"
                     class="font-semibold text-brand-600 hover:text-brand-700"
+                    @click.stop
                   >
                     {{ device.assigned_extension.display_name }}
                     <span class="ml-1 font-mono text-[10px] text-slate-400">
@@ -263,6 +272,7 @@ function humanize(value: string): string {
                     :to="{ name: 'device-detail', params: { deviceId: device.id } }"
                     :aria-label="`View ${device.name ?? 'device'}`"
                     class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
+                    @click.stop
                   >
                     <ChevronRightIcon class="size-4" />
                   </RouterLink>

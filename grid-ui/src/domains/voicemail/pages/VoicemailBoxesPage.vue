@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   ChevronRightIcon,
@@ -16,6 +17,7 @@ import { useVoicemailStore } from '../stores/voicemailStore'
 
 const accounts = useAccountStore()
 const voicemail = useVoicemailStore()
+const router = useRouter()
 const assignedOnPage = computed(
   () => voicemail.records.filter((record) => record.assigned_extension !== null).length,
 )
@@ -36,6 +38,10 @@ watch(
 
 function loadFirstPage(): void {
   if (accounts.selectedId) void voicemail.load(accounts.selectedId, 1)
+}
+
+function openMailbox(id: string): void {
+  void router.push({ name: 'voicemail-detail', params: { voicemailBoxId: id } })
 }
 </script>
 
@@ -64,7 +70,7 @@ function loadFirstPage(): void {
           :to="{ name: 'voicemail-create' }"
           class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
         >
-          <PlusIcon class="size-4" /> Add mailbox
+          <PlusIcon class="size-4" /> Create voicemail box
         </RouterLink>
       </div>
     </div>
@@ -183,12 +189,14 @@ function loadFirstPage(): void {
                 v-for="record in voicemail.records"
                 v-else
                 :key="record.id"
-                class="hover:bg-slate-50/60"
+                class="cursor-pointer transition hover:bg-slate-50/60"
+                @click="openMailbox(record.id)"
               >
                 <td class="px-5 py-3.5">
                   <RouterLink
                     :to="{ name: 'voicemail-detail', params: { voicemailBoxId: record.id } }"
                     class="font-semibold text-slate-700 hover:text-brand-600"
+                    @click.stop
                     >{{ record.name ?? 'Unnamed mailbox' }}</RouterLink
                   >
                   <div class="mt-1 font-mono text-[10px] text-slate-400">
@@ -203,6 +211,7 @@ function loadFirstPage(): void {
                       params: { extensionId: record.assigned_extension.id },
                     }"
                     class="font-semibold text-brand-600"
+                    @click.stop
                     >{{ record.assigned_extension.display_name }}
                     <span class="ml-1 font-mono text-[10px] text-slate-400">{{
                       record.assigned_extension.extension
@@ -240,6 +249,7 @@ function loadFirstPage(): void {
                   <RouterLink
                     :to="{ name: 'voicemail-detail', params: { voicemailBoxId: record.id } }"
                     class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
+                    @click.stop
                     ><ChevronRightIcon class="size-4"
                   /></RouterLink>
                 </td>

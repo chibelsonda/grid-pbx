@@ -243,7 +243,7 @@ watch(
         v-else-if="!chargeAvailable"
         class="flex gap-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-amber-800"
       >
-        <LockClosedIcon class="mt-0.5 size-4 shrink-0" />
+        <LockClosedIcon class="mt-0.5 size-5 shrink-0" />
         <div>
           <p class="text-xs font-semibold">Sandbox charging is disabled</p>
           <p class="mt-1 text-[10px] leading-4">
@@ -371,7 +371,7 @@ watch(
 
       <section class="mt-5 border-t border-slate-200 pt-5">
         <div class="flex items-start gap-2.5">
-          <IdentificationIcon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+          <IdentificationIcon class="mt-0.5 size-5 shrink-0 text-brand-500" />
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Saved payment profiles</h3>
             <p class="mt-1 text-[10px] leading-4 text-slate-500">
@@ -423,7 +423,7 @@ watch(
       <section v-if="payments.webhookHealth" class="mt-5 border-t border-slate-200 pt-5">
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div class="flex min-w-0 items-start gap-2.5">
-            <ShieldCheckIcon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+            <ShieldCheckIcon class="mt-0.5 size-5 shrink-0 text-brand-500" />
             <div>
               <h3 class="text-xs font-semibold text-slate-700">Webhook reconciliation health</h3>
               <p class="mt-1 text-[10px] leading-4 text-slate-500">
@@ -532,7 +532,7 @@ watch(
 
       <section class="mt-5 border-t border-slate-200 pt-5">
         <div class="flex items-start gap-2.5">
-          <ClockIcon class="mt-0.5 size-4 shrink-0 text-brand-500" />
+          <ClockIcon class="mt-0.5 size-5 shrink-0 text-brand-500" />
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Recent payment activity</h3>
             <p class="mt-1 text-[10px] leading-4 text-slate-500">
@@ -618,7 +618,7 @@ watch(
         v-if="hostedFormError || payments.error"
         class="mt-4 flex gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-red-700"
       >
-        <ExclamationTriangleIcon class="mt-0.5 size-4 shrink-0" />
+        <ExclamationTriangleIcon class="mt-0.5 size-5 shrink-0" />
         <p class="text-[11px] leading-4">{{ hostedFormError || payments.error }}</p>
       </div>
 
@@ -631,7 +631,7 @@ watch(
             : 'border-amber-200 bg-amber-50 text-amber-800'
         "
       >
-        <CheckCircleIcon class="mt-0.5 size-4 shrink-0" />
+        <CheckCircleIcon class="mt-0.5 size-5 shrink-0" />
         <div>
           <p class="text-xs font-semibold">
             Payment attempt {{ payments.latestAttempt.status.replaceAll('_', ' ') }}

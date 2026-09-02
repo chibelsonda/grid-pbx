@@ -28,7 +28,7 @@ export default defineConfig({
     {
       name: 'gridpbx-live',
       testMatch:
-        /gridpbx-(account-projection|account-switch-stability|billing-workspace|blacklist-form|call-activity|caller-id-list|callflow-accessibility|callflow-dnd|callflow-entry-number|callflow-form|callflow-ring-group|conference-form|conference-participants|decorative-icons|device-accessibility|device-panel-context|device-parity|device-fields|directory-form|extension-accessibility|extension-hotdesk|fax-box-form|feature-codes|global-search|group-form|layout-alignment|live-search|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|settings|sidebar-navigation|system-status|temporal-routing|theme-customizer)\.spec\.ts/,
+        /gridpbx-(account-projection|account-switch-stability|billing-workspace|blacklist-form|call-activity|caller-id-list|callflow-accessibility|callflow-dnd|callflow-entry-number|callflow-form|callflow-ring-group|card-headers|conference-form|conference-participants|decorative-icons|device-accessibility|device-panel-context|device-parity|device-fields|directory-form|entity-labels|extension-accessibility|extension-hotdesk|fax-box-form|feature-codes|global-search|group-form|layout-alignment|live-search|media-form|menu-form|payment-sandbox|phone-number-detail|provisioning-walkthrough|queue-form|reseller-administration|service-billing-reconciliation|settings|sidebar-navigation|system-status|temporal-routing|theme-customizer)\.spec\.ts/,
       use: {
         baseURL: gridUiUrl,
         ignoreHTTPSErrors: ignoreLocalHttpsErrors,

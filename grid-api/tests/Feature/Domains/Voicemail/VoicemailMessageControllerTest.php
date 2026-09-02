@@ -102,6 +102,19 @@ class VoicemailMessageControllerTest extends TestCase
         ]);
     }
 
+    public function test_voicemail_audio_rejects_an_invalid_download_option_before_calling_switch(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchVoicemailMessageGateway::class)->shouldNotReceive('audio');
+
+        $this->actingAs($user)
+            ->getJson(
+                "/api/v1/accounts/{$account->id}/voicemail-boxes/not-needed/messages/not-needed/audio?download=sometimes",
+            )
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('download');
+    }
+
     public function test_it_rejects_multi_range_requests_before_calling_switch(): void
     {
         [$user, $account] = $this->accessibleAccount();

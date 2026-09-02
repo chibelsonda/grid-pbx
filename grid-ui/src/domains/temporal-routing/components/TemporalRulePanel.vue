@@ -219,22 +219,25 @@ function setOrdinal(value: ListboxValue): void {
               class="grid gap-2 sm:col-span-2"
             >
               <span class="text-xs font-semibold text-slate-600">Weekdays</span>
-              <div
-                class="flex flex-wrap gap-2 rounded-md border border-slate-300 p-2"
-                :class="validationControlClass(fieldError('weekdays'))"
-                :aria-invalid="Boolean(fieldError('weekdays'))"
-                role="group"
-                aria-label="Weekdays"
-              >
-                <FormCheckbox
-                  v-for="day in weekdays"
-                  :key="day.value"
-                  :model-value="form.weekdays"
-                  :value="day.value"
-                  :label="day.label"
-                  variant="compact"
-                  @update:model-value="form.weekdays = $event as Weekday[]"
-                />
+              <div class="overflow-x-auto rounded-md">
+                <div
+                  class="grid min-w-[29rem] grid-cols-7 gap-1 rounded-md border border-slate-300 p-2"
+                  :class="validationControlClass(fieldError('weekdays'))"
+                  :aria-invalid="Boolean(fieldError('weekdays'))"
+                  role="group"
+                  aria-label="Weekdays"
+                >
+                  <FormCheckbox
+                    v-for="day in weekdays"
+                    :key="day.value"
+                    :model-value="form.weekdays"
+                    :value="day.value"
+                    :label="day.label"
+                    variant="compact"
+                    class="min-w-0 [&>label]:justify-center [&>label]:gap-1.5 [&>label]:px-2"
+                    @update:model-value="form.weekdays = $event as Weekday[]"
+                  />
+                </div>
               </div>
               <span v-if="fieldError('weekdays')" class="text-[10px] text-danger">{{
                 fieldError('weekdays')

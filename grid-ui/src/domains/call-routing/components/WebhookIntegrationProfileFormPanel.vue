@@ -67,7 +67,7 @@ function submit(): void {
 
 <template>
   <CrudSlideOver
-    :title="profile ? 'Replace Webhook profile' : 'Add Webhook profile'"
+    :title="profile ? 'Replace Webhook profile' : 'Create Webhook profile'"
     eyebrow="GridPBX / Settings / Callflow integrations"
     description="The private HTTPS destination is encrypted at rest and never returned after saving."
     width="medium"
@@ -177,7 +177,7 @@ function submit(): void {
           :disabled="saving"
           class="h-9 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
         >
-          {{ saving ? 'Saving…' : profile ? 'Replace configuration' : 'Add profile' }}
+          {{ saving ? 'Saving…' : profile ? 'Replace configuration' : 'Create profile' }}
         </button>
       </div>
     </form>

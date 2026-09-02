@@ -120,7 +120,7 @@ async function confirmRemove(): Promise<void> {
         class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600"
         @click="openTypePicker"
       >
-        <PlusIcon class="size-4" /> Add integration
+        <PlusIcon class="size-4" /> Create integration
       </button>
     </div>
   </header>

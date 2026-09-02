@@ -43,6 +43,16 @@ class PaymentAttemptControllerTest extends TestCase
             ->assertJsonMissing(['other-tenant-reference']);
     }
 
+    public function test_attempt_history_rejects_an_invalid_limit(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/payments/attempts?limit=51")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('limit');
+    }
+
     public function test_attempt_history_is_tenant_scoped_and_requires_account_administration(): void
     {
         [$operator, $account] = $this->accessibleAccount(OrganizationRole::AccountOperator);

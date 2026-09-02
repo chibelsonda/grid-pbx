@@ -9,12 +9,16 @@ const props = withDefaults(
     sticky?: boolean
     compact?: boolean
     variant?: 'underline' | 'segmented'
+    embedded?: boolean
+    showTabList?: boolean
   }>(),
   {
     ariaLabel: 'Form sections',
     sticky: false,
     compact: false,
     variant: 'underline',
+    embedded: false,
+    showTabList: true,
   },
 )
 
@@ -22,26 +26,42 @@ const selectedIndex = defineModel<number>({ default: 0 })
 
 function tabListClasses(): string[] {
   const classes =
-    props.variant === 'segmented'
-      ? [
-          'w-fit',
-          'max-w-full',
-          'gap-0.5',
-          'rounded-lg',
-          'border',
-          'border-slate-200',
-          'bg-slate-100',
-          'p-0.5',
-          'shadow-inner',
-        ]
-      : ['card-surface', 'gap-1', 'overflow-x-auto', 'px-4', 'pt-3']
+    props.variant === 'segmented' ? segmentedTabListClasses() : underlineTabListClasses()
 
   if (props.sticky) {
     classes.push('sticky', 'top-0', 'z-30')
-    if (props.variant === 'underline') classes.push('bg-white/95', 'backdrop-blur')
+    if (props.variant === 'underline') classes.push('backdrop-blur')
   }
 
   return classes
+}
+
+function segmentedTabListClasses(): string[] {
+  return [
+    'w-fit',
+    'max-w-full',
+    'gap-0.5',
+    'rounded-lg',
+    'border',
+    'border-slate-200',
+    'bg-slate-100',
+    'p-0.5',
+    'shadow-inner',
+  ]
+}
+
+function underlineTabListClasses(): string[] {
+  return [
+    ...(props.embedded ? [] : ['card-surface']),
+    'gap-1',
+    'overflow-x-auto',
+    'border-b',
+    'border-slate-100',
+    'bg-slate-50/70',
+    'px-3',
+    'pt-3',
+    'sm:px-4',
+  ]
 }
 
 function tabButtonClasses(index: number): string[] {
@@ -76,7 +96,7 @@ function tabButtonClasses(index: number): string[] {
 
 <template>
   <TabGroup as="template" :selected-index="selectedIndex" @change="selectedIndex = $event">
-    <TabList :aria-label="ariaLabel" class="flex" :class="tabListClasses()">
+    <TabList v-show="showTabList" :aria-label="ariaLabel" class="flex" :class="tabListClasses()">
       <Tab v-for="(tab, index) in tabs" :key="tab.key" as="template">
         <button
           type="button"
@@ -88,5 +108,6 @@ function tabButtonClasses(index: number): string[] {
         </button>
       </Tab>
     </TabList>
+    <slot />
   </TabGroup>
 </template>

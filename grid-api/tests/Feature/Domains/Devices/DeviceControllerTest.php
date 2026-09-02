@@ -1438,6 +1438,49 @@ class DeviceControllerTest extends TestCase
         );
     }
 
+    public function test_it_signs_a_projected_extension_out_of_hotdesk_and_audits_the_operation(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-user-1',
+            'display_name' => 'Alice Operator',
+            'extension' => '1001',
+        ]);
+        $device = SwitchDevice::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-device-1',
+            'switch_json' => ['id' => 'switch-device-1', 'hotdesk' => ['users' => [
+                'switch-user-1' => [],
+            ]]],
+        ]);
+        $this->mock(SwitchDeviceGateway::class)
+            ->shouldReceive('removeHotdeskUser')
+            ->once()
+            ->withArgs(fn (SwitchAccount $receivedAccount, string $deviceId, string $userId): bool => $receivedAccount->is($account)
+                && $deviceId === 'switch-device-1'
+                && $userId === 'switch-user-1')
+            ->andReturn([
+                'id' => 'switch-device-1',
+                'name' => 'Reception',
+                'device_type' => 'sip_device',
+                'enabled' => true,
+                'hotdesk' => ['users' => []],
+            ]);
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/devices/{$device->id}/hotdesk-users/{$extension->id}")
+            ->assertOk()
+            ->assertJsonCount(0, 'data.users')
+            ->assertJsonPath('data.unresolved_count', 0)
+            ->assertDontSee('switch-user-1');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'action' => 'device.hotdesk_user_signed_out',
+            'resource_id' => 'switch-device-1',
+            'outcome' => 'succeeded',
+        ]);
+        $this->assertSame([], $device->refresh()->switch_json['hotdesk']['users']);
+    }
+
     public function test_it_rejects_hotdesk_mutation_for_an_extension_from_another_account(): void
     {
         [$user, $account] = $this->accessibleAccount();

@@ -67,6 +67,37 @@ class MenuControllerTest extends TestCase
             ->assertJsonMissingPath('data.0.switch_resource_id');
     }
 
+    public function test_accessible_user_views_menu_options_and_account_scoped_detail(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::ReadOnlyUser);
+        $media = SwitchMedia::factory()->for($account)->create(['name' => 'Main greeting']);
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'name' => 'Main menu',
+            'switch_resource_id' => 'private-menu-id',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $foreign = SwitchMenu::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/menus/options")
+            ->assertOk()
+            ->assertJsonCount(1, 'data.media')
+            ->assertJsonPath('data.media.0.id', $media->id)
+            ->assertJsonPath('data.media.0.label', 'Main greeting')
+            ->assertJsonMissingPath('data.media.0.switch_resource_id');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $menu->id)
+            ->assertJsonPath('data.name', 'Main menu')
+            ->assertJsonMissing(['private-menu-id', 'server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/menus/{$foreign->id}")
+            ->assertNotFound();
+    }
+
     public function test_update_preserves_external_flags_and_unresolved_media_without_exposing_raw_references(): void
     {
         [$user, $account] = $this->accessibleAccount();
@@ -149,6 +180,26 @@ class MenuControllerTest extends TestCase
             'record_pin' => '4826',
             'clear_record_pin' => true,
         ])->assertUnprocessable()->assertJsonValidationErrors('record_pin');
+    }
+
+    public function test_operator_deletes_an_unreferenced_menu(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $menu = SwitchMenu::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-menu-delete',
+        ]);
+        $this->mock(SwitchMenuGateway::class)
+            ->shouldReceive('delete')
+            ->once()
+            ->withArgs(fn (SwitchAccount $received, string $resourceId): bool => $received->is($account)
+                && $resourceId === 'switch-menu-delete');
+
+        $this->actingAs($user)
+            ->deleteJson("/api/v1/accounts/{$account->id}/menus/{$menu->id}")
+            ->assertNoContent();
+
+        $this->assertSoftDeleted($menu);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'menu.deleted']);
     }
 
     /** @return array<string, mixed> */

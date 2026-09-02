@@ -42,6 +42,17 @@ class RecordingControllerTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'recording.played', 'resource_type' => 'recording']);
     }
 
+    public function test_recording_audio_rejects_an_invalid_download_option_before_calling_switch(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $this->mock(SwitchRecordingGateway::class)->shouldNotReceive('audio');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/recordings/not-needed/audio?download=sometimes")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('download');
+    }
+
     public function test_cross_account_recording_is_not_exposed(): void
     {
         [$user, $account] = $this->accessibleAccount();

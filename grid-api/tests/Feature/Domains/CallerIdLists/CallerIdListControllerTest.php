@@ -3,6 +3,7 @@
 namespace Tests\Feature\Domains\CallerIdLists;
 
 use App\Domains\CallerIdLists\Contracts\SwitchCallerIdListGateway;
+use App\Domains\CallerIdLists\Models\SwitchCallerIdList;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Enums\OrganizationRole;
 use App\Domains\Organizations\Models\Organization;
@@ -13,6 +14,48 @@ use Tests\TestCase;
 class CallerIdListControllerTest extends TestCase
 {
     use LazilyRefreshDatabase;
+
+    public function test_accessible_user_lists_and_views_only_account_caller_id_lists(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $list = SwitchCallerIdList::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'switch_resource_id' => 'private-list-id',
+            'name' => 'VIP callers',
+            'switch_json' => ['private' => 'server-only'],
+        ]);
+        $entry = $list->entries()->create([
+            'switch_resource_id' => 'private-entry-id',
+            'display_name' => 'Support',
+            'number' => '+15550001000',
+            'switch_json' => ['private' => 'entry-server-only'],
+        ]);
+        $foreign = SwitchCallerIdList::query()->create([
+            'switch_account_id' => SwitchAccount::factory()->create()->getKey(),
+            'switch_resource_id' => 'foreign-list-id',
+            'name' => 'Foreign list',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/caller-id-lists?search=VIP")
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $list->id)
+            ->assertJsonPath('data.0.entry_count', 1)
+            ->assertJsonMissing(['private-list-id', 'server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/caller-id-lists/{$list->id}")
+            ->assertOk()
+            ->assertJsonPath('data.id', $list->id)
+            ->assertJsonPath('data.entries.0.id', $entry->id)
+            ->assertJsonPath('data.entries.0.number', '+15550001000')
+            ->assertJsonMissing(['private-entry-id', 'entry-server-only']);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/caller-id-lists/{$foreign->id}")
+            ->assertNotFound();
+    }
 
     public function test_it_creates_updates_and_deletes_lists_using_only_public_entry_ids(): void
     {

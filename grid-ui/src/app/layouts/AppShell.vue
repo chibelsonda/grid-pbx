@@ -70,7 +70,7 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-canvas">
+  <div class="app-workspace min-h-screen" :data-application-theme="ui.applicationTheme">
     <AppSidebar
       :collapsed="ui.sidebarCollapsed"
       :mobile-open="ui.mobileSidebarOpen"

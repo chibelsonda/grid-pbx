@@ -65,7 +65,7 @@ async function remove(): Promise<void> {
             class="inline-flex h-9 items-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white"
             @click="open()"
           >
-            <PlusIcon class="size-4" />New menu
+            <PlusIcon class="size-4" />Create menu
           </button>
         </div>
         <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />

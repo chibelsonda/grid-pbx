@@ -396,13 +396,13 @@ not as an independent copy that can diverge from Switch.
 
 ### Data ownership
 
-| Data category                | Authoritative system       | Examples                                                   |
-| ---------------------------- | -------------------------- | ---------------------------------------------------------- |
-| PBX configuration            | Switch                     | Extensions, devices, numbers, voicemail, callflows         |
-| GridPBX application data     | MySQL                      | Users, roles, organizations, account mappings, preferences, organization-logo metadata |
-| Private GridPBX assets       | Private application storage | Sanitized organization logos served only through authenticated account scope |
-| Search/reporting projections | MySQL, derived from Switch | Extension directory, device summary, number assignments    |
-| Temporary operational state  | Redis                      | Sessions, locks, queues, token cache                       |
+| Data category                | Authoritative system        | Examples                                                                               |
+| ---------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| PBX configuration            | Switch                      | Extensions, devices, numbers, voicemail, callflows                                     |
+| GridPBX application data     | MySQL                       | Users, roles, organizations, account mappings, preferences, organization-logo metadata |
+| Private GridPBX assets       | Private application storage | Sanitized organization logos served only through authenticated account scope           |
+| Search/reporting projections | MySQL, derived from Switch  | Extension directory, device summary, number assignments                                |
+| Temporary operational state  | Redis                       | Sessions, locks, queues, token cache                                                   |
 
 MySQL projection rows must never be edited as a shortcut around Switch. PBX
 mutations go through Laravel to Switch first. After Switch accepts a mutation,
@@ -664,6 +664,11 @@ the enrichment path scans.
 - A PBX concept may be technically composed of several Switch resources, but
   the UI should expose a single guided workflow where that matches the task.
 - Every mutation displays pending, success, and failure states.
+- Standalone resource actions use `Create {entity}` consistently in list-page
+  controls, breadcrumbs, panel titles, submit buttons, and accessible names.
+  `Add` is reserved for child rows, relationships, branches, and actions within
+  an existing resource; `New` is reserved for lifecycle state or replacement
+  values such as a new password or PIN.
 - Destructive actions require explicit confirmation and identify the target.
 - Empty states explain what the resource does and provide the next action.
 - Forms keep advanced Switch fields collapsed unless the task needs them.
@@ -1257,7 +1262,15 @@ The page reuses the existing Services read model and authorization boundary
 instead of introducing a second billing projection. It presents billing-impact
 totals, invoice and receipt source authority, authoritative invoice summaries,
 non-authoritative payment confirmations, reconciliation warnings, and Switch
-billing transactions. Selecting a record opens a read-only detail slide-over.
+billing transactions. An accessible task-oriented tab bar keeps Overview,
+Documents, Transactions, Reconciliation, and Payment Testing separate; only
+the active section is rendered, while summary totals
+and reconciliation attention remain visible above the tabs. The tab strip and
+active section share one compact card so navigation remains visually connected
+to its current content. Invoice and receipt
+authority are consolidated into one compact source-status card without merging
+their distinct provider contracts. Payment Testing continues to enforce its
+existing capability gates. Selecting a record opens a read-only detail slide-over.
 Invoice and receipt detail/document access now use separate account-scoped,
 provider-neutral read endpoints. Detail must be loaded successfully before the
 UI offers a download. Both document endpoints use the same policy-protected,

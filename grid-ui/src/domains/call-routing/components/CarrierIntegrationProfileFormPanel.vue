@@ -71,7 +71,7 @@ function submit(): void {
 
 <template>
   <CrudSlideOver
-    :title="profile ? `Replace ${label} profile` : `Add ${label} profile`"
+    :title="profile ? `Replace ${label} profile` : `Create ${label} profile`"
     eyebrow="GridPBX / Settings / Callflow integrations"
     description="Carrier routing is enabled only through an explicit account-scoped authorization profile."
     width="medium"
@@ -128,7 +128,9 @@ function submit(): void {
         </div>
       </article>
 
-      <div class="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-slate-50/95 py-3 backdrop-blur">
+      <div
+        class="sticky bottom-0 flex justify-end gap-3 border-t border-slate-200 bg-slate-50/95 py-3 backdrop-blur"
+      >
         <button
           type="button"
           :disabled="saving"
@@ -142,7 +144,7 @@ function submit(): void {
           :disabled="saving"
           class="h-9 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:cursor-wait disabled:opacity-60"
         >
-          {{ saving ? 'Saving…' : profile ? 'Replace authorization' : 'Add profile' }}
+          {{ saving ? 'Saving…' : profile ? 'Replace authorization' : 'Create profile' }}
         </button>
       </div>
     </form>

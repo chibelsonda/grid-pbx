@@ -107,6 +107,10 @@ describe('ExtensionCreatePanel', () => {
     expect(wrapper.findComponent(ExtensionUserOptions).exists()).toBe(true)
     expect(wrapper.findComponent(ExtensionAdvancedCallingSettings).exists()).toBe(true)
     expect(wrapper.findComponent(ExtensionAdvancedTabSelector).exists()).toBe(true)
+    const advancedSurface = wrapper.get('[data-testid="extension-advanced-section"]')
+    expect(advancedSurface.classes()).toContain('card-surface')
+    expect(advancedSurface.find('[aria-label="Extension advanced sections"]').exists()).toBe(true)
+    expect(advancedSurface.find('[data-testid="extension-advanced-options"]').exists()).toBe(true)
     expect(
       wrapper
         .get('[aria-label="Extension advanced sections"]')

@@ -94,7 +94,7 @@ describe('CallflowCreateWorkspace', () => {
       },
     })
 
-    expect(wrapper.get('[aria-label="New callflow canvas"]').text()).toContain(
+    expect(wrapper.get('[aria-label="Create callflow canvas"]').text()).toContain(
       'Click to add number',
     )
     expect(wrapper.text()).toContain('Drag an action here or select one from the catalog')
@@ -172,7 +172,7 @@ describe('CallflowCreateWorkspace', () => {
       },
     })
 
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     const cancel = canvas.findAll('button').find((button) => button.text() === 'Cancel')
     const create = canvas.findAll('button').find((button) => button.text() === 'Create callflow')
 
@@ -202,7 +202,7 @@ describe('CallflowCreateWorkspace', () => {
     const dockedRailContent = wrapper.get('[data-callflow-docked-rail-content]')
     const supportingCards = wrapper.get('[data-callflow-supporting-cards]')
     const routeStructureHeader = wrapper.get('[data-callflow-canvas-shell] > header')
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     const texturedCanvas = wrapper.get('.callflow-create-canvas')
     const canvasOverlay = wrapper.get('[data-callflow-canvas-overlay]')
     expect(createWorkspace.classes()).toContain('grid')
@@ -275,7 +275,7 @@ describe('CallflowCreateWorkspace', () => {
     await wrapper.get('input[type="search"]').setValue('user')
     await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
 
-    expect(wrapper.get('[aria-label="New callflow canvas"]').text()).toContain('User')
+    expect(wrapper.get('[aria-label="Create callflow canvas"]').text()).toContain('User')
     await wrapper.get('[aria-label="Remove User"]').trigger('click')
 
     expect(wrapper.find('[aria-label="Remove User"]').exists()).toBe(false)
@@ -384,7 +384,7 @@ describe('CallflowCreateWorkspace', () => {
 
     await wrapper.get('input[type="search"]').setValue('user')
     const paletteAction = wrapper.get('[aria-label="Use User as root action"]')
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
 
     expect(paletteAction.attributes('draggable')).toBe('true')
     await paletteAction.trigger('dragstart', { dataTransfer })
@@ -454,7 +454,9 @@ describe('CallflowCreateWorkspace', () => {
       .findAll('button')
       .find((button) => button.text() === 'Use fallback')!
       .trigger('click')
-    expect(wrapper.get('[aria-label="New callflow canvas"]').text()).toContain('Reception mailbox')
+    expect(wrapper.get('[aria-label="Create callflow canvas"]').text()).toContain(
+      'Reception mailbox',
+    )
 
     await wrapper.get('form').trigger('submit')
     const input = wrapper.emitted('save')?.[0]?.[0]
@@ -514,7 +516,7 @@ describe('CallflowCreateWorkspace', () => {
     await fallback.trigger('drop', { dataTransfer })
 
     expect(wrapper.find('[aria-label="Fallback type"]').exists()).toBe(false)
-    expect(wrapper.get('[aria-label="New callflow canvas"]').text()).toContain('User')
+    expect(wrapper.get('[aria-label="Create callflow canvas"]').text()).toContain('User')
   })
 
   it('authors Menu key branches before creation and previews them on the canvas', async () => {
@@ -545,7 +547,7 @@ describe('CallflowCreateWorkspace', () => {
       .find((button) => button.text() === 'Add key route')!
       .trigger('click')
 
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     expect(canvas.text()).toContain('Main IVR')
     expect(canvas.get('[data-callflow-create-branch-label]').text()).toBe('timeout')
     expect(canvas.text()).toContain('User')
@@ -628,7 +630,7 @@ describe('CallflowCreateWorkspace', () => {
       .find((button) => button.text() === 'Use action')!
       .trigger('click')
 
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     expect(canvas.get('[data-callflow-create-branch-label]').text()).toBe('timeout')
     expect(canvas.text()).toContain('Reception mailbox')
     await wrapper.get('form').trigger('submit')
@@ -681,7 +683,7 @@ describe('CallflowCreateWorkspace', () => {
     await wrapper.get('[aria-label="Add fallback branch"]').trigger('click')
     expect(
       wrapper
-        .get('[aria-label="New callflow canvas"]')
+        .get('[aria-label="Create callflow canvas"]')
         .find('[data-callflow-create-branch-label]')
         .exists(),
     ).toBe(false)
@@ -695,7 +697,7 @@ describe('CallflowCreateWorkspace', () => {
       .find((button) => button.text() === 'Use fallback')!
       .trigger('click')
 
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     expect(canvas.get('[data-callflow-create-branch-label]').text()).toBe('_')
     expect(canvas.text()).toContain('Reception mailbox')
 
@@ -750,7 +752,7 @@ describe('CallflowCreateWorkspace', () => {
     await wrapper.get('[aria-label="Use Time of Day as root action"]').trigger('click')
 
     expect(wrapper.text()).toContain('Weekdays')
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     expect(canvas.get('[data-callflow-create-branch-label]').text()).toBe('rule_set')
     expect(canvas.text()).toContain('Reception')
 
@@ -796,13 +798,13 @@ describe('CallflowCreateWorkspace', () => {
     await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
 
     expect(wrapper.text()).toContain('Replacing Menu with User')
-    expect(wrapper.get('[aria-label="New callflow canvas"]').text()).toContain('Menu')
+    expect(wrapper.get('[aria-label="Create callflow canvas"]').text()).toContain('Menu')
     await wrapper
       .findAll('button')
       .find((button) => button.text() === 'Replace root action')!
       .trigger('click')
 
-    const canvas = wrapper.get('[aria-label="New callflow canvas"]')
+    const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
     expect(canvas.text()).toContain('User')
     expect(canvas.find('[data-callflow-create-branch-label]').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('Replacing Menu with User')

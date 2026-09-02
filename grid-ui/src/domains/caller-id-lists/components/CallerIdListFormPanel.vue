@@ -70,7 +70,7 @@ function submit(): void {
 <template>
   <CrudSlideOver
     :title="
-      !canManage ? 'View Caller-ID List' : record ? 'Edit Caller-ID List' : 'Create Caller-ID List'
+      !canManage ? 'View Caller-ID list' : record ? 'Edit Caller-ID list' : 'Create Caller-ID list'
     "
     eyebrow="GridPBX / Callflows"
     description="Match caller numbers or safe regular expressions in reusable Callflow branches."

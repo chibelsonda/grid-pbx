@@ -180,7 +180,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
             class="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white disabled:opacity-40 sm:flex-none"
             @click="openQueue()"
           >
-            <PlusIcon class="size-4" />New queue
+            <PlusIcon class="size-4" />Create queue
           </button>
         </div>
         <ProjectionFreshness :last-synchronized-at="lastSynchronizedAt" />
@@ -344,13 +344,14 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                     v-for="record in queues.records"
                     v-else
                     :key="record.id"
-                    class="hover:bg-slate-50"
+                    class="cursor-pointer transition hover:bg-slate-50"
+                    @click="openQueue(record.id)"
                   >
                     <td class="px-5 py-4">
                       <button
                         type="button"
                         class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
-                        @click="openQueue(record.id)"
+                        @click.stop="openQueue(record.id)"
                       >
                         {{ record.name }}
                       </button>
@@ -440,14 +441,19 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                   v-for="agent in queues.agents"
                   v-else
                   :key="agent.id"
-                  :class="configurationAvailable ? 'hover:bg-slate-50' : 'opacity-60'"
+                  :class="
+                    configurationAvailable
+                      ? 'cursor-pointer transition hover:bg-slate-50'
+                      : 'opacity-60'
+                  "
+                  @click="openAgent(agent)"
                 >
                   <td class="px-5 py-4">
                     <button
                       type="button"
                       :disabled="!configurationAvailable"
                       class="rounded-sm font-semibold text-slate-700 outline-none hover:text-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed"
-                      @click="openAgent(agent)"
+                      @click.stop="openAgent(agent)"
                     >
                       {{ agent.name }}
                     </button>
