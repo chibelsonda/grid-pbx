@@ -1,0 +1,152 @@
+name: GridPBX CI/CD
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gridpbx-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  switch-client-tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: grid-api-switch
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          working-directory: grid-api-switch
+      - run: composer test
+
+  api-tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: grid-api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.3"
+          extensions: gd, pdo_sqlite
+          coverage: none
+      - uses: ramsey/composer-install@v3
+        with:
+          working-directory: grid-api
+      - run: php artisan test --compact
+
+  ui-tests:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: grid-ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22.18.0"
+          cache: npm
+          cache-dependency-path: grid-ui/package-lock.json
+      - run: npm ci --no-audit
+      - run: npm run test:unit -- --run
+      - run: npm run build
+
+  publish-images:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: [switch-client-tests, api-tests, ui-tests]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/grid-api/Dockerfile.production
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/grid-pbx-api:${{ github.sha }}
+          cache-from: type=gha,scope=grid-api
+          cache-to: type=gha,mode=max,scope=grid-api
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/grid-ui/Dockerfile.production
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/grid-pbx-ui:${{ github.sha }}
+          build-args: VITE_API_BASE_URL=
+          cache-from: type=gha,scope=grid-ui
+          cache-to: type=gha,mode=max,scope=grid-ui
+
+  deploy-production:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: publish-images
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+      packages: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v3
+        with:
+          project_id: gridpbx-demo
+          workload_identity_provider: projects/35497337835/locations/global/workloadIdentityPools/github-actions/providers/gridpbx-main
+          service_account: github-gridpbx-deployer@gridpbx-demo.iam.gserviceaccount.com
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Prepare release directory
+        run: >-
+          gcloud compute ssh instance-20260902-070042
+          --zone=us-central1-a
+          --project=gridpbx-demo
+          --command='mkdir -p /tmp/gridpbx-release-${{ github.sha }}'
+      - name: Upload deployment files
+        run: >-
+          gcloud compute scp
+          deploy/gridpbx/compose.yaml
+          deploy/gridpbx/Caddyfile
+          deploy/gridpbx/bootstrap-env.sh
+          deploy/gridpbx/deploy.sh
+          deploy/gridpbx/install-release.sh
+          deploy/gridpbx/.env.example
+          instance-20260902-070042:/tmp/gridpbx-release-${{ github.sha }}
+          --zone=us-central1-a
+          --project=gridpbx-demo
+      - name: Authenticate VM to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          printf '%s' "${GHCR_TOKEN}" |
+          gcloud compute ssh instance-20260902-070042
+          --zone=us-central1-a
+          --project=gridpbx-demo
+          --command='sudo -n docker login ghcr.io --username ${{ github.actor }} --password-stdin'
+      - name: Deploy immutable release
+        run: >-
+          gcloud compute ssh instance-20260902-070042
+          --zone=us-central1-a
+          --project=gridpbx-demo
+          --command='GRID_API_IMAGE=ghcr.io/${{ github.repository_owner }}/grid-pbx-api
+          GRID_UI_IMAGE=ghcr.io/${{ github.repository_owner }}/grid-pbx-ui
+          GRID_IMAGE_TAG=${{ github.sha }}
+          /tmp/gridpbx-release-${{ github.sha }}/install-release.sh
+          /tmp/gridpbx-release-${{ github.sha }}'

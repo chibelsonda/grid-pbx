@@ -1,0 +1,7 @@
+:80 {
+    encode zstd gzip
+
+    @backend path /api/* /sanctum/* /login /logout /storage/*
+    reverse_proxy @backend grid-api:8081
+    reverse_proxy grid-ui:80
+}

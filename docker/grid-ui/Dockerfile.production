@@ -1,0 +1,23 @@
+FROM node:22.18-alpine AS builder
+
+WORKDIR /app
+
+COPY grid-ui/package.json grid-ui/package-lock.json ./
+RUN npm ci --no-audit
+
+COPY grid-ui /app
+
+ARG VITE_API_BASE_URL=
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+
+RUN npm run build
+
+FROM nginx:1.27-alpine
+
+COPY docker/grid-ui/nginx.production.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+HEALTHCHECK --interval=10s --timeout=3s --start-period=10s --retries=12 \
+    CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1

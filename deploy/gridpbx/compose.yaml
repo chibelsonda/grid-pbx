@@ -1,0 +1,127 @@
+name: gridpbx-production
+
+x-api-environment: &api-environment
+  APP_NAME: GridPBX
+  APP_ENV: production
+  APP_DEBUG: "false"
+  LOG_CHANNEL: stderr
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: 3306
+  SESSION_DRIVER: redis
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+  REDIS_HOST: redis
+  REDIS_PORT: 6379
+
+x-api-service: &api-service
+  image: ${GRID_API_IMAGE:?GRID_API_IMAGE is required}:${GRID_IMAGE_TAG:?GRID_IMAGE_TAG is required}
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment: *api-environment
+  volumes:
+    - grid-api-storage:/app/storage
+  networks:
+    - application
+    - switch-backplane
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:?DB_DATABASE is required}
+      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME is required}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:?DB_ROOT_PASSWORD is required}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    networks:
+      - application
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u$${MYSQL_USER} -p$${MYSQL_PASSWORD} --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - application
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  grid-api:
+    <<: *api-service
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    expose:
+      - "8081"
+
+  grid-worker:
+    <<: *api-service
+    command: ["worker"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  grid-scheduler:
+    <<: *api-service
+    command: ["scheduler"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  grid-ui:
+    image: ${GRID_UI_IMAGE:?GRID_UI_IMAGE is required}:${GRID_IMAGE_TAG:?GRID_IMAGE_TAG is required}
+    restart: unless-stopped
+    networks:
+      - application
+    expose:
+      - "80"
+
+  edge:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    ports:
+      - "127.0.0.1:${GRID_HTTP_PORT:-8080}:80"
+    networks:
+      - application
+    depends_on:
+      grid-api:
+        condition: service_healthy
+      grid-ui:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+
+volumes:
+  mysql-data:
+  redis-data:
+  grid-api-storage:
+
+networks:
+  application:
+  switch-backplane:
+    external: true
+    name: gridpbx-switch-backplane

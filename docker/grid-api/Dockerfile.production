@@ -1,0 +1,49 @@
+FROM php:8.3-fpm-alpine
+
+RUN apk add --no-cache curl freetype libjpeg-turbo libpng libwebp nginx \
+    && apk add --no-cache --virtual .build-deps \
+        $PHPIZE_DEPS \
+        freetype-dev \
+        libjpeg-turbo-dev \
+        libpng-dev \
+        libwebp-dev \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+    && docker-php-ext-install gd pdo_mysql \
+    && pecl install redis \
+    && docker-php-ext-enable redis \
+    && apk del .build-deps \
+    && rm -f /etc/nginx/http.d/default.conf
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /app
+
+COPY grid-api-switch /grid-api-switch
+COPY grid-api /app
+COPY docker/grid-api/nginx.production.conf /etc/nginx/http.d/gridpbx.conf
+COPY docker/grid-api/production-entrypoint.sh /usr/local/bin/gridpbx-api-entrypoint
+
+RUN composer install \
+        --no-dev \
+        --no-interaction \
+        --no-progress \
+        --prefer-dist \
+        --classmap-authoritative \
+    && chmod +x /usr/local/bin/gridpbx-api-entrypoint \
+    && mkdir -p \
+        /run/nginx \
+        /app/storage/app/public \
+        /app/storage/framework/cache/data \
+        /app/storage/framework/sessions \
+        /app/storage/framework/views \
+        /app/storage/logs \
+        /app/bootstrap/cache \
+    && chown -R www-data:www-data /app/storage /app/bootstrap/cache
+
+EXPOSE 8081
+
+HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=12 \
+    CMD curl -fsS http://127.0.0.1:8081/api/v1/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/gridpbx-api-entrypoint"]
+CMD ["web"]
