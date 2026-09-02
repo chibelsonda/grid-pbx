@@ -8,6 +8,7 @@ prepare_application() {
     fi
 
     mkdir -p \
+        resources/views \
         storage/app/public \
         storage/framework/cache/data \
         storage/framework/sessions \
