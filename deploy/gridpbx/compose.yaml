@@ -72,6 +72,10 @@ services:
   grid-worker:
     <<: *api-service
     command: ["worker"]
+    # The worker does not run the image's HTTP server. Its PID 1 queue process
+    # exiting is detected by Docker and recovered by the restart policy.
+    healthcheck:
+      disable: true
     depends_on:
       mysql:
         condition: service_healthy
@@ -81,6 +85,10 @@ services:
   grid-scheduler:
     <<: *api-service
     command: ["scheduler"]
+    # The scheduler does not run the image's HTTP server. Its PID 1 schedule
+    # process exiting is detected by Docker and recovered by the restart policy.
+    healthcheck:
+      disable: true
     depends_on:
       mysql:
         condition: service_healthy
