@@ -55,7 +55,11 @@ final class CallflowSnapshotTest extends TestCase
                     ],
                 ],
             ],
-        ], $snapshot->flow?->toArray());
+        ], json_decode(
+            json_encode($snapshot->flow?->toArray(), JSON_THROW_ON_ERROR),
+            true,
+            flags: JSON_THROW_ON_ERROR,
+        ));
         self::assertSame('private-switch-id', $snapshot->toArray()['flow']['data']['endpoints'][0]['id']);
     }
 

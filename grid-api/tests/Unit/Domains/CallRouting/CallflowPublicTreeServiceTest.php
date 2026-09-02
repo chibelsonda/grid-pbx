@@ -177,7 +177,7 @@ class CallflowPublicTreeServiceTest extends TestCase
             $this->assertSame('terminal', $tree['drop_capability']['branch_mode']);
             $this->assertFalse($tree['drop_capability']['accepts_children']);
             $this->assertSame(
-                'This action is not supported by the guided callflow editor.',
+                'This Switch action is terminal and cannot accept another action.',
                 $tree['drop_capability']['reason'],
             );
             $this->assertNull($tree['settings']);
@@ -187,7 +187,7 @@ class CallflowPublicTreeServiceTest extends TestCase
     }
 
     #[Test]
-    public function it_locks_high_risk_continuation_nodes_and_preserves_their_subtrees(): void
+    public function it_exposes_supported_high_risk_actions_as_continuation_nodes(): void
     {
         foreach (['webhook', 'dynamic_cid'] as $module) {
             $tree = app(CallflowPublicTreeService::class)->transform([
@@ -198,15 +198,15 @@ class CallflowPublicTreeServiceTest extends TestCase
                 ],
             ]);
 
-            $this->assertSame('locked', $tree['drop_capability']['branch_mode']);
+            $this->assertSame('continuation', $tree['drop_capability']['branch_mode']);
             $this->assertFalse($tree['drop_capability']['accepts_children']);
             $this->assertSame(
-                'This action is not supported by the guided callflow editor.',
+                'All editable branches on this Switch action are occupied.',
                 $tree['drop_capability']['reason'],
             );
             $this->assertNull($tree['settings']);
-            $this->assertArrayHasKey('preserved_1', (array) $tree['children']);
-            $this->assertSame('user', ((array) $tree['children'])['preserved_1']['module']);
+            $this->assertArrayHasKey('_', (array) $tree['children']);
+            $this->assertSame('user', ((array) $tree['children'])['_']['module']);
         }
     }
 

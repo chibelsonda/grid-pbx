@@ -9,7 +9,8 @@ describe('CallflowBranchConnector', () => {
     expect(wrapper.element.tagName).toBe('svg')
     expect(wrapper.attributes('data-callflow-parent-stem')).toBe('')
     expect(wrapper.classes()).toContain('w-5')
-    expect(wrapper.get('line').attributes('stroke-width')).toBe('8')
+    expect(wrapper.classes()).toContain('h-3')
+    expect(wrapper.get('line').attributes('stroke-width')).toBe('6')
   })
 
   it.each([
@@ -22,9 +23,9 @@ describe('CallflowBranchConnector', () => {
     expect(wrapper.element.tagName).toBe('svg')
     expect(wrapper.attributes('data-callflow-branch-bus')).toBe('')
     expect(wrapper.attributes('data-callflow-branch-position')).toBe(kind)
-    expect(wrapper.classes()).toContain('h-2')
+    expect(wrapper.classes()).toContain('h-1.5')
     expect(wrapper.get('line').attributes('x1')).toBe(start)
     expect(wrapper.get('line').attributes('x2')).toBe(end)
-    expect(wrapper.get('line').attributes('stroke-width')).toBe('8')
+    expect(wrapper.get('line').attributes('stroke-width')).toBe('6')
   })
 })

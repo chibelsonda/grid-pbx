@@ -7,10 +7,10 @@ describe('CallflowConnectorArrow', () => {
     const wrapper = mount(CallflowConnectorArrow)
 
     expect(wrapper.element.tagName).toBe('svg')
-    expect(wrapper.classes()).toContain('h-10')
+    expect(wrapper.classes()).toContain('h-9')
     expect(wrapper.classes()).toContain('text-callflow-node')
-    expect(wrapper.attributes('viewBox')).toBe('0 0 20 48')
-    expect(wrapper.get('line').attributes('stroke-width')).toBe('8')
+    expect(wrapper.attributes('viewBox')).toBe('0 0 20 44')
+    expect(wrapper.get('line').attributes('stroke-width')).toBe('6')
     expect(wrapper.findAll('path')).toHaveLength(1)
   })
 })

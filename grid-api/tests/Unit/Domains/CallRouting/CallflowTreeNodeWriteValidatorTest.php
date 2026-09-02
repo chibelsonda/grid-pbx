@@ -90,7 +90,7 @@ class CallflowTreeNodeWriteValidatorTest extends TestCase
         ]);
 
         $this->expectException(ValidationException::class);
-        $this->expectExceptionMessage('Only a supported Ring Group may be edited as the root callflow action.');
+        $this->expectExceptionMessage('Only a supported guided root action may be edited here.');
 
         app(CallflowTreeNodeWriteValidator::class)->assertCanUpdate($callflow, [], 'sleep');
     }
