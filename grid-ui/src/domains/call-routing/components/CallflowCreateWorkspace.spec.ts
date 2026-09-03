@@ -159,7 +159,8 @@ describe('CallflowCreateWorkspace', () => {
     })
 
     expect(wrapper.get('input[placeholder="e.g. 2999"]').attributes('aria-invalid')).toBe('true')
-    expect(wrapper.text()).toContain('Extension 2999 already enters another callflow.')
+    expect(wrapper.text().match(/Extension 2999 already enters another callflow\./g)).toHaveLength(1)
+    expect(wrapper.find('[data-testid="form-error-summary"]').exists()).toBe(false)
   })
 
   it('exposes the create form to persistent page-header actions', () => {
@@ -588,6 +589,86 @@ describe('CallflowCreateWorkspace', () => {
       ],
       phone_number_ids: [phoneNumberId],
     })
+  })
+
+  it('reopens the root action editor for validation belonging to the selected action', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('menu')
+    await wrapper.get('[aria-label="Use Menu as root action"]').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Use action')!
+      .trigger('click')
+
+    expect(wrapper.text()).not.toContain('Menu key routes')
+
+    await wrapper.setProps({
+      error: 'The submitted callflow is invalid.',
+      fieldErrors: {
+        menu_branches: ['Configure the menu branches.'],
+      },
+    })
+
+    const summary = wrapper.get('[data-testid="form-error-summary"]')
+    expect(summary.text()).toContain('Configure the menu branches.')
+    expect(wrapper.text()).toContain('Menu key routes')
+  })
+
+  it('does not reopen a Voicemail editor for unrelated Temporal Rule errors', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('voicemail')
+    await wrapper.get('[aria-label="Use Voicemail as root action"]').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Use action')!
+      .trigger('click')
+
+    expect(wrapper.text()).not.toContain('Send the caller to a voicemail box.')
+
+    await wrapper.setProps({
+      error: 'The submitted callflow is invalid.',
+      fieldErrors: {
+        temporal_rule_ids: ['Select at least one temporal rule.'],
+        temporal_rule_routes: ['Configure at least one temporal route.'],
+      },
+    })
+
+    expect(wrapper.get('[data-testid="form-error-summary"]').text()).toContain(
+      'Select at least one temporal rule.',
+    )
+    expect(wrapper.text()).not.toContain('Send the caller to a voicemail box.')
   })
 
   it('drops a guided palette action onto the next editable Menu key with a public UUID', async () => {

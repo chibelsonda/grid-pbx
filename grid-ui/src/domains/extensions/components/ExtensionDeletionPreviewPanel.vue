@@ -7,6 +7,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { computed, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import type { ExtensionDeletionPreview } from '../types/extension'
 
@@ -39,12 +40,7 @@ const confirmed = computed(
     >
       Inspecting extension dependencies…
     </div>
-    <div
-      v-else-if="error"
-      class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ error }}
-    </div>
+    <FormErrorSummary v-else-if="error" :error="error" title="Unable to review the deletion" />
     <div v-else-if="preview" class="grid gap-5">
       <aside
         v-if="preview.recovery"
@@ -192,12 +188,12 @@ const confirmed = computed(
             input-class="font-mono"
             :error="fieldErrors.confirmation"
           />
-          <div
-            v-if="deletionError"
-            class="mt-2 rounded-md border border-red-100 bg-red-50 p-3 text-xs leading-5 text-danger"
-          >
-            {{ deletionError }}
-          </div>
+          <FormErrorSummary
+            :error="Object.keys(fieldErrors).length === 0 ? deletionError : null"
+            :field-errors="fieldErrors"
+            title="Unable to delete the extension"
+            class="mt-2"
+          />
         </div>
       </article>
 

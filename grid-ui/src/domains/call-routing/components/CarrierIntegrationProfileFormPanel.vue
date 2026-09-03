@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import {
@@ -78,13 +79,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <p
-        v-if="error"
-        role="alert"
-        class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ error }}
-      </p>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the carrier integration"
+      />
 
       <CallflowIntegrationProfileIdentityFields
         v-model:name="form.name"

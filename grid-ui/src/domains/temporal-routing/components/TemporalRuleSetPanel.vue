@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ArrowDownIcon, ArrowUpIcon, CalendarDaysIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import { validationControlClass } from '@/shared/forms/validationStyles'
@@ -68,13 +69,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error && Object.keys(fieldErrors).length === 0"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the temporal rule set"
+      />
       <fieldset :disabled="!canManage || saving" class="grid gap-5 disabled:opacity-75">
         <article class="card-surface overflow-hidden">
           <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">

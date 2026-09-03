@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig } from 'axios'
+import { normalizeApiErrorPayload } from './apiError'
 
 declare module 'axios' {
   export interface AxiosRequestConfig {
@@ -87,20 +88,39 @@ function mutationKind(config: AxiosRequestConfig): MutationKind | null {
 export function mutationNotification(
   config: AxiosRequestConfig | undefined,
   successful: boolean,
+  errorPayload?: unknown,
+  errorStatus?: number,
 ): HttpNotification | null {
   if (!config) return null
 
   const kind = mutationKind(config)
   if (!kind) return null
 
+  if (successful) return { ...mutationMessages[kind].success, tone: 'success' }
+
+  const fallback = mutationMessages[kind].error
+  const normalized = normalizeApiErrorPayload(errorPayload, fallback.message, errorStatus ?? null)
+
+  // Field-level validation belongs to the persistent form summary and controls.
+  // Emitting the same details globally creates two competing error messages.
+  if (normalized.fieldErrorCount > 0) return null
+
+  const supportReference = normalized.errorId ? ` Support reference: ${normalized.errorId}.` : ''
+
   return {
-    ...mutationMessages[kind][successful ? 'success' : 'error'],
-    tone: successful ? 'success' : 'error',
+    title: fallback.title,
+    message: `${normalized.message}${supportReference}`,
+    tone: 'error',
   }
 }
 
-function notifyMutation(config: AxiosRequestConfig | undefined, successful: boolean): void {
-  const notification = mutationNotification(config, successful)
+function notifyMutation(
+  config: AxiosRequestConfig | undefined,
+  successful: boolean,
+  errorPayload?: unknown,
+  errorStatus?: number,
+): void {
+  const notification = mutationNotification(config, successful, errorPayload, errorStatus)
   if (notification) notificationHandler?.(notification)
 }
 
@@ -142,7 +162,9 @@ http.interceptors.response.use(
         error.response.data = sanitizeApiErrorPayload(error.response.status, error.response.data)
       }
 
-      if (error.code !== 'ERR_CANCELED') notifyMutation(error.config, false)
+      if (error.code !== 'ERR_CANCELED') {
+        notifyMutation(error.config, false, error.response?.data, error.response?.status)
+      }
     }
 
     return Promise.reject(error)

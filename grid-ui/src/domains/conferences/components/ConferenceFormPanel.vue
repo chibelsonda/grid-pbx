@@ -12,6 +12,7 @@ import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelect
 import AdvancedFormTabs from '@/shared/components/AdvancedFormTabs.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -184,12 +185,11 @@ function setToneMode(
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error && Object.keys(fieldErrors).length === 0"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the conference"
+      />
       <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">
         <BasicAdvancedTabSelector v-model="selectedView" />
         <AdvancedFormTabs

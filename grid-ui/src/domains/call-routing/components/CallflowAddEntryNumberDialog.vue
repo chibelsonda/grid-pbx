@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -180,8 +181,17 @@ function submit(): void {
         :error="fieldError"
       />
 
-      <p v-if="error" role="alert" class="text-xs text-danger">{{ error }}</p>
-      <p v-else-if="type === 'phone_number' && fieldError" role="alert" class="text-xs text-danger">
+      <FormErrorSummary
+        v-if="error && Object.keys(fieldErrors).length === 0"
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="{}"
+        title="Unable to add the number"
+      />
+      <p
+        v-if="!error && type === 'phone_number' && fieldError"
+        role="alert"
+        class="text-xs text-danger"
+      >
         {{ fieldError }}
       </p>
 

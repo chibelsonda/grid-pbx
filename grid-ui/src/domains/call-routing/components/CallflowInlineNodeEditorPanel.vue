@@ -8,6 +8,7 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
@@ -2260,9 +2261,11 @@ watch(
         </p>
       </div>
 
-      <p v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </p>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the callflow action"
+      />
 
       <div class="slide-over-actions flex justify-end gap-3">
         <button

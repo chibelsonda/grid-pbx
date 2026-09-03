@@ -7,6 +7,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -189,13 +190,11 @@ function setTemporalMatchDestination(value: ListboxValue): void {
       Loading routing targets…
     </div>
 
-    <div
+    <FormErrorSummary
       v-else-if="error && !editor"
-      role="alert"
-      class="rounded-md border border-red-100 bg-red-50 p-5 text-xs text-danger"
-    >
-      {{ error }}
-    </div>
+      :error="error"
+      title="Unable to load the callflow editor"
+    />
 
     <div
       v-else-if="!canManage"
@@ -231,13 +230,11 @@ function setTemporalMatchDestination(value: ListboxValue): void {
 
     <form v-else-if="editor" class="grid gap-5" novalidate @submit.prevent="submit">
       <div class="grid min-w-0 gap-5">
-        <div
-          v-if="error && Object.keys(fieldErrors).length === 0"
-          role="alert"
-          class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-        >
-          {{ error }}
-        </div>
+        <FormErrorSummary
+          :error="Object.keys(fieldErrors).length === 0 ? error : null"
+          :field-errors="errors"
+          title="Unable to save the callflow"
+        />
 
         <fieldset :disabled="saving" class="grid gap-5 disabled:opacity-75">
           <article class="card-surface overflow-hidden">

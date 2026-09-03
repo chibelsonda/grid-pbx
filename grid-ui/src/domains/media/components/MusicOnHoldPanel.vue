@@ -2,6 +2,7 @@
 import { ref, watch } from 'vue'
 import { SpeakerWaveIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -45,9 +46,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(validationErrors).length === 0 ? error : null"
+        :field-errors="validationErrors"
+        title="Unable to save music on hold"
+      />
       <article class="card-surface p-5">
         <span class="grid size-11 place-items-center rounded-md bg-violet-50 text-violet-600"
           ><SpeakerWaveIcon class="size-5"

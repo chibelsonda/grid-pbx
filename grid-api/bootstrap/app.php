@@ -2,6 +2,7 @@
 
 use App\Domains\SwitchSynchronization\Commands\PollExtensionProjectionsCommand;
 use App\Support\Http\ApiResponse;
+use App\Support\Http\SwitchExceptionResponseFactory;
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -45,21 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            if (in_array($exception->statusCode, [400, 409, 422], true)) {
-                return response()->json([
-                    'message' => 'Switch rejected the submitted configuration.',
-                ], 422);
-            }
-
-            if ($exception->statusCode === 404) {
-                return response()->json([
-                    'message' => 'The Switch resource is no longer available. Synchronize and try again.',
-                ], 409);
-            }
-
-            return response()->json([
-                'message' => 'Switch is unavailable. Try again later.',
-            ], 502);
+            return app(SwitchExceptionResponseFactory::class)->make($exception, $request);
         });
 
         $exceptions->respond(function (

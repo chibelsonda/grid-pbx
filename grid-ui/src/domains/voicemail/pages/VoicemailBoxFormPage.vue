@@ -3,8 +3,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleIcon, KeyIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
-import AppAlert from '@/shared/components/AppAlert.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import { validateForm } from '@/shared/forms/zod'
 import VoicemailBoxFormFields from '../components/VoicemailBoxFormFields.vue'
 import { voicemailBoxFormSchemaFor } from '../schemas/voicemailBoxFormSchema'
@@ -148,6 +148,12 @@ async function save(): Promise<void> {
       {{ voicemail.detailError }}
     </div>
     <form v-else class="grid gap-5" novalidate @submit.prevent="save">
+      <FormErrorSummary
+        :error="Object.keys(voicemail.fieldErrors).length === 0 ? voicemail.mutationError : null"
+        :field-errors="voicemail.fieldErrors"
+        :title="isEditing ? 'Unable to save the voicemail box' : 'Unable to create the voicemail box'"
+      />
+
       <VoicemailBoxFormFields
         v-model:form="form"
         v-model:configuration="configuration"
@@ -160,12 +166,6 @@ async function save(): Promise<void> {
         :pin-configured="pinConfigured"
       />
 
-      <AppAlert
-        v-if="voicemail.mutationError"
-        :message="voicemail.mutationError"
-        tone="error"
-        @dismiss="voicemail.mutationError = null"
-      />
       <div class="slide-over-actions flex justify-end">
         <button
           type="submit"

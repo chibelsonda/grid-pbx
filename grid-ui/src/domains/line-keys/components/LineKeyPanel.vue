@@ -3,6 +3,7 @@ import { computed } from 'vue'
 import { PlusIcon, TrashIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -172,10 +173,6 @@ function fieldError(index: number, field: string): string | null {
   return errors.value[`line_keys.${index}.${field}`]?.[0] ?? null
 }
 
-function formError(): string | null {
-  return errors.value.line_keys?.[0] ?? null
-}
-
 function normalizeKeyValue(key: LineKeyInput): void {
   if (key.type !== 'parking' && typeof key.value === 'number') {
     key.value = String(key.value)
@@ -257,15 +254,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-4" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </div>
-      <div
-        v-if="formError()"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      >
-        {{ formError() }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the line keys"
+      />
       <article
         data-testid="line-key-provisioning-identity"
         class="card-surface flex flex-wrap items-center gap-4 px-4 py-3"

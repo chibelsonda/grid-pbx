@@ -3,8 +3,8 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleIcon, KeyIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
-import AppAlert from '@/shared/components/AppAlert.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import { validateForm } from '@/shared/forms/zod'
 import DeviceFormFields from '../components/DeviceFormFields.vue'
 import {
@@ -170,11 +170,10 @@ function close(): void {
     </div>
 
     <form v-else class="grid gap-5" novalidate @submit.prevent="save">
-      <AppAlert
-        v-if="devices.mutationError && Object.keys(devices.fieldErrors).length === 0"
-        :message="devices.mutationError"
-        tone="error"
-        @dismiss="devices.mutationError = null"
+      <FormErrorSummary
+        :error="Object.keys(devices.fieldErrors).length === 0 ? devices.mutationError : null"
+        :field-errors="devices.fieldErrors"
+        :title="isEditing ? 'Unable to save the device' : 'Unable to create the device'"
       />
 
       <DeviceFormFields

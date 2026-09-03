@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { ShieldCheckIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -170,7 +171,18 @@ watch(
       )
     ) {
       openFallbackConfiguration()
-    } else if (fields.some((field) => field.startsWith('root_action.'))) {
+    } else if (
+      (isInlineRootModule(selectedAction.value?.module) &&
+        fields.some((field) => field.startsWith('root_action.'))) ||
+      (form.destination_type === 'temporal_rules' &&
+        fields.some(
+          (field) => field === 'temporal_rule_ids' || field.startsWith('temporal_rule_routes'),
+        )) ||
+      (selectedAction.value?.module === 'menu' &&
+        fields.some((field) => field.startsWith('menu_branches'))) ||
+      (selectedAction.value?.module === 'temporal_route' &&
+        fields.some((field) => field.startsWith('temporal_match_')))
+    ) {
       actionOpen.value = true
     }
   },
@@ -641,13 +653,12 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 
 <template>
   <form id="callflow-create-form" class="grid gap-4" novalidate @submit.prevent="submit">
-    <div
-      v-if="error && Object.keys(fieldErrors).length === 0"
-      role="alert"
-      class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ error }}
-    </div>
+    <FormErrorSummary
+      :error="Object.keys(errors).length === 0 ? error : null"
+      :field-errors="{}"
+      title="Unable to create the callflow"
+      class="mx-4 mt-4"
+    />
 
     <CallflowWorkspaceLayout
       data-callflow-create-workspace
@@ -935,7 +946,6 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
     :phone-number-ids="form.phone_number_ids"
     :extension-numbers="form.extension_numbers"
     :preserved-numbers="editor.preserved_numbers ?? []"
-    :error="error"
     :field-errors="errors"
     @close="entryNumberOpen = false"
     @add="addEntryNumber"

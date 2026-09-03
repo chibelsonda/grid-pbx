@@ -10,6 +10,7 @@ import VoicemailDraftForm from '@/domains/voicemail/components/VoicemailDraftFor
 import type { VoicemailBox, VoicemailFormOptions } from '@/domains/voicemail/types/voicemail'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelector.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
@@ -349,13 +350,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form v-show="panelView === 'extension'" class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="displayErrors"
+        title="Unable to save the extension"
+      />
 
       <BasicAdvancedTabSelector
         v-model="selectedFormSection"

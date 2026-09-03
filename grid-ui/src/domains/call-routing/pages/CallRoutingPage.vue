@@ -446,7 +446,13 @@ function routeIdentifier(route: Callflow): string {
             class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
           >
             <PlusIcon class="size-4" />
-            {{ callflows.saving ? 'Creating callflow…' : 'Create callflow' }}
+            {{
+              callflows.preparingCreation
+                ? 'Checking conflicts…'
+                : callflows.saving
+                  ? 'Creating callflow…'
+                  : 'Create callflow'
+            }}
           </button>
         </template>
         <ProjectionFreshness

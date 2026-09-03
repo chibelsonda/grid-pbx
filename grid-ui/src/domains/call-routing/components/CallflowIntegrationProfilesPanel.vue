@@ -9,6 +9,7 @@ import {
   TrashIcon,
 } from '@heroicons/vue/24/outline'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import { useCallflowIntegrationProfiles } from '../composables/useCallflowIntegrationProfiles'
 import type {
   CarrierIntegrationProfile,
@@ -142,13 +143,11 @@ async function confirmRemove(): Promise<void> {
       </p>
     </div>
 
-    <p
-      v-if="error"
-      role="alert"
-      class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ error }}
-    </p>
+    <FormErrorSummary
+      :error="Object.keys(fieldErrors).length === 0 ? error : null"
+      :field-errors="fieldErrors"
+      title="Unable to manage the integration"
+    />
 
     <p v-if="!accountId" class="text-xs text-slate-500">
       Select a mapped account to manage its Callflow integrations.

@@ -4,6 +4,7 @@ import { PrinterIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import BasicAdvancedFormTabs from '@/shared/components/BasicAdvancedFormTabs.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, { type ListboxValue } from '@/shared/components/FormListbox.vue'
 import FormTextarea from '@/shared/components/FormTextarea.vue'
@@ -97,9 +98,11 @@ function save(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="save">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the fax box"
+      />
       <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">
         <BasicAdvancedFormTabs v-model="selectedTab">
           <template #basic>

@@ -4177,6 +4177,8 @@ class CallflowControllerTest extends TestCase
                 'name' => 'Internal support route',
                 'destination_type' => 'extension',
                 'destination_id' => $destination->id,
+                'temporal_rule_ids' => [],
+                'temporal_rule_routes' => [],
                 'phone_number_ids' => [],
                 'extension_numbers' => ['2999'],
             ])
@@ -4248,6 +4250,8 @@ class CallflowControllerTest extends TestCase
                 'name' => 'Owned extension route',
                 'destination_type' => 'extension',
                 'destination_id' => $destination->id,
+                'temporal_rule_ids' => [],
+                'temporal_rule_routes' => [],
                 'phone_number_ids' => [],
                 'extension_numbers' => ['3000'],
             ])

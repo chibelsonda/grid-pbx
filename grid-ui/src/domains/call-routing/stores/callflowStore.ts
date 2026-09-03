@@ -1,5 +1,5 @@
-import axios from 'axios'
 import { defineStore } from 'pinia'
+import { normalizeApiError } from '@/shared/api/apiError'
 import { callflowApi } from '../api/callflowApi'
 import type {
   Callflow,
@@ -35,6 +35,7 @@ export const useCallflowStore = defineStore('call-routing', {
     editorLoading: false,
     editorOpen: false,
     saving: false,
+    preparingCreation: false,
     deleting: false,
     treeMoving: false,
     treeDeleting: false,
@@ -62,6 +63,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.detail = null
       this.editor = null
       this.editorOpen = false
+      this.preparingCreation = false
       this.sync = { ...defaultSync }
       this.page = 1
       this.lastPage = 1
@@ -93,9 +95,7 @@ export const useCallflowStore = defineStore('call-routing', {
         this.lastPage = response.meta.last_page
         this.total = response.meta.total
       } catch (error) {
-        this.error = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load callflows.')
-          : 'Unable to load callflows.'
+        this.error = normalizeApiError(error, 'Unable to load callflows.').message
       } finally {
         this.loading = false
       }
@@ -116,9 +116,7 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return true
       } catch (error) {
-        this.detailError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load the callflow.')
-          : 'Unable to load the callflow.'
+        this.detailError = normalizeApiError(error, 'Unable to load the callflow.').message
 
         return false
       } finally {
@@ -141,9 +139,10 @@ export const useCallflowStore = defineStore('call-routing', {
       try {
         this.editor = await callflowApi.editor(accountId, callflowId)
       } catch (error) {
-        this.editorError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load routing editor options.')
-          : 'Unable to load routing editor options.'
+        this.editorError = normalizeApiError(
+          error,
+          'Unable to load routing editor options.',
+        ).message
       } finally {
         this.editorLoading = false
       }
@@ -160,9 +159,10 @@ export const useCallflowStore = defineStore('call-routing', {
       try {
         this.editor = await callflowApi.createEditor(accountId)
       } catch (error) {
-        this.editorError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load route creation options.')
-          : 'Unable to load route creation options.'
+        this.editorError = normalizeApiError(
+          error,
+          'Unable to load route creation options.',
+        ).message
       } finally {
         this.editorLoading = false
       }
@@ -189,9 +189,10 @@ export const useCallflowStore = defineStore('call-routing', {
       } catch (error) {
         if (refreshSequence !== this.capabilityRefreshSequence) return false
 
-        const message = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to refresh Callflow capabilities.')
-          : 'Unable to refresh Callflow capabilities.'
+        const message = normalizeApiError(
+          error,
+          'Unable to refresh Callflow capabilities.',
+        ).message
 
         if (callflowId) this.treeNodeError = message
         else this.editorError = message
@@ -205,6 +206,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.editor = null
       this.editorError = null
       this.fieldErrors = {}
+      this.preparingCreation = false
     },
     async update(
       accountId: string,
@@ -224,13 +226,9 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
-        this.editorError =
-          Object.keys(this.fieldErrors).length > 0
-            ? null
-            : axios.isAxiosError(error)
-              ? (error.response?.data?.message ?? 'Unable to update the callflow.')
-              : 'Unable to update the callflow.'
+        const normalized = normalizeApiError(error, 'Unable to update the callflow.')
+        this.fieldErrors = normalized.fieldErrors
+        this.editorError = normalized.fieldErrorCount > 0 ? null : normalized.message
 
         return null
       } finally {
@@ -254,15 +252,9 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.entryPointFieldErrors = axios.isAxiosError(error)
-          ? (error.response?.data?.errors ?? {})
-          : {}
-        this.entryPointError =
-          Object.keys(this.entryPointFieldErrors).length > 0
-            ? null
-            : axios.isAxiosError(error)
-              ? (error.response?.data?.message ?? 'Unable to add the callflow entry number.')
-              : 'Unable to add the callflow entry number.'
+        const normalized = normalizeApiError(error, 'Unable to add the callflow entry number.')
+        this.entryPointFieldErrors = normalized.fieldErrors
+        this.entryPointError = normalized.fieldErrorCount > 0 ? null : normalized.message
 
         return null
       } finally {
@@ -271,10 +263,15 @@ export const useCallflowStore = defineStore('call-routing', {
     },
     async create(accountId: string, input: CallflowCreateInput): Promise<Callflow | null> {
       this.saving = true
+      this.preparingCreation = true
       this.editorError = null
       this.fieldErrors = {}
+      let projectionVerified = false
 
       try {
+        await this.waitForProjectionSync(accountId, false)
+        projectionVerified = true
+        this.preparingCreation = false
         const created = await callflowApi.create(accountId, input)
         this.records.unshift(created)
         this.total += 1
@@ -283,16 +280,18 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return created
       } catch (error) {
-        this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}
-        this.editorError =
-          Object.keys(this.fieldErrors).length > 0
-            ? null
-            : axios.isAxiosError(error)
-              ? (error.response?.data?.message ?? 'Unable to create the callflow.')
-              : 'Unable to create the callflow.'
+        const normalized = normalizeApiError(
+          error,
+          projectionVerified
+            ? 'Unable to create the callflow.'
+            : 'Unable to verify the latest callflow assignments before creation.',
+        )
+        this.fieldErrors = normalized.fieldErrors
+        this.editorError = normalized.fieldErrorCount > 0 ? null : normalized.message
 
         return null
       } finally {
+        this.preparingCreation = false
         this.saving = false
       }
     },
@@ -308,11 +307,7 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return true
       } catch (error) {
-        this.mutationError = axios.isAxiosError(error)
-          ? (error.response?.data?.errors?.callflow?.[0] ??
-            error.response?.data?.message ??
-            'Unable to delete the callflow.')
-          : 'Unable to delete the callflow.'
+        this.mutationError = normalizeApiError(error, 'Unable to delete the callflow.').message
 
         return false
       } finally {
@@ -335,13 +330,10 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.treeMutationError = axios.isAxiosError(error)
-          ? (error.response?.data?.errors?.source_path?.[0] ??
-            error.response?.data?.errors?.destination_parent_path?.[0] ??
-            error.response?.data?.errors?.destination_branch?.[0] ??
-            error.response?.data?.message ??
-            'Unable to move the callflow node.')
-          : 'Unable to move the callflow node.'
+        this.treeMutationError = normalizeApiError(
+          error,
+          'Unable to move the callflow node.',
+        ).message
 
         return null
       } finally {
@@ -360,9 +352,10 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return true
       } catch (error) {
-        this.treeNodeError = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to load action destinations.')
-          : 'Unable to load action destinations.'
+        this.treeNodeError = normalizeApiError(
+          error,
+          'Unable to load action destinations.',
+        ).message
 
         return false
       } finally {
@@ -385,13 +378,10 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.treeMutationError = axios.isAxiosError(error)
-          ? (error.response?.data?.errors?.source_path?.[0] ??
-            error.response?.data?.errors?.target_path?.[0] ??
-            error.response?.data?.errors?.mode?.[0] ??
-            error.response?.data?.message ??
-            'Unable to reorder the callflow nodes.')
-          : 'Unable to reorder the callflow nodes.'
+        this.treeMutationError = normalizeApiError(
+          error,
+          'Unable to reorder the callflow nodes.',
+        ).message
 
         return null
       } finally {
@@ -437,11 +427,10 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.treeMutationError = axios.isAxiosError(error)
-          ? (error.response?.data?.errors?.node_path?.[0] ??
-            error.response?.data?.message ??
-            'Unable to remove the callflow action.')
-          : 'Unable to remove the callflow action.'
+        this.treeMutationError = normalizeApiError(
+          error,
+          'Unable to remove the callflow action.',
+        ).message
 
         return null
       } finally {
@@ -479,15 +468,9 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return updated
       } catch (error) {
-        this.treeNodeFieldErrors = axios.isAxiosError(error)
-          ? (error.response?.data?.errors ?? {})
-          : {}
-        this.treeNodeError =
-          Object.keys(this.treeNodeFieldErrors).length > 0
-            ? null
-            : axios.isAxiosError(error)
-              ? (error.response?.data?.message ?? 'Unable to save the callflow action.')
-              : 'Unable to save the callflow action.'
+        const normalized = normalizeApiError(error, 'Unable to save the callflow action.')
+        this.treeNodeFieldErrors = normalized.fieldErrors
+        this.treeNodeError = normalized.fieldErrorCount > 0 ? null : normalized.message
 
         return null
       } finally {
@@ -499,32 +482,34 @@ export const useCallflowStore = defineStore('call-routing', {
       this.error = null
 
       try {
-        let run = await callflowApi.startProjectionSync(accountId)
-
-        for (
-          let attempt = 0;
-          attempt < 40 && ['queued', 'running'].includes(run.status);
-          attempt += 1
-        ) {
-          await new Promise((resolve) => window.setTimeout(resolve, 500))
-          run = await callflowApi.syncStatus(accountId, run.id)
-        }
-
-        if (run.status === 'failed') throw new Error(run.error_message ?? 'Routing sync failed.')
-        if (run.status !== 'succeeded')
-          throw new Error('Routing sync is still running. Reload shortly.')
+        await this.waitForProjectionSync(accountId)
 
         await this.load(accountId, 1)
         const activeCallflowId = this.detail?.id
         if (activeCallflowId) await this.refreshDetail(accountId, activeCallflowId)
       } catch (error) {
-        this.error = axios.isAxiosError(error)
-          ? (error.response?.data?.message ?? 'Unable to synchronize callflows.')
-          : error instanceof Error
-            ? error.message
-            : 'Unable to synchronize callflows.'
+        this.error = normalizeApiError(error, 'Unable to synchronize callflows.').message
       } finally {
         this.synchronizing = false
+      }
+    },
+    async waitForProjectionSync(accountId: string, globalNotification = true): Promise<void> {
+      let run = globalNotification
+        ? await callflowApi.startProjectionSync(accountId)
+        : await callflowApi.startProjectionSync(accountId, false)
+
+      for (
+        let attempt = 0;
+        attempt < 40 && ['queued', 'running'].includes(run.status);
+        attempt += 1
+      ) {
+        await new Promise((resolve) => window.setTimeout(resolve, 500))
+        run = await callflowApi.syncStatus(accountId, run.id)
+      }
+
+      if (run.status === 'failed') throw new Error(run.error_message ?? 'Routing sync failed.')
+      if (run.status !== 'succeeded') {
+        throw new Error('Routing sync is still running. Reload shortly.')
       }
     },
   },

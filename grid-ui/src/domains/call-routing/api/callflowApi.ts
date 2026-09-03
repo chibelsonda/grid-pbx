@@ -179,9 +179,14 @@ export const callflowApi = {
   async delete(accountId: string, callflowId: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/callflows/${callflowId}`)
   },
-  async startProjectionSync(accountId: string): Promise<SyncRun> {
+  async startProjectionSync(
+    accountId: string,
+    globalNotification = true,
+  ): Promise<SyncRun> {
     const response = await http.post<ApiResponse<SyncRun>>(
       `/api/v1/accounts/${accountId}/sync/extensions`,
+      undefined,
+      { globalNotification },
     )
 
     return unwrapApiData(response)

@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { ArrowUpTrayIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
 import { useMediaAudioForm } from '../composables/useMediaAudioForm'
 
@@ -30,9 +31,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to replace the media audio"
+      />
       <article class="card-surface p-5">
         <span class="grid size-11 place-items-center rounded-md bg-brand-50 text-brand-600"
           ><ArrowUpTrayIcon class="size-5"

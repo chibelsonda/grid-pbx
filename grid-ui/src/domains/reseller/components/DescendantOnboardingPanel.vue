@@ -9,6 +9,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import { descendantOnboardingSchema } from '../schemas/descendantOnboardingSchema'
@@ -115,9 +116,11 @@ watch(
     </div>
 
     <form v-else-if="data" class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-red-700">
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to onboard the descendant"
+      />
 
       <article class="card-surface overflow-hidden">
         <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">

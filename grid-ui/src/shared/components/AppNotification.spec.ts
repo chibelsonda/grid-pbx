@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import AppNotification from './AppNotification.vue'
 
 describe('AppNotification', () => {
@@ -44,5 +44,25 @@ describe('AppNotification', () => {
     expect(notification.attributes('data-tone')).toBe(tone)
     expect(notification.classes()).toContain(`app-notification-${tone}`)
     expect(notification.find('.app-notification-accent').exists()).toBe(true)
+  })
+
+  it('keeps errors visible until the user dismisses them', async () => {
+    vi.useFakeTimers()
+
+    const wrapper = mount(AppNotification, {
+      props: {
+        show: true,
+        title: 'Request failed',
+        message: 'Select at least one temporal rule.',
+        tone: 'error',
+      },
+    })
+
+    await vi.advanceTimersByTimeAsync(10_000)
+
+    expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+    expect(wrapper.emitted('dismiss')).toBeUndefined()
+
+    vi.useRealTimers()
   })
 })

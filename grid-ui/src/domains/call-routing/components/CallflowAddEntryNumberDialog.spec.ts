@@ -47,4 +47,38 @@ describe('CallflowAddEntryNumberDialog', () => {
     expect(wrapper.text()).toContain('already configured')
     expect(wrapper.emitted('add')).toBeUndefined()
   })
+
+  it('shows a server field error only beside the affected input', () => {
+    const message = 'Extension 1234 is already assigned to another callflow.'
+    const wrapper = mount(CallflowAddEntryNumberDialog, {
+      props: {
+        open: true,
+        phoneNumbers: [],
+        phoneNumberIds: [],
+        extensionNumbers: [],
+        fieldErrors: { extension_numbers: [message] },
+      },
+      global: { stubs: { CallflowNodeInfoDialog: dialogStub } },
+    })
+
+    expect(wrapper.get('input[placeholder="e.g. 2999"]').attributes('aria-invalid')).toBe('true')
+    expect(wrapper.text().match(/Extension 1234 is already assigned to another callflow\./g)).toHaveLength(1)
+    expect(wrapper.find('[data-testid="form-error-summary"]').exists()).toBe(false)
+  })
+
+  it('uses one dialog summary for a non-field failure', () => {
+    const wrapper = mount(CallflowAddEntryNumberDialog, {
+      props: {
+        open: true,
+        phoneNumbers: [],
+        phoneNumberIds: [],
+        extensionNumbers: [],
+        error: 'Unable to verify the latest assignments.',
+      },
+      global: { stubs: { CallflowNodeInfoDialog: dialogStub } },
+    })
+
+    expect(wrapper.findAll('[data-testid="form-error-summary"]')).toHaveLength(1)
+    expect(wrapper.text().match(/Unable to verify the latest assignments\./g)).toHaveLength(1)
+  })
 })

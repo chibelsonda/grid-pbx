@@ -28,7 +28,7 @@ defineEmits<{ dismiss: [] }>()
       :tone="tone"
       :reset-key="notificationKey"
       compact
-      auto-close
+      :auto-close="tone !== 'error'"
       dismiss-label="Dismiss notification"
       class="pointer-events-auto shadow-xl"
       @dismiss="$emit('dismiss')"
