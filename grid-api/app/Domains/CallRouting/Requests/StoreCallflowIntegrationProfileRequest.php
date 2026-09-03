@@ -3,6 +3,7 @@
 namespace App\Domains\CallRouting\Requests;
 
 use App\Domains\CallRouting\Enums\CallflowIntegrationType;
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -65,7 +66,7 @@ class StoreCallflowIntegrationProfileRequest extends FormRequest
                 'settings.methods' => ['required', 'array', 'min:1', 'max:2'],
                 'settings.methods.*' => ['required', 'string', 'distinct', Rule::in(['get', 'post'])],
                 'settings.formats' => ['required', 'array', 'min:1', 'max:2'],
-                'settings.formats.*' => ['required', 'string', 'distinct', Rule::in(['kazoo', 'twiml'])],
+                'settings.formats.*' => ['required', 'string', 'distinct', Rule::in(PivotResponseFormat::values())],
                 'settings.req_body_format' => ['required', Rule::in(['form', 'json'])],
                 'settings.req_timeout_ms' => ['required', 'integer', 'between:1,5000'],
                 'settings.custom_request_headers' => ['present', 'array', 'max:20'],

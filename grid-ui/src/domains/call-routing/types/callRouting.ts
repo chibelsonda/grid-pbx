@@ -259,7 +259,7 @@ export type CallflowInlineNodeData = {
   access_policy_id?: string
   route_profile_id?: string
   method?: 'get' | 'post'
-  req_format?: 'kazoo' | 'twiml'
+  req_format?: 'switch' | 'twiml'
   http_verb?: 'get' | 'post'
   retries?: number
   custom_data?: Record<string, string | number | boolean>
@@ -479,7 +479,7 @@ export type CallflowPivotEndpoint = {
   id: string
   label: string
   methods: Array<'get' | 'post'>
-  formats: Array<'kazoo' | 'twiml'>
+  formats: Array<'switch' | 'twiml'>
 }
 
 export type CallflowWebhookEndpoint = {

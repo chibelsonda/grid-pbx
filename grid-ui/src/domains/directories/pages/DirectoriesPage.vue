@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { BookOpenIcon, ChevronRightIcon, PlusIcon, UsersIcon } from '@heroicons/vue/24/outline'
+import { BookOpenIcon, PlusIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import DirectoryFormPanel from '../components/DirectoryFormPanel.vue'
 import { useDirectoryStore } from '../stores/directoryStore'
@@ -15,6 +18,7 @@ const accounts = useAccountStore()
 const directories = useDirectoryStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const panel = ref(false)
+const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const lastSynchronizedAt = computed(() => latestSynchronizedAt(directories.records))
 watch(
@@ -37,7 +41,17 @@ async function save(input: DirectoryInput): Promise<void> {
     panel.value = false
 }
 async function remove(): Promise<void> {
-  if (accounts.selectedId && (await directories.remove(accounts.selectedId))) panel.value = false
+  if (accounts.selectedId && (await directories.remove(accounts.selectedId))) {
+    confirmDelete.value = false
+    panel.value = false
+  }
+}
+async function handleRowAction(actionId: string, id: string): Promise<void> {
+  await open(id)
+  if (actionId === 'delete' && directories.detail) {
+    panel.value = false
+    confirmDelete.value = true
+  }
 }
 </script>
 
@@ -138,7 +152,7 @@ async function remove(): Promise<void> {
               <th scope="col" class="px-5 py-3.5">Sort</th>
               <th scope="col" class="px-5 py-3.5">DTMF range</th>
               <th scope="col" class="px-5 py-3.5">Members</th>
-              <th scope="col" class="w-12" aria-label="Open directory"></th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -180,7 +194,13 @@ async function remove(): Promise<void> {
                 {{ record.min_dtmf }}–{{ record.max_dtmf || 'unlimited' }}
               </td>
               <td class="px-5 py-4 text-slate-500">{{ record.member_count ?? 0 }}</td>
-              <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+              <td class="px-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${record.name}`"
+                  :actions="crudRowActions(canManage)"
+                  @select="handleRowAction($event, record.id)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>
@@ -198,5 +218,15 @@ async function remove(): Promise<void> {
     @close="panel = false"
     @save="save"
     @remove="remove"
+  />
+  <ConfirmDialog
+    :open="confirmDelete"
+    title="Delete directory"
+    :description="`Delete ${directories.detail?.name ?? 'this directory'} after checking its routing dependencies?`"
+    confirm-label="Delete directory"
+    tone="danger"
+    :busy="directories.saving"
+    @close="confirmDelete = false"
+    @confirm="remove"
   />
 </template>

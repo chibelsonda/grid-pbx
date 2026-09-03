@@ -77,7 +77,7 @@ describe('buildDeviceInput', () => {
     },
   )
 
-  it('builds the minimal Kazoo-compatible SIP URI payload', () => {
+  it('builds the minimal Switch-compatible SIP URI payload', () => {
     const configuration = defaultDeviceConfiguration()
     configuration.sip.route = ' sip:support@example.com '
     configuration.sip.invite_format = 'route'

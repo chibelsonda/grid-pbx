@@ -134,8 +134,8 @@ function change(input: AgentQueueMembershipInput): void {
             >
               <p class="text-xs font-semibold text-amber-900">Remove the final Queue?</p>
               <p class="mt-1 text-[11px] text-amber-800">
-                Kazoo defines an Agent by Queue membership. This User will disappear from the Agents
-                list and must be re-added through a Queue roster.
+                Switch defines an Agent by Queue membership. This User will disappear from the
+                Agents list and must be re-added through a Queue roster.
               </p>
               <div class="mt-3 flex justify-end gap-2">
                 <button

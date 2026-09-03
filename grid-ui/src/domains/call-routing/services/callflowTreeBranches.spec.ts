@@ -162,7 +162,7 @@ describe('callflowNodeDropDecision', () => {
 })
 
 describe('availableCallflowBranches', () => {
-  it('offers only empty Kazoo Menu branches at any tree depth', () => {
+  it('offers only empty Switch Menu branches at any tree depth', () => {
     const node: CallflowNode = {
       module: 'menu',
       target: null,
@@ -290,7 +290,7 @@ describe('availableCallflowBranches', () => {
 })
 
 describe('orderedCallflowChildren', () => {
-  it('matches Kazoo result-first ordering when persisted JSON puts the fallback first', () => {
+  it('matches Switch result-first ordering when persisted JSON puts the fallback first', () => {
     const child = (module: string): CallflowNode => ({
       module,
       target: null,

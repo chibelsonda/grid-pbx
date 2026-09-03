@@ -2300,7 +2300,7 @@ test('keeps profile-gated integration actions draggable after cancel and save', 
               id: 'after-hours-ivr',
               label: 'After-hours IVR',
               methods: ['get'],
-              formats: ['kazoo'],
+              formats: ['switch'],
             },
           ],
           webhook_endpoints: [
@@ -2402,7 +2402,7 @@ test('keeps profile-gated integration actions draggable after cancel and save', 
   await page.getByRole('option', { name: 'After-hours IVR' }).click()
   await expect(secondDialog.getByRole('button', { name: 'Request method' })).toContainText('GET')
   await expect(secondDialog.getByRole('button', { name: 'Response format' })).toContainText(
-    'Kazoo Pivot',
+    'Switch Pivot',
   )
   await secondDialog.getByRole('button', { name: 'Use action' }).click()
   await expect(secondDialog).toBeHidden()
@@ -2558,7 +2558,7 @@ test('live verifies disposable integration actions against Switch', async ({ pag
       pivot_endpoints: Array<{
         id: string
         methods: Array<'get' | 'post'>
-        formats: Array<'kazoo' | 'twiml'>
+        formats: Array<'switch' | 'twiml'>
       }>
     }>('GET', `/api/v1/accounts/${accountId}/callflows/editor`)
     expect(editor.action_capabilities).toMatchObject({
@@ -2948,7 +2948,7 @@ test('refreshes profile-gated actions across tabs without resetting the open dra
             id: profiles[0]!.id,
             label: profiles[0]!.name,
             methods: ['post'],
-            formats: ['kazoo'],
+            formats: ['switch'],
           },
         ]
       : [],
@@ -3032,7 +3032,7 @@ test('refreshes profile-gated actions across tabs without resetting the open dra
       profile.type === 'pivot'
         ? {
             methods: ['post'],
-            formats: ['kazoo'],
+            formats: ['switch'],
             has_cdr_callback: false,
             has_custom_headers: false,
           }

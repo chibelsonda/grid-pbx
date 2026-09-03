@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowPathIcon } from '@heroicons/vue/24/outline'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import type { AgentStatistics } from '../types/queue'
 
 const props = defineProps<{
@@ -10,7 +11,7 @@ const props = defineProps<{
   error: string | null
 }>()
 
-defineEmits<{ refresh: [] }>()
+const emit = defineEmits<{ refresh: []; openAgent: [agentId: string] }>()
 
 const observedAt = computed(() =>
   props.statistics
@@ -23,6 +24,14 @@ const observedAt = computed(() =>
 
 function percentage(value: number | null): string {
   return value === null ? '—' : `${value}%`
+}
+
+async function handleRowAction(
+  actionId: string,
+  agent: { id: string; extension: string | null },
+): Promise<void> {
+  if (actionId === 'copy' && agent.extension) await navigator.clipboard?.writeText(agent.extension)
+  else emit('openAgent', agent.id)
 }
 </script>
 
@@ -95,6 +104,7 @@ function percentage(value: number | null): string {
               <th scope="col" class="px-4 py-3">Answered</th>
               <th scope="col" class="px-4 py-3">Missed</th>
               <th scope="col" class="py-3 pl-4">Answer rate</th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-slate-600">
@@ -105,6 +115,18 @@ function percentage(value: number | null): string {
               <td class="px-4 py-3">{{ agent.answered_calls }}</td>
               <td class="px-4 py-3">{{ agent.missed_calls }}</td>
               <td class="py-3 pl-4">{{ percentage(agent.answer_rate_percentage) }}</td>
+              <td class="py-3 pl-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${agent.name}`"
+                  :actions="[
+                    { id: 'open', label: 'Open agent', icon: 'view' },
+                    ...(agent.extension
+                      ? [{ id: 'copy', label: 'Copy extension', icon: 'copy' as const }]
+                      : []),
+                  ]"
+                  @select="handleRowAction($event, agent)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>

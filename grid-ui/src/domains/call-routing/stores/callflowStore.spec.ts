@@ -421,7 +421,7 @@ describe('callflow store', () => {
           id: 'profile-public-id',
           label: 'Customer voice application',
           methods: ['post'],
-          formats: ['kazoo'],
+          formats: ['switch'],
         },
       ],
     } as unknown as CallflowEditor
@@ -483,7 +483,7 @@ describe('callflow store', () => {
           id: 'profile-public-id',
           label: 'Current customer application',
           methods: ['post'],
-          formats: ['kazoo'],
+          formats: ['switch'],
         },
       ],
     } as unknown as CallflowEditor

@@ -18,7 +18,7 @@ export const pivotIntegrationProfileSchema = z
       .min(1, 'Select at least one request method.')
       .max(2),
     formats: z
-      .array(z.enum(['kazoo', 'twiml']))
+      .array(z.enum(['switch', 'twiml']))
       .min(1, 'Select at least one response format.')
       .max(2),
     req_body_format: z.enum(['form', 'json']),

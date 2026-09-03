@@ -1,23 +1,37 @@
 <script setup lang="ts">
-import { computed, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   CheckCircleIcon,
-  ChevronRightIcon,
   DevicePhoneMobileIcon,
   LinkIcon,
   PlusIcon,
   SignalIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import LineKeyPanel from '@/domains/line-keys/components/LineKeyPanel.vue'
+import { useLineKeyStore } from '@/domains/line-keys/stores/lineKeyStore'
+import type { LineKeyInput } from '@/domains/line-keys/types/lineKey'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { supportsProvisioning } from '../deviceForm'
+import { deviceRowActions } from '../deviceRowActions'
 import { useDeviceStore } from '../stores/deviceStore'
+import type { Device } from '../types/device'
 
 const accounts = useAccountStore()
 const devices = useDeviceStore()
+const lineKeys = useLineKeyStore()
 const router = useRouter()
+const lineKeyPanelOpen = ref(false)
+const pendingAction = ref<{
+  action: 'delete' | 'sync' | 'reprovision'
+  device: Pick<Device, 'id' | 'name' | 'device_type'>
+} | null>(null)
+const canManage = computed(() => accounts.selected?.permissions.can_manage_devices ?? false)
 const enabledOnPage = computed(() => devices.records.filter((device) => device.is_enabled).length)
 const assignedOnPage = computed(
   () => devices.records.filter((device) => device.assigned_extension !== null).length,
@@ -28,6 +42,8 @@ const registeredOnPage = computed(
 watch(
   () => accounts.selectedId,
   (accountId) => {
+    lineKeyPanelOpen.value = false
+    lineKeys.reset()
     devices.reset()
     if (accountId) void devices.load(accountId, 1)
   },
@@ -49,6 +65,97 @@ function humanize(value: string): string {
 function openDevice(id: string): void {
   void router.push({ name: 'device-detail', params: { deviceId: id } })
 }
+
+function supportsDeviceProvisioning(device: Pick<Device, 'device_type'>): boolean {
+  return Boolean(device.device_type && supportsProvisioning(device.device_type))
+}
+
+async function openLineKeys(device: Device): Promise<void> {
+  if (
+    !accounts.selectedId ||
+    !canManage.value ||
+    !supportsDeviceProvisioning(device) ||
+    lineKeys.previewLoading
+  ) {
+    return
+  }
+
+  lineKeyPanelOpen.value = false
+  await lineKeys.prepare(accounts.selectedId, device.id)
+  lineKeyPanelOpen.value = lineKeys.preview !== null
+}
+
+function handleRowAction(actionId: string, device: Device): void {
+  if (actionId === 'edit') {
+    if (!canManage.value) return
+    void router.push({ name: 'device-edit', params: { deviceId: device.id } })
+  } else if (actionId === 'delete') {
+    if (!canManage.value) return
+    pendingAction.value = { action: 'delete', device }
+  } else if (actionId === 'line-keys') {
+    void openLineKeys(device)
+  } else if (actionId === 'sync' || actionId === 'reprovision') {
+    if (!canManage.value || !supportsDeviceProvisioning(device)) return
+    pendingAction.value = { action: actionId, device }
+  } else {
+    openDevice(device.id)
+  }
+}
+
+async function saveLineKeys(keys: LineKeyInput[]): Promise<void> {
+  if (!accounts.selectedId) return
+
+  if (await lineKeys.save(accounts.selectedId, keys)) lineKeyPanelOpen.value = false
+}
+
+async function confirmDeviceAction(): Promise<void> {
+  if (!accounts.selectedId || !pendingAction.value) return
+
+  const { action, device } = pendingAction.value
+
+  if (action === 'delete') {
+    if (await devices.remove(accounts.selectedId, device.id)) pendingAction.value = null
+    return
+  }
+
+  if (!canManage.value || !supportsDeviceProvisioning(device)) {
+    pendingAction.value = null
+    return
+  }
+
+  await devices.syncProvisioning(accounts.selectedId, device.id, action)
+  pendingAction.value = null
+}
+
+const confirmation = computed(() => {
+  const name = pendingAction.value?.device.name ?? 'this device'
+
+  if (pendingAction.value?.action === 'reprovision') {
+    return {
+      title: 'Reprovision this device?',
+      description:
+        'Switch will ask the endpoint to reboot and reload its provisioning configuration.',
+      label: 'Reprovision device',
+      tone: 'warning' as const,
+    }
+  }
+
+  if (pendingAction.value?.action === 'sync') {
+    return {
+      title: 'Send check-sync to this device?',
+      description: 'Switch will send a check-sync command without requesting an endpoint reboot.',
+      label: 'Send check-sync',
+      tone: 'primary' as const,
+    }
+  }
+
+  return {
+    title: 'Delete device',
+    description: `Delete ${name} from Switch?`,
+    label: 'Delete device',
+    tone: 'danger' as const,
+  }
+})
 </script>
 
 <template>
@@ -170,6 +277,31 @@ function openDevice(id: string): void {
         {{ devices.error }}
       </div>
 
+      <p
+        v-if="devices.operationMessage"
+        role="status"
+        aria-live="polite"
+        class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
+      >
+        {{ devices.operationMessage }}
+      </p>
+
+      <p
+        v-if="devices.mutationError"
+        role="alert"
+        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+      >
+        {{ devices.mutationError }}
+      </p>
+
+      <p
+        v-if="lineKeys.mutationError && !lineKeyPanelOpen"
+        role="alert"
+        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
+      >
+        {{ lineKeys.mutationError }}
+      </p>
+
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">
           <table class="w-full min-w-[900px] text-left" :aria-busy="devices.loading">
@@ -185,7 +317,7 @@ function openDevice(id: string): void {
                 <th scope="col" class="px-5 py-3.5">Assigned extension</th>
                 <th scope="col" class="px-5 py-3.5">MAC address</th>
                 <th scope="col" class="px-5 py-3.5">Status</th>
-                <th scope="col" aria-label="View device" class="w-12 px-5 py-3.5" />
+                <th scope="col" aria-label="Actions" class="w-12 px-5 py-3.5" />
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
@@ -267,15 +399,17 @@ function openDevice(id: string): void {
                     </span>
                   </div>
                 </td>
-                <td class="px-5 py-3.5">
-                  <RouterLink
-                    :to="{ name: 'device-detail', params: { deviceId: device.id } }"
-                    :aria-label="`View ${device.name ?? 'device'}`"
-                    class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                    @click.stop
-                  >
-                    <ChevronRightIcon class="size-4" />
-                  </RouterLink>
+                <td class="px-3 py-3.5 text-right">
+                  <RowActionMenu
+                    :label="`Actions for ${device.name ?? 'device'}`"
+                    :actions="
+                      deviceRowActions(device, canManage, {
+                        lineKeysBusy: lineKeys.previewLoading,
+                        provisioningBusy: devices.mutationLoading,
+                      })
+                    "
+                    @select="handleRowAction($event, device)"
+                  />
                 </td>
               </tr>
             </tbody>
@@ -306,8 +440,29 @@ function openDevice(id: string): void {
           </div>
         </footer>
       </div>
+      <ConfirmDialog
+        :open="pendingAction !== null"
+        :title="confirmation.title"
+        :description="confirmation.description"
+        :confirm-label="confirmation.label"
+        :tone="confirmation.tone"
+        :busy="devices.mutationLoading"
+        @close="pendingAction = null"
+        @confirm="confirmDeviceAction"
+      />
     </template>
   </div>
+
+  <LineKeyPanel
+    v-if="lineKeyPanelOpen && lineKeys.preview"
+    :preview="lineKeys.preview"
+    :saving="lineKeys.saving"
+    :error="lineKeys.mutationError"
+    :field-errors="lineKeys.fieldErrors"
+    :can-manage="canManage"
+    @close="lineKeyPanelOpen = false"
+    @save="saveLineKeys"
+  />
 
   <RouterView />
 </template>

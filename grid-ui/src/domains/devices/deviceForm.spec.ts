@@ -55,7 +55,7 @@ describe('device form schema', () => {
     expect(supportsMusicOnHold('ata')).toBe(false)
   })
 
-  it('uses a per-device tab matrix based on the Kazoo workflow and Switch capabilities', () => {
+  it('uses a per-device tab matrix based on the Switch workflow and capabilities', () => {
     expect(deviceFormTabs.cellphone).toEqual(['basic', 'options'])
     expect(deviceFormTabs.landline).toEqual(['basic', 'options'])
     expect(deviceFormTabs.sip_uri).toEqual(['basic', 'options'])
@@ -110,7 +110,7 @@ describe('device form schema', () => {
     expect(supportsDeviceFieldGroup('sip_device', 'advanced-routing')).toBe(true)
   })
 
-  it('uses the audited Kazoo Options matrix for all eight device types', () => {
+  it('uses the audited Switch Options matrix for all eight device types', () => {
     expect(Object.keys(deviceOptionCapabilities)).toEqual(deviceTypes.map((type) => type.value))
     expect([...deviceOptionCapabilities.sip_device]).toEqual([
       'ringtones',

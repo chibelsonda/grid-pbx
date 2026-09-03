@@ -250,7 +250,7 @@ test('manages an account-scoped Pivot profile without rendering private configur
               is_active: true,
               configuration: {
                 methods: ['post'],
-                formats: ['kazoo'],
+                formats: ['switch'],
                 has_cdr_callback: false,
                 has_custom_headers: true,
               },
@@ -298,7 +298,7 @@ test('manages an account-scoped Pivot profile without rendering private configur
     settings: {
       voice_url: 'https://voice.example.test/pivot',
       methods: ['post'],
-      formats: ['kazoo'],
+      formats: ['switch'],
       custom_request_headers: { 'X-Pivot-Key': 'private-secret' },
     },
   })

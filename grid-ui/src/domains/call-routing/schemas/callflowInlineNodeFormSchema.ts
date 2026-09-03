@@ -498,7 +498,7 @@ const schemas = {
         .max(64)
         .regex(/^[a-z0-9][a-z0-9_-]*$/, 'Select a valid Pivot endpoint.'),
       method: z.enum(['get', 'post']),
-      req_format: z.enum(['kazoo', 'twiml']),
+      req_format: z.enum(['switch', 'twiml']),
       skip_module: z.boolean(),
     })
     .strict(),

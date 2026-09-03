@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ChevronRightIcon, ClockIcon, MicrophoneIcon } from '@heroicons/vue/24/outline'
+import { ClockIcon, MicrophoneIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import RecordingDetailPanel from '../components/RecordingDetailPanel.vue'
 import { useRecordingFilters } from '../composables/useRecordingFilters'
 import { useRecordingStore } from '../stores/recordingStore'
+import type { Recording } from '../types/recording'
 
 const accounts = useAccountStore()
 const recordings = useRecordingStore()
@@ -52,6 +55,26 @@ function clearFilters(): void {
 
 function openDetail(id: string): void {
   void router.replace({ query: { ...route.query, recording: id } })
+}
+
+function recordingActions(record: Recording): RowAction[] {
+  return [
+    { id: 'view', label: 'View details', icon: 'view' },
+    ...(record.has_audio
+      ? [
+          { id: 'play', label: 'Play recording', icon: 'play' as const },
+          { id: 'download', label: 'Download audio', icon: 'download' as const },
+        ]
+      : []),
+  ]
+}
+
+function handleRowAction(actionId: string, record: Recording): void {
+  if (actionId === 'download' && accounts.selectedId) {
+    void recordings.downloadAudio(accounts.selectedId, record.id)
+  } else {
+    openDetail(record.id)
+  }
 }
 
 function closeDetail(): void {
@@ -238,7 +261,7 @@ function formatDuration(seconds: number): string {
               <th class="px-5 py-3.5">Caller</th>
               <th class="px-5 py-3.5">Callee</th>
               <th class="px-5 py-3.5">Duration</th>
-              <th class="w-12"><span class="sr-only">View</span></th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -278,15 +301,12 @@ function formatDuration(seconds: number): string {
               <td class="px-5 py-4 text-slate-600">
                 {{ formatDuration(record.duration_seconds) }}
               </td>
-              <td class="px-5 py-4">
-                <button
-                  type="button"
-                  :aria-label="`View recording ${record.name ?? record.id}`"
-                  class="grid size-8 place-items-center rounded text-slate-500 hover:bg-brand-50 hover:text-brand-600"
-                  @click.stop="openDetail(record.id)"
-                >
-                  <ChevronRightIcon class="size-4" />
-                </button>
+              <td class="px-3 py-4 text-right">
+                <RowActionMenu
+                  :label="`Actions for recording ${record.name ?? record.id}`"
+                  :actions="recordingActions(record)"
+                  @select="handleRowAction($event, record)"
+                />
               </td>
             </tr>
           </tbody>

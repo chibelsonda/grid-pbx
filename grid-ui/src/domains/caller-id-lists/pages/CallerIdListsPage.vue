@@ -1,17 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ChevronRightIcon,
-  HashtagIcon,
-  IdentificationIcon,
-  PlusIcon,
-} from '@heroicons/vue/24/outline'
+import { HashtagIcon, IdentificationIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import CallerIdListFormPanel from '../components/CallerIdListFormPanel.vue'
 import { useCallerIdListStore } from '../stores/callerIdListStore'
@@ -24,6 +21,7 @@ const router = useRouter()
 const panel = ref(false)
 const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const rowActions = computed(() => crudRowActions(canManage.value))
 const lastSynchronizedAt = computed(() => latestSynchronizedAt(lists.records))
 const visibleEntryCount = computed(() =>
   lists.records.reduce((total, record) => total + (record.entry_count ?? 0), 0),
@@ -87,6 +85,16 @@ async function requestRemove(): Promise<void> {
   panel.value = false
   await nextTick()
   confirmDelete.value = true
+}
+
+async function handleRowAction(actionId: string, id: string): Promise<void> {
+  if (actionId === 'delete' && accounts.selectedId) {
+    await lists.prepare(accounts.selectedId, id)
+    await requestRemove()
+    return
+  }
+
+  await open(id)
 }
 
 function closePanel(): void {
@@ -203,7 +211,7 @@ function clearCallerIdListQuery(): void {
               <th scope="col" class="px-5 py-3.5">Organization</th>
               <th scope="col" class="px-5 py-3.5">Entries</th>
               <th scope="col" class="px-5 py-3.5">Sync status</th>
-              <th scope="col" class="w-12" aria-label="Open Caller-ID List"></th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-200 text-xs">
@@ -250,7 +258,13 @@ function clearCallerIdListQuery(): void {
                   {{ record.sync_status ?? 'unknown' }}
                 </span>
               </td>
-              <td><ChevronRightIcon class="size-4 text-slate-500" aria-hidden="true" /></td>
+              <td class="px-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${record.name}`"
+                  :actions="rowActions"
+                  @select="handleRowAction($event, record.id)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>

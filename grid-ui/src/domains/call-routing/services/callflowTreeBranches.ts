@@ -46,7 +46,7 @@ export type CallflowNodeDropContext = {
 
 /**
  * JSON object key order is not a callflow layout contract. MySQL may place the
- * wildcard key first, while Kazoo's editor presents result branches before the
+ * wildcard key first, while Switch's editor presents result branches before the
  * fallback. Keep the visual order deterministic and aligned with that workflow.
  */
 export function orderedCallflowChildren(node: CallflowNode): CallflowChildEntry[] {

@@ -8,7 +8,7 @@ describe('recommendedAgentStatusActions', () => {
     ['paused', ['resume', 'logout']],
     ['wrapup', ['end_wrapup', 'resume', 'pause', 'logout']],
     ['connected', ['logout']],
-  ])('recommends Kazoo-aware actions for %s', (status, expected) => {
+  ])('recommends Switch-aware actions for %s', (status, expected) => {
     expect(recommendedAgentStatusActions(status)).toEqual(expected)
   })
 

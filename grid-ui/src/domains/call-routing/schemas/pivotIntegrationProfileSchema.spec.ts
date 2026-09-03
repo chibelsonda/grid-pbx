@@ -8,7 +8,7 @@ function validInput() {
     voice_url: 'https://voice.example.test/pivot',
     cdr_url: '',
     methods: ['post'],
-    formats: ['kazoo'],
+    formats: ['switch'],
     req_body_format: 'json',
     req_timeout_ms: 5000,
     headers: [{ name: 'X-Pivot-Key', value: 'private-secret' }],

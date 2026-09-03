@@ -52,6 +52,22 @@ watch(
   { immediate: true },
 )
 
+watch([extension, () => route.query.action], async ([currentExtension, action]) => {
+  if (
+    currentExtension?.id !== extensionId.value ||
+    !canManage.value ||
+    !['edit', 'delete'].includes(String(action))
+  )
+    return
+
+  if (action === 'edit' && currentExtension.is_managed) await openEditPanel()
+  else if (action === 'delete') openDeletionPreview()
+
+  const query = { ...route.query }
+  delete query.action
+  await router.replace({ query })
+})
+
 function formatDate(value: string | null): string {
   if (!value) return 'Not synchronized'
 

@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Bars3BottomLeftIcon, ChevronRightIcon, PlusIcon } from '@heroicons/vue/24/outline'
+import { Bars3BottomLeftIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import MenuFormPanel from '../components/MenuFormPanel.vue'
 import { useMenuStore } from '../stores/menuStore'
@@ -15,6 +18,7 @@ const accounts = useAccountStore()
 const menus = useMenuStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
+const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const lastSynchronizedAt = computed(() => latestSynchronizedAt(menus.records))
 
@@ -38,7 +42,17 @@ async function save(input: MenuInput): Promise<void> {
   if (accounts.selectedId && (await menus.save(accounts.selectedId, input))) panelOpen.value = false
 }
 async function remove(): Promise<void> {
-  if (accounts.selectedId && (await menus.remove(accounts.selectedId))) panelOpen.value = false
+  if (accounts.selectedId && (await menus.remove(accounts.selectedId))) {
+    confirmDelete.value = false
+    panelOpen.value = false
+  }
+}
+async function handleRowAction(actionId: string, id: string): Promise<void> {
+  await open(id)
+  if (actionId === 'delete' && menus.detail) {
+    panelOpen.value = false
+    confirmDelete.value = true
+  }
 }
 </script>
 
@@ -118,7 +132,7 @@ async function remove(): Promise<void> {
             <th class="px-5 py-3.5">Greeting</th>
             <th class="px-5 py-3.5">Digit timeout</th>
             <th class="px-5 py-3.5">Retries</th>
-            <th class="w-12"></th>
+            <th scope="col" class="w-12" aria-label="Actions"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 text-xs">
@@ -143,7 +157,13 @@ async function remove(): Promise<void> {
             </td>
             <td class="px-5 py-4 text-slate-500">{{ record.timeout }} ms</td>
             <td class="px-5 py-4 text-slate-500">{{ record.retries }}</td>
-            <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
+            <td class="px-3 text-right">
+              <RowActionMenu
+                :label="`Actions for ${record.name}`"
+                :actions="crudRowActions(canManage)"
+                @select="handleRowAction($event, record.id)"
+              />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -160,5 +180,15 @@ async function remove(): Promise<void> {
     @close="panelOpen = false"
     @save="save"
     @remove="remove"
+  />
+  <ConfirmDialog
+    :open="confirmDelete"
+    title="Delete menu"
+    :description="`Delete ${menus.detail?.name ?? 'this menu'} after checking its call-routing dependencies?`"
+    confirm-label="Delete menu"
+    tone="danger"
+    :busy="menus.saving"
+    @close="confirmDelete = false"
+    @confirm="remove"
   />
 </template>

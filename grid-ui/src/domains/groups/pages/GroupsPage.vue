@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ChevronRightIcon, PlusIcon, UserGroupIcon, UsersIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, UserGroupIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import GroupFormPanel from '../components/GroupFormPanel.vue'
 import { useGroupStore } from '../stores/groupStore'
@@ -18,6 +20,7 @@ const globalSearchQuery = useGlobalSearchListQuery()
 const panel = ref(false)
 const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
+const rowActions = computed(() => crudRowActions(canManage.value))
 const lastSynchronizedAt = computed(() => latestSynchronizedAt(groups.records))
 watch(
   [() => accounts.selectedId, globalSearchQuery],
@@ -42,6 +45,14 @@ async function remove(): Promise<void> {
   if (accounts.selectedId && (await groups.remove(accounts.selectedId))) {
     confirmDelete.value = false
     panel.value = false
+  }
+}
+
+async function handleRowAction(actionId: string, id: string): Promise<void> {
+  await open(id)
+  if (actionId === 'delete' && groups.detail) {
+    panel.value = false
+    confirmDelete.value = true
   }
 }
 </script>
@@ -142,7 +153,7 @@ async function remove(): Promise<void> {
               <th scope="col" class="px-5 py-3.5">Group</th>
               <th scope="col" class="px-5 py-3.5">Members</th>
               <th scope="col" class="px-5 py-3.5">Music on hold</th>
-              <th scope="col" class="w-12" aria-label="Open group"></th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -181,7 +192,13 @@ async function remove(): Promise<void> {
               <td class="px-5 py-4 text-slate-500">
                 {{ record.music_on_hold_media?.name ?? 'Account default' }}
               </td>
-              <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+              <td class="px-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${record.name}`"
+                  :actions="rowActions"
+                  @select="handleRowAction($event, record.id)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>

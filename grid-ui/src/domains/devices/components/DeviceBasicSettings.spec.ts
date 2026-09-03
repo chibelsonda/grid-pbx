@@ -36,7 +36,7 @@ describe('DeviceBasicSettings', () => {
     ).toBe('true')
   })
 
-  it('shows the Kazoo-compatible notify-when-unregistered control for a SIP device', async () => {
+  it('shows the Switch-compatible notify-when-unregistered control for a SIP device', async () => {
     const configuration = defaultDeviceConfiguration()
     const wrapper = mount(DeviceBasicSettings, {
       props: {

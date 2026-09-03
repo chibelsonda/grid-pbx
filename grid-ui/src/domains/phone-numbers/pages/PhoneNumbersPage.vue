@@ -1,22 +1,21 @@
 <script setup lang="ts">
 import { computed, watch } from 'vue'
-import {
-  CheckCircleIcon,
-  ChevronRightIcon,
-  HashtagIcon,
-  LinkIcon,
-  MapPinIcon,
-} from '@heroicons/vue/24/outline'
+import { useRouter } from 'vue-router'
+import { CheckCircleIcon, HashtagIcon, LinkIcon, MapPinIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import PhoneNumberDetailPanel from '../components/PhoneNumberDetailPanel.vue'
 import { usePhoneNumberStore } from '../stores/phoneNumberStore'
+import type { PhoneNumber } from '../types/phoneNumber'
 
 const accounts = useAccountStore()
 const phoneNumbers = usePhoneNumberStore()
+const router = useRouter()
 const globalSearchQuery = useGlobalSearchListQuery()
 const inServiceOnPage = computed(
   () => phoneNumbers.records.filter((record) => record.state === 'in_service').length,
@@ -51,6 +50,26 @@ function synchronize(): void {
 
 function openDetail(id: string): void {
   if (accounts.selectedId) void phoneNumbers.loadDetail(accounts.selectedId, id)
+}
+
+function phoneNumberActions(record: PhoneNumber): RowAction[] {
+  return [
+    { id: 'view', label: 'View details', icon: 'view' },
+    { id: 'copy', label: 'Copy number', icon: 'copy' },
+    ...(record.assigned_callflow
+      ? [{ id: 'route', label: 'Open assigned callflow', icon: 'route' as const }]
+      : []),
+  ]
+}
+
+async function handleRowAction(actionId: string, record: PhoneNumber): Promise<void> {
+  if (actionId === 'copy') {
+    await navigator.clipboard?.writeText(record.number)
+  } else if (actionId === 'route' && record.assigned_callflow) {
+    await router.push({ name: 'call-routing', query: { callflow: record.assigned_callflow.id } })
+  } else {
+    openDetail(record.id)
+  }
 }
 
 function humanize(value: string | null): string {
@@ -187,7 +206,7 @@ function humanize(value: string | null): string {
               <th class="px-5 py-3.5">Incoming route</th>
               <th class="px-5 py-3.5">Carrier</th>
               <th class="px-5 py-3.5">Features</th>
-              <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+              <th scope="col" class="w-12 px-5 py-3.5" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -241,15 +260,12 @@ function humanize(value: string | null): string {
                   >
                 </div>
               </td>
-              <td class="px-5 py-3.5">
-                <button
-                  type="button"
-                  :aria-label="`View ${record.number}`"
-                  class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                  @click.stop="openDetail(record.id)"
-                >
-                  <ChevronRightIcon class="size-4" />
-                </button>
+              <td class="px-3 py-3.5 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${record.number}`"
+                  :actions="phoneNumberActions(record)"
+                  @select="handleRowAction($event, record)"
+                />
               </td>
             </tr>
           </tbody>

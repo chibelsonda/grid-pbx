@@ -1,16 +1,19 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ChevronRightIcon, SquaresPlusIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
+import { useRouter } from 'vue-router'
+import { SquaresPlusIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import LineKeyPanel from '../components/LineKeyPanel.vue'
 import { useLineKeyStore } from '../stores/lineKeyStore'
 import type { LineKeyInput } from '../types/lineKey'
 
 const accounts = useAccountStore()
 const lineKeys = useLineKeyStore()
+const router = useRouter()
 const panel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_devices ?? false)
 const assignedCount = computed(() =>
@@ -36,6 +39,13 @@ async function open(deviceId: string): Promise<void> {
   if (!accounts.selectedId) return
   await lineKeys.prepare(accounts.selectedId, deviceId)
   if (lineKeys.preview) panel.value = true
+}
+function handleRowAction(actionId: string, deviceId: string): void {
+  if (actionId === 'device') {
+    void router.push({ name: 'device-detail', params: { deviceId } })
+  } else {
+    void open(deviceId)
+  }
 }
 async function save(keys: LineKeyInput[]): Promise<void> {
   if (accounts.selectedId && (await lineKeys.save(accounts.selectedId, keys))) panel.value = false
@@ -131,7 +141,7 @@ async function save(keys: LineKeyInput[]): Promise<void> {
             <th class="px-5 py-3.5">Provisioning identity</th>
             <th class="px-5 py-3.5">Combo keys</th>
             <th class="px-5 py-3.5">Feature keys</th>
-            <th class="w-12"></th>
+            <th scope="col" class="w-12" aria-label="Actions"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 text-xs">
@@ -170,7 +180,20 @@ async function save(keys: LineKeyInput[]): Promise<void> {
             <td class="px-5 py-4 text-slate-500">
               {{ device.line_keys.filter((key) => key.category === 'feature').length }}
             </td>
-            <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
+            <td class="px-3 text-right">
+              <RowActionMenu
+                :label="`Actions for ${device.name}`"
+                :actions="[
+                  { id: 'device', label: 'View device', icon: 'view' },
+                  {
+                    id: 'manage',
+                    label: canManage ? 'Manage line keys' : 'View line keys',
+                    icon: canManage ? 'manage' : 'view',
+                  },
+                ]"
+                @select="handleRowAction($event, device.id)"
+              />
+            </td>
           </tr>
         </tbody>
       </table>

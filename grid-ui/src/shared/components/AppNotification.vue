@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import { TransitionRoot } from '@headlessui/vue'
-import { CheckCircleIcon, ExclamationTriangleIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import {
+  CheckCircleIcon,
+  ExclamationTriangleIcon,
+  InformationCircleIcon,
+  XCircleIcon,
+  XMarkIcon,
+} from '@heroicons/vue/24/outline'
 import { computed } from 'vue'
 import type { AppNotificationTone } from '@/shared/types/appNotification'
 
@@ -14,9 +20,25 @@ const props = withDefaults(
   { tone: 'info' },
 )
 
-const notificationIcon = computed(() =>
-  props.tone === 'error' ? ExclamationTriangleIcon : CheckCircleIcon,
+const toneClass = computed(
+  () =>
+    ({
+      info: 'app-notification-info',
+      success: 'app-notification-success',
+      warning: 'app-notification-warning',
+      error: 'app-notification-error',
+    })[props.tone],
 )
+const notificationIcon = computed(
+  () =>
+    ({
+      info: InformationCircleIcon,
+      success: CheckCircleIcon,
+      warning: ExclamationTriangleIcon,
+      error: XCircleIcon,
+    })[props.tone],
+)
+const assertive = computed(() => props.tone === 'warning' || props.tone === 'error')
 
 defineEmits<{ dismiss: [] }>()
 </script>
@@ -37,24 +59,25 @@ defineEmits<{ dismiss: [] }>()
     >
       <div
         data-testid="global-notification"
-        :role="tone === 'error' ? 'alert' : 'status'"
-        :aria-live="tone === 'error' ? 'assertive' : 'polite'"
-        class="app-notification pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border bg-white px-4 py-3 shadow-xl ring-1 ring-slate-900/5"
+        :data-tone="tone"
+        :role="assertive ? 'alert' : 'status'"
+        :aria-live="assertive ? 'assertive' : 'polite'"
+        class="app-notification pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-lg border px-4 py-3 shadow-xl ring-1 ring-slate-900/5"
+        :class="toneClass"
       >
         <component
           :is="notificationIcon"
-          class="mt-0.5 size-5 shrink-0"
-          :class="tone === 'error' ? 'text-red-600' : 'app-notification-accent'"
+          class="app-notification-accent mt-0.5 size-5 shrink-0"
           aria-hidden="true"
         />
         <div class="min-w-0 flex-1">
-          <p class="text-xs font-semibold text-slate-800">{{ title }}</p>
-          <p class="mt-0.5 text-[11px] text-slate-600">{{ message }}</p>
+          <p class="app-notification-title text-xs font-semibold">{{ title }}</p>
+          <p class="app-notification-message mt-0.5 text-[11px]">{{ message }}</p>
         </div>
         <button
           type="button"
           aria-label="Dismiss notification"
-          class="shrink-0 rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          class="app-notification-dismiss shrink-0 rounded-md p-1 transition"
           @click="$emit('dismiss')"
         >
           <XMarkIcon class="size-4" aria-hidden="true" />

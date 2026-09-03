@@ -3,7 +3,6 @@ import { computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
-  ChevronRightIcon,
   ChatBubbleLeftEllipsisIcon,
   LinkIcon,
   MicrophoneIcon,
@@ -13,11 +12,14 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import { useVoicemailStore } from '../stores/voicemailStore'
 
 const accounts = useAccountStore()
 const voicemail = useVoicemailStore()
 const router = useRouter()
+const canManage = computed(() => accounts.selected?.permissions.can_manage_voicemail ?? false)
 const assignedOnPage = computed(
   () => voicemail.records.filter((record) => record.assigned_extension !== null).length,
 )
@@ -42,6 +44,18 @@ function loadFirstPage(): void {
 
 function openMailbox(id: string): void {
   void router.push({ name: 'voicemail-detail', params: { voicemailBoxId: id } })
+}
+
+function handleRowAction(actionId: string, id: string): void {
+  if (actionId === 'edit') {
+    void router.push({ name: 'voicemail-edit', params: { voicemailBoxId: id } })
+  } else {
+    void router.push({
+      name: 'voicemail-detail',
+      params: { voicemailBoxId: id },
+      query: actionId === 'delete' ? { action: 'delete' } : undefined,
+    })
+  }
 }
 </script>
 
@@ -171,7 +185,7 @@ function openMailbox(id: string): void {
                 <th class="px-5 py-3.5">Timezone</th>
                 <th class="px-5 py-3.5">Notifications</th>
                 <th class="px-5 py-3.5">Status</th>
-                <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+                <th scope="col" class="w-12 px-5 py-3.5" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
@@ -245,13 +259,12 @@ function openMailbox(id: string): void {
                     >
                   </div>
                 </td>
-                <td class="px-5 py-3.5">
-                  <RouterLink
-                    :to="{ name: 'voicemail-detail', params: { voicemailBoxId: record.id } }"
-                    class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                    @click.stop
-                    ><ChevronRightIcon class="size-4"
-                  /></RouterLink>
+                <td class="px-3 py-3.5 text-right">
+                  <RowActionMenu
+                    :label="`Actions for voicemail box ${record.mailbox}`"
+                    :actions="crudRowActions(canManage)"
+                    @select="handleRowAction($event, record.id)"
+                  />
                 </td>
               </tr>
             </tbody>

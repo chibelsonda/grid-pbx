@@ -10,7 +10,7 @@ const profile: CallflowIntegrationProfile = {
   is_active: true,
   configuration: {
     methods: ['post'],
-    formats: ['kazoo'],
+    formats: ['switch'],
     has_cdr_callback: true,
     has_custom_headers: true,
   },

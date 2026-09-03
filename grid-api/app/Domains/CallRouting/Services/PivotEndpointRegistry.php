@@ -3,6 +3,7 @@
 namespace App\Domains\CallRouting\Services;
 
 use App\Domains\CallRouting\Enums\CallflowIntegrationType;
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use App\Domains\Organizations\Models\SwitchAccount;
 use Illuminate\Validation\ValidationException;
@@ -88,7 +89,8 @@ class PivotEndpointRegistry
         }
 
         $method = $settings['method'] ?? null;
-        $format = $settings['req_format'] ?? null;
+        $formatValue = $settings['req_format'] ?? null;
+        $format = is_string($formatValue) ? PivotResponseFormat::tryFrom($formatValue) : null;
 
         if (! is_string($method) || ! in_array($method, $endpoint['methods'], true)) {
             throw ValidationException::withMessages([
@@ -96,7 +98,7 @@ class PivotEndpointRegistry
             ]);
         }
 
-        if (! is_string($format) || ! in_array($format, $endpoint['formats'], true)) {
+        if ($format === null || ! in_array($format->value, $endpoint['formats'], true)) {
             throw ValidationException::withMessages([
                 'data.req_format' => ['Select a response format allowed by this Pivot endpoint.'],
             ]);
@@ -105,7 +107,7 @@ class PivotEndpointRegistry
         return array_filter([
             'voice_url' => $endpoint['voice_url'],
             'method' => $method,
-            'req_format' => $format,
+            'req_format' => $format->toUpstreamValue(),
             'req_body_format' => $endpoint['req_body_format'],
             'cdr_url' => $endpoint['cdr_url'],
             'debug' => $endpoint['debug'],
@@ -119,8 +121,14 @@ class PivotEndpointRegistry
     public function publicSettings(SwitchAccount $account, array $data): array
     {
         $method = is_string($data['method'] ?? null) ? strtolower($data['method']) : 'get';
-        $format = is_string($data['req_format'] ?? null) ? strtolower($data['req_format']) : 'kazoo';
-        $endpoint = $this->findMatchingEndpoint($account, $data['voice_url'] ?? null, $method, $format);
+        $format = PivotResponseFormat::fromStoredValue($data['req_format'] ?? null)
+            ?? PivotResponseFormat::Switch;
+        $endpoint = $this->findMatchingEndpoint(
+            $account,
+            $data['voice_url'] ?? null,
+            $method,
+            $format->value,
+        );
         $supported = $endpoint !== null;
 
         return [
@@ -128,7 +136,7 @@ class PivotEndpointRegistry
             'endpoint_id' => $supported ? $endpoint['id'] : null,
             'endpoint_label' => $supported ? $endpoint['label'] : null,
             'method' => $supported ? $method : null,
-            'req_format' => $supported ? $format : null,
+            'req_format' => $supported ? $format->value : null,
             'skip_module' => (bool) ($data['skip_module'] ?? false),
         ];
     }
@@ -220,7 +228,7 @@ class PivotEndpointRegistry
         $voiceUrl = $endpoint['voice_url'] ?? null;
         $cdrUrl = $endpoint['cdr_url'] ?? null;
         $methods = $this->allowedValues($endpoint['methods'] ?? ['get'], ['get', 'post']);
-        $formats = $this->allowedValues($endpoint['formats'] ?? ['kazoo'], ['kazoo', 'twiml']);
+        $formats = $this->responseFormats($endpoint['formats'] ?? [PivotResponseFormat::Switch->value]);
         $bodyFormat = $endpoint['req_body_format'] ?? 'form';
         $timeout = $endpoint['req_timeout_ms'] ?? 5000;
         $debug = $endpoint['debug'] ?? false;
@@ -262,6 +270,19 @@ class PivotEndpointRegistry
             fn (mixed $value): ?string => is_string($value) ? strtolower($value) : null,
             $values,
         ), fn (?string $value): bool => $value !== null && in_array($value, $allowed, true))));
+    }
+
+    /** @return list<string> */
+    private function responseFormats(mixed $values): array
+    {
+        if (! is_array($values) || ! array_is_list($values)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            fn (mixed $value): ?string => PivotResponseFormat::fromStoredValue($value)?->value,
+            $values,
+        ))));
     }
 
     private function headersAreSafe(mixed $headers): bool

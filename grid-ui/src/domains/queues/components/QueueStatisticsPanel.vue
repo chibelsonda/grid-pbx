@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { ArrowPathIcon } from '@heroicons/vue/24/outline'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import type { QueueStatistics } from '../types/queue'
 
 const props = defineProps<{
@@ -10,7 +11,7 @@ const props = defineProps<{
   error: string | null
 }>()
 
-defineEmits<{ refresh: [] }>()
+const emit = defineEmits<{ refresh: []; openQueue: [queueId: string] }>()
 
 const observedAt = computed(() =>
   props.statistics
@@ -27,6 +28,14 @@ function duration(seconds: number | null): string {
   const minutes = Math.floor(seconds / 60)
   const remainder = seconds % 60
   return remainder === 0 ? minutes + 'm' : minutes + 'm ' + remainder + 's'
+}
+
+async function handleRowAction(
+  actionId: string,
+  queue: { id: string; name: string },
+): Promise<void> {
+  if (actionId === 'copy') await navigator.clipboard?.writeText(queue.name)
+  else emit('openQueue', queue.id)
 }
 </script>
 
@@ -112,6 +121,7 @@ function duration(seconds: number | null): string {
               <th scope="col" class="px-4 py-3">Abandoned</th>
               <th scope="col" class="px-4 py-3">Avg wait</th>
               <th scope="col" class="py-3 pl-4">Avg talk</th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-slate-600">
@@ -123,6 +133,16 @@ function duration(seconds: number | null): string {
               <td class="px-4 py-3">{{ queue.abandoned }}</td>
               <td class="px-4 py-3">{{ duration(queue.average_wait_seconds) }}</td>
               <td class="py-3 pl-4">{{ duration(queue.average_talk_seconds) }}</td>
+              <td class="py-3 pl-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${queue.name}`"
+                  :actions="[
+                    { id: 'open', label: 'Open queue', icon: 'view' },
+                    { id: 'copy', label: 'Copy queue name', icon: 'copy' },
+                  ]"
+                  @select="handleRowAction($event, queue)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>
