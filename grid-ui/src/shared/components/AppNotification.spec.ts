@@ -43,6 +43,6 @@ describe('AppNotification', () => {
     expect(notification.attributes('aria-live')).toBe(liveMode)
     expect(notification.attributes('data-tone')).toBe(tone)
     expect(notification.classes()).toContain(`app-notification-${tone}`)
-    expect(notification.get('.app-notification-accent').exists()).toBe(true)
+    expect(notification.find('.app-notification-accent').exists()).toBe(true)
   })
 })
