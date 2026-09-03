@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -67,6 +67,7 @@ const resourceActions = ref<{
   id: string | null
   label: string | null
 } | null>(null)
+let suppressParentClose = false
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
   props.rootConfiguration && props.context.operation === 'create'
@@ -80,6 +81,19 @@ const actionIcon = computed(() =>
     action: typeof form.data.action === 'string' ? form.data.action : undefined,
   }),
 )
+
+function closeResourceActions(): void {
+  suppressParentClose = true
+  resourceActions.value = null
+  void nextTick(() => {
+    suppressParentClose = false
+  })
+}
+
+function closePanel(): void {
+  if (resourceActions.value || suppressParentClose) return
+  emit('close')
+}
 const branchBnumberHasExactChildren = computed(
   () =>
     module.value === 'branch_bnumber' &&
@@ -715,7 +729,7 @@ watch(
     eyebrow="GridPBX / Callflows / Action"
     description="Configure the public Switch schema fields for this inline action."
     width="medium"
-    @close="emit('close')"
+    @close="closePanel"
   >
     <div v-if="lockedReason" class="grid gap-5">
       <div
@@ -2411,6 +2425,6 @@ watch(
     :type="resourceActions.type"
     :selected-id="resourceActions.id"
     :selected-label="resourceActions.label"
-    @close="resourceActions = null"
+    @close="closeResourceActions"
   />
 </template>

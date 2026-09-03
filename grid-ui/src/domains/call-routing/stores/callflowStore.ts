@@ -55,10 +55,12 @@ export const useCallflowStore = defineStore('call-routing', {
     mutationError: null as string | null,
     treeMutationError: null as string | null,
     capabilityRefreshSequence: 0,
+    detailRequestSequence: 0,
   }),
   actions: {
     reset(): void {
       this.capabilityRefreshSequence += 1
+      this.detailRequestSequence += 1
       this.records = []
       this.detail = null
       this.editor = null
@@ -77,6 +79,7 @@ export const useCallflowStore = defineStore('call-routing', {
       this.treeDeleting = false
       this.treeEditor = null
       this.treeEditorLoading = false
+      this.detailLoading = false
       this.treeNodeError = null
       this.treeNodeFieldErrors = {}
       this.entryPointSaving = false
@@ -105,28 +108,33 @@ export const useCallflowStore = defineStore('call-routing', {
       await this.refreshDetail(accountId, callflowId)
     },
     async refreshDetail(accountId: string, callflowId: string): Promise<boolean> {
+      const requestSequence = ++this.detailRequestSequence
       this.detailError = null
       this.detailLoading = true
 
       try {
         const refreshed = await callflowApi.detail(accountId, callflowId)
+        if (requestSequence !== this.detailRequestSequence) return false
         this.detail = refreshed
         const index = this.records.findIndex((record) => record.id === refreshed.id)
         if (index >= 0) this.records[index] = refreshed
 
         return true
       } catch (error) {
+        if (requestSequence !== this.detailRequestSequence) return false
         this.detailError = normalizeApiError(error, 'Unable to load the callflow.').message
 
         return false
       } finally {
-        this.detailLoading = false
+        if (requestSequence === this.detailRequestSequence) this.detailLoading = false
       }
     },
     closeDetail(): void {
       this.capabilityRefreshSequence += 1
+      this.detailRequestSequence += 1
       this.detail = null
       this.detailError = null
+      this.detailLoading = false
     },
     async openEditor(accountId: string, callflowId: string): Promise<void> {
       this.capabilityRefreshSequence += 1
@@ -167,10 +175,7 @@ export const useCallflowStore = defineStore('call-routing', {
         this.editorLoading = false
       }
     },
-    async refreshCapabilityOptions(
-      accountId: string,
-      callflowId: string | null,
-    ): Promise<boolean> {
+    async refreshCapabilityOptions(accountId: string, callflowId: string | null): Promise<boolean> {
       const refreshSequence = ++this.capabilityRefreshSequence
 
       try {
@@ -189,10 +194,7 @@ export const useCallflowStore = defineStore('call-routing', {
       } catch (error) {
         if (refreshSequence !== this.capabilityRefreshSequence) return false
 
-        const message = normalizeApiError(
-          error,
-          'Unable to refresh Callflow capabilities.',
-        ).message
+        const message = normalizeApiError(error, 'Unable to refresh Callflow capabilities.').message
 
         if (callflowId) this.treeNodeError = message
         else this.editorError = message
@@ -352,10 +354,7 @@ export const useCallflowStore = defineStore('call-routing', {
 
         return true
       } catch (error) {
-        this.treeNodeError = normalizeApiError(
-          error,
-          'Unable to load action destinations.',
-        ).message
+        this.treeNodeError = normalizeApiError(error, 'Unable to load action destinations.').message
 
         return false
       } finally {

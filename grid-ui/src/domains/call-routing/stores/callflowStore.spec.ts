@@ -173,6 +173,25 @@ describe('callflow store', () => {
     expect(store.detail?.flow?.children._?.module).toBe('voicemail')
   })
 
+  it('does not reopen a route after it is closed while detail loading is in flight', async () => {
+    let resolveDetail!: (value: Callflow) => void
+    vi.mocked(callflowApi.detail).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve
+      }),
+    )
+    const store = useCallflowStore()
+
+    const loading = store.loadDetail('account-1', callflow.id)
+    expect(store.detailLoading).toBe(true)
+    store.closeDetail()
+    resolveDetail(callflow)
+    await loading
+
+    expect(store.detail).toBeNull()
+    expect(store.detailLoading).toBe(false)
+  })
+
   it('reloads routes after the shared PBX projection sync completes', async () => {
     vi.mocked(callflowApi.startProjectionSync).mockResolvedValue({
       id: 'run-1',

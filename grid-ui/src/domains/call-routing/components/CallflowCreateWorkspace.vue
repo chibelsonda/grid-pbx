@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { LinkIcon, ShieldCheckIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
@@ -71,6 +71,7 @@ const metadataOpen = ref(false)
 const entryNumberOpen = ref(false)
 const actionOpen = ref(false)
 const resourceActionsOpen = ref(false)
+let suppressActionClose = false
 const selectedAction = ref<CallflowAction | null>(null)
 const rootActionChosen = ref(false)
 const rootActionError = ref<string | null>(null)
@@ -315,6 +316,19 @@ const rootConfigurationContext = computed<CallflowNodeEditorContext>(() => ({
 
 function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
+}
+
+function closeResourceActions(): void {
+  suppressActionClose = true
+  resourceActionsOpen.value = false
+  void nextTick(() => {
+    suppressActionClose = false
+  })
+}
+
+function closeActionDialog(): void {
+  if (resourceActionsOpen.value || suppressActionClose) return
+  actionOpen.value = false
 }
 
 function isInlineRootModule(module: string | undefined): module is CallflowInlineRootModule {
@@ -984,7 +998,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
     :open="actionOpen && selectedAction !== null && !isInlineRootModule(selectedAction.module)"
     :title="selectedAction ? `Configure ${selectedAction.label}` : 'Configure action'"
     breadcrumb="Create callflow / Root action"
-    @close="actionOpen = false"
+    @close="closeActionDialog"
   >
     <div v-if="selectedAction" class="grid gap-5">
       <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
@@ -1291,7 +1305,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
     :type="selectedActionDestinationType"
     :selected-id="selectedDestination?.id ?? null"
     :selected-label="selectedDestination?.label ?? null"
-    @close="resourceActionsOpen = false"
+    @close="closeResourceActions"
   />
 </template>
 

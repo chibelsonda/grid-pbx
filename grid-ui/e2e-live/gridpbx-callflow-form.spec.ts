@@ -40,6 +40,36 @@ async function mockIsolatedAccount(page: Page): Promise<void> {
       }),
     })
   })
+  await page.route('**/api/v1/accounts/*/callflows/extension-availability?*', async (route) => {
+    const number = new URL(route.request().url()).searchParams.get('number') ?? ''
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          number,
+          available: true,
+          reason: null,
+          conflict: null,
+          suggested_extension: null,
+        },
+      }),
+    })
+  })
+  await page.route('**/api/v1/accounts/*/sync/extensions', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'isolated-callflow-projection-sync',
+          resource_type: 'extensions',
+          status: 'succeeded',
+          error_message: null,
+        },
+      }),
+    })
+  })
 }
 
 function isolatedCreateEditor() {
@@ -728,6 +758,7 @@ test('opens every guided palette modal dropped onto a saved callflow node', asyn
         await expect(closeResourceActions).toBeVisible()
         await closeResourceActions.click()
         await expect(closeResourceActions).toHaveCount(0)
+        await expect(actionDialog).toHaveAttribute('data-headlessui-state', 'open')
       }
 
       await actionDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
@@ -2495,27 +2526,27 @@ test('keeps profile-gated integration actions draggable after cancel and save', 
 
   await pivotAction.dragTo(workspace.getByRole('treeitem', { name: /^User: Reception/ }))
 
-  const dialog = page.getByRole('dialog', { name: 'Configure Pivot' })
+  const dialog = page.getByRole('dialog', { name: 'Add Pivot' })
   await expect(dialog).toContainText('administrator-approved HTTPS application')
   await dialog.getByRole('button', { name: 'Voice application' }).click()
   await page.getByRole('option', { name: 'Customer IVR' }).click()
   await expect(dialog.getByRole('button', { name: 'Request method' })).toContainText('POST')
   await expect(dialog.getByRole('button', { name: 'Response format' })).toContainText('TwiML')
-  await dialog.getByRole('button', { name: 'Use action' }).click()
+  await dialog.getByRole('button', { name: 'Add action' }).click()
   await expect(dialog).toBeHidden()
   expect(pivotCreateCount).toBe(1)
 
   await expect(pivotAction).toBeEnabled()
   await expect(pivotAction).toHaveAttribute('draggable', 'true')
   await pivotAction.dragTo(workspace.getByRole('treeitem', { name: /^User: Reception/ }))
-  const secondDialog = page.getByRole('dialog', { name: 'Configure Pivot' })
+  const secondDialog = page.getByRole('dialog', { name: 'Add Pivot' })
   await secondDialog.getByRole('button', { name: 'Voice application' }).click()
   await page.getByRole('option', { name: 'After-hours IVR' }).click()
   await expect(secondDialog.getByRole('button', { name: 'Request method' })).toContainText('GET')
   await expect(secondDialog.getByRole('button', { name: 'Response format' })).toContainText(
     'Switch Pivot',
   )
-  await secondDialog.getByRole('button', { name: 'Use action' }).click()
+  await secondDialog.getByRole('button', { name: 'Add action' }).click()
   await expect(secondDialog).toBeHidden()
   expect(pivotCreateCount).toBe(2)
   expect(selectedPivotEndpoints).toEqual(['customer-ivr', 'after-hours-ivr'])
@@ -2529,9 +2560,7 @@ test('keeps profile-gated integration actions draggable after cancel and save', 
       await expect(action).toHaveAttribute('draggable', 'true')
       await action.dragTo(workspace.getByRole('treeitem', { name: /^User: Reception/ }))
       const actionPanel = page.getByRole('dialog').last()
-      await expect(
-        actionPanel.getByRole('heading', { name: `Configure ${actionLabel}` }),
-      ).toBeVisible()
+      await expect(actionPanel.getByRole('heading', { name: `Add ${actionLabel}` })).toBeVisible()
       if (actionLabel === 'DISA') {
         await expect(actionPanel.getByText('Operational ingress guard ready')).toBeVisible()
       }
@@ -2924,7 +2953,7 @@ test('refreshes profile-gated create actions without resetting the unsaved callf
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2997')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await canvas.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
+  await canvas.getByRole('button', { name: 'Edit callflow name and numbers', exact: true }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Unsaved capability refresh')
   await metadata.getByRole('button', { name: 'Done' }).click()
@@ -3192,7 +3221,7 @@ test('refreshes profile-gated actions across tabs without resetting the open dra
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2996')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await canvas.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
+  await canvas.getByRole('button', { name: 'Edit callflow name and numbers', exact: true }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Cross-tab unsaved draft')
   await metadata.getByRole('button', { name: 'Done' }).click()
@@ -3405,8 +3434,10 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await rootAction.dispatchEvent('dragstart', { dataTransfer })
   await canvas.dispatchEvent('dragenter', { dataTransfer })
   await canvas.dispatchEvent('dragover', { dataTransfer })
-  await expect(canvas).toContainText('Drop to use this as the root action.')
   await canvas.dispatchEvent('drop', { dataTransfer })
+  const replaceRoot = page.getByRole('dialog', { name: 'Replace root action?' })
+  await expect(replaceRoot).toHaveAttribute('data-headlessui-state', 'open')
+  await replaceRoot.getByRole('button', { name: 'Replace root action' }).click()
   const actionDialog = page.getByRole('dialog', { name: 'Configure User' })
   await expect(actionDialog.getByRole('button', { name: 'Root action destination' })).toBeVisible()
   await actionDialog.getByRole('button', { name: 'Root action destination' }).click()
@@ -3483,7 +3514,7 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
   await scheduleDialog.getByRole('button', { name: 'Use action' }).click()
   await expect(canvas.locator('[data-callflow-create-branch-label]')).toHaveText('rule_set')
 
-  await workspace.getByRole('button', { name: 'Create callflow' }).click()
+  await page.getByRole('button', { name: 'Create callflow', exact: true }).click()
   const metadataDialog = page.getByRole('dialog', { name: 'Callflow' })
   const name = metadataDialog.getByLabel('Callflow name')
   await expect(name).toHaveAttribute('aria-invalid', 'true')
@@ -3548,7 +3579,7 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2999')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await canvas.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
+  await canvas.getByRole('button', { name: 'Edit callflow name and numbers', exact: true }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Conflicting extension route')
   await metadata.getByRole('button', { name: 'Done' }).click()
@@ -3566,7 +3597,7 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
       response.request().method() === 'POST' &&
       /\/api\/v1\/accounts\/[^/]+\/callflows$/.test(new URL(response.url()).pathname),
   )
-  await workspace.getByRole('button', { name: 'Create callflow' }).click()
+  await page.getByRole('button', { name: 'Create callflow', exact: true }).click()
   expect((await rejected).status()).toBe(422)
 
   addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
@@ -3614,9 +3645,11 @@ test('keeps the edit panel open when the final required entry number is removed'
   await expect(extensionInput).toHaveAttribute('aria-invalid', 'true')
   await expect(extensionInput).toHaveClass(/border-red-400/)
   await expect(
-    dialog.getByText(
-      'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
-    ),
+    dialog
+      .getByTestId('form-error-summary')
+      .getByText(
+        'Keep at least one extension or phone number because Switch callflows require a number or pattern.',
+      ),
   ).toBeVisible()
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
@@ -4430,6 +4463,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
       node_path: ['_'],
       destination_type: 'extension',
       destination_id: 'aa90a27d-6726-43ee-820c-bbf68008a0f6',
+      data: { timeout: 20, can_call_self: false },
     })
   await expect(editPanel).toHaveCount(0)
   await expect(workspace.getByRole('treeitem', { name: 'User: Support' })).toBeVisible()
@@ -4491,7 +4525,11 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   await callerIdPattern.fill('(?R)')
   await checkCidPanel.getByRole('button', { name: 'Add action' }).click()
   await expect(callerIdPattern).toHaveAttribute('aria-invalid', 'true')
-  await expect(checkCidPanel.getByText('Enter a supported regular expression.')).toBeVisible()
+  await expect(
+    checkCidPanel
+      .getByTestId('form-error-summary')
+      .getByText('Enter a supported regular expression.'),
+  ).toBeVisible()
   await checkCidPanel.getByRole('button', { name: 'Cancel' }).click()
   await expect(checkCidPanel).toHaveCount(0)
 
@@ -4540,7 +4578,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
       branch: '_',
       placement: 'append',
       module: 'response',
-      data: { code: 603, message: 'Decline', skip_module: false },
+      data: { code: 603, message: 'Decline', media_id: null, skip_module: false },
     })
   await expect(responsePanel).toHaveCount(0)
 

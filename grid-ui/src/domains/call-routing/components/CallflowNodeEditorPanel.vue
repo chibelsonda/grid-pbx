@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, nextTick, ref } from 'vue'
 import { LinkIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
@@ -51,6 +51,7 @@ const action = computed(() => findCallflowAction(props.context.module))
 const actionIcon = computed(() => callflowActionIcon(props.context.module))
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const resourceActionsOpen = ref(false)
+let suppressParentClose = false
 const destinationOptions = computed<ListboxOptionValue[]>(() =>
   destinations.value.map(({ id, label, detail }) => ({
     value: id,
@@ -90,6 +91,19 @@ function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
 }
 
+function closeResourceActions(): void {
+  suppressParentClose = true
+  resourceActionsOpen.value = false
+  void nextTick(() => {
+    suppressParentClose = false
+  })
+}
+
+function closePanel(): void {
+  if (resourceActionsOpen.value || suppressParentClose) return
+  emit('close')
+}
+
 function setBranch(value: ListboxValue): void {
   if (branches.value.some((option) => option.value === value)) {
     form.branch = value as CallflowTreeBranchKey
@@ -124,7 +138,7 @@ function submit(): void {
         : 'Change this action target while preserving its module settings and complete subtree.'
     "
     width="medium"
-    @close="emit('close')"
+    @close="closePanel"
   >
     <div
       v-if="loading"
@@ -269,6 +283,6 @@ function submit(): void {
     :type="destinationType"
     :selected-id="selectedDestination?.id ?? null"
     :selected-label="selectedDestination?.label ?? null"
-    @close="resourceActionsOpen = false"
+    @close="closeResourceActions"
   />
 </template>
