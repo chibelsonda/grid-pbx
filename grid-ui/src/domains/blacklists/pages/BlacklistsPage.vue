@@ -1,16 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ChevronRightIcon,
-  PlusIcon,
-  ShieldCheckIcon,
-  ShieldExclamationIcon,
-} from '@heroicons/vue/24/outline'
+import { PlusIcon, ShieldCheckIcon, ShieldExclamationIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import BlacklistFormPanel from '../components/BlacklistFormPanel.vue'
 import { useBlacklistStore } from '../stores/blacklistStore'
@@ -21,6 +19,7 @@ const blacklists = useBlacklistStore()
 const route = useRoute()
 const router = useRouter()
 const panel = ref(false)
+const confirmDelete = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const lastSynchronizedAt = computed(() => latestSynchronizedAt(blacklists.records))
 const activeCount = computed(() => blacklists.records.filter((record) => record.is_active).length)
@@ -70,9 +69,19 @@ async function save(input: BlacklistInput): Promise<void> {
 }
 async function remove(): Promise<void> {
   if (accounts.selectedId && (await blacklists.remove(accounts.selectedId))) {
+    confirmDelete.value = false
     panel.value = false
     clearBlacklistQuery()
   }
+}
+async function handleRowAction(actionId: string, id: string): Promise<void> {
+  if (actionId === 'delete' && accounts.selectedId) {
+    await blacklists.prepare(accounts.selectedId, id)
+    confirmDelete.value = blacklists.detail !== null
+    return
+  }
+
+  await open(id)
 }
 function closePanel(): void {
   panel.value = false
@@ -182,7 +191,7 @@ function clearBlacklistQuery(): void {
               <th scope="col" class="px-5 py-3.5">Numbers</th>
               <th scope="col" class="px-5 py-3.5">Anonymous</th>
               <th scope="col" class="px-5 py-3.5">Account status</th>
-              <th scope="col" class="w-12" aria-label="Open blacklist"></th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -232,7 +241,13 @@ function clearBlacklistQuery(): void {
                   >{{ record.is_active ? 'Active' : 'Inactive' }}</span
                 >
               </td>
-              <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+              <td class="px-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${record.name}`"
+                  :actions="crudRowActions(canManage)"
+                  @select="handleRowAction($event, record.id)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>
@@ -249,5 +264,15 @@ function clearBlacklistQuery(): void {
     @close="closePanel"
     @save="save"
     @remove="remove"
+  />
+  <ConfirmDialog
+    :open="confirmDelete"
+    title="Delete blacklist"
+    :description="`Delete ${blacklists.detail?.name ?? 'this blacklist'}? This cannot be undone.`"
+    confirm-label="Delete blacklist"
+    tone="danger"
+    :busy="blacklists.saving"
+    @close="confirmDelete = false"
+    @confirm="remove"
   />
 </template>

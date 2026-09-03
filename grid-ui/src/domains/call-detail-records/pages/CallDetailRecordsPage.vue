@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
-  ChevronRightIcon,
   ClockIcon,
   PhoneIcon,
 } from '@heroicons/vue/24/outline'
@@ -13,6 +12,8 @@ import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallDetailRecordPanel from '../components/CallDetailRecordPanel.vue'
 import { useCallDetailRecordFilters } from '../composables/useCallDetailRecordFilters'
@@ -21,6 +22,7 @@ import {
   type CallDetailRecordDrilldown,
 } from '../schemas/callDetailRecordDrilldownSchema'
 import { useCallDetailRecordStore } from '../stores/callDetailRecordStore'
+import type { CallDetailRecord } from '../types/callDetailRecord'
 
 const accounts = useAccountStore()
 const calls = useCallDetailRecordStore()
@@ -215,6 +217,26 @@ function synchronize(): void {
 
 function openDetail(id: string): void {
   void router.replace({ query: { ...route.query, cdr: id } })
+}
+
+function callActions(record: CallDetailRecord): RowAction[] {
+  return [
+    { id: 'view', label: 'View details', icon: 'view' },
+    { id: 'copy', label: 'Copy call ID', icon: 'copy' },
+    ...(record.recordings.length
+      ? [{ id: 'recording', label: 'Open recording', icon: 'play' as const }]
+      : []),
+  ]
+}
+
+async function handleRowAction(actionId: string, record: CallDetailRecord): Promise<void> {
+  if (actionId === 'copy') {
+    await navigator.clipboard?.writeText(record.call_id)
+  } else if (actionId === 'recording' && record.recordings[0]) {
+    await router.push({ name: 'recordings', query: { recording: record.recordings[0].id } })
+  } else {
+    openDetail(record.id)
+  }
 }
 
 function closeDetail(): void {
@@ -469,7 +491,7 @@ function humanize(value: string | null): string {
               <th class="px-5 py-3.5">Callee</th>
               <th class="px-5 py-3.5">Duration</th>
               <th class="px-5 py-3.5">Outcome</th>
-              <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+              <th scope="col" class="w-12 px-5 py-3.5" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -538,15 +560,12 @@ function humanize(value: string | null): string {
                   >{{ record.answered ? 'Answered' : 'Unanswered' }}</span
                 >
               </td>
-              <td class="px-5 py-3.5">
-                <button
-                  type="button"
-                  :aria-label="`View call from ${record.caller.number ?? 'unknown caller'}`"
-                  class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                  @click.stop="openDetail(record.id)"
-                >
-                  <ChevronRightIcon class="size-4" />
-                </button>
+              <td class="px-3 py-3.5 text-right">
+                <RowActionMenu
+                  :label="`Actions for call from ${record.caller.number ?? 'unknown caller'}`"
+                  :actions="callActions(record)"
+                  @select="handleRowAction($event, record)"
+                />
               </td>
             </tr>
           </tbody>

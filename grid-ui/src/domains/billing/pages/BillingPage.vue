@@ -16,6 +16,7 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SandboxPaymentPanel from '@/domains/payments/components/SandboxPaymentPanel.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import BillingRecordDetailPanel from '../components/BillingRecordDetailPanel.vue'
 import { useBillingStore } from '../stores/billingStore'
 import type { BillingRecord } from '../types/billing'
@@ -101,6 +102,13 @@ function showReceipt(index: number): void {
     item,
   }
   if (accounts.selectedId) void billing.loadReceipt(accounts.selectedId, item.id)
+}
+
+function handleDocumentAction(actionId: string, kind: 'invoice' | 'receipt', index: number): void {
+  if (kind === 'invoice') showInvoice(index)
+  else showReceipt(index)
+
+  if (actionId === 'download') downloadDocument()
 }
 
 function showConfirmation(index: number): void {
@@ -428,7 +436,7 @@ watch(
                         <th class="px-5 py-3">Issued</th>
                         <th class="px-5 py-3 text-right">Total</th>
                         <th class="px-5 py-3 text-right">Due</th>
-                        <th class="w-12"></th>
+                        <th scope="col" class="w-12" aria-label="Actions"></th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -457,7 +465,16 @@ watch(
                         <td class="px-5 py-3.5 text-right font-semibold text-slate-800">
                           {{ amount(invoice.amount_due) }}
                         </td>
-                        <td class="px-3"><ChevronRightIcon class="size-4 text-slate-400" /></td>
+                        <td class="px-3 text-right">
+                          <RowActionMenu
+                            :label="`Actions for invoice ${invoice.number || invoice.id}`"
+                            :actions="[
+                              { id: 'view', label: 'View invoice', icon: 'view' },
+                              { id: 'download', label: 'Download invoice', icon: 'download' },
+                            ]"
+                            @select="handleDocumentAction($event, 'invoice', index)"
+                          />
+                        </td>
                       </tr>
                     </tbody>
                   </table>
@@ -484,7 +501,7 @@ watch(
                         <th class="px-5 py-3">Status</th>
                         <th class="px-5 py-3">Paid</th>
                         <th class="px-5 py-3 text-right">Amount</th>
-                        <th class="w-12"></th>
+                        <th scope="col" class="w-12" aria-label="Actions"></th>
                       </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
@@ -508,7 +525,16 @@ watch(
                         <td class="px-5 py-3.5 text-right font-semibold text-slate-800">
                           {{ receipt.currency || '' }} {{ amount(receipt.amount) }}
                         </td>
-                        <td class="px-3"><ChevronRightIcon class="size-4 text-slate-400" /></td>
+                        <td class="px-3 text-right">
+                          <RowActionMenu
+                            :label="`Actions for receipt ${receipt.number || receipt.id}`"
+                            :actions="[
+                              { id: 'view', label: 'View receipt', icon: 'view' },
+                              { id: 'download', label: 'Download receipt', icon: 'download' },
+                            ]"
+                            @select="handleDocumentAction($event, 'receipt', index)"
+                          />
+                        </td>
                       </tr>
                     </tbody>
                   </table>

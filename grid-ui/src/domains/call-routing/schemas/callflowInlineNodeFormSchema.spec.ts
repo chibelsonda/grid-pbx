@@ -261,7 +261,7 @@ describe('callflow inline node form schema', () => {
     ).toBe(false)
   })
 
-  it('allows only Kazoo call priority with a bounded value', () => {
+  it('allows only Switch call priority with a bounded value', () => {
     const schema = createCallflowInlineNodeFormSchema('set_variable', ['_'], true)
     const valid = {
       branch: '_',
@@ -280,7 +280,7 @@ describe('callflow inline node form schema', () => {
     )
   })
 
-  it('allows only the Kazoo Call Priority branch scope', () => {
+  it('allows only the Switch Call Priority branch scope', () => {
     const schema = createCallflowInlineNodeFormSchema('branch_variable', ['42'], true)
     const valid = {
       branch: '42',
@@ -495,9 +495,9 @@ describe('callflow inline node form schema', () => {
       schema.safeParse({ ...valid, data: { ...valid.data, phone_number_id: '+15551234567' } })
         .success,
     ).toBe(false)
-    expect(
-      schema.safeParse({ ...valid, data: { ...valid.data, action: 'manual' } }).success,
-    ).toBe(false)
+    expect(schema.safeParse({ ...valid, data: { ...valid.data, action: 'manual' } }).success).toBe(
+      false,
+    )
     expect(
       schema.safeParse({ ...valid, data: { ...valid.data, caller_id_number: '+15551234567' } })
         .success,

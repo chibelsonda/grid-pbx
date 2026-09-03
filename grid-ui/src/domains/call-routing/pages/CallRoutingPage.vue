@@ -5,7 +5,6 @@ import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
   BoltIcon,
-  ChevronRightIcon,
   PhoneArrowDownLeftIcon,
   PencilSquareIcon,
   QueueListIcon,
@@ -13,9 +12,12 @@ import {
   XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import PageBackLink from '@/shared/components/PageBackLink.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions } from '@/shared/components/rowAction'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import CallflowDetailPanel from '../components/CallflowDetailPanel.vue'
 import CallflowAddEntryNumberDialog, {
@@ -42,6 +44,7 @@ import type {
   CallflowTreeNodeUpdateInput,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
+  Callflow,
 } from '../types/callRouting'
 
 const accounts = useAccountStore()
@@ -49,6 +52,7 @@ const route = useRoute()
 const callflows = useCallflowStore()
 const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
 const entryNumberOpen = ref(false)
+const confirmRouteDelete = ref(false)
 let stopCapabilityListener: (() => void) | null = null
 
 function nodeEditorAction(context: CallflowNodeEditorContext): unknown {
@@ -133,10 +137,12 @@ function refreshCallflowNodes(): void {
   void callflows.refreshDetail(accounts.selectedId, callflows.detail.id)
 }
 
-function openDetail(id: string): void {
+async function openDetail(id: string): Promise<void> {
   if (accounts.selectedId) {
-    void callflows.loadDetail(accounts.selectedId, id)
-    void callflows.loadTreeEditor(accounts.selectedId, id)
+    await Promise.all([
+      callflows.loadDetail(accounts.selectedId, id),
+      callflows.loadTreeEditor(accounts.selectedId, id),
+    ])
   }
 }
 
@@ -282,9 +288,22 @@ async function saveTreeNode(
   if (updated) nodeEditorContext.value = null
 }
 
-function deleteRoute(): void {
+async function deleteRoute(): Promise<void> {
   if (accounts.selectedId && callflows.detail) {
-    void callflows.destroy(accounts.selectedId, callflows.detail.id)
+    if (await callflows.destroy(accounts.selectedId, callflows.detail.id)) {
+      confirmRouteDelete.value = false
+    }
+  }
+}
+
+async function handleRowAction(actionId: string, record: Callflow): Promise<void> {
+  await openDetail(record.id)
+  if (!callflows.detail) return
+
+  if (actionId === 'edit') {
+    openEditor()
+  } else if (actionId === 'delete') {
+    confirmRouteDelete.value = true
   }
 }
 
@@ -304,11 +323,11 @@ function routeTitle(route: {
 </script>
 
 <template>
-  <section
-    data-callflow-page-header
-    class="border-b border-slate-200/80 bg-white px-4 py-5 sm:px-6 lg:px-8"
-  >
-    <div class="flex w-full flex-col gap-4 sm:flex-row sm:items-center">
+  <section data-callflow-page-header class="border-b border-slate-200/80 bg-white py-5">
+    <div
+      class="flex w-full flex-col gap-4 sm:flex-row sm:items-center"
+      :class="workspaceOpen ? 'px-4 sm:px-6 lg:px-8' : 'page-container'"
+    >
       <div class="min-w-0 flex-1">
         <p class="mb-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <template v-if="viewingRoute">
@@ -379,7 +398,10 @@ function routeTitle(route: {
     </div>
   </section>
 
-  <div :class="workspaceOpen ? 'w-full' : 'mx-auto w-full max-w-[1500px] p-4 sm:p-6 lg:p-8'">
+  <div
+    data-callflow-page-content
+    :class="workspaceOpen ? 'w-full' : 'page-container py-4 sm:py-6 lg:py-8'"
+  >
     <template v-if="workspaceOpen">
       <CallflowEditorPanel
         v-if="creatingRoute"
@@ -529,7 +551,7 @@ function routeTitle(route: {
                 <th scope="col" class="px-5 py-3.5">Type</th>
                 <th scope="col" class="px-5 py-3.5">Path</th>
                 <th scope="col" class="px-5 py-3.5">Assignment</th>
-                <th scope="col" aria-label="View callflow" class="w-12 px-5 py-3.5" />
+                <th scope="col" aria-label="Actions" class="w-12 px-5 py-3.5" />
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
@@ -592,15 +614,12 @@ function routeTitle(route: {
                     'Unassigned'
                   }}
                 </td>
-                <td class="px-5 py-3.5">
-                  <button
-                    type="button"
-                    :aria-label="`View ${routeTitle(route)}`"
-                    class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                    @click.stop="openDetail(route.id)"
-                  >
-                    <ChevronRightIcon class="size-4" />
-                  </button>
+                <td class="px-3 py-3.5 text-right">
+                  <RowActionMenu
+                    :label="`Actions for ${routeTitle(route)}`"
+                    :actions="crudRowActions(canManage, canManage && !route.feature_code)"
+                    @select="handleRowAction($event, route)"
+                  />
                 </td>
               </tr>
             </tbody>
@@ -684,5 +703,15 @@ function routeTitle(route: {
     :field-errors="callflows.treeNodeFieldErrors"
     @close="closeNodeEditor"
     @save="saveTreeNode"
+  />
+  <ConfirmDialog
+    :open="confirmRouteDelete"
+    title="Delete callflow"
+    :description="`Delete ${callflows.detail ? routeTitle(callflows.detail) : 'this callflow'} after checking its assigned numbers and routing dependencies?`"
+    confirm-label="Delete callflow"
+    tone="danger"
+    :busy="callflows.deleting"
+    @close="confirmRouteDelete = false"
+    @confirm="deleteRoute"
   />
 </template>

@@ -10,7 +10,7 @@ export type PivotIntegrationProfile = CallflowIntegrationProfileBase & {
   integration_type: 'pivot'
   configuration: {
     methods: Array<'get' | 'post'>
-    formats: Array<'kazoo' | 'twiml'>
+    formats: Array<'switch' | 'twiml'>
     has_cdr_callback: boolean
     has_custom_headers: boolean
   }
@@ -58,7 +58,7 @@ export type PivotIntegrationProfileInput = {
     voice_url: string
     cdr_url: string | null
     methods: Array<'get' | 'post'>
-    formats: Array<'kazoo' | 'twiml'>
+    formats: Array<'switch' | 'twiml'>
     req_body_format: 'form' | 'json'
     req_timeout_ms: number
     custom_request_headers: Record<string, string>

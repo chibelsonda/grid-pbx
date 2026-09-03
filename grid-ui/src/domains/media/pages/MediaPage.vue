@@ -1,23 +1,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import {
-  ChevronRightIcon,
-  MusicalNoteIcon,
-  PlusIcon,
-  SpeakerWaveIcon,
-} from '@heroicons/vue/24/outline'
+import { MusicalNoteIcon, PlusIcon, SpeakerWaveIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import MediaAudioPanel from '../components/MediaAudioPanel.vue'
 import MediaDeletePanel from '../components/MediaDeletePanel.vue'
 import MediaDetailPanel from '../components/MediaDetailPanel.vue'
 import MediaFormPanel from '../components/MediaFormPanel.vue'
 import MusicOnHoldPanel from '../components/MusicOnHoldPanel.vue'
 import { useMediaStore } from '../stores/mediaStore'
-import type { MediaCreate, MediaUpdate } from '../types/media'
+import type { Media, MediaCreate, MediaUpdate } from '../types/media'
 
 const accounts = useAccountStore()
 const media = useMediaStore()
@@ -106,6 +103,30 @@ function openCreate(): void {
 function openMutationPanel(next: 'edit' | 'audio' | 'delete'): void {
   media.clearMutationError()
   panel.value = next
+}
+
+function mediaActions(record: Media): RowAction[] {
+  return [
+    { id: 'view', label: 'View details', icon: 'view' },
+    ...(record.streamable ? [{ id: 'play', label: 'Play audio', icon: 'play' as const }] : []),
+    ...(canManage.value
+      ? [
+          { id: 'edit', label: 'Edit', icon: 'edit' as const },
+          ...(record.streamable
+            ? [{ id: 'audio', label: 'Replace audio', icon: 'manage' as const }]
+            : []),
+          { id: 'delete', label: 'Delete', icon: 'delete' as const, destructive: true },
+        ]
+      : []),
+  ]
+}
+
+async function handleRowAction(actionId: string, id: string): Promise<void> {
+  if (!accounts.selectedId) return
+  await loadDetail(accounts.selectedId, id)
+  if (!media.detail || ['view', 'play'].includes(actionId)) return
+
+  openMutationPanel(actionId as 'edit' | 'audio' | 'delete')
 }
 
 async function saveMoh(mediaId: string | null): Promise<void> {
@@ -264,7 +285,7 @@ function formatSize(bytes: number | null): string {
               <th class="px-5 py-3.5">Language</th>
               <th class="px-5 py-3.5">Audio</th>
               <th class="px-5 py-3.5">Usage</th>
-              <th class="w-12 px-5 py-3.5"><span class="sr-only">View</span></th>
+              <th scope="col" class="w-12 px-5 py-3.5" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -309,15 +330,12 @@ function formatSize(bytes: number | null): string {
                   >Music on hold</span
                 ><span v-else class="text-slate-400">—</span>
               </td>
-              <td class="px-5 py-3.5">
-                <button
-                  type="button"
-                  :aria-label="`View ${record.name}`"
-                  class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                  @click.stop="openDetail(record.id)"
-                >
-                  <ChevronRightIcon class="size-4" />
-                </button>
+              <td class="px-3 py-3.5 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${record.name}`"
+                  :actions="mediaActions(record)"
+                  @select="handleRowAction($event, record.id)"
+                />
               </td>
             </tr>
           </tbody>

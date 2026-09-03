@@ -54,6 +54,15 @@ watch(
   { immediate: true },
 )
 
+watch([() => voicemail.detail?.id, () => route.query.action], async ([detailId, action]) => {
+  if (detailId !== voicemailBoxId.value || action !== 'delete' || !canManage.value) return
+
+  const query = { ...route.query }
+  delete query.action
+  await router.replace({ query })
+  await remove()
+})
+
 async function remove(): Promise<void> {
   if (!accounts.selectedId || !voicemail.detail) return
   if (!window.confirm(`Delete voicemail box ${voicemail.detail.mailbox ?? voicemail.detail.name}?`))

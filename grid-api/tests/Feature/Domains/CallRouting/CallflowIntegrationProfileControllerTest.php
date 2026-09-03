@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Domains\CallRouting;
 
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Enums\OrganizationRole;
@@ -27,7 +28,7 @@ class CallflowIntegrationProfileControllerTest extends TestCase
                 'voice_url' => 'https://voice.example.test/pivot',
                 'cdr_url' => 'https://voice.example.test/cdr',
                 'methods' => ['post'],
-                'formats' => ['twiml'],
+                'formats' => ['switch'],
                 'req_body_format' => 'json',
                 'req_timeout_ms' => 4500,
                 'custom_request_headers' => ['X-Pivot-Key' => 'private-secret'],
@@ -40,7 +41,7 @@ class CallflowIntegrationProfileControllerTest extends TestCase
             ->assertJsonPath('data.name', 'Customer IVR')
             ->assertJsonPath('data.is_active', true)
             ->assertJsonPath('data.configuration.methods.0', 'post')
-            ->assertJsonPath('data.configuration.formats.0', 'twiml')
+            ->assertJsonPath('data.configuration.formats.0', 'switch')
             ->assertJsonPath('data.configuration.has_cdr_callback', true)
             ->assertJsonPath('data.configuration.has_custom_headers', true)
             ->assertJsonMissing(['https://voice.example.test/pivot', 'private-secret']);
@@ -90,6 +91,26 @@ class CallflowIntegrationProfileControllerTest extends TestCase
             'action' => 'callflow.integration_profile_deleted',
             'resource_id' => $profile->id,
         ]);
+    }
+
+    public function test_it_normalizes_a_legacy_pivot_format_in_api_responses(): void
+    {
+        [$user, $account] = $this->accessibleAccount(OrganizationRole::AccountAdministrator);
+        CallflowIntegrationProfile::factory()->for($account)->create([
+            'settings' => [
+                'voice_url' => 'https://voice.example.test/pivot',
+                'methods' => ['get'],
+                'formats' => [PivotResponseFormat::Switch->toUpstreamValue()],
+                'req_body_format' => 'form',
+                'req_timeout_ms' => 5000,
+                'custom_request_headers' => [],
+            ],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflow-integration-profiles")
+            ->assertOk()
+            ->assertJsonPath('data.0.configuration.formats.0', 'switch');
     }
 
     public function test_account_administrator_can_create_an_encrypted_webhook_profile(): void
@@ -270,7 +291,7 @@ class CallflowIntegrationProfileControllerTest extends TestCase
                     'voice_url' => 'https://127.0.0.1/private',
                     'cdr_url' => null,
                     'methods' => ['get'],
-                    'formats' => ['kazoo'],
+                    'formats' => ['switch'],
                     'req_body_format' => 'form',
                     'req_timeout_ms' => 5000,
                     'custom_request_headers' => [],
@@ -295,7 +316,7 @@ class CallflowIntegrationProfileControllerTest extends TestCase
                     'voice_url' => 'https://voice.example.com/pivot',
                     'cdr_url' => null,
                     'methods' => ['post'],
-                    'formats' => ['kazoo'],
+                    'formats' => ['switch'],
                     'req_body_format' => 'json',
                     'req_timeout_ms' => 5000,
                     'debug' => true,

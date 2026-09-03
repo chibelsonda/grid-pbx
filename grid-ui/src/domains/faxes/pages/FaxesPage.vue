@@ -12,11 +12,13 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import FaxBoxFormPanel from '../components/FaxBoxFormPanel.vue'
 import FaxDetailPanel from '../components/FaxDetailPanel.vue'
 import { useFaxStore } from '../stores/faxStore'
-import type { FaxBoxInput, FaxOperationCapabilities } from '../types/fax'
+import type { Fax, FaxBoxInput, FaxOperationCapabilities } from '../types/fax'
 const accounts = useAccountStore()
 const faxes = useFaxStore()
 const route = useRoute()
@@ -82,6 +84,23 @@ async function openMessage(id: string): Promise<void> {
   if (!accounts.selectedId) return
   await faxes.prepareMessage(accounts.selectedId, id)
   messagePanel.value = true
+}
+
+function faxActions(fax: Fax): RowAction[] {
+  return [
+    { id: 'view', label: 'View fax', icon: 'view' },
+    ...(fax.has_document
+      ? [{ id: 'download', label: 'Download document', icon: 'download' as const }]
+      : []),
+  ]
+}
+
+async function handleFaxAction(actionId: string, id: string): Promise<void> {
+  await openMessage(id)
+  if (actionId === 'download' && accounts.selectedId && faxes.messageDetail) {
+    messagePanel.value = false
+    await faxes.download(accounts.selectedId)
+  }
 }
 async function saveBox(input: FaxBoxInput): Promise<void> {
   if (accounts.selectedId && (await faxes.saveBox(accounts.selectedId, input))) {
@@ -251,7 +270,7 @@ function clearFaxBoxQuery(): void {
               <th class="px-5 py-3.5">Fax box</th>
               <th class="px-5 py-3.5">Pages</th>
               <th class="px-5 py-3.5">Status</th>
-              <th class="w-12"></th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
@@ -303,7 +322,13 @@ function clearFaxBoxQuery(): void {
                   >{{ fax.status || 'Unknown' }}</span
                 >
               </td>
-              <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
+              <td class="px-3 text-right">
+                <RowActionMenu
+                  :label="`Actions for fax ${fax.id}`"
+                  :actions="faxActions(fax)"
+                  @select="handleFaxAction($event, fax.id)"
+                />
+              </td>
             </tr>
           </tbody>
         </table>

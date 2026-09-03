@@ -114,7 +114,7 @@ class LineKeyService
 
         return $catalogAvailable
             ? null
-            : 'Model-specific key limits are unavailable; the editor is using the current Kazoo line-key schema and conservative limits.';
+            : 'Model-specific key limits are unavailable; the editor is using the current Switch line-key schema and conservative limits.';
     }
 
     /** @return array<string, mixed>|object */

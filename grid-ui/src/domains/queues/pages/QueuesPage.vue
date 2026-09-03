@@ -1,12 +1,15 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
-import { ChevronRightIcon, PlusIcon, QueueListIcon, UsersIcon } from '@heroicons/vue/24/outline'
+import { PlusIcon, QueueListIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions, type RowAction } from '@/shared/components/rowAction'
 import { useVisibilityAwarePolling } from '@/shared/composables/useVisibilityAwarePolling'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import AgentAvailabilityBadge from '../components/AgentAvailabilityBadge.vue'
@@ -22,6 +25,7 @@ const queues = useQueueStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const tab = ref<'queues' | 'agents'>('queues')
 const queuePanel = ref(false)
+const confirmQueueDelete = ref(false)
 const agentPanel = ref(false)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const configurationAvailable = computed(() => queues.options.capabilities.configuration_available)
@@ -128,12 +132,44 @@ async function openAgent(agent: Agent): Promise<void> {
   agentPanel.value = true
   await queues.prepareAgent(accounts.selectedId, agent, liveAgentControlsAvailable.value)
 }
+function openAgentById(agentId: string): void {
+  const agent = queues.agents.find(({ id }) => id === agentId)
+  if (agent) void openAgent(agent)
+}
+function agentActions(agent: Agent): RowAction[] {
+  return [
+    {
+      id: 'manage',
+      label: canManage.value && configurationAvailable.value ? 'Manage agent' : 'View agent',
+      icon: canManage.value && configurationAvailable.value ? 'manage' : 'view',
+      disabled: !configurationAvailable.value,
+    },
+    ...(agent.extension ? [{ id: 'copy', label: 'Copy extension', icon: 'copy' as const }] : []),
+  ]
+}
+async function handleAgentAction(actionId: string, agent: Agent): Promise<void> {
+  if (actionId === 'copy' && agent.extension) {
+    await navigator.clipboard?.writeText(agent.extension)
+  } else {
+    await openAgent(agent)
+  }
+}
 async function save(input: QueueInput): Promise<void> {
   if (accounts.selectedId && (await queues.save(accounts.selectedId, input)))
     queuePanel.value = false
 }
 async function remove(): Promise<void> {
-  if (accounts.selectedId && (await queues.remove(accounts.selectedId))) queuePanel.value = false
+  if (accounts.selectedId && (await queues.remove(accounts.selectedId))) {
+    confirmQueueDelete.value = false
+    queuePanel.value = false
+  }
+}
+async function handleQueueAction(actionId: string, id: string): Promise<void> {
+  await openQueue(id)
+  if (actionId === 'delete' && queues.detail) {
+    queuePanel.value = false
+    confirmQueueDelete.value = true
+  }
 }
 async function saveAgentStatus(input: AgentStatusInput): Promise<void> {
   if (!accounts.selectedId) return
@@ -222,6 +258,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
       :refreshing="queues.statisticsRefreshing"
       :error="queues.statisticsError"
       @refresh="refreshQueueStatistics"
+      @open-queue="openQueue"
     />
     <div class="mb-5 grid gap-4 sm:grid-cols-2">
       <article class="card-surface flex items-center gap-4 p-4">
@@ -321,7 +358,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                     <th scope="col" class="px-5 py-3.5">Strategy</th>
                     <th scope="col" class="px-5 py-3.5">Agents</th>
                     <th scope="col" class="px-5 py-3.5">Capacity</th>
-                    <th scope="col" class="w-12" aria-label="Open queue"></th>
+                    <th scope="col" class="w-12" aria-label="Actions"></th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 text-xs">
@@ -363,7 +400,13 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                     <td class="px-5 py-4 text-slate-500">
                       {{ record.max_queue_size || 'Unlimited' }}
                     </td>
-                    <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                    <td class="px-3 text-right">
+                      <RowActionMenu
+                        :label="`Actions for ${record.name}`"
+                        :actions="crudRowActions(canManage && configurationAvailable)"
+                        @select="handleQueueAction($event, record.id)"
+                      />
+                    </td>
                   </tr>
                 </tbody>
               </table>
@@ -378,6 +421,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
             :refreshing="queues.agentStatisticsRefreshing"
             :error="queues.agentStatisticsError"
             @refresh="refreshAgentStatistics"
+            @open-agent="openAgentById"
           />
           <div
             v-else-if="!queues.loading"
@@ -418,7 +462,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                   <th scope="col" class="px-5 py-3.5">Extension</th>
                   <th scope="col" class="px-5 py-3.5">Availability</th>
                   <th scope="col" class="px-5 py-3.5">Queue assignments</th>
-                  <th scope="col" class="w-12" aria-label="Open agent status"></th>
+                  <th scope="col" class="w-12" aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 text-xs">
@@ -465,7 +509,13 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
                   <td class="px-5 py-4 text-slate-500">
                     {{ agent.queues.map(({ name }) => name).join(', ') }}
                   </td>
-                  <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                  <td class="px-3 text-right">
+                    <RowActionMenu
+                      :label="`Actions for ${agent.name}`"
+                      :actions="agentActions(agent)"
+                      @select="handleAgentAction($event, agent)"
+                    />
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -509,5 +559,15 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
     @refresh-memberships="refreshAgentQueueMemberships"
     @change-membership="changeAgentQueueMembership"
     @save="saveAgentStatus"
+  />
+  <ConfirmDialog
+    :open="confirmQueueDelete"
+    title="Delete queue"
+    :description="`Delete ${queues.detail?.name ?? 'this queue'} after checking its agent and callflow dependencies?`"
+    confirm-label="Delete queue"
+    tone="danger"
+    :busy="queues.saving"
+    @close="confirmQueueDelete = false"
+    @confirm="remove"
   />
 </template>

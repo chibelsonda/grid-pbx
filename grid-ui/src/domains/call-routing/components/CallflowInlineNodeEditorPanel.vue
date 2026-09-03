@@ -223,7 +223,7 @@ const pivotMethodOptions = computed<ListboxOptionValue[]>(() =>
 const pivotFormatOptions = computed<ListboxOptionValue[]>(() =>
   (selectedPivotEndpoint.value?.formats ?? []).map((format) => ({
     value: format,
-    label: format === 'twiml' ? 'TwiML' : 'Kazoo Pivot',
+    label: format === 'twiml' ? 'TwiML' : 'Switch Pivot',
   })),
 )
 const webhookEndpoints = computed(() => props.editor?.webhook_endpoints ?? [])
@@ -299,7 +299,7 @@ const operationalModules = new Set([
 const lockedReason = computed<string | null>(() => {
   if (props.context.operation !== 'update') return null
   if (module.value === 'set_variable' && props.context.node.settings?.supported_variable !== true) {
-    return 'This node uses a channel variable that the current Kazoo runtime does not support through its guided call-priority workflow. GridPBX preserves it without exposing its name or value.'
+    return 'This node uses a channel variable that the current Switch runtime does not support through its guided call-priority workflow. GridPBX preserves it without exposing its name or value.'
   }
   if (
     module.value === 'set_variables' &&
@@ -344,7 +344,7 @@ const lockedReason = computed<string | null>(() => {
     module.value === 'branch_variable' &&
     props.context.node.settings?.supported_variable !== true
   ) {
-    return 'This node branches on a variable or scope outside the supported Kazoo call-priority workflow. GridPBX preserves its settings and dynamic branches without exposing or rewriting them.'
+    return 'This node branches on a variable or scope outside the supported Switch call-priority workflow. GridPBX preserves its settings and dynamic branches without exposing or rewriting them.'
   }
   if (
     module.value === 'cidlistmatch' &&
@@ -366,7 +366,7 @@ const lockedReason = computed<string | null>(() => {
   }
   if (module.value !== 'check_cid') return null
   if (props.context.node.settings?.use_absolute_mode === true) {
-    return 'This node uses Kazoo absolute caller-number branches. GridPBX preserves those dynamic branches but does not rewrite them.'
+    return 'This node uses Switch absolute caller-number branches. GridPBX preserves those dynamic branches but does not rewrite them.'
   }
   if (props.context.node.settings?.identity_reference_status === 'unresolved') {
     return 'The caller identity owner is not available in the current projection. Synchronize extensions before editing this node.'
@@ -543,7 +543,7 @@ function setPivotEndpoint(value: ListboxValue): void {
   if (!endpoint.methods.includes(form.data.method ?? 'get')) {
     form.data.method = endpoint.methods[0]
   }
-  if (!endpoint.formats.includes(form.data.req_format ?? 'kazoo')) {
+  if (!endpoint.formats.includes(form.data.req_format ?? 'switch')) {
     form.data.req_format = endpoint.formats[0]
   }
 }
@@ -553,7 +553,7 @@ function setPivotMethod(value: ListboxValue): void {
 }
 
 function setPivotFormat(value: ListboxValue): void {
-  if (value === 'kazoo' || value === 'twiml') form.data.req_format = value
+  if (value === 'switch' || value === 'twiml') form.data.req_format = value
 }
 
 function setWebhookEndpoint(value: ListboxValue): void {
@@ -813,7 +813,7 @@ watch(
             v-if="module === 'do_not_disturb'"
             class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
           >
-            Kazoo changes Do Not Disturb for the authenticated caller’s owner, or the authorizing
+            Switch changes Do Not Disturb for the authenticated caller’s owner, or the authorizing
             device when no owner is available. It does not prompt for a PIN. Keep this action behind
             a trusted feature-code route; GridPBX never stores a user or device ID in this node.
           </div>
@@ -822,8 +822,8 @@ watch(
             v-if="module === 'call_forward'"
             class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
           >
-            Kazoo changes call forwarding for the authenticated caller's owner. This action does not
-            contain a destination number; activate and update collect or use the owner-level
+            Switch changes call forwarding for the authenticated caller's owner. This action does
+            not contain a destination number; activate and update collect or use the owner-level
             forwarding configuration at call time. Keep it behind a trusted feature-code route.
           </div>
 
@@ -831,7 +831,7 @@ watch(
             <div
               class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
             >
-              Kazoo replaces the active caller ID for the remainder of this callflow. GridPBX only
+              Switch replaces the active caller ID for the remainder of this callflow. GridPBX only
               permits a synchronized number owned by this account; arbitrary manual numbers and raw
               Caller-ID List identifiers are never submitted by this form.
             </div>
@@ -866,7 +866,7 @@ watch(
             v-if="module === 'acdc_queue'"
             class="rounded-md border border-amber-200 bg-amber-50 p-4 text-[10px] leading-4 text-amber-900"
           >
-            Kazoo adds or removes the authenticated caller’s owner from the selected Queue. It does
+            Switch adds or removes the authenticated caller’s owner from the selected Queue. It does
             not prompt for a PIN. Keep this action behind a trusted feature-code route; GridPBX maps
             the Queue UUID on the server and never stores an agent ID in this node.
           </div>
@@ -875,7 +875,7 @@ watch(
             v-if="module === 'conference'"
             class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
           >
-            Conference Service asks Kazoo to discover a conference by an account conference number
+            Conference Service asks Switch to discover a conference by an account conference number
             entered by the caller. It does not store or expose a conference resource ID.
           </div>
 
@@ -883,7 +883,7 @@ watch(
             v-if="module === 'voicemail'"
             class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
           >
-            Check Voicemail asks Kazoo to identify an account mailbox and enforce that mailbox's
+            Check Voicemail asks Switch to identify an account mailbox and enforce that mailbox's
             login policy. It does not store or expose a voicemail box resource ID, enable caller-ID
             matching, or enable single-mailbox auto-login.
           </div>
@@ -974,7 +974,7 @@ watch(
               <label class="grid gap-2">
                 <span class="text-xs font-semibold text-slate-700">Response format</span>
                 <FormListbox
-                  :model-value="form.data.req_format ?? 'kazoo'"
+                  :model-value="form.data.req_format ?? 'switch'"
                   :options="pivotFormatOptions"
                   aria-label="Response format"
                   :disabled="!selectedPivotEndpoint"
@@ -1260,7 +1260,7 @@ watch(
             v-if="module === 'flush_dtmf'"
             :model-value="form.data.collection_name ?? ''"
             label="Collection name"
-            description="The buffered digit collection to clear. Kazoo defaults this to default."
+            description="The buffered digit collection to clear. Switch defaults this to default."
             required
             :error="fieldError('data.collection_name')"
             @update:model-value="form.data.collection_name = String($event)"
@@ -1375,7 +1375,7 @@ watch(
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
               Incoming fax content is delivered to the selected Extension owner. Automatic uses
-              Kazoo's schema-supported negotiation mode; Enabled and Disabled match Monster's T.38
+              Switch's schema-supported negotiation mode; Enabled and Disabled match Monster's T.38
               checkbox states. Other Switch-managed media properties are preserved.
             </div>
           </template>
@@ -1588,7 +1588,7 @@ watch(
               <FormCheckbox
                 :model-value="Boolean(form.data.ignore_forward)"
                 label="Ignore device forwarding"
-                description="Do not follow SIP redirects from endpoints in this Ring Group. This is Kazoo's safe default."
+                description="Do not follow SIP redirects from endpoints in this Ring Group. This is Switch's safe default."
                 variant="compact"
                 @update:model-value="form.data.ignore_forward = Boolean($event)"
               />
@@ -1647,9 +1647,10 @@ watch(
             <div
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
-              GridPBX computes Kazoo's overall attempt timeout from the member rows. Weighted random
-              tries every member sequentially in a newly shuffled weighted order per attempt. Raw
-              resource IDs, URL/special-stream ringback values, and unknown fields remain private.
+              GridPBX computes Switch's overall attempt timeout from the member rows. Weighted
+              random tries every member sequentially in a newly shuffled weighted order per attempt.
+              Raw resource IDs, URL/special-stream ringback values, and unknown fields remain
+              private.
             </div>
           </template>
 
@@ -1766,7 +1767,7 @@ watch(
               <FormInput
                 :model-value="form.data.variable ?? 'call_priority'"
                 label="Variable"
-                description="Kazoo currently supports only the call-priority variable."
+                description="Switch currently supports only the call-priority variable."
                 disabled
               />
               <FormInput
@@ -1801,7 +1802,7 @@ watch(
               <FormInput
                 :model-value="form.data.variable ?? 'call_priority'"
                 label="Variable"
-                description="The guided workflow is restricted to Kazoo Call Priority."
+                description="The guided workflow is restricted to Switch Call Priority."
                 disabled
               />
               <FormInput
@@ -1948,7 +1949,7 @@ watch(
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">Matched-call identity override</h3>
                 <p class="mt-0.5 text-[10px] leading-4 text-slate-500">
-                  Optional. Kazoo applies the override only when owner, name, and number are all
+                  Optional. Switch applies the override only when owner, name, and number are all
                   set.
                 </p>
               </div>

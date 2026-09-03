@@ -184,7 +184,7 @@ class LineKeyControllerTest extends TestCase
             ->assertJsonPath('data.capability.model.matched', false)
             ->assertJsonPath(
                 'data.capability.reason',
-                'Model-specific key limits are unavailable; the editor is using the current Kazoo line-key schema and conservative limits.',
+                'Model-specific key limits are unavailable; the editor is using the current Switch line-key schema and conservative limits.',
             );
     }
 
@@ -340,7 +340,7 @@ class LineKeyControllerTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'line_keys.updated', 'outcome' => 'succeeded']);
     }
 
-    public function test_all_kazoo_key_types_can_be_created_edited_and_cleared(): void
+    public function test_all_switch_key_types_can_be_created_edited_and_cleared(): void
     {
         config()->set('switch.line_key_mutations_enabled', true);
         [$user, $account] = $this->accessibleAccount();

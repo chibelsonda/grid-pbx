@@ -145,12 +145,44 @@
   }
 
   .app-notification {
-    border-color: var(--app-header-accent);
-    border-color: color-mix(in srgb, var(--app-header-accent) 42%, white);
+    --app-notification-tone: var(--app-header-accent);
+    border-color: var(--app-notification-tone);
+    border-color: color-mix(in srgb, var(--app-notification-tone) 42%, white);
+    background: var(--app-surface-muted);
+    background: color-mix(in srgb, var(--app-notification-tone) 9%, var(--app-surface));
+  }
+
+  .app-notification-success {
+    --app-notification-tone: var(--color-success);
+  }
+
+  .app-notification-warning {
+    --app-notification-tone: var(--color-warning);
+  }
+
+  .app-notification-error {
+    --app-notification-tone: var(--color-danger);
   }
 
   .app-notification-accent {
-    color: var(--app-header-accent);
+    color: var(--app-notification-tone);
+  }
+
+  .app-notification-title {
+    color: color-mix(in srgb, var(--app-notification-tone) 62%, var(--app-foreground));
+  }
+
+  .app-notification-message {
+    color: color-mix(in srgb, var(--app-notification-tone) 24%, var(--app-foreground));
+  }
+
+  .app-notification-dismiss {
+    color: color-mix(in srgb, var(--app-notification-tone) 62%, var(--app-muted));
+  }
+
+  .app-notification-dismiss:hover {
+    background: color-mix(in srgb, var(--app-notification-tone) 14%, transparent);
+    color: color-mix(in srgb, var(--app-notification-tone) 82%, var(--app-foreground));
   }
 
   .app-header-search:hover {

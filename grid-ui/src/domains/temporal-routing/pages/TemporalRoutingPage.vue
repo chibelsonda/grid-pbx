@@ -1,11 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
-import { CalendarDaysIcon, ChevronRightIcon, ClockIcon, PlusIcon } from '@heroicons/vue/24/outline'
+import { CalendarDaysIcon, ClockIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import TemporalRulePanel from '../components/TemporalRulePanel.vue'
 import TemporalRuleSetPanel from '../components/TemporalRuleSetPanel.vue'
@@ -22,6 +25,7 @@ const temporal = useTemporalRoutingStore()
 const tab = ref<'rules' | 'sets'>('rules')
 const rulePanel = ref(false)
 const setPanel = ref(false)
+const pendingDelete = ref<'rule' | 'set' | null>(null)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const lastSynchronizedAt = computed(() =>
   latestSynchronizedAt([...temporal.rules, ...temporal.sets]),
@@ -61,12 +65,17 @@ async function saveSet(input: TemporalRuleSetInput): Promise<void> {
 }
 
 async function removeRule(): Promise<void> {
-  if (accounts.selectedId && (await temporal.removeRule(accounts.selectedId)))
+  if (accounts.selectedId && (await temporal.removeRule(accounts.selectedId))) {
+    pendingDelete.value = null
     rulePanel.value = false
+  }
 }
 
 async function removeSet(): Promise<void> {
-  if (accounts.selectedId && (await temporal.removeSet(accounts.selectedId))) setPanel.value = false
+  if (accounts.selectedId && (await temporal.removeSet(accounts.selectedId))) {
+    pendingDelete.value = null
+    setPanel.value = false
+  }
 }
 
 async function controlRule(action: TemporalControlAction): Promise<void> {
@@ -97,6 +106,45 @@ function statusLabel(status: TemporalEffectiveStatus): string {
     empty: 'empty',
   }[status.override]
   return `${status.is_active ? 'Active' : 'Inactive'} · ${mode}`
+}
+
+function rowActions(): RowAction[] {
+  if (!canManage.value) return [{ id: 'view', label: 'View details', icon: 'view' }]
+
+  return [
+    { id: 'view', label: 'View details', icon: 'view' },
+    { id: 'edit', label: 'Edit', icon: 'edit' },
+    { id: 'enable', label: 'Force active', icon: 'enable' },
+    { id: 'disable', label: 'Force inactive', icon: 'disable' },
+    { id: 'reset', label: 'Clear override', icon: 'reset' },
+    { id: 'delete', label: 'Delete', icon: 'delete', destructive: true },
+  ]
+}
+
+async function handleRuleAction(actionId: string, id: string): Promise<void> {
+  await openRule(id)
+  if (!temporal.ruleDetail) return
+
+  if (actionId === 'delete') {
+    rulePanel.value = false
+    pendingDelete.value = 'rule'
+  } else if (['enable', 'disable', 'reset'].includes(actionId)) {
+    rulePanel.value = false
+    await controlRule(actionId as TemporalControlAction)
+  }
+}
+
+async function handleSetAction(actionId: string, id: string): Promise<void> {
+  await openSet(id)
+  if (!temporal.setDetail) return
+
+  if (actionId === 'delete') {
+    setPanel.value = false
+    pendingDelete.value = 'set'
+  } else if (['enable', 'disable', 'reset'].includes(actionId)) {
+    setPanel.value = false
+    await controlSet(actionId as TemporalControlAction)
+  }
 }
 </script>
 
@@ -232,7 +280,7 @@ function statusLabel(status: TemporalEffectiveStatus): string {
                   <th scope="col" class="px-5 py-3.5">Cycle</th>
                   <th scope="col" class="px-5 py-3.5">Window</th>
                   <th scope="col" class="px-5 py-3.5">Effective status</th>
-                  <th scope="col" class="w-12" aria-label="Open rule"></th>
+                  <th scope="col" class="w-12" aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 text-xs">
@@ -282,7 +330,13 @@ function statusLabel(status: TemporalEffectiveStatus): string {
                       >{{ statusLabel(rule.effective_status) }}</span
                     >
                   </td>
-                  <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                  <td class="px-3 text-right">
+                    <RowActionMenu
+                      :label="`Actions for ${rule.name}`"
+                      :actions="rowActions()"
+                      @select="handleRuleAction($event, rule.id)"
+                    />
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -301,7 +355,7 @@ function statusLabel(status: TemporalEffectiveStatus): string {
                   <th scope="col" class="px-5 py-3.5">Rule set</th>
                   <th scope="col" class="px-5 py-3.5">Rules</th>
                   <th scope="col" class="px-5 py-3.5">Effective status</th>
-                  <th scope="col" class="w-12" aria-label="Open rule set"></th>
+                  <th scope="col" class="w-12" aria-label="Actions"></th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100 text-xs">
@@ -348,7 +402,13 @@ function statusLabel(status: TemporalEffectiveStatus): string {
                       >{{ statusLabel(set.effective_status) }}</span
                     >
                   </td>
-                  <td><ChevronRightIcon class="size-4 text-slate-400" aria-hidden="true" /></td>
+                  <td class="px-3 text-right">
+                    <RowActionMenu
+                      :label="`Actions for ${set.name}`"
+                      :actions="rowActions()"
+                      @select="handleSetAction($event, set.id)"
+                    />
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -382,5 +442,15 @@ function statusLabel(status: TemporalEffectiveStatus): string {
     @save="saveSet"
     @remove="removeSet"
     @control="controlSet"
+  />
+  <ConfirmDialog
+    :open="pendingDelete !== null"
+    :title="pendingDelete === 'rule' ? 'Delete temporal rule' : 'Delete rule set'"
+    :description="`Delete ${pendingDelete === 'rule' ? (temporal.ruleDetail?.name ?? 'this rule') : (temporal.setDetail?.name ?? 'this rule set')} after checking its callflow dependencies?`"
+    :confirm-label="pendingDelete === 'rule' ? 'Delete rule' : 'Delete rule set'"
+    tone="danger"
+    :busy="temporal.saving"
+    @close="pendingDelete = null"
+    @confirm="pendingDelete === 'rule' ? removeRule() : removeSet()"
   />
 </template>

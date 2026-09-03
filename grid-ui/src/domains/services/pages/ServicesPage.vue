@@ -1,15 +1,11 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  BanknotesIcon,
-  ChevronRightIcon,
-  CircleStackIcon,
-  ServerStackIcon,
-} from '@heroicons/vue/24/outline'
+import { BanknotesIcon, CircleStackIcon, ServerStackIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import ServiceDetailPanel from '../components/ServiceDetailPanel.vue'
 import { useServiceStore } from '../stores/serviceStore'
 const accounts = useAccountStore()
@@ -25,6 +21,11 @@ const quantities = computed(() =>
         `${row.category} ${row.item}`.toLowerCase().includes(search.value.toLowerCase())),
   ),
 )
+
+async function handleRowAction(actionId: string, item: string): Promise<void> {
+  if (actionId === 'copy') await navigator.clipboard?.writeText(item)
+  else services.detailsOpen = true
+}
 const totalQuantity = computed(() => quantities.value.reduce((sum, row) => sum + row.quantity, 0))
 watch(
   () => accounts.selectedId,
@@ -183,7 +184,7 @@ const amount = (value: number): string =>
                 <th class="px-5 py-3.5">Item</th>
                 <th class="px-5 py-3.5">Scope</th>
                 <th class="px-5 py-3.5 text-right">Quantity</th>
-                <th class="w-12"></th>
+                <th scope="col" class="w-12" aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
@@ -205,7 +206,16 @@ const amount = (value: number): string =>
                 <td class="px-5 py-4 text-right font-semibold text-slate-700">
                   {{ amount(row.quantity) }}
                 </td>
-                <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
+                <td class="px-3 text-right">
+                  <RowActionMenu
+                    :label="`Actions for ${row.item}`"
+                    :actions="[
+                      { id: 'view', label: 'View service details', icon: 'view' },
+                      { id: 'copy', label: 'Copy service name', icon: 'copy' },
+                    ]"
+                    @select="handleRowAction($event, row.item)"
+                  />
+                </td>
               </tr>
             </tbody>
           </table></div></template

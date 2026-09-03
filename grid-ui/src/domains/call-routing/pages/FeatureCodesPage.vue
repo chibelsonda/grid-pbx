@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import {
   ArrowPathIcon,
   BoltIcon,
@@ -10,11 +11,13 @@ import {
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import { presentFeatureCode } from '../services/featureCodePresentation'
 import { useFeatureCodeStore } from '../stores/featureCodeStore'
 
 const accounts = useAccountStore()
 const featureCodes = useFeatureCodeStore()
+const router = useRouter()
 const search = ref('')
 
 const presentedRecords = computed(() =>
@@ -51,6 +54,11 @@ watch(
   },
   { immediate: true },
 )
+
+async function handleRowAction(actionId: string, id: string, dialCode: string): Promise<void> {
+  if (actionId === 'copy') await navigator.clipboard?.writeText(dialCode)
+  else await router.push({ name: 'call-routing', query: { callflow: id } })
+}
 </script>
 
 <template>
@@ -161,21 +169,22 @@ watch(
               <th scope="col" class="px-5 py-3.5">Runtime action</th>
               <th scope="col" class="px-5 py-3.5">Dependency summary</th>
               <th scope="col" class="px-5 py-3.5">State</th>
+              <th scope="col" class="w-12" aria-label="Actions"></th>
             </tr>
           </thead>
           <tbody class="divide-y divide-slate-100 text-xs">
             <tr v-if="featureCodes.loading">
-              <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+              <td colspan="7" class="px-5 py-14 text-center text-slate-400">
                 <span role="status">Loading active feature codes…</span>
               </td>
             </tr>
             <tr v-else-if="!accounts.selectedId">
-              <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+              <td colspan="7" class="px-5 py-14 text-center text-slate-400">
                 Select an account to inspect its feature codes.
               </td>
             </tr>
             <tr v-else-if="visibleRecords.length === 0">
-              <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+              <td colspan="7" class="px-5 py-14 text-center text-slate-400">
                 <MagnifyingGlassIcon class="mx-auto mb-3 size-8" />
                 No active feature codes match this search.
               </td>
@@ -201,6 +210,16 @@ watch(
                 >
                   <span class="size-1.5 rounded-full bg-emerald-500" /> Projected active
                 </span>
+              </td>
+              <td class="px-3 py-3.5 text-right">
+                <RowActionMenu
+                  :label="`Actions for ${item.presentation.label}`"
+                  :actions="[
+                    { id: 'view', label: 'Open callflow', icon: 'route' },
+                    { id: 'copy', label: 'Copy dial code', icon: 'copy' },
+                  ]"
+                  @select="handleRowAction($event, item.record.id, item.presentation.dialCode)"
+                />
               </td>
             </tr>
           </tbody>

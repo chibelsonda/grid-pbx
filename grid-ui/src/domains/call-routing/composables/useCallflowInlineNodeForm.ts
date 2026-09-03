@@ -199,7 +199,7 @@ function defaults(
       }
       break
     case 'pivot':
-      data = { endpoint_id: '', method: 'get', req_format: 'kazoo', skip_module: false }
+      data = { endpoint_id: '', method: 'get', req_format: 'switch', skip_module: false }
       break
     case 'webhook':
       data = {

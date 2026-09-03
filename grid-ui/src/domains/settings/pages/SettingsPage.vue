@@ -454,8 +454,8 @@ async function signOut(): Promise<void> {
                 it.
               </p>
               <p class="text-[10px] leading-4 text-slate-500">
-                This changes GridPBX application branding only. It does not modify Switch/Kazoo
-                whitelabel settings.
+                This changes GridPBX application branding only. It does not modify Switch whitelabel
+                settings.
               </p>
             </div>
             <p v-else class="p-5 text-xs text-slate-500">

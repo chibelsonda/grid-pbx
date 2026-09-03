@@ -2,6 +2,7 @@
 
 namespace App\Domains\CallRouting\Services;
 
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use App\Shared\Validation\Rules\SafeSwitchRegex;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
@@ -278,7 +279,7 @@ class CallflowInlineNodeDataValidator
                 'data' => ['required', 'array:endpoint_id,method,req_format,skip_module'],
                 'data.endpoint_id' => ['required', 'string', 'max:64', 'regex:/^[a-z0-9][a-z0-9_-]*$/'],
                 'data.method' => ['required', 'string', Rule::in(['get', 'post'])],
-                'data.req_format' => ['required', 'string', Rule::in(['kazoo', 'twiml'])],
+                'data.req_format' => ['required', 'string', Rule::in(PivotResponseFormat::values())],
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'webhook' => [

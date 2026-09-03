@@ -3,6 +3,7 @@
 namespace App\Domains\CallRouting\Resources;
 
 use App\Domains\CallRouting\Enums\CallflowIntegrationType;
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -32,7 +33,7 @@ class CallflowIntegrationProfileResource extends JsonResource
         return match ($this->integration_type) {
             CallflowIntegrationType::Pivot => [
                 'methods' => $settings['methods'] ?? [],
-                'formats' => $settings['formats'] ?? [],
+                'formats' => $this->responseFormats($settings['formats'] ?? []),
                 'has_cdr_callback' => is_string($settings['cdr_url'] ?? null),
                 'has_custom_headers' => ($settings['custom_request_headers'] ?? []) !== [],
             ],
@@ -57,5 +58,18 @@ class CallflowIntegrationProfileResource extends JsonResource
             ],
             default => [],
         };
+    }
+
+    /** @return list<string> */
+    private function responseFormats(mixed $formats): array
+    {
+        if (! is_array($formats) || ! array_is_list($formats)) {
+            return [];
+        }
+
+        return array_values(array_unique(array_filter(array_map(
+            fn (mixed $format): ?string => PivotResponseFormat::fromStoredValue($format)?->value,
+            $formats,
+        ))));
     }
 }

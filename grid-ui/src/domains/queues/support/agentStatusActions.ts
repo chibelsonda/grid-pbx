@@ -17,7 +17,7 @@ const recommendations: Record<string, AgentStatusAction[]> = {
 }
 
 /**
- * Kazoo's callflow helper uses these state-aware recommendations, while the
+ * Switch's callflow helper uses these state-aware recommendations, while the
  * REST endpoint intentionally accepts asynchronous commands beyond this list.
  */
 export function recommendedAgentStatusActions(

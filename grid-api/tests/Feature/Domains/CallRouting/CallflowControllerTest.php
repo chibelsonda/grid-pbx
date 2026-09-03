@@ -4,9 +4,10 @@ namespace Tests\Feature\Domains\CallRouting;
 
 use App\Domains\Auditing\Models\AuditLog;
 use App\Domains\CallRouting\Contracts\DisaOperationalGuard;
-use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Dto\DisaOperationalReadiness;
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Devices\Models\SwitchDevice;
@@ -965,7 +966,7 @@ class CallflowControllerTest extends TestCase
             ->assertJsonValidationErrors('data');
     }
 
-    public function test_it_bounds_set_variable_to_kazoo_call_priority(): void
+    public function test_it_bounds_set_variable_to_switch_call_priority(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $menu = SwitchMenu::factory()->for($account)->create([
@@ -2570,7 +2571,7 @@ class CallflowControllerTest extends TestCase
             'settings' => [
                 'voice_url' => 'https://secondary.example.test/pivot',
                 'methods' => ['get'],
-                'formats' => ['kazoo'],
+                'formats' => ['switch'],
                 'req_body_format' => 'form',
                 'req_timeout_ms' => 3000,
                 'custom_request_headers' => [],
@@ -2602,7 +2603,11 @@ class CallflowControllerTest extends TestCase
             'children' => [],
         ];
         $primaryNode = $pivotNode('https://primary.example.test/pivot', 'post', 'twiml');
-        $secondaryNode = $pivotNode('https://secondary.example.test/pivot', 'get', 'kazoo');
+        $secondaryNode = $pivotNode(
+            'https://secondary.example.test/pivot',
+            'get',
+            PivotResponseFormat::Switch->toUpstreamValue(),
+        );
         $expectedUrls = [
             '1' => 'https://primary.example.test/pivot',
             '2' => 'https://secondary.example.test/pivot',
@@ -2673,7 +2678,7 @@ class CallflowControllerTest extends TestCase
             'data' => [
                 'endpoint_id' => $secondary->id,
                 'method' => 'get',
-                'req_format' => 'kazoo',
+                'req_format' => 'switch',
                 'skip_module' => false,
             ],
         ])->assertOk()

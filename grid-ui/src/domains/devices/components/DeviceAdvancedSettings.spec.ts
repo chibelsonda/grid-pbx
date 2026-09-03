@@ -48,7 +48,7 @@ describe('DeviceAdvancedSettings', () => {
     ['fax', ['Enable T.38 fax', 'Hide from contact list']],
     ['ata', ['Enable T.38 fax', 'Hide from contact list']],
     ['sip_uri', ['Hide from contact list']],
-  ])('matches the audited Kazoo Options workflow for %s', async (deviceType, expectedLabels) => {
+  ])('matches the audited Switch Options workflow for %s', async (deviceType, expectedLabels) => {
     const wrapper = mount(DeviceAdvancedSettings, {
       props: {
         modelValue: defaultDeviceConfiguration(),
@@ -78,7 +78,7 @@ describe('DeviceAdvancedSettings', () => {
     expect(wrapper.text().includes('Ringtone headers')).toBe(deviceType === 'sip_device')
   })
 
-  it('matches the minimal Kazoo SIP URI Options workflow', async () => {
+  it('matches the minimal Switch SIP URI Options workflow', async () => {
     const wrapper = mount(DeviceAdvancedSettings, {
       props: {
         modelValue: defaultDeviceConfiguration(),
@@ -232,7 +232,7 @@ describe('DeviceAdvancedSettings', () => {
   })
 
   it.each<DeviceType>(['sip_device', 'smartphone', 'softphone', 'fax', 'ata'])(
-    'keeps schema-only editors out of the Kazoo Options workflow for %s',
+    'keeps schema-only editors out of the Switch Options workflow for %s',
     async (deviceType) => {
       const wrapper = mount(DeviceAdvancedSettings, {
         props: {

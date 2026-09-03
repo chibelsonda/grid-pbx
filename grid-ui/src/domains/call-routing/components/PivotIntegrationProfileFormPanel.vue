@@ -44,7 +44,7 @@ const form = reactive<ValidPivotIntegrationProfileForm>({
     : ['post'],
   formats: props.profile?.configuration.formats.length
     ? [...props.profile.configuration.formats]
-    : ['kazoo'],
+    : ['switch'],
   req_body_format: 'json',
   req_timeout_ms: 5000,
   headers: [],
@@ -63,7 +63,7 @@ function updateMethods(value: boolean | string[]): void {
 
 function updateFormats(value: boolean | string[]): void {
   if (Array.isArray(value)) {
-    form.formats = value.filter((format) => format === 'kazoo' || format === 'twiml')
+    form.formats = value.filter((format) => format === 'switch' || format === 'twiml')
   }
 }
 
@@ -188,8 +188,8 @@ function submit(): void {
             <div class="grid gap-3 sm:grid-cols-2">
               <FormCheckbox
                 :model-value="form.formats"
-                value="kazoo"
-                label="Kazoo"
+                value="switch"
+                label="Switch"
                 variant="compact"
                 :error="fieldError('formats')"
                 @update:model-value="updateFormats"

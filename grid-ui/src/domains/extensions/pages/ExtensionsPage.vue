@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  ChevronRightIcon,
-  PlusIcon,
-  UserGroupIcon,
-  WrenchScrewdriverIcon,
-} from '@heroicons/vue/24/outline'
+import { PlusIcon, UserGroupIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useDeviceStore } from '@/domains/devices/stores/deviceStore'
 import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import type { RowAction } from '@/shared/components/rowAction'
 import { useExtensionStore } from '../stores/extensionStore'
 import ExtensionCreatePanel from '../components/ExtensionCreatePanel.vue'
 import ExtensionRecoveryPanel from '../components/ExtensionRecoveryPanel.vue'
-import type { ExtensionCreate, ExtensionRecoveryOperation } from '../types/extension'
+import type { Extension, ExtensionCreate, ExtensionRecoveryOperation } from '../types/extension'
 
 const router = useRouter()
 const accounts = useAccountStore()
@@ -25,6 +22,7 @@ const voicemail = useVoicemailStore()
 const extensions = useExtensionStore()
 const creating = ref(false)
 const recoveryOpen = ref(false)
+const canManage = computed(() => accounts.selected?.permissions.can_manage_extensions ?? false)
 watch(
   () => accounts.selectedId,
   (accountId) => {
@@ -66,6 +64,26 @@ function openRecovery(): void {
 
 function openExtension(id: string): void {
   void router.push({ name: 'extension-detail', params: { extensionId: id } })
+}
+
+function extensionActions(record: Extension): RowAction[] {
+  return [
+    { id: 'view', label: 'View details', icon: 'view' },
+    ...(canManage.value && record.is_managed
+      ? [{ id: 'edit', label: 'Edit', icon: 'edit' as const }]
+      : []),
+    ...(canManage.value
+      ? [{ id: 'delete', label: 'Delete', icon: 'delete' as const, destructive: true }]
+      : []),
+  ]
+}
+
+function handleRowAction(actionId: string, id: string): void {
+  void router.push({
+    name: 'extension-detail',
+    params: { extensionId: id },
+    query: actionId === 'view' ? undefined : { action: actionId },
+  })
 }
 
 function recoverOperation(
@@ -171,7 +189,7 @@ function recoverOperation(
                 <th scope="col" class="px-5 py-3.5">Username</th>
                 <th scope="col" class="px-5 py-3.5">Timezone</th>
                 <th scope="col" class="px-5 py-3.5">Status</th>
-                <th scope="col" aria-label="View extension" class="w-12 px-5 py-3.5" />
+                <th scope="col" aria-label="Actions" class="w-12 px-5 py-3.5" />
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
@@ -223,14 +241,12 @@ function recoverOperation(
                     >{{ record.is_enabled ? 'Enabled' : 'Disabled' }}</span
                   >
                 </td>
-                <td class="px-5 py-3.5">
-                  <RouterLink
-                    :to="{ name: 'extension-detail', params: { extensionId: record.id } }"
-                    :aria-label="`View ${record.display_name}`"
-                    class="grid size-8 place-items-center rounded text-slate-400 hover:bg-brand-50 hover:text-brand-600"
-                    @click.stop
-                    ><ChevronRightIcon class="size-4"
-                  /></RouterLink>
+                <td class="px-3 py-3.5 text-right">
+                  <RowActionMenu
+                    :label="`Actions for ${record.display_name}`"
+                    :actions="extensionActions(record)"
+                    @select="handleRowAction($event, record.id)"
+                  />
                 </td>
               </tr>
             </tbody>

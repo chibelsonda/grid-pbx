@@ -2,6 +2,7 @@
 
 namespace Tests\Unit\Domains\CallRouting;
 
+use App\Domains\CallRouting\Enums\PivotResponseFormat;
 use App\Domains\CallRouting\Models\CallflowIntegrationProfile;
 use App\Domains\CallRouting\Services\PivotEndpointRegistry;
 use App\Domains\Organizations\Models\SwitchAccount;
@@ -115,7 +116,7 @@ class PivotEndpointRegistryTest extends TestCase
             'settings' => [
                 'voice_url' => 'https://voice.example.test/shared',
                 'methods' => ['get'],
-                'formats' => ['kazoo'],
+                'formats' => ['switch'],
                 'req_body_format' => 'form',
                 'req_timeout_ms' => 3000,
                 'custom_request_headers' => [],
@@ -152,6 +153,34 @@ class PivotEndpointRegistryTest extends TestCase
     }
 
     #[Test]
+    public function it_translates_the_public_switch_format_at_the_upstream_boundary(): void
+    {
+        $account = SwitchAccount::factory()->create();
+        $profile = CallflowIntegrationProfile::factory()->for($account)->create([
+            'settings' => [
+                'voice_url' => 'https://voice.example.test/pivot',
+                'methods' => ['get'],
+                'formats' => [PivotResponseFormat::Switch->toUpstreamValue()],
+                'req_body_format' => 'form',
+                'req_timeout_ms' => 5000,
+                'custom_request_headers' => [],
+            ],
+        ]);
+        $registry = app(PivotEndpointRegistry::class);
+
+        $this->assertSame(['switch'], $registry->publicEndpoints($account)[0]['formats']);
+
+        $upstream = $registry->settingsForSwitch($account, [
+            'endpoint_id' => $profile->id,
+            'method' => 'get',
+            'req_format' => 'switch',
+            'skip_module' => false,
+        ]);
+        $this->assertSame(PivotResponseFormat::Switch->toUpstreamValue(), $upstream['req_format']);
+        $this->assertSame('switch', $registry->publicSettings($account, $upstream)['req_format']);
+    }
+
+    #[Test]
     public function it_ignores_unsafe_endpoint_configuration(): void
     {
         $account = SwitchAccount::factory()->create();
@@ -160,7 +189,7 @@ class PivotEndpointRegistryTest extends TestCase
             'settings' => [
                 'voice_url' => 'https://127.0.0.1/private',
                 'methods' => ['get'],
-                'formats' => ['kazoo'],
+                'formats' => ['switch'],
                 'req_body_format' => 'form',
                 'req_timeout_ms' => 5000,
                 'custom_request_headers' => [],

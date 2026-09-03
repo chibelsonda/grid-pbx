@@ -245,7 +245,7 @@ function duration(seconds: number): string {
           <div>
             <p class="text-sm font-semibold text-slate-700">Room participant controls</p>
             <p class="mt-1 text-[11px] text-slate-500">
-              Kazoo applies these commands only to eligible non-moderators. A fresh room preview is
+              Switch applies these commands only to eligible non-moderators. A fresh room preview is
               verified before submission.
             </p>
           </div>

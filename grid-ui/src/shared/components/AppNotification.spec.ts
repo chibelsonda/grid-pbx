@@ -15,6 +15,8 @@ describe('AppNotification', () => {
     const status = wrapper.get('[role="status"]')
     expect(status.attributes('aria-live')).toBe('polite')
     expect(status.classes()).toContain('app-notification')
+    expect(status.classes()).toContain('app-notification-info')
+    expect(status.attributes('data-tone')).toBe('info')
     expect(status.get('.app-notification-accent').classes()).toContain('app-notification-accent')
     expect(status.text()).toContain('Account changed')
     expect(status.text()).toContain('Now viewing Branch Office.')
@@ -23,19 +25,24 @@ describe('AppNotification', () => {
     expect(wrapper.emitted('dismiss')).toEqual([[]])
   })
 
-  it('announces failed requests assertively without changing the themed border', () => {
+  it.each([
+    ['success', 'status', 'polite'],
+    ['warning', 'alert', 'assertive'],
+    ['error', 'alert', 'assertive'],
+  ] as const)('applies the matching %s alert treatment', (tone, role, liveMode) => {
     const wrapper = mount(AppNotification, {
       props: {
         show: true,
-        title: 'Update failed',
-        message: 'The changes could not be saved.',
-        tone: 'error',
+        title: 'Request status',
+        message: 'The request has an updated status.',
+        tone,
       },
     })
 
-    const alert = wrapper.get('[role="alert"]')
-    expect(alert.attributes('aria-live')).toBe('assertive')
-    expect(alert.classes()).toContain('app-notification')
-    expect(alert.get('.text-red-600').classes()).toContain('text-red-600')
+    const notification = wrapper.get(`[role="${role}"]`)
+    expect(notification.attributes('aria-live')).toBe(liveMode)
+    expect(notification.attributes('data-tone')).toBe(tone)
+    expect(notification.classes()).toContain(`app-notification-${tone}`)
+    expect(notification.get('.app-notification-accent').exists()).toBe(true)
   })
 })

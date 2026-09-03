@@ -25,7 +25,7 @@ class CallflowIntegrationProfileFactory extends Factory
             'settings' => [
                 'voice_url' => 'https://'.fake()->unique()->domainName().'/pivot',
                 'methods' => ['post'],
-                'formats' => ['kazoo'],
+                'formats' => ['switch'],
                 'req_body_format' => 'json',
                 'req_timeout_ms' => 5000,
                 'custom_request_headers' => [],

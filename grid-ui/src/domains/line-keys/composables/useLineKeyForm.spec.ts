@@ -47,7 +47,7 @@ describe('useLineKeyForm', () => {
     })
   })
 
-  it('builds valid Kazoo payloads for all five supported line-key types', () => {
+  it('builds valid Switch payloads for all five supported line-key types', () => {
     const extensionId = '0199a271-62c6-72cd-b726-dfdfdcebf23d'
     const { form, safePreview, validate } = useLineKeyForm(preview)
     form.push(

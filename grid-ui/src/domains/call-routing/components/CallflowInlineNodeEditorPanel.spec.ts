@@ -30,7 +30,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
           id: firstProfileId,
           label: 'Customer service IVR',
           methods: ['get'],
-          formats: ['kazoo'],
+          formats: ['switch'],
         },
         {
           id: secondProfileId,
@@ -404,7 +404,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
     expect(input.data).not.toHaveProperty('method')
   })
 
-  it('marks invalid Send DTMF digits and submits the current Kazoo schema fields', async () => {
+  it('marks invalid Send DTMF digits and submits the current Switch schema fields', async () => {
     const context: CallflowNodeEditorContext = {
       operation: 'create',
       path: [],
@@ -593,7 +593,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
   })
 
-  it('bounds Set variable to Kazoo call priority and locks unsupported existing names', async () => {
+  it('bounds Set variable to Switch call priority and locks unsupported existing names', async () => {
     const createContext: CallflowNodeEditorContext = {
       operation: 'create',
       path: [],
@@ -925,7 +925,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
     expect(wrapper.text()).not.toContain('approved_group_id')
   })
 
-  it('selects a public Receive Fax owner and supports all Kazoo T.38 modes', async () => {
+  it('selects a public Receive Fax owner and supports all Switch T.38 modes', async () => {
     const ownerId = '22222222-2222-4222-8222-222222222222'
     const context: CallflowNodeEditorContext = {
       operation: 'create',

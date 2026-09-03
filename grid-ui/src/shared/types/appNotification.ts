@@ -1,4 +1,4 @@
-export type AppNotificationTone = 'info' | 'success' | 'error'
+export type AppNotificationTone = 'info' | 'success' | 'warning' | 'error'
 
 export type AppNotificationInput = {
   title: string

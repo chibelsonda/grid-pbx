@@ -1,18 +1,14 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import {
-  ArrowPathIcon,
-  ChevronRightIcon,
-  LockClosedIcon,
-  LockOpenIcon,
-  PlusIcon,
-  UserGroupIcon,
-} from '@heroicons/vue/24/outline'
+import { LockClosedIcon, PlusIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
+import RowActionMenu from '@/shared/components/RowActionMenu.vue'
+import { crudRowActions, type RowAction } from '@/shared/components/rowAction'
 import { useVisibilityAwarePolling } from '@/shared/composables/useVisibilityAwarePolling'
 import { latestSynchronizedAt } from '@/shared/utils/projectionSync'
 import ConferenceFormPanel from '../components/ConferenceFormPanel.vue'
@@ -30,6 +26,7 @@ const accounts = useAccountStore()
 const conferences = useConferenceStore()
 const globalSearchQuery = useGlobalSearchListQuery()
 const panelOpen = ref(false)
+const confirmDelete = ref(false)
 const liveConference = ref<Conference | null>(null)
 const canManage = computed(() => accounts.selected?.permissions.can_manage_call_routing ?? false)
 const lastSynchronizedAt = computed(() => latestSynchronizedAt(conferences.records))
@@ -80,8 +77,10 @@ async function save(input: ConferenceInput): Promise<void> {
     panelOpen.value = false
 }
 async function remove(): Promise<void> {
-  if (accounts.selectedId && (await conferences.remove(accounts.selectedId)))
+  if (accounts.selectedId && (await conferences.remove(accounts.selectedId))) {
+    confirmDelete.value = false
     panelOpen.value = false
+  }
 }
 async function control(record: Conference): Promise<void> {
   if (!accounts.selectedId) return
@@ -128,6 +127,44 @@ async function controlParticipants(
 async function playMedia(mediaId: string, participantId: string | null): Promise<void> {
   if (!accounts.selectedId || !liveConference.value) return
   await conferences.playMedia(accounts.selectedId, liveConference.value, mediaId, participantId)
+}
+
+function conferenceActions(record: Conference): RowAction[] {
+  const participantCount = record.runtime.members + record.runtime.moderators
+  const canControl = canManage.value && (record.runtime.is_locked || participantCount > 0)
+
+  return [
+    ...crudRowActions(canManage.value),
+    ...(canControl
+      ? [
+          {
+            id: 'control',
+            label: record.runtime.is_locked ? 'Unlock room' : 'Lock room',
+            icon: record.runtime.is_locked ? ('unlock' as const) : ('lock' as const),
+            disabled: conferences.controllingId !== null,
+          },
+        ]
+      : []),
+    ...(participantCount > 0
+      ? [{ id: 'participants', label: 'Manage live room', icon: 'participants' as const }]
+      : []),
+  ]
+}
+
+async function handleRowAction(actionId: string, record: Conference): Promise<void> {
+  if (actionId === 'delete' && accounts.selectedId) {
+    await conferences.prepare(accounts.selectedId, record.id)
+    confirmDelete.value = conferences.detail !== null
+    return
+  }
+
+  if (actionId === 'control') {
+    void control(record)
+  } else if (actionId === 'participants') {
+    void manageParticipants(record)
+  } else {
+    void open(record.id)
+  }
 }
 </script>
 
@@ -240,7 +277,7 @@ async function playMedia(mediaId: string, participantId: string | null): Promise
             <th class="px-5 py-3.5">Access</th>
             <th class="px-5 py-3.5">Owner</th>
             <th class="px-5 py-3.5">Live status</th>
-            <th class="w-12"></th>
+            <th scope="col" class="w-12" aria-label="Actions"></th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 text-xs">
@@ -289,35 +326,14 @@ async function playMedia(mediaId: string, participantId: string | null): Promise
                     : `${record.runtime.members + record.runtime.moderators} active`
                 }}</span
               >
-              <button
-                v-if="
-                  canManage &&
-                  (record.runtime.is_locked ||
-                    record.runtime.members + record.runtime.moderators > 0)
-                "
-                type="button"
-                class="mt-2 inline-flex items-center gap-1 text-[10px] font-semibold text-brand-600 hover:text-brand-700 disabled:cursor-wait disabled:opacity-50"
-                :disabled="conferences.controllingId !== null"
-                @click.stop="control(record)"
-              >
-                <ArrowPathIcon
-                  v-if="conferences.controllingId === record.id"
-                  class="size-3 animate-spin"
-                />
-                <LockOpenIcon v-else-if="record.runtime.is_locked" class="size-3" />
-                <LockClosedIcon v-else class="size-3" />
-                {{ record.runtime.is_locked ? 'Unlock room' : 'Lock room' }}
-              </button>
-              <button
-                v-if="record.runtime.members + record.runtime.moderators > 0"
-                type="button"
-                class="mt-2 ml-3 inline-flex items-center gap-1 text-[10px] font-semibold text-slate-600 hover:text-brand-700"
-                @click.stop="manageParticipants(record)"
-              >
-                <UserGroupIcon class="size-3" />Manage live room
-              </button>
             </td>
-            <td><ChevronRightIcon class="size-4 text-slate-400" /></td>
+            <td class="px-3 text-right">
+              <RowActionMenu
+                :label="`Actions for ${record.name}`"
+                :actions="conferenceActions(record)"
+                @select="handleRowAction($event, record)"
+              />
+            </td>
           </tr>
         </tbody>
       </table>
@@ -352,5 +368,15 @@ async function playMedia(mediaId: string, participantId: string | null): Promise
     @control="controlParticipant"
     @bulk-control="controlParticipants"
     @play-media="playMedia"
+  />
+  <ConfirmDialog
+    :open="confirmDelete"
+    title="Delete conference"
+    :description="`Delete ${conferences.detail?.name ?? 'this conference'}? Active callers should leave the room first.`"
+    confirm-label="Delete conference"
+    tone="danger"
+    :busy="conferences.saving"
+    @close="confirmDelete = false"
+    @confirm="remove"
   />
 </template>

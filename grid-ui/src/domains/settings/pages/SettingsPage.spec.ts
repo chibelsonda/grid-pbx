@@ -239,6 +239,6 @@ describe('SettingsPage', () => {
     await wrapper.get('form[aria-label="Organization branding"]').trigger('submit')
 
     expect(uploadLogo).toHaveBeenCalledWith(png)
-    expect(wrapper.text()).toContain('does not modify Switch/Kazoo whitelabel settings')
+    expect(wrapper.text()).toContain('does not modify Switch whitelabel settings')
   })
 })

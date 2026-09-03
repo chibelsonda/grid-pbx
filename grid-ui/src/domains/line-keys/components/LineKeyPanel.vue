@@ -324,7 +324,7 @@ function submit(): void {
               <template v-else
                 >A full replacement of the device's combo and feature key maps.</template
               >
-              · Extension selections resolve to Kazoo presence IDs server-side.
+              · Extension selections resolve to Switch presence IDs server-side.
             </p>
           </div>
         </header>
@@ -468,7 +468,7 @@ function submit(): void {
                       v-if="key.type === 'line'"
                       class="self-center text-[10px] leading-4 text-slate-500"
                     >
-                      Uses the device's primary account. Kazoo does not use a custom value or label
+                      Uses the device's primary account. Switch does not use a custom value or label
                       for a line appearance.
                     </p>
                     <p
