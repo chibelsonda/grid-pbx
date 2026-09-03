@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { ShieldCheckIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { LinkIcon, ShieldCheckIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormListbox, {
@@ -44,6 +44,7 @@ import CallflowMenuBranchesField from './CallflowMenuBranchesField.vue'
 import CallflowNodeCard from './CallflowNodeCard.vue'
 import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
 import CallflowRouteSummary from './CallflowRouteSummary.vue'
+import CallflowResourceActionsDialog from './CallflowResourceActionsDialog.vue'
 import CallflowWorkspaceLayout from './CallflowWorkspaceLayout.vue'
 
 const props = withDefaults(
@@ -69,6 +70,7 @@ const { form, validate, validationErrors } = useCallflowForm(
 const metadataOpen = ref(false)
 const entryNumberOpen = ref(false)
 const actionOpen = ref(false)
+const resourceActionsOpen = ref(false)
 const selectedAction = ref<CallflowAction | null>(null)
 const rootActionChosen = ref(false)
 const rootActionError = ref<string | null>(null)
@@ -164,6 +166,12 @@ const temporalMatchDestinationOptions = computed<ListboxOptionValue[]>(() =>
 const selectedDestination = computed(() =>
   props.editor.destinations[form.destination_type].find(({ id }) => id === form.destination_id),
 )
+const selectedActionDestinationType = computed(() =>
+  selectedAction.value ? callflowActionDestinationType(selectedAction.value.module) : null,
+)
+const hasEndpointSettings = computed(() =>
+  ['user', 'device'].includes(selectedAction.value?.module ?? ''),
+)
 const selectedTemporalRules = computed(
   () => props.editor.temporal_rule_sets[form.destination_id] ?? [],
 )
@@ -186,6 +194,10 @@ watch(
     } else if (
       (isInlineRootModule(selectedAction.value?.module) &&
         fields.some((field) => field.startsWith('root_action.'))) ||
+      (hasEndpointSettings.value &&
+        fields.some(
+          (field) => field.startsWith('destination_data.') || field.startsWith('destination_'),
+        )) ||
       (form.destination_type === 'temporal_rules' &&
         fields.some(
           (field) => field === 'temporal_rule_ids' || field.startsWith('temporal_rule_routes'),
@@ -334,6 +346,8 @@ function applyRootAction(action: CallflowAction): void {
   rootActionChosen.value = true
   rootActionError.value = null
   rootActionData.value = null
+  form.destination_timeout = 20
+  form.destination_can_call_self = false
   if (destinationType) {
     form.destination_type = destinationType
     form.destination_id = props.editor.destinations[destinationType][0]?.id ?? ''
@@ -995,6 +1009,44 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
           {{ fieldError('destination_id') }}
         </span>
       </label>
+      <button
+        v-if="selectedActionDestinationType"
+        type="button"
+        class="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-700"
+        @click="resourceActionsOpen = true"
+      >
+        <LinkIcon class="size-4" />
+        Links / actions
+      </button>
+      <div v-if="hasEndpointSettings" class="grid gap-4 border-t border-slate-100 pt-5">
+        <FormInput
+          :model-value="form.destination_timeout"
+          label="Timeout"
+          description="Seconds to wait for the extension or device to answer."
+          type="number"
+          min="1"
+          max="600"
+          required
+          :error="fieldError('destination_timeout') ?? fieldError('destination_data.timeout')"
+          :model-modifiers="{ number: true }"
+          @update:model-value="form.destination_timeout = Number($event)"
+        />
+        <ToggleSwitch
+          v-model="form.destination_can_call_self"
+          label="Allow calls to self"
+          :description="
+            selectedAction.module === 'user'
+              ? 'Allow devices assigned to this extension to call one another.'
+              : 'Allow devices owned by the same extension to call one another.'
+          "
+          :invalid="
+            Boolean(
+              fieldError('destination_can_call_self') ??
+              fieldError('destination_data.can_call_self'),
+            )
+          "
+        />
+      </div>
       <p v-if="selectedAction.module !== 'menu'" class="text-[10px] leading-4 text-slate-500">
         Additional branches and inline actions become available on the visual canvas immediately
         after this callflow is created in Switch.
@@ -1232,6 +1284,14 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
     :field-errors="rootActionFieldErrors"
     @close="actionOpen = false"
     @save="saveInlineRootAction"
+  />
+  <CallflowResourceActionsDialog
+    v-if="resourceActionsOpen && selectedActionDestinationType"
+    :open="true"
+    :type="selectedActionDestinationType"
+    :selected-id="selectedDestination?.id ?? null"
+    :selected-label="selectedDestination?.label ?? null"
+    @close="resourceActionsOpen = false"
   />
 </template>
 

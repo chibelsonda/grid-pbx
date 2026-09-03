@@ -270,18 +270,18 @@ describe('callflowActionCatalog', () => {
     }
   })
 
-  it('exposes Page Group as a guided device action', () => {
+  it('exposes Page Group as a guided endpoint action', () => {
     expect(findCallflowAction('page_group')).toMatchObject({
       status: 'guided',
-      description: expect.stringContaining('20 synchronized devices'),
+      description: expect.stringContaining('Extensions, Devices, or Groups'),
     })
     expect(callflowInlineModuleNeedsEditorCatalog('page_group')).toBe(true)
   })
 
-  it('exposes Ring Group as a guided bounded device action', () => {
+  it('exposes Ring Group as a guided bounded endpoint action', () => {
     expect(findCallflowAction('ring_group')).toMatchObject({
       status: 'guided',
-      description: expect.stringContaining('20 synchronized devices'),
+      description: expect.stringContaining('Extensions, Devices, or Groups'),
     })
     expect(callflowInlineModuleNeedsEditorCatalog('ring_group')).toBe(true)
   })

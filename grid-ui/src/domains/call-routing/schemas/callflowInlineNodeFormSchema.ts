@@ -52,7 +52,7 @@ const customApplicationVariables = z
         .string()
         .max(1024)
         .refine(
-          (value) => !/[\x00\r\n]/.test(value),
+          (value) => !value.includes('\0') && !value.includes('\r') && !value.includes('\n'),
           'Values cannot contain line breaks or null bytes.',
         ),
     }),
@@ -76,7 +76,7 @@ const customApplicationVariables = z
     })
   })
 
-const ringGroupEndpoints = z
+const routedEndpoints = z
   .array(
     z
       .object({
@@ -115,7 +115,10 @@ const ringtoneHeader = z
   .trim()
   .min(1, 'Enter an Alert-Info value or leave this field empty.')
   .max(256, 'Keep the Alert-Info value within 256 characters.')
-  .regex(/^[^\u0000\r\n]+$/, 'Alert-Info values cannot contain line breaks or null bytes.')
+  .refine(
+    (value) => !value.includes('\0') && !value.includes('\r') && !value.includes('\n'),
+    'Alert-Info values cannot contain line breaks or null bytes.',
+  )
   .nullable()
 
 const schemas = {
@@ -193,8 +196,9 @@ const schemas = {
     .strict(),
   response: z
     .object({
-      code: z.number().int().min(400).max(699),
+      code: z.number().int().min(100).max(699),
       message: nullableString(128),
+      media_id: z.string().uuid().nullable().default(null),
       skip_module: z.boolean(),
     })
     .strict(),
@@ -243,18 +247,14 @@ const schemas = {
   page_group: z
     .object({
       audio: z.enum(['one-way', 'two-way']),
-      device_ids: z
-        .array(z.string().uuid('Select a synchronized device.'))
-        .min(1, 'Select at least one device.')
-        .max(20, 'Select no more than 20 devices.')
-        .refine((values) => new Set(values).size === values.length, 'Choose each device once.'),
+      endpoints: routedEndpoints,
       skip_module: z.boolean(),
     })
     .strict(),
   ring_group: z
     .object({
       strategy: z.enum(['simultaneous', 'single', 'weighted_random']),
-      endpoints: ringGroupEndpoints,
+      endpoints: routedEndpoints,
       repeats: z.number().int().min(1).max(3),
       ignore_forward: z.boolean(),
       fail_on_single_reject: z.boolean(),

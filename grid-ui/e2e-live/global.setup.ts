@@ -26,6 +26,11 @@ async function saveGridPbxSession(baseURL: string): Promise<void> {
 
   try {
     await page.goto('/login')
+    await page.waitForFunction(
+      () =>
+        !window.location.pathname.includes('/login') ||
+        document.querySelector('input[type="email"]') !== null,
+    )
 
     if (new URL(page.url()).pathname.includes('/login')) {
       await page

@@ -97,8 +97,7 @@ const descriptions: Record<string, string> = {
   directory: 'Open a configured dial-by-name directory.',
   dead_air: 'Suppress media and wait until the caller hangs up.',
   disa: 'Direct inward system access using a write-only administrator-approved access policy.',
-  dynamic_cid:
-    'Replace caller ID with a synchronized phone number owned by this account.',
+  dynamic_cid: 'Replace caller ID with a synchronized phone number owned by this account.',
   faxbox: 'Deliver a fax to a configured fax box.',
   flush_dtmf: 'Clear a named collection of buffered keypad digits.',
   group: 'Ring a configured group of endpoints.',
@@ -114,9 +113,10 @@ const descriptions: Record<string, string> = {
   hangup: 'End the current callflow path and disconnect the call.',
   menu: 'Route input through a configured IVR menu.',
   missed_call_alert: 'Notify extensions or email addresses about a missed call.',
-  page_group: 'Page up to 20 synchronized devices with one-way or two-way audio.',
+  page_group:
+    'Page up to 20 synchronized Extensions, Devices, or Groups with one-way or two-way audio.',
   ring_group:
-    'Ring up to 20 synchronized devices simultaneously, in order, or in a bounded weighted random order.',
+    'Ring up to 20 synchronized Extensions, Devices, or Groups simultaneously, in order, or in a bounded weighted random order.',
   offnet:
     'Global carrier routing; gated pending outbound-only authorization, final-destination, emergency, and toll-fraud controls.',
   pivot:

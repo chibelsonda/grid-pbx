@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import {
   ArrowDownIcon,
   ArrowUpIcon,
+  LinkIcon,
   PlusIcon,
   ShieldCheckIcon,
   TrashIcon,
@@ -20,12 +21,14 @@ import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { findCallflowAction } from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import { useCallflowInlineNodeForm } from '../composables/useCallflowInlineNodeForm'
+import CallflowResourceActionsDialog from './CallflowResourceActionsDialog.vue'
 import { callflowDtmfDigits } from '../schemas/callflowInlineNodeFormSchema'
 import type {
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
   CallflowAlertRecipient,
   CallflowCapturedNumberBranchKey,
+  CallflowDestinationType,
   CallflowEditor,
   CallflowNodeEditorContext,
   CallflowRingGroupEndpoint,
@@ -59,6 +62,11 @@ const action = computed(() =>
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
 const replacementConfirmed = ref(false)
 const replacementError = ref<string | null>(null)
+const resourceActions = ref<{
+  type: CallflowDestinationType
+  id: string | null
+  label: string | null
+} | null>(null)
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
 const title = computed(() =>
   props.rootConfiguration && props.context.operation === 'create'
@@ -97,10 +105,6 @@ const recordingFormatOptions: ListboxOptionValue[] = [
   { value: 'mp3', label: 'MP3' },
   { value: 'wav', label: 'WAV' },
 ]
-const recordingActionOptions: ListboxOptionValue[] = [
-  { value: 'start', label: 'Start recording' },
-  { value: 'stop', label: 'Stop recording' },
-]
 const presenceStatusOptions: ListboxOptionValue[] = [
   { value: 'idle', label: 'Idle' },
   { value: 'ringing', label: 'Ringing' },
@@ -128,10 +132,6 @@ const recipientTypeOptions: ListboxOptionValue[] = [
   { value: 'email', label: 'Email address' },
   { value: 'user', label: 'Extension user' },
 ]
-const prependActionOptions: ListboxOptionValue[] = [
-  { value: 'prepend', label: 'Prepend values' },
-  { value: 'reset', label: 'Reset prefixes' },
-]
 const prependTargetOptions: ListboxOptionValue[] = [
   { value: 'original', label: 'Original caller ID' },
   { value: 'current', label: 'Current accumulated caller ID' },
@@ -147,7 +147,6 @@ const extensionOptions = computed<ListboxOptionValue[]>(() =>
     description: detail,
   })),
 )
-const deviceOptions = computed(() => props.editor?.destinations.device ?? [])
 const ringGroupTargetOptions = computed<ListboxOptionValue[]>(() => {
   const selected = new Set((form.data.endpoints ?? []).map(ringGroupEndpointIdentity))
 
@@ -173,6 +172,27 @@ const ringGroupRingbackOptions = computed<ListboxOptionValue[]>(() => [
     .filter(({ supports_ringback }) => supports_ringback === true)
     .map(({ id, label, detail }) => ({ value: id, label, description: detail })),
 ])
+const responseMediaOptions = computed<ListboxOptionValue[]>(() => [
+  { value: null, label: 'No media' },
+  ...(props.editor?.destinations.media ?? []).map(({ id, label, detail }) => ({
+    value: id,
+    label,
+    description: detail,
+  })),
+])
+
+function openResourceActions(
+  type: CallflowDestinationType,
+  id: string | null | undefined,
+  options: ListboxOptionValue[],
+): void {
+  const selected = options.find((option) => option.value === id)
+  resourceActions.value = {
+    type,
+    id: id ?? null,
+    label: selected?.label ?? null,
+  }
+}
 const callerIdentityOwnerOptions = computed<ListboxOptionValue[]>(() => [
   { value: null, label: 'Do not override caller identity' },
   ...extensionOptions.value,
@@ -296,6 +316,8 @@ const operationalModules = new Set([
   'hotdesk',
   'do_not_disturb',
   'call_forward',
+  'prepend_cid',
+  'record_call',
 ])
 const lockedReason = computed<string | null>(() => {
   if (props.context.operation !== 'update') return null
@@ -315,7 +337,7 @@ const lockedReason = computed<string | null>(() => {
     module.value === 'page_group' &&
     props.context.node.settings?.supported_configuration !== true
   ) {
-    return 'This Page Group uses unresolved or expanded endpoints, barge mode, unsafe timing values, or more than 20 devices. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
+    return 'This Page Group uses unresolved endpoints, barge mode, unsafe timing values, or more than 20 members. GridPBX preserves its complete configuration without exposing or rewriting raw endpoint IDs.'
   }
   if (
     module.value === 'ring_group' &&
@@ -352,6 +374,12 @@ const lockedReason = computed<string | null>(() => {
     props.context.node.settings?.reference_status === 'unresolved'
   ) {
     return 'This Caller-ID List is not available in the current account projection. Synchronize Caller-ID Lists before editing this node.'
+  }
+  if (
+    module.value === 'response' &&
+    props.context.node.settings?.media_reference_status === 'unresolved'
+  ) {
+    return 'This Response uses media that is not available in the current account projection. GridPBX preserves the raw media reference without exposing or rewriting it.'
   }
   if (module.value === 'pivot' && props.context.node.settings?.supported_configuration !== true) {
     return 'This Pivot node does not match an administrator-approved endpoint. GridPBX preserves its private URL, headers, and unsupported settings without exposing or rewriting them.'
@@ -412,15 +440,6 @@ function setTerminators(value: boolean | string[]): void {
 
 function setTemporalRules(value: boolean | string[]): void {
   if (Array.isArray(value)) form.data.rules = value
-}
-
-function setPageGroupDevices(value: boolean | string[]): void {
-  if (Array.isArray(value)) form.data.device_ids = value
-}
-
-function pageGroupDeviceIsDisabled(id: string): boolean {
-  const selected = form.data.device_ids ?? []
-  return selected.length >= 20 && !selected.includes(id)
 }
 
 function ringGroupEndpoints(): CallflowRingGroupEndpoint[] {
@@ -757,7 +776,9 @@ watch(
             <h2 class="text-sm font-semibold text-slate-700">
               {{ action?.label ?? context.module }}
             </h2>
-            <p class="mt-0.5 font-mono text-[10px] text-heading-description">{{ context.module }}</p>
+            <p class="mt-0.5 font-mono text-[10px] text-heading-description">
+              {{ context.module }}
+            </p>
           </div>
         </header>
 
@@ -1372,6 +1393,14 @@ watch(
                 </span>
               </label>
             </div>
+            <button
+              type="button"
+              class="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-700"
+              @click="openResourceActions('extension', form.data.owner_id, extensionOptions)"
+            >
+              <LinkIcon class="size-4" />
+              Fax owner links / actions
+            </button>
             <div
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
@@ -1395,34 +1424,102 @@ watch(
                 {{ fieldError('data.audio') }}
               </span>
             </label>
-            <div>
-              <h3 class="text-xs font-semibold text-slate-700">Devices</h3>
-              <p class="mt-1 text-[10px] text-heading-description">
-                Select 1–20 synchronized devices. {{ form.data.device_ids?.length ?? 0 }} selected.
-              </p>
-            </div>
-            <div class="grid gap-2 sm:grid-cols-2">
-              <FormCheckbox
-                v-for="device in deviceOptions"
-                :key="device.id"
-                :model-value="form.data.device_ids ?? []"
-                :value="device.id"
-                :label="device.label"
-                :description="device.detail"
-                :disabled="loading || pageGroupDeviceIsDisabled(device.id)"
-                variant="compact"
-                @update:model-value="setPageGroupDevices"
+            <section class="grid gap-3">
+              <div>
+                <h3 class="text-xs font-semibold text-slate-700">Page endpoints</h3>
+                <p class="mt-1 text-[10px] text-heading-description">
+                  Add 1–20 synchronized Extensions, Devices, or Groups with the timing values used
+                  by Switch.
+                </p>
+              </div>
+              <FormListbox
+                :model-value="null"
+                :options="ringGroupTargetOptions"
+                aria-label="Add Page Group endpoint"
+                placeholder="Add an extension, device, or group"
+                :disabled="
+                  loading ||
+                  ringGroupTargetOptions.length === 0 ||
+                  ringGroupEndpoints().length >= 20
+                "
+                :invalid="Boolean(fieldError('data.endpoints'))"
+                @update:model-value="addRingGroupEndpoint"
               />
-            </div>
-            <p v-if="fieldError('data.device_ids')" class="text-[10px] text-danger">
-              {{ fieldError('data.device_ids') }}
-            </p>
+              <div
+                v-for="(endpoint, index) in ringGroupEndpoints()"
+                :key="ringGroupEndpointIdentity(endpoint)"
+                class="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-3"
+              >
+                <div class="flex items-center gap-2">
+                  <span class="min-w-0 flex-1 truncate text-xs font-semibold text-slate-700">
+                    {{ ringGroupEndpointLabel(endpoint) }}
+                  </span>
+                  <span class="text-[10px] font-semibold text-slate-500 uppercase">
+                    {{ ringGroupEndpointType(endpoint) }}
+                  </span>
+                  <button
+                    type="button"
+                    :disabled="index === 0"
+                    :aria-label="`Move ${ringGroupEndpointLabel(endpoint)} up`"
+                    class="rounded p-1.5 text-slate-500 hover:bg-white disabled:opacity-20"
+                    @click="moveRingGroupEndpoint(index, -1)"
+                  >
+                    <ArrowUpIcon class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    :disabled="index === ringGroupEndpoints().length - 1"
+                    :aria-label="`Move ${ringGroupEndpointLabel(endpoint)} down`"
+                    class="rounded p-1.5 text-slate-500 hover:bg-white disabled:opacity-20"
+                    @click="moveRingGroupEndpoint(index, 1)"
+                  >
+                    <ArrowDownIcon class="size-4" />
+                  </button>
+                  <button
+                    type="button"
+                    :aria-label="`Remove ${ringGroupEndpointLabel(endpoint)}`"
+                    class="rounded p-1.5 text-danger hover:bg-red-50"
+                    @click="removeRingGroupEndpoint(index)"
+                  >
+                    <TrashIcon class="size-4" />
+                  </button>
+                </div>
+                <div class="grid gap-3 sm:grid-cols-2">
+                  <FormInput
+                    :model-value="endpoint.delay"
+                    :label="`Endpoint ${index + 1} delay`"
+                    description="Seconds before paging this endpoint."
+                    type="number"
+                    min="0"
+                    max="60"
+                    required
+                    :model-modifiers="{ number: true }"
+                    :error="fieldError(`data.endpoints.${index}.delay`)"
+                    @update:model-value="setRingGroupTiming(index, 'delay', $event)"
+                  />
+                  <FormInput
+                    :model-value="endpoint.timeout"
+                    :label="`Endpoint ${index + 1} timeout`"
+                    description="Page this endpoint for 1–60 seconds."
+                    type="number"
+                    min="1"
+                    max="60"
+                    required
+                    :model-modifiers="{ number: true }"
+                    :error="fieldError(`data.endpoints.${index}.timeout`)"
+                    @update:model-value="setRingGroupTiming(index, 'timeout', $event)"
+                  />
+                </div>
+              </div>
+              <p v-if="fieldError('data.endpoints')" class="text-[10px] text-danger">
+                {{ fieldError('data.endpoints') }}
+              </p>
+            </section>
             <div
               class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
             >
-              GridPBX uses direct Device endpoints so the fan-out limit is enforceable. Existing
-              group expansion and barge mode remain read-only. Safe schema timing values stay
-              server-owned and are preserved during edits.
+              Endpoint IDs are resolved inside the current account. Existing barge mode and
+              unsupported private endpoint fields remain read-only and are preserved during edits.
             </div>
           </template>
 
@@ -1625,6 +1722,20 @@ watch(
                   {{ fieldError('data.ringback_media_id') }}
                 </span>
               </label>
+              <button
+                type="button"
+                class="inline-flex w-fit items-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700"
+                @click="
+                  openResourceActions(
+                    'media',
+                    form.data.ringback_media_id,
+                    ringGroupRingbackOptions,
+                  )
+                "
+              >
+                <LinkIcon class="size-4" />
+                Media links / actions
+              </button>
               <div class="grid gap-4 sm:grid-cols-2">
                 <FormInput
                   :model-value="form.data.ringtone_internal ?? ''"
@@ -1660,9 +1771,9 @@ watch(
               <FormInput
                 :model-value="form.data.code ?? null"
                 label="SIP response code"
-                description="A final error response from 400 through 699."
+                description="A Switch response code from 100 through 699."
                 type="number"
-                min="400"
+                min="100"
                 max="699"
                 required
                 :error="fieldError('data.code')"
@@ -1678,11 +1789,34 @@ watch(
                 @update:model-value="form.data.message = String($event)"
               />
             </div>
-            <div
-              class="rounded-md border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900"
+            <label class="grid gap-2">
+              <span class="text-xs font-semibold text-slate-700">Media before response</span>
+              <FormListbox
+                :model-value="form.data.media_id ?? null"
+                :options="responseMediaOptions"
+                aria-label="Response media"
+                :invalid="Boolean(fieldError('data.media_id'))"
+                @update:model-value="
+                  form.data.media_id = typeof $event === 'string' ? $event : null
+                "
+              />
+              <span v-if="fieldError('data.media_id')" class="text-[10px] text-danger">
+                {{ fieldError('data.media_id') }}
+              </span>
+            </label>
+            <button
+              type="button"
+              class="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-700"
+              @click="openResourceActions('media', form.data.media_id, responseMediaOptions)"
             >
-              Response ends this callflow path. Any existing Switch-managed response media remains
-              attached and is not exposed by this form.
+              <LinkIcon class="size-4" />
+              Media links / actions
+            </button>
+            <div
+              class="rounded-md border border-blue-100 bg-blue-50 p-4 text-xs leading-5 text-blue-800"
+            >
+              Response optionally plays the selected synchronized media, then ends this callflow
+              path with the configured SIP code and cause.
             </div>
           </template>
 
@@ -1886,17 +2020,7 @@ watch(
           </div>
 
           <template v-if="module === 'prepend_cid'">
-            <div class="grid gap-4 sm:grid-cols-2">
-              <label class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Action</span>
-                <FormListbox
-                  :model-value="form.data.action ?? 'prepend'"
-                  :options="prependActionOptions"
-                  aria-label="Caller ID prefix action"
-                  :invalid="Boolean(fieldError('data.action'))"
-                  @update:model-value="form.data.action = $event as 'prepend' | 'reset'"
-                />
-              </label>
+            <div v-if="form.data.action === 'prepend'" class="grid gap-4 sm:grid-cols-2">
               <label class="grid gap-2">
                 <span class="text-xs font-semibold text-slate-600">Apply to</span>
                 <FormListbox
@@ -1904,21 +2028,18 @@ watch(
                   :options="prependTargetOptions"
                   aria-label="Caller ID prefix target"
                   :invalid="Boolean(fieldError('data.apply_to'))"
-                  :disabled="form.data.action === 'reset'"
                   @update:model-value="form.data.apply_to = $event as 'original' | 'current'"
                 />
               </label>
               <FormInput
                 :model-value="form.data.caller_id_name_prefix ?? ''"
                 label="Name prefix"
-                :disabled="form.data.action === 'reset'"
                 :error="fieldError('data.caller_id_name_prefix')"
                 @update:model-value="form.data.caller_id_name_prefix = String($event)"
               />
               <FormInput
                 :model-value="form.data.caller_id_number_prefix ?? ''"
                 label="Number prefix"
-                :disabled="form.data.action === 'reset'"
                 :error="fieldError('data.caller_id_number_prefix')"
                 @update:model-value="form.data.caller_id_number_prefix = String($event)"
               />
@@ -2130,20 +2251,10 @@ watch(
           </section>
 
           <template v-if="module === 'record_call' || module === 'record_caller'">
-            <div class="grid gap-4 sm:grid-cols-2">
-              <label v-if="module === 'record_call'" class="grid gap-2">
-                <span class="text-xs font-semibold text-slate-600">Recording action</span>
-                <FormListbox
-                  :model-value="form.data.action ?? 'start'"
-                  :options="recordingActionOptions"
-                  aria-label="Recording action"
-                  :invalid="Boolean(fieldError('data.action'))"
-                  @update:model-value="form.data.action = $event as 'start' | 'stop'"
-                />
-                <span v-if="fieldError('data.action')" class="text-[10px] text-danger">
-                  {{ fieldError('data.action') }}
-                </span>
-              </label>
+            <div
+              v-if="module === 'record_caller' || form.data.action === 'start'"
+              class="grid gap-4 sm:grid-cols-2"
+            >
               <label class="grid gap-2">
                 <span class="text-xs font-semibold text-slate-600">Format</span>
                 <FormListbox
@@ -2216,21 +2327,21 @@ watch(
           @update:model-value="form.data.endless_playback = $event"
         />
         <ToggleSwitch
-          v-if="module === 'record_call'"
+          v-if="module === 'record_call' && form.data.action === 'start'"
           :model-value="Boolean(form.data.record_on_answer)"
           label="Record on answer"
           description="Delay recording until the call is answered."
           @update:model-value="form.data.record_on_answer = $event"
         />
         <ToggleSwitch
-          v-if="module === 'record_call'"
+          v-if="module === 'record_call' && form.data.action === 'start'"
           :model-value="Boolean(form.data.record_on_bridge)"
           label="Record on bridge"
           description="Delay recording until both call legs are bridged."
           @update:model-value="form.data.record_on_bridge = $event"
         />
         <ToggleSwitch
-          v-if="module === 'record_call'"
+          v-if="module === 'record_call' && form.data.action === 'start'"
           :model-value="Boolean(form.data.should_follow_transfer)"
           label="Follow transfers"
           description="Continue recording if the call is transferred."
@@ -2294,4 +2405,12 @@ watch(
       </div>
     </form>
   </CrudSlideOver>
+  <CallflowResourceActionsDialog
+    v-if="resourceActions"
+    :open="true"
+    :type="resourceActions.type"
+    :selected-id="resourceActions.id"
+    :selected-label="resourceActions.label"
+    @close="resourceActions = null"
+  />
 </template>

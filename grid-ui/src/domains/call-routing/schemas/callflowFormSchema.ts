@@ -31,6 +31,8 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
       name: z.string().trim().min(1, 'Enter a route name.').max(128),
       destination_type: z.enum(callflowDestinationTypes),
       destination_id: z.string(),
+      destination_timeout: z.number().int().min(1).max(600).default(20),
+      destination_can_call_self: z.boolean().default(false),
       root_action: z
         .object({
           module: z.enum(callflowInlineRootModules),
@@ -281,6 +283,8 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
     })
     .transform(
       ({
+        destination_timeout,
+        destination_can_call_self,
         fallback_enabled,
         temporal_match_enabled,
         temporal_rule_ids,
@@ -294,6 +298,16 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
             input.root_action || input.destination_type === 'temporal_rules'
               ? null
               : input.destination_id,
+          ...(editor.mode === 'create' &&
+          !input.root_action &&
+          ['extension', 'device'].includes(input.destination_type)
+            ? {
+                destination_data: {
+                  timeout: destination_timeout,
+                  can_call_self: destination_can_call_self,
+                },
+              }
+            : {}),
           ...(input.destination_type === 'temporal_rules'
             ? { temporal_rule_ids, temporal_rule_routes }
             : {}),

@@ -1,7 +1,9 @@
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import CallflowCreateWorkspace from './CallflowCreateWorkspace.vue'
 import type { CallflowEditor } from '../types/callRouting'
 
@@ -159,7 +161,9 @@ describe('CallflowCreateWorkspace', () => {
     })
 
     expect(wrapper.get('input[placeholder="e.g. 2999"]').attributes('aria-invalid')).toBe('true')
-    expect(wrapper.text().match(/Extension 2999 already enters another callflow\./g)).toHaveLength(1)
+    expect(wrapper.text().match(/Extension 2999 already enters another callflow\./g)).toHaveLength(
+      1,
+    )
     expect(wrapper.find('[data-testid="form-error-summary"]').exists()).toBe(false)
   })
 
@@ -203,6 +207,66 @@ describe('CallflowCreateWorkspace', () => {
     await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
 
     expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([true])
+  })
+
+  it('configures Switch User fields and resource actions in the dropped root modal', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+          CallflowResourceActionsDialog: {
+            name: 'CallflowResourceActionsDialog',
+            props: ['open', 'type', 'selectedId', 'selectedLabel'],
+            template: '<div data-resource-actions-dialog />',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('[aria-label="Edit callflow name and numbers"]').trigger('click')
+    await wrapper.get('input[required]').setValue('Reception route')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await wrapper.get('input[type="search"]').setValue('user')
+    await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
+
+    const timeout = wrapper
+      .findAllComponents(FormInput)
+      .find((input) => input.props('label') === 'Timeout')
+    const canCallSelf = wrapper
+      .findAllComponents(ToggleSwitch)
+      .find((toggle) => toggle.props('label') === 'Allow calls to self')
+    expect(timeout?.props('modelValue')).toBe(20)
+    expect(canCallSelf?.props('modelValue')).toBe(false)
+
+    timeout!.vm.$emit('update:modelValue', 45)
+    canCallSelf!.vm.$emit('update:modelValue', true)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Links / actions'))!
+      .trigger('click')
+
+    expect(wrapper.findComponent({ name: 'CallflowResourceActionsDialog' }).props()).toMatchObject({
+      open: true,
+      type: 'extension',
+      selectedId: extensionId,
+      selectedLabel: 'Reception',
+    })
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      destination_type: 'extension',
+      destination_id: extensionId,
+      destination_data: { timeout: 45, can_call_self: true },
+    })
   })
 
   it('lets the action palette float and return to its dock without affecting action dragging', async () => {

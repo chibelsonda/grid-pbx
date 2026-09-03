@@ -222,7 +222,7 @@ async function openMockedCallflowEditor(
   })
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: `View ${name}` }).click()
+  await page.getByRole('button', { name, exact: true }).click()
   await page.getByRole('button', { name: 'Edit callflow', exact: true }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Edit callflow' })
@@ -276,7 +276,7 @@ async function deleteCallflowRoute(page: Page, routeName: string): Promise<void>
   await routeSearch.fill(routeName)
   await expect(routeSearch).toHaveValue(routeName)
   await page.getByRole('button', { name: 'Apply filters' }).click()
-  const viewRoute = page.getByRole('button', { name: `View ${routeName}` })
+  const viewRoute = page.getByRole('button', { name: routeName, exact: true })
   await expect(viewRoute).toHaveCount(1)
   await viewRoute.click()
 
@@ -330,7 +330,7 @@ test('keeps all three Call Forwarding actions draggable without exposing private
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('button', { name: /^Call Forwarding/ }).click()
 
@@ -366,7 +366,7 @@ test('keeps ACDC Agent search-only and capability gated without mutating Switch'
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('searchbox', { name: 'Search callflow actions' }).fill('agent')
 
@@ -397,7 +397,7 @@ test('keeps Eavesdrop search-only and capability gated without mutating Switch',
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('searchbox', { name: 'Search callflow actions' }).fill('eavesdrop')
 
@@ -430,7 +430,7 @@ test('creates and reopens live ACDC Queue feature actions', async ({ page }) => 
     const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
     await routeSearch.fill(routeName!)
     await page.getByRole('button', { name: 'Apply filters' }).click()
-    await page.getByRole('button', { name: `View ${routeName}` }).click()
+    await page.getByRole('button', { name: routeName, exact: true }).click()
     opened = true
 
     const workspace = page.getByRole('region', { name: 'Callflow workspace' })
@@ -601,7 +601,10 @@ test('creates and reopens live ACDC Queue feature actions', async ({ page }) => 
   }
 })
 
-test('classifies every installed palette action without planned gaps', async ({ page }) => {
+test('classifies every installed palette action and opens every available modal', async ({
+  page,
+}) => {
+  test.setTimeout(120_000)
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
@@ -615,7 +618,7 @@ test('classifies every installed palette action without planned gaps', async ({ 
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   const categories = palette.locator('button[aria-expanded]')
   const actionTitles: string[] = []
@@ -627,22 +630,70 @@ test('classifies every installed palette action without planned gaps', async ({ 
     await expect(category).toHaveAttribute('aria-expanded', 'true')
 
     const visibleActions = palette.locator(
-      'button[title$="Guided now"]:visible, button[title$="Capability required"]:visible, button[title$="Visual editor planned"]:visible',
+      'button[title*=" · Guided now"]:visible, button[title*=" · Capability required"]:visible, button[title*=" · Visual editor planned"]:visible',
     )
     const visibleTitles = await visibleActions.evaluateAll((actions) =>
       actions.map((action) => action.getAttribute('title') ?? ''),
     )
     actionTitles.push(...visibleTitles)
 
-    for (const title of visibleTitles.filter((value) => value.endsWith('Capability required'))) {
-      await expect(palette.getByTitle(title, { exact: true })).toBeDisabled()
+    for (const title of visibleTitles) {
+      const actionButton = palette.getByTitle(title, { exact: true })
+      if (title.includes(' · Capability required')) {
+        await expect(actionButton).toBeDisabled()
+        continue
+      }
+
+      const actionLabel = title.split(' · ')[0]!
+      await expect(actionButton).toBeEnabled()
+      await actionButton.click()
+
+      const replacement = page.getByRole('dialog', { name: 'Replace root action?' })
+      if (await replacement.isVisible()) {
+        await replacement.getByRole('button', { name: 'Replace root action' }).click()
+      }
+
+      const actionDialog = page.getByRole('dialog', {
+        name: `Configure ${actionLabel}`,
+        exact: true,
+      })
+      await expect(actionDialog).toHaveAttribute('data-headlessui-state', 'open')
+      await expect(
+        actionDialog.getByRole('heading', { name: `Configure ${actionLabel}`, exact: true }),
+      ).toBeVisible()
+      await expect(
+        actionDialog.locator('input, textarea, button, [role="combobox"]').first(),
+      ).toBeVisible()
+
+      const resourceActions = actionDialog.getByRole('button', {
+        name: /links \/ actions/i,
+      })
+      for (
+        let resourceIndex = 0;
+        resourceIndex < (await resourceActions.count());
+        resourceIndex += 1
+      ) {
+        await resourceActions.nth(resourceIndex).click()
+        const closeResourceActions = page.getByRole('button', { name: 'Close resource actions' })
+        await expect(closeResourceActions).toBeVisible()
+        await closeResourceActions.click()
+        await expect(closeResourceActions).toHaveCount(0)
+      }
+
+      await page.keyboard.press('Escape')
+      await expect(actionDialog).toHaveCount(0)
     }
   }
 
   expect(new Set(actionTitles).size).toBe(49)
-  expect(actionTitles.filter((title) => title.endsWith('Guided now'))).toHaveLength(44)
-  expect(actionTitles.filter((title) => title.endsWith('Capability required'))).toHaveLength(5)
-  expect(actionTitles.filter((title) => title.endsWith('Visual editor planned'))).toEqual([])
+  const guidedCount = actionTitles.filter((title) => title.includes(' · Guided now')).length
+  const restrictedCount = actionTitles.filter((title) =>
+    title.includes(' · Capability required'),
+  ).length
+  expect(guidedCount).toBeGreaterThanOrEqual(44)
+  expect(restrictedCount).toBeLessThanOrEqual(5)
+  expect(guidedCount + restrictedCount).toBe(49)
+  expect(actionTitles.filter((title) => title.includes(' · Visual editor planned'))).toEqual([])
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
@@ -659,7 +710,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await page.goto('/call-routing')
     await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
     if (seededRouteName) {
-      await page.getByRole('button', { name: `View ${routeName}` }).click()
+      await page.getByRole('button', { name: routeName, exact: true }).click()
       created = true
     } else {
       const editorResponse = page.waitForResponse(
@@ -701,8 +752,8 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         'The connected account needs one unassigned phone number and one projected destination.',
       )
 
-      const createPanel = page.getByRole('region', { name: 'Create callflow' })
-      await createPanel.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+      const createPanel = page.getByRole('region', { name: 'Create callflow', exact: true })
+      await createPanel.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
       const metadataDialog = page.getByRole('dialog', { name: 'Callflow' })
       await metadataDialog.getByLabel('Callflow name').fill(routeName)
       await metadataDialog.getByRole('checkbox', { name: availableNumber!.number }).check()
@@ -1440,13 +1491,15 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await replaceInputValue(paletteSearch, 'Page Group')
     await palette.getByTitle('Page Group · page_group · Guided now').click()
     const addPageGroup = page.getByRole('dialog', { name: 'Add Page Group' })
-    const pageDevice = addPageGroup.getByRole('checkbox').first()
-    const pageDeviceLabel = (await pageDevice.getAttribute('aria-label')) ?? ''
-    const publicPageDeviceId = (await pageDevice.getAttribute('value')) ?? ''
-    expect(publicPageDeviceId).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
-    )
-    await pageDevice.check()
+    await addPageGroup.getByRole('button', { name: 'Add Page Group endpoint' }).click()
+    const pageDeviceOption = page
+      .getByRole('option')
+      .filter({ hasText: /Device ·/ })
+      .first()
+    const pageDeviceLabel =
+      (await pageDeviceOption.locator('span').first().textContent())?.trim() ?? ''
+    expect(pageDeviceLabel).not.toBe('')
+    await pageDeviceOption.click()
     const createPageGroupResponse = page.waitForResponse(
       (response) =>
         response.request().method() === 'POST' &&
@@ -1457,13 +1510,20 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await addPageGroup.getByRole('button', { name: 'Add action' }).click()
     const createdPageGroup = await createPageGroupResponse
     expect(createdPageGroup.status()).toBe(200)
-    expect(createdPageGroup.request().postDataJSON()).toMatchObject({
+    const createdPageGroupPayload = createdPageGroup.request().postDataJSON() as {
+      data: { endpoints: Array<{ device_id?: string; delay: number; timeout: number }> }
+    }
+    const publicPageDeviceId = createdPageGroupPayload.data.endpoints[0]?.device_id ?? ''
+    expect(publicPageDeviceId).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    )
+    expect(createdPageGroupPayload).toMatchObject({
       parent_path: ['_', '_', '_', '_', '_', '_', '_', '_'],
       branch: '_',
       module: 'page_group',
       data: {
         audio: 'one-way',
-        device_ids: [publicPageDeviceId],
+        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 20 }],
         skip_module: false,
       },
     })
@@ -1480,7 +1540,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
       settings: {
         supported_configuration: true,
         audio: 'one-way',
-        device_ids: [publicPageDeviceId],
+        endpoints: [{ device_id: publicPageDeviceId, delay: 0, timeout: 20 }],
         skip_module: false,
       },
     })
@@ -1496,9 +1556,11 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await pageGroupNode.click()
     await nodeInformation.getByRole('button', { name: 'Edit action target' }).click()
     const editPageGroup = page.getByRole('dialog', { name: 'Edit Page Group' })
-    await expect(editPageGroup.getByRole('checkbox', { name: pageDeviceLabel })).toBeChecked()
+    await expect(editPageGroup.getByText(pageDeviceLabel, { exact: true })).toBeVisible()
     await editPageGroup.getByRole('button', { name: 'Page audio' }).click()
     await page.getByRole('option', { name: /^Two-way/ }).click()
+    await editPageGroup.getByRole('spinbutton', { name: 'Endpoint 1 delay' }).fill('2')
+    await editPageGroup.getByRole('spinbutton', { name: 'Endpoint 1 timeout' }).fill('25')
     await editPageGroup.getByRole('switch', { name: 'Skip this action' }).click()
     const updatePageGroupResponse = page.waitForResponse(
       (response) =>
@@ -1515,7 +1577,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
       module: 'page_group',
       data: {
         audio: 'two-way',
-        device_ids: [publicPageDeviceId],
+        endpoints: [{ device_id: publicPageDeviceId, delay: 2, timeout: 25 }],
         skip_module: true,
       },
     })
@@ -1530,7 +1592,7 @@ test('creates, edits, branches, and removes live guided inline actions', async (
       settings: {
         supported_configuration: true,
         audio: 'two-way',
-        device_ids: [publicPageDeviceId],
+        endpoints: [{ device_id: publicPageDeviceId, delay: 2, timeout: 25 }],
         skip_module: true,
       },
     })
@@ -1555,8 +1617,8 @@ test('creates, edits, branches, and removes live guided inline actions', async (
         endpoint_type: 'device',
         ...(pageGroupRawDeviceId ? { id: pageGroupRawDeviceId } : {}),
         timeout: 5,
-        endpoint_delay: 0,
-        endpoint_timeout: 20,
+        endpoint_delay: 2,
+        endpoint_timeout: 25,
       })
     }
     await expect(editPageGroup).toBeHidden()
@@ -1567,7 +1629,13 @@ test('creates, edits, branches, and removes live guided inline actions', async (
     await expect(reopenedPageGroup.getByRole('button', { name: 'Page audio' })).toContainText(
       'Two-way',
     )
-    await expect(reopenedPageGroup.getByRole('checkbox', { name: pageDeviceLabel })).toBeChecked()
+    await expect(reopenedPageGroup.getByText(pageDeviceLabel, { exact: true })).toBeVisible()
+    await expect(
+      reopenedPageGroup.getByRole('spinbutton', { name: 'Endpoint 1 delay' }),
+    ).toHaveValue('2')
+    await expect(
+      reopenedPageGroup.getByRole('spinbutton', { name: 'Endpoint 1 timeout' }),
+    ).toHaveValue('25')
     await expect(
       reopenedPageGroup.getByRole('switch', { name: 'Skip this action' }),
     ).toHaveAttribute('aria-checked', 'true')
@@ -2371,7 +2439,7 @@ test('keeps profile-gated integration actions draggable after cancel and save', 
   )
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'View Pivot capability route' }).click()
+  await page.getByRole('button', { name: 'Pivot capability route', exact: true }).click()
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
   const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
   await palette.getByRole('button', { name: /^Advanced/ }).click()
@@ -2711,7 +2779,10 @@ test('live enables Pivot in the palette when the account has an active approved 
 
   await page.goto('/call-routing')
   await page
-    .getByRole('button', { name: /^View / })
+    .getByRole('table', { name: 'Projected callflows for the selected Switch account' })
+    .locator('tbody tr')
+    .first()
+    .getByRole('button')
     .first()
     .click()
 
@@ -2727,7 +2798,7 @@ test('live enables Pivot in the palette when the account has an active approved 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
 
-  const createWorkspace = page.getByRole('region', { name: 'Create callflow' })
+  const createWorkspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const createPalette = createWorkspace.getByRole('region', {
     name: 'Callflow action catalog',
   })
@@ -2802,7 +2873,7 @@ test('refreshes profile-gated create actions without resetting the unsaved callf
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
 
   await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
@@ -2810,7 +2881,7 @@ test('refreshes profile-gated create actions without resetting the unsaved callf
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2997')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await canvas.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  await canvas.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Unsaved capability refresh')
   await metadata.getByRole('button', { name: 'Done' }).click()
@@ -3071,14 +3142,14 @@ test('refreshes profile-gated actions across tabs without resetting the open dra
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
   await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
   const addNumber = page.getByRole('dialog', { name: 'Add number', exact: true })
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2996')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await canvas.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  await canvas.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Cross-tab unsaved draft')
   await metadata.getByRole('button', { name: 'Done' }).click()
@@ -3127,7 +3198,7 @@ test('refreshes profile-gated actions across tabs without resetting the open dra
 
   showExistingCallflow = true
   await page.reload()
-  await page.getByRole('button', { name: 'View Cross-tab capability route' }).click()
+  await page.getByRole('button', { name: 'Cross-tab capability route', exact: true }).click()
   const existingWorkspace = page.getByRole('region', { name: 'Callflow workspace' })
   const existingPalette = existingWorkspace.getByRole('region', {
     name: 'Callflow action catalog',
@@ -3208,8 +3279,8 @@ test('opens the Switch-style blank callflow root and keeps creation validation i
       exact: true,
     }),
   ).toHaveCount(1)
-  await expect(page.getByRole('button', { name: 'Close create callflow' })).toBeVisible()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
   const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
   const workspaceLayout = workspace.locator('[data-callflow-workspace-layout]')
@@ -3426,7 +3497,7 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
 
   await page.goto('/call-routing')
   await page.getByRole('button', { name: 'Create callflow' }).click()
-  const workspace = page.getByRole('region', { name: 'Create callflow' })
+  const workspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   const canvas = workspace.getByRole('region', { name: 'Create callflow canvas' })
   await canvas.getByRole('button', { name: 'Add callflow entry number' }).first().click()
 
@@ -3434,7 +3505,7 @@ test('reopens callflow metadata and highlights an extension conflict rejected by
   await addNumber.getByRole('radio', { name: 'Extension' }).click()
   await addNumber.getByLabel('Extension number').fill('2999')
   await addNumber.getByRole('button', { name: 'Add number' }).click()
-  await canvas.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
+  await canvas.getByRole('button', { name: /Edit callflow name and numbers$/ }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow', exact: true })
   await metadata.getByLabel('Callflow name').fill('Conflicting extension route')
   await metadata.getByRole('button', { name: 'Done' }).click()
@@ -3518,7 +3589,7 @@ test('removes one live guided subtree without exposing Switch identifiers', asyn
   const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
   await routeSearch.fill(routeName!)
   await page.getByRole('button', { name: 'Apply filters' }).click()
-  await page.getByRole('button', { name: `View ${routeName}` }).click()
+  await page.getByRole('button', { name: routeName, exact: true }).click()
 
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
   await expect(workspace.getByRole('button', { name: 'Remove User' })).toHaveCount(0)
@@ -3549,7 +3620,7 @@ test('removes one live guided subtree without exposing Switch identifiers', asyn
   await expect(workspace.getByRole('treeitem', { name: /^User:/ })).toBeVisible()
 
   await page.getByRole('button', { name: 'Back to callflows' }).click()
-  await page.getByRole('button', { name: `View ${routeName}` }).click()
+  await page.getByRole('button', { name: routeName, exact: true }).click()
   const reopened = page.getByRole('region', { name: 'Callflow workspace' })
   await expect(reopened.getByRole('treeitem', { name: /^Voicemail:/ })).toHaveCount(0)
   await expect(reopened.getByRole('treeitem', { name: /^User:/ })).toBeVisible()
@@ -4143,7 +4214,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
   )
 
   await page.goto('/call-routing')
-  await page.getByRole('button', { name: 'View Visual diagram route' }).click()
+  await page.getByRole('button', { name: 'Visual diagram route', exact: true }).click()
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
   await expect(
     page.getByRole('heading', { name: 'Visual diagram route', exact: true }),
@@ -4412,7 +4483,7 @@ test('renders a recursive visual route map without exposing preserved Switch bra
     .dragTo(workspace.getByRole('treeitem', { name: 'TTS' }))
   const responsePanel = page.getByRole('dialog', { name: 'Add Response' })
   const responseCode = responsePanel.getByRole('spinbutton', { name: 'SIP response code' })
-  await responseCode.fill('399')
+  await responseCode.fill('99')
   await responsePanel.getByRole('button', { name: 'Add action' }).click()
   await expect(responseCode).toHaveAttribute('aria-invalid', 'true')
   await expect(responseCode).toHaveClass(/border-red-400/)

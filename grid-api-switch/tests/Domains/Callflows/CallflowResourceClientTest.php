@@ -45,6 +45,7 @@ final class CallflowResourceClientTest extends TestCase
             destinationModule: 'user',
             destinationResourceId: 'user-1',
             entryNumbers: ['+15550000100'],
+            destinationSettings: ['timeout' => 45, 'can_call_self' => true],
         ));
 
         self::assertSame('callflow-created', $snapshot->id);
@@ -59,11 +60,29 @@ final class CallflowResourceClientTest extends TestCase
                 'numbers' => ['+15550000100'],
                 'flow' => [
                     'module' => 'user',
-                    'data' => ['id' => 'user-1'],
+                    'data' => [
+                        'id' => 'user-1',
+                        'timeout' => 45,
+                        'can_call_self' => true,
+                    ],
                     'children' => [],
                 ],
             ],
         ], json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR));
+    }
+
+    public function test_it_rejects_invalid_guided_endpoint_settings_during_create(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('guided endpoint action settings are invalid');
+
+        new CallflowCreateData(
+            name: 'Main line',
+            destinationModule: 'device',
+            destinationResourceId: 'device-1',
+            entryNumbers: ['1001'],
+            destinationSettings: ['timeout' => 0, 'can_call_self' => false],
+        );
     }
 
     public function test_it_creates_a_validated_ring_group_root(): void
@@ -791,6 +810,41 @@ final class CallflowResourceClientTest extends TestCase
         self::assertSame('user-2', $node['data']['id']);
         self::assertSame(25, $node['data']['timeout']);
         self::assertSame('mailbox-1', $node['children']['_']['data']['id']);
+    }
+
+    /** @throws JsonException */
+    public function test_it_writes_the_monster_user_timeout_and_can_call_self_settings(): void
+    {
+        $client = $this->clientWithResponse([
+            'id' => 'callflow-1',
+            'flow' => ['module' => 'menu', 'data' => ['id' => 'menu-1'], 'children' => []],
+        ]);
+
+        $client->writeTreeNode(
+            'account-1',
+            'callflow-1',
+            CallflowTreeNodeWriteData::create(
+                current: [
+                    'flow' => [
+                        'module' => 'menu',
+                        'data' => ['id' => 'menu-1'],
+                        'children' => [],
+                    ],
+                ],
+                parentPath: [],
+                branch: '1',
+                module: 'user',
+                resourceId: 'user-1',
+                settings: ['timeout' => 35, 'can_call_self' => true],
+            ),
+        );
+
+        $body = json_decode((string) $this->history[0]['request']->getBody(), true, flags: JSON_THROW_ON_ERROR);
+
+        self::assertSame(
+            ['id' => 'user-1', 'timeout' => 35, 'can_call_self' => true],
+            $body['data']['flow']['children']['1']['data'],
+        );
     }
 
     /** @throws JsonException */
@@ -1576,7 +1630,7 @@ final class CallflowResourceClientTest extends TestCase
         }
     }
 
-    public function test_it_writes_bounded_device_page_groups_and_preserves_endpoint_fields(): void
+    public function test_it_writes_bounded_page_group_endpoints_and_preserves_endpoint_fields(): void
     {
         $base = [
             'flow' => [
@@ -1593,8 +1647,8 @@ final class CallflowResourceClientTest extends TestCase
             [
                 'audio' => 'one-way',
                 'endpoints' => [
-                    ['endpoint_type' => 'device', 'id' => 'device-1'],
-                    ['endpoint_type' => 'device', 'id' => 'device-2'],
+                    ['endpoint_type' => 'device', 'id' => 'device-1', 'delay' => 0, 'timeout' => 20],
+                    ['endpoint_type' => 'user', 'id' => 'user-2', 'delay' => 2, 'timeout' => 25],
                 ],
                 'skip_module' => false,
             ],
@@ -1618,8 +1672,8 @@ final class CallflowResourceClientTest extends TestCase
             [
                 'audio' => 'two-way',
                 'endpoints' => [
-                    ['endpoint_type' => 'device', 'id' => 'device-1'],
-                    ['endpoint_type' => 'device', 'id' => 'device-3'],
+                    ['endpoint_type' => 'device', 'id' => 'device-1', 'delay' => 1, 'timeout' => 21],
+                    ['endpoint_type' => 'group', 'id' => 'group-3', 'delay' => 3, 'timeout' => 30],
                 ],
                 'skip_module' => true,
             ],
@@ -1627,10 +1681,10 @@ final class CallflowResourceClientTest extends TestCase
         $updatedNode = ((array) $updated['flow']['children'])['_'];
 
         self::assertSame('two-way', $updatedNode['data']['audio']);
-        self::assertSame(['device-1', 'device-3'], array_column($updatedNode['data']['endpoints'], 'id'));
+        self::assertSame(['device-1', 'group-3'], array_column($updatedNode['data']['endpoints'], 'id'));
         self::assertSame('preserve-endpoint', $updatedNode['data']['endpoints'][0]['server_owned']);
-        self::assertSame(0, $updatedNode['data']['endpoints'][0]['delay']);
-        self::assertSame(20, $updatedNode['data']['endpoints'][0]['timeout']);
+        self::assertSame(1, $updatedNode['data']['endpoints'][0]['delay']);
+        self::assertSame(21, $updatedNode['data']['endpoints'][0]['timeout']);
         self::assertArrayNotHasKey('server_owned', $updatedNode['data']['endpoints'][1]);
         self::assertSame(5, $updatedNode['data']['timeout']);
         self::assertSame('preserve-node', $updatedNode['data']['server_owned']);
@@ -1646,7 +1700,7 @@ final class CallflowResourceClientTest extends TestCase
             'page_group',
             [
                 'audio' => 'one-way',
-                'endpoints' => [['endpoint_type' => 'device', 'id' => 'device-1']],
+                'endpoints' => [['endpoint_type' => 'device', 'id' => 'device-1', 'delay' => 0, 'timeout' => 20]],
                 'skip_module' => false,
             ],
         );
@@ -2658,7 +2712,12 @@ final class CallflowResourceClientTest extends TestCase
             'flush_dtmf' => ['collection_name' => 'default', 'skip_module' => false],
             'dead_air' => ['skip_module' => false],
             'language' => ['language' => 'en-US', 'skip_module' => false],
-            'response' => ['code' => 486, 'message' => 'Busy here', 'skip_module' => false],
+            'response' => [
+                'code' => 486,
+                'message' => 'Busy here',
+                'media' => 'media-busy',
+                'skip_module' => false,
+            ],
             'hangup' => ['skip_module' => false],
             'set_variable' => [
                 'variable' => 'call_priority',
@@ -2875,8 +2934,23 @@ final class CallflowResourceClientTest extends TestCase
             [],
             '_',
             'response',
-            ['code' => 399, 'message' => null, 'skip_module' => false],
+            ['code' => 99, 'message' => null, 'skip_module' => false],
         );
+    }
+
+    public function test_it_accepts_a_success_response_code_from_the_switch_schema(): void
+    {
+        $document = CallflowInlineNodeWriteData::create(
+            ['flow' => ['module' => 'user', 'data' => ['id' => 'user-1'], 'children' => []]],
+            [],
+            '_',
+            'response',
+            ['code' => 200, 'message' => 'OK', 'skip_module' => false],
+        )->toSwitchData();
+
+        $node = ((array) $document['flow']['children'])['_'];
+        self::assertSame(200, $node['data']['code']);
+        self::assertSame('OK', $node['data']['message']);
     }
 
     public function test_it_rejects_arbitrary_or_out_of_range_channel_variables(): void

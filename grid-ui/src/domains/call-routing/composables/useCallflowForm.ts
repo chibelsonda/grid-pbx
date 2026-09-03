@@ -17,6 +17,8 @@ type CallflowFormState = {
   name: string
   destination_type: CallflowDestinationType
   destination_id: string
+  destination_timeout: number
+  destination_can_call_self: boolean
   temporal_rule_ids: string[]
   temporal_rule_routes: CallflowTemporalRuleRouteInput[]
   phone_number_ids: string[]
@@ -41,6 +43,8 @@ export function useCallflowForm(
     name: '',
     destination_type: 'extension',
     destination_id: '',
+    destination_timeout: 20,
+    destination_can_call_self: false,
     temporal_rule_ids: [],
     temporal_rule_routes: [],
     phone_number_ids: [],
@@ -79,6 +83,9 @@ export function useCallflowForm(
       editor.destinations[currentType].some(({ id }) => id === record?.flow?.target?.id)
         ? (record?.flow?.target?.id ?? '')
         : (editor.destinations[form.destination_type][0]?.id ?? '')
+    form.destination_timeout =
+      typeof record?.flow?.settings?.timeout === 'number' ? record.flow.settings.timeout : 20
+    form.destination_can_call_self = record?.flow?.settings?.can_call_self === true
     form.temporal_rule_ids = (record?.flow?.temporal_rules ?? []).flatMap(({ id }) =>
       id === null ? [] : [id],
     )

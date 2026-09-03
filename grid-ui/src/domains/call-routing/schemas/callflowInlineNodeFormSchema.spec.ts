@@ -116,7 +116,13 @@ describe('callflow inline node form schema', () => {
       },
       page_group: {
         audio: 'one-way',
-        device_ids: ['11111111-1111-4111-8111-111111111111'],
+        endpoints: [
+          {
+            device_id: '11111111-1111-4111-8111-111111111111',
+            delay: 0,
+            timeout: 20,
+          },
+        ],
         skip_module: false,
       },
       ring_group: {
@@ -187,11 +193,9 @@ describe('callflow inline node form schema', () => {
     })
 
     expect(result.success).toBe(false)
-    if (!result.success) {
-      expect(result.error.issues.map(({ path }) => path.join('.'))).toEqual(
-        expect.arrayContaining(['branch', 'data.text']),
-      )
-    }
+    expect(result.success ? [] : result.error.issues.map(({ path }) => path.join('.'))).toEqual(
+      expect.arrayContaining(['branch', 'data.text']),
+    )
   })
 
   it('accepts a branchless edit and the newer DTMF terminator array', () => {
@@ -226,7 +230,7 @@ describe('callflow inline node form schema', () => {
     expect(alert.success).toBe(false)
   })
 
-  it('bounds Response to a final SIP error code and rejects server-owned media', () => {
+  it('bounds Response to the Switch code range and rejects server-owned media', () => {
     const schema = createCallflowInlineNodeFormSchema('response', ['_'], true)
 
     expect(
@@ -238,7 +242,13 @@ describe('callflow inline node form schema', () => {
     expect(
       schema.safeParse({
         branch: '_',
-        data: { code: 399, message: null, skip_module: false },
+        data: { code: 200, message: 'OK', skip_module: false },
+      }).success,
+    ).toBe(true)
+    expect(
+      schema.safeParse({
+        branch: '_',
+        data: { code: 99, message: null, skip_module: false },
       }).success,
     ).toBe(false)
     expect(
@@ -633,27 +643,43 @@ describe('callflow inline node form schema', () => {
     ).toBe(false)
   })
 
-  it('requires a bounded list of public Page Group devices', () => {
+  it('requires bounded public Page Group endpoints and timing', () => {
     const schema = createCallflowInlineNodeFormSchema('page_group', ['_'], true)
     const deviceId = '11111111-1111-4111-8111-111111111111'
     const base = {
       branch: '_',
-      data: { audio: 'one-way', device_ids: [deviceId], skip_module: false },
+      data: {
+        audio: 'one-way',
+        endpoints: [{ device_id: deviceId, delay: 0, timeout: 20 }],
+        skip_module: false,
+      },
     } as const
 
     expect(schema.safeParse(base).success).toBe(true)
     expect(schema.safeParse({ ...base, data: { ...base.data, audio: 'two-way' } }).success).toBe(
       true,
     )
-    expect(schema.safeParse({ ...base, data: { ...base.data, device_ids: [] } }).success).toBe(
-      false,
-    )
+    expect(schema.safeParse({ ...base, data: { ...base.data, endpoints: [] } }).success).toBe(false)
     expect(
-      schema.safeParse({ ...base, data: { ...base.data, device_ids: [deviceId, deviceId] } })
-        .success,
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [
+            { device_id: deviceId, delay: 0, timeout: 20 },
+            { device_id: deviceId, delay: 1, timeout: 30 },
+          ],
+        },
+      }).success,
     ).toBe(false)
     expect(
-      schema.safeParse({ ...base, data: { ...base.data, device_ids: ['switch-device'] } }).success,
+      schema.safeParse({
+        ...base,
+        data: {
+          ...base.data,
+          endpoints: [{ extension_id: 'switch-user', delay: 0, timeout: 20 }],
+        },
+      }).success,
     ).toBe(false)
   })
 
@@ -887,11 +913,9 @@ describe('callflow inline node form schema', () => {
       data: { ...base.data, external_caller_id_name: 'Support' },
     })
     expect(partial.success).toBe(false)
-    if (!partial.success) {
-      expect(partial.error.issues.map(({ path }) => path.join('.'))).toEqual(
-        expect.arrayContaining(['data.external_caller_id_number', 'data.user_id']),
-      )
-    }
+    expect(partial.success ? [] : partial.error.issues.map(({ path }) => path.join('.'))).toEqual(
+      expect.arrayContaining(['data.external_caller_id_number', 'data.user_id']),
+    )
   })
 
   it('requires a public Caller-ID List UUID', () => {

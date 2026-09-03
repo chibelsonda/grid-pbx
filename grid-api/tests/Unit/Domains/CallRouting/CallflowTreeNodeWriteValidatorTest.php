@@ -11,6 +11,31 @@ use Tests\TestCase;
 class CallflowTreeNodeWriteValidatorTest extends TestCase
 {
     #[Test]
+    public function it_rejects_editing_a_response_with_unresolved_media(): void
+    {
+        $callflow = new SwitchCallflow;
+        $callflow->forceFill([
+            'flow_structure' => [
+                'module' => 'menu',
+                'reference_status' => 'resolved',
+                'children' => [
+                    '_' => [
+                        'module' => 'response',
+                        'reference_status' => 'not_applicable',
+                        'settings' => ['media_reference_status' => 'unresolved'],
+                        'children' => [],
+                    ],
+                ],
+            ],
+        ]);
+
+        $this->expectException(ValidationException::class);
+        $this->expectExceptionMessage('Synchronize the response media before editing this action.');
+
+        app(CallflowTreeNodeWriteValidator::class)->assertCanUpdate($callflow, ['_'], 'response');
+    }
+
+    #[Test]
     public function it_allows_a_guided_public_subtree_to_be_removed(): void
     {
         $callflow = new SwitchCallflow;

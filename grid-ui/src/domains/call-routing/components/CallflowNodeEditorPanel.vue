@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { ShieldCheckIcon } from '@heroicons/vue/24/outline'
+import { computed, ref } from 'vue'
+import { LinkIcon, ShieldCheckIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
@@ -8,9 +8,11 @@ import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
 } from '@/shared/components/FormListbox.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import { findCallflowAction } from '../catalog/callflowActionCatalog'
 import { callflowActionIcon } from '../catalog/callflowActionIcons'
 import { useCallflowNodeForm } from '../composables/useCallflowNodeForm'
+import CallflowResourceActionsDialog from './CallflowResourceActionsDialog.vue'
 import type {
   CallflowEditor,
   CallflowCapturedNumberBranchKey,
@@ -32,14 +34,23 @@ const emit = defineEmits<{
   close: []
   save: [input: CallflowTreeNodeCreateInput | CallflowTreeNodeUpdateInput]
 }>()
-const { form, validationErrors, destinations, branches, usesCapturedNumberBranch, validate } =
-  useCallflowNodeForm(
-    () => props.context,
-    () => props.editor,
-  )
+const {
+  form,
+  validationErrors,
+  destinations,
+  branches,
+  usesCapturedNumberBranch,
+  hasEndpointSettings,
+  destinationType,
+  validate,
+} = useCallflowNodeForm(
+  () => props.context,
+  () => props.editor,
+)
 const action = computed(() => findCallflowAction(props.context.module))
 const actionIcon = computed(() => callflowActionIcon(props.context.module))
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const resourceActionsOpen = ref(false)
 const destinationOptions = computed<ListboxOptionValue[]>(() =>
   destinations.value.map(({ id, label, detail }) => ({
     value: id,
@@ -48,6 +59,27 @@ const destinationOptions = computed<ListboxOptionValue[]>(() =>
   })),
 )
 const branchOptions = computed<ListboxOptionValue[]>(() => branches.value)
+const selectedDestination = computed(() =>
+  destinations.value.find(({ id }) => id === form.destination_id),
+)
+const supportsResourceActions = computed(
+  () =>
+    destinationType.value !== null &&
+    [
+      'extension',
+      'device',
+      'voicemail',
+      'callflow',
+      'media',
+      'directory',
+      'group',
+      'queue',
+      'menu',
+      'conference',
+      'fax_box',
+      'temporal_rule_set',
+    ].includes(destinationType.value),
+)
 const title = computed(() =>
   props.context.operation === 'create'
     ? `Add ${action.value?.label ?? 'callflow action'}`
@@ -110,7 +142,9 @@ function submit(): void {
             <h2 class="text-sm font-semibold text-slate-700">
               {{ action?.label ?? context.module }}
             </h2>
-            <p class="mt-0.5 font-mono text-[10px] text-heading-description">{{ context.module }}</p>
+            <p class="mt-0.5 font-mono text-[10px] text-heading-description">
+              {{ context.module }}
+            </p>
           </div>
         </header>
         <div class="grid gap-5 p-5">
@@ -156,6 +190,41 @@ function submit(): void {
               No synchronized destinations are available for this action.
             </span>
           </label>
+
+          <button
+            v-if="supportsResourceActions"
+            type="button"
+            class="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-700"
+            @click="resourceActionsOpen = true"
+          >
+            <LinkIcon class="size-4" />
+            Links / actions
+          </button>
+
+          <div v-if="hasEndpointSettings" class="grid gap-4 border-t border-slate-100 pt-5">
+            <FormInput
+              :model-value="form.timeout"
+              label="Timeout"
+              description="Seconds to wait for the extension or device to answer."
+              type="number"
+              min="1"
+              max="600"
+              required
+              :error="fieldError('timeout')"
+              :model-modifiers="{ number: true }"
+              @update:model-value="form.timeout = Number($event)"
+            />
+            <ToggleSwitch
+              v-model="form.can_call_self"
+              label="Allow calls to self"
+              :description="
+                context.module === 'user'
+                  ? 'Allow devices assigned to this extension to call one another.'
+                  : 'Allow devices owned by the same extension to call one another.'
+              "
+              :invalid="Boolean(fieldError('can_call_self'))"
+            />
+          </div>
         </div>
       </section>
 
@@ -194,4 +263,12 @@ function submit(): void {
       </div>
     </form>
   </CrudSlideOver>
+  <CallflowResourceActionsDialog
+    v-if="resourceActionsOpen && destinationType"
+    :open="resourceActionsOpen"
+    :type="destinationType"
+    :selected-id="selectedDestination?.id ?? null"
+    :selected-label="selectedDestination?.label ?? null"
+    @close="resourceActionsOpen = false"
+  />
 </template>

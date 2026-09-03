@@ -25,6 +25,8 @@ export function createCallflowNodeFormSchema(
         )
         .nullable(),
       destination_id: z.string(),
+      timeout: z.number().int().min(1).max(600).default(20),
+      can_call_self: z.boolean().default(false),
     })
     .strict()
     .superRefine((input, context) => {

@@ -11,6 +11,7 @@ grid-ui/dist/
 grid-ui/node_modules/
 grid-ui/playwright-report/
 grid-ui/test-results/
+grid-ui/.env.e2e
 
 # Local legacy reference stack; intentionally excluded from this repository.
 /src/

@@ -52,7 +52,7 @@ async function deleteDisposableRoute(page: Page, routeName: string): Promise<voi
   const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
   await routeSearch.fill(routeName)
   await page.getByRole('button', { name: 'Apply filters' }).click()
-  const viewRoute = page.getByRole('button', { name: `View ${routeName}` })
+  const viewRoute = page.getByRole('button', { name: routeName, exact: true })
   await expect(viewRoute).toHaveCount(1)
   await viewRoute.click()
 
@@ -103,7 +103,7 @@ test('configures Do Not Disturb guided inline actions', async ({ page }) => {
 
   try {
     await page.goto('/call-routing')
-    await page.getByRole('button', { name: `View ${routeName}` }).click()
+    await page.getByRole('button', { name: routeName, exact: true }).click()
 
     const workspace = page.getByRole('region', { name: 'Callflow workspace' })
     await expect(workspace.getByRole('heading', { name: routeName })).toBeVisible()

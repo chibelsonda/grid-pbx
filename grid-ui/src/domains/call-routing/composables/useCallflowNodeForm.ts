@@ -18,14 +18,22 @@ export function useCallflowNodeForm(
   contextSource: MaybeRefOrGetter<CallflowNodeEditorContext>,
   editorSource: MaybeRefOrGetter<CallflowEditor | null>,
 ) {
-  const form = reactive<{ branch: CallflowTreeBranchKey | null; destination_id: string }>({
+  const form = reactive<{
+    branch: CallflowTreeBranchKey | null
+    destination_id: string
+    timeout: number
+    can_call_self: boolean
+  }>({
     branch: null,
     destination_id: '',
+    timeout: 20,
+    can_call_self: false,
   })
   const validationErrors = ref<FormErrors>({})
   const context = computed(() => toValue(contextSource))
   const editor = computed(() => toValue(editorSource))
   const destinationType = computed(() => callflowActionDestinationType(context.value.module))
+  const hasEndpointSettings = computed(() => ['user', 'device'].includes(context.value.module))
   const destinations = computed(() => {
     const type = destinationType.value
     return type === null ? [] : (editor.value?.destinations[type] ?? [])
@@ -45,6 +53,11 @@ export function useCallflowNodeForm(
       currentTarget && destinations.value.some(({ id }) => id === currentTarget.id)
         ? currentTarget.id
         : (destinations.value[0]?.id ?? '')
+    form.timeout =
+      typeof context.value.node.settings?.timeout === 'number'
+        ? context.value.node.settings.timeout
+        : 20
+    form.can_call_self = context.value.node.settings?.can_call_self === true
     validationErrors.value = {}
   }
 
@@ -81,6 +94,14 @@ export function useCallflowNodeForm(
         branch: result.data.branch as CallflowTreeBranchKey,
         destination_type: type,
         destination_id: result.data.destination_id,
+        ...(hasEndpointSettings.value
+          ? {
+              data: {
+                timeout: result.data.timeout,
+                can_call_self: result.data.can_call_self,
+              },
+            }
+          : {}),
       }
     }
 
@@ -88,6 +109,14 @@ export function useCallflowNodeForm(
       node_path: [...context.value.path],
       destination_type: type,
       destination_id: result.data.destination_id,
+      ...(hasEndpointSettings.value
+        ? {
+            data: {
+              timeout: result.data.timeout,
+              can_call_self: result.data.can_call_self,
+            },
+          }
+        : {}),
     }
   }
 
@@ -95,6 +124,7 @@ export function useCallflowNodeForm(
     form,
     validationErrors,
     destinationType,
+    hasEndpointSettings,
     destinations,
     branches,
     usesCapturedNumberBranch,

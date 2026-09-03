@@ -276,7 +276,7 @@ class CallflowControllerTest extends TestCase
                 throw new \LogicException('Not used by this test.');
             }
 
-            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId, ?array $settings = null): array
             {
                 throw new \LogicException('Not used by this test.');
             }
@@ -811,7 +811,7 @@ class CallflowControllerTest extends TestCase
                 'parent_path' => [],
                 'branch' => '_',
                 'module' => 'response',
-                'data' => ['code' => 399, 'message' => null, 'skip_module' => false],
+                'data' => ['code' => 99, 'message' => null, 'skip_module' => false],
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('data.code');
@@ -830,11 +830,33 @@ class CallflowControllerTest extends TestCase
             ])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('data');
+
+        $foreignAccount = SwitchAccount::factory()->create();
+        $foreignMedia = SwitchMedia::factory()->for($foreignAccount)->create();
+
+        $this->actingAs($user)
+            ->postJson($url, [
+                'parent_path' => [],
+                'branch' => '_',
+                'module' => 'response',
+                'data' => [
+                    'code' => 486,
+                    'message' => null,
+                    'media_id' => $foreignMedia->id,
+                    'skip_module' => false,
+                ],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('data.media_id');
     }
 
-    public function test_it_writes_response_settings_without_exposing_server_owned_media(): void
+    public function test_it_writes_response_media_with_a_public_account_owned_uuid(): void
     {
         [$user, $account] = $this->accessibleAccount();
+        $media = SwitchMedia::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-media-busy',
+            'name' => 'Busy announcement',
+        ]);
         $menu = SwitchMenu::factory()->for($account)->create([
             'switch_resource_id' => 'switch-menu-main',
             'name' => 'Main menu',
@@ -848,7 +870,18 @@ class CallflowControllerTest extends TestCase
                 'children' => [],
             ],
         ]);
-        $settings = ['code' => 603, 'message' => 'Decline', 'skip_module' => false];
+        $inputSettings = [
+            'code' => 603,
+            'message' => 'Decline',
+            'media_id' => $media->id,
+            'skip_module' => false,
+        ];
+        $switchSettings = [
+            'code' => 603,
+            'message' => 'Decline',
+            'media' => 'switch-media-busy',
+            'skip_module' => false,
+        ];
         $gateway = $this->mock(SwitchCallflowGateway::class);
         $gateway->shouldReceive('writeInlineTreeNode')->once()->withArgs(fn (
             SwitchAccount $receivedAccount,
@@ -864,7 +897,7 @@ class CallflowControllerTest extends TestCase
             && $path === []
             && $branch === '_'
             && $module === 'response'
-            && $receivedSettings === $settings)->andReturn([
+            && $receivedSettings === $switchSettings)->andReturn([
                 'id' => 'switch-callflow-main',
                 'name' => 'Main route',
                 'numbers' => [],
@@ -875,7 +908,7 @@ class CallflowControllerTest extends TestCase
                     'children' => [
                         '_' => [
                             'module' => 'response',
-                            'data' => [...$settings, 'media' => 'private-media-id'],
+                            'data' => $switchSettings,
                             'children' => [],
                         ],
                     ],
@@ -887,12 +920,15 @@ class CallflowControllerTest extends TestCase
                 'parent_path' => [],
                 'branch' => '_',
                 'module' => 'response',
-                'data' => $settings,
+                'data' => $inputSettings,
             ])
             ->assertOk()
             ->assertJsonPath('data.flow.children._.settings.code', 603)
             ->assertJsonPath('data.flow.children._.settings.message', 'Decline')
-            ->assertJsonMissing(['private-media-id']);
+            ->assertJsonPath('data.flow.children._.settings.media_id', $media->id)
+            ->assertJsonPath('data.flow.children._.settings.media_label', 'Busy announcement')
+            ->assertJsonPath('data.flow.children._.settings.media_reference_status', 'resolved')
+            ->assertJsonMissing(['switch-media-busy']);
     }
 
     public function test_it_accepts_only_the_schema_backed_hangup_setting(): void
@@ -2985,7 +3021,7 @@ class CallflowControllerTest extends TestCase
             ->assertJsonMissing([$account->switch_account_id]);
     }
 
-    public function test_it_maps_public_page_group_devices_without_exposing_switch_endpoint_ids(): void
+    public function test_it_maps_public_page_group_endpoints_without_exposing_switch_endpoint_ids(): void
     {
         [$user, $account] = $this->accessibleAccount();
         $menu = SwitchMenu::factory()->for($account)->create([
@@ -3007,12 +3043,21 @@ class CallflowControllerTest extends TestCase
         ]);
         $publicSettings = [
             'audio' => 'one-way',
-            'device_ids' => [$device->id],
+            'endpoints' => [[
+                'device_id' => $device->id,
+                'delay' => 0,
+                'timeout' => 20,
+            ]],
             'skip_module' => false,
         ];
         $switchSettings = [
             'audio' => 'one-way',
-            'endpoints' => [['endpoint_type' => 'device', 'id' => 'switch-page-device']],
+            'endpoints' => [[
+                'endpoint_type' => 'device',
+                'id' => 'switch-page-device',
+                'delay' => 0,
+                'timeout' => 20,
+            ]],
             'skip_module' => false,
         ];
         $gateway = $this->mock(SwitchCallflowGateway::class);
@@ -3068,7 +3113,9 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.flow.children._.reference_status', 'resolved')
             ->assertJsonPath('data.flow.children._.settings.supported_configuration', true)
             ->assertJsonPath('data.flow.children._.settings.audio', 'one-way')
-            ->assertJsonPath('data.flow.children._.settings.device_ids.0', $device->id)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.0.device_id', $device->id)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.0.delay', 0)
+            ->assertJsonPath('data.flow.children._.settings.endpoints.0.timeout', 20)
             ->assertJsonMissing(['id' => 'switch-page-device'])
             ->assertJsonMissing(['server_owned' => 'secret']);
 
@@ -3078,11 +3125,15 @@ class CallflowControllerTest extends TestCase
             'module' => 'page_group',
             'data' => [
                 'audio' => 'one-way',
-                'device_ids' => ['00000000-0000-4000-8000-000000000000'],
+                'endpoints' => [[
+                    'device_id' => '00000000-0000-4000-8000-000000000000',
+                    'delay' => 0,
+                    'timeout' => 20,
+                ]],
                 'skip_module' => false,
             ],
         ])->assertUnprocessable()
-            ->assertJsonValidationErrors('data.device_ids');
+            ->assertJsonValidationErrors('data.endpoints');
     }
 
     public function test_it_maps_public_ring_group_members_without_exposing_switch_endpoint_ids(): void
@@ -3714,13 +3765,15 @@ class CallflowControllerTest extends TestCase
             ?string $branch,
             string $module,
             string $targetResourceId,
+            ?array $settings,
         ): bool => $receivedAccount->is($account)
             && $resourceId === 'switch-callflow-main'
             && $operation === 'create'
             && $path === ['1']
             && $branch === '_'
             && $module === 'voicemail'
-            && $targetResourceId === 'switch-mailbox-reception')->andReturn([
+            && $targetResourceId === 'switch-mailbox-reception'
+            && $settings === null)->andReturn([
                 'id' => 'switch-callflow-main',
                 'name' => 'Main route',
                 'numbers' => [],
@@ -3751,13 +3804,15 @@ class CallflowControllerTest extends TestCase
             ?string $branch,
             string $module,
             string $targetResourceId,
+            ?array $settings,
         ): bool => $receivedAccount->is($account)
             && $resourceId === 'switch-callflow-main'
             && $operation === 'update'
             && $path === ['1']
             && $branch === null
             && $module === 'user'
-            && $targetResourceId === 'switch-user-support')->andReturn([
+            && $targetResourceId === 'switch-user-support'
+            && $settings === ['timeout' => 35, 'can_call_self' => true])->andReturn([
                 'id' => 'switch-callflow-main',
                 'name' => 'Main route',
                 'numbers' => [],
@@ -3768,7 +3823,11 @@ class CallflowControllerTest extends TestCase
                     'children' => [
                         '1' => [
                             'module' => 'user',
-                            'data' => ['id' => 'switch-user-support'],
+                            'data' => [
+                                'id' => 'switch-user-support',
+                                'timeout' => 35,
+                                'can_call_self' => true,
+                            ],
                             'children' => [
                                 '_' => [
                                     'module' => 'voicemail',
@@ -3824,11 +3883,24 @@ class CallflowControllerTest extends TestCase
                 'node_path' => ['1'],
                 'destination_type' => 'extension',
                 'destination_id' => $support->id,
+                'data' => ['timeout' => 35, 'can_call_self' => true],
             ])
             ->assertOk()
             ->assertJsonPath('data.flow.children.1.target.id', $support->id)
+            ->assertJsonPath('data.flow.children.1.settings.timeout', 35)
+            ->assertJsonPath('data.flow.children.1.settings.can_call_self', true)
             ->assertJsonPath('data.flow.children.1.children._.target.id', $voicemail->id)
             ->assertJsonMissing(['switch-user-support']);
+
+        $this->actingAs($user)
+            ->patchJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
+                'node_path' => ['1'],
+                'destination_type' => 'extension',
+                'destination_id' => $support->id,
+                'data' => ['timeout' => 0, 'can_call_self' => 'yes'],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['data.timeout', 'data.can_call_self']);
 
         $this->actingAs($user)
             ->deleteJson("/api/v1/accounts/{$account->id}/callflows/{$callflow->id}/tree/nodes", [
@@ -5037,7 +5109,7 @@ class CallflowControllerTest extends TestCase
                 throw new \LogicException('Not used by this test.');
             }
 
-            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId, ?array $settings = null): array
             {
                 throw new \LogicException('Not used by this test.');
             }
@@ -5112,6 +5184,7 @@ class CallflowControllerTest extends TestCase
                     'phoneNumbers',
                     'fallbackModule',
                     'fallbackResourceId',
+                    'destinationSettings',
                 );
 
                 $children = $fallbackModule !== null && $fallbackResourceId !== null
@@ -5130,7 +5203,10 @@ class CallflowControllerTest extends TestCase
                     'numbers' => $phoneNumbers,
                     'flow' => [
                         'module' => $destinationModule,
-                        'data' => ['id' => $destinationResourceId],
+                        'data' => [
+                            'id' => $destinationResourceId,
+                            ...($destinationSettings ?? []),
+                        ],
                         'children' => $children,
                     ],
                 ];
@@ -5163,7 +5239,7 @@ class CallflowControllerTest extends TestCase
                 throw new \LogicException('Not used by this test.');
             }
 
-            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId, ?array $settings = null): array
             {
                 throw new \LogicException('Not used by this test.');
             }
@@ -5192,11 +5268,32 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.fallback.editable', true)
             ->assertJsonPath('data.phone_numbers.0.id', $phoneNumber->id);
 
+        $this->actingAs($user)
+            ->postJson("/api/v1/accounts/{$account->id}/callflows", [
+                'name' => 'Invalid Sales main line',
+                'destination_type' => 'extension',
+                'destination_id' => $extension->id,
+                'destination_data' => [
+                    'timeout' => 0,
+                    'can_call_self' => 'false',
+                ],
+                'phone_number_ids' => [$phoneNumber->id],
+            ])
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors([
+                'destination_data.timeout',
+                'destination_data.can_call_self',
+            ]);
+
         $response = $this->actingAs($user)
             ->postJson("/api/v1/accounts/{$account->id}/callflows", [
                 'name' => 'Sales main line',
                 'destination_type' => 'extension',
                 'destination_id' => $extension->id,
+                'destination_data' => [
+                    'timeout' => 45,
+                    'can_call_self' => true,
+                ],
                 'manage_fallback' => true,
                 'fallback_destination_type' => 'voicemail',
                 'fallback_destination_id' => $voicemail->id,
@@ -5205,6 +5302,8 @@ class CallflowControllerTest extends TestCase
             ->assertCreated()
             ->assertJsonPath('data.name', 'Sales main line')
             ->assertJsonPath('data.flow.target.id', $extension->id)
+            ->assertJsonPath('data.flow.settings.timeout', 45)
+            ->assertJsonPath('data.flow.settings.can_call_self', true)
             ->assertJsonPath('data.flow.children._.target.id', $voicemail->id)
             ->assertJsonPath('data.phone_numbers.0.id', $phoneNumber->id);
 
@@ -5218,6 +5317,10 @@ class CallflowControllerTest extends TestCase
         $this->assertSame(['+15550000400'], $gateway->received['phoneNumbers']);
         $this->assertSame('voicemail', $gateway->received['fallbackModule']);
         $this->assertSame('switch-mailbox-create', $gateway->received['fallbackResourceId']);
+        $this->assertSame(
+            ['timeout' => 45, 'can_call_self' => true],
+            $gateway->received['destinationSettings'],
+        );
         $this->assertDatabaseHas('audit_logs', ['action' => 'callflow.created', 'outcome' => 'succeeded']);
     }
 
@@ -5650,7 +5753,7 @@ class CallflowControllerTest extends TestCase
                 throw new \LogicException('Not used by this test.');
             }
 
-            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId): array
+            public function writeTreeNode(SwitchAccount $account, string $resourceId, string $operation, array $path, ?string $branch, string $module, string $targetResourceId, ?array $settings = null): array
             {
                 throw new \LogicException('Not used by this test.');
             }

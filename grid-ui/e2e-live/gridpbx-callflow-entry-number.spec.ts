@@ -233,7 +233,7 @@ test('verifies live Callflow entry discovery and inventory refresh without purch
   expect(refreshedEditor.body?.data.phone_number_inventory?.last_successful_at).toBeTruthy()
 
   await page.getByRole('button', { name: 'Create callflow', exact: true }).click()
-  const createWorkspace = page.getByRole('region', { name: 'Create callflow' })
+  const createWorkspace = page.getByRole('region', { name: 'Create callflow', exact: true })
   await expect(createWorkspace).toBeVisible()
   await createWorkspace.getByRole('button', { name: 'Add callflow entry number' }).first().click()
   const createDialog = page.getByRole('dialog', { name: 'Add number' })
@@ -253,6 +253,7 @@ test('verifies live Callflow entry discovery and inventory refresh without purch
   await expect(createDialog.getByRole('alert')).toHaveCount(0)
   await page.screenshot({ path: testInfo.outputPath('callflow-live-create-entry-discovery.png') })
   await createDialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(createDialog).toHaveCount(0)
   await page.getByRole('button', { name: 'Cancel', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'Callflows', level: 1 })).toBeVisible()
 
@@ -270,6 +271,7 @@ test('verifies live Callflow entry discovery and inventory refresh without purch
   await editWorkspace.getByRole('button', { name: 'Add callflow entry number' }).click()
   const editDialog = page.getByRole('dialog', { name: 'Add number' })
   await expect(editDialog.getByRole('heading', { name: 'Add number' })).toBeVisible()
+  await editDialog.getByRole('radio', { name: 'Spare number' }).click()
   await expect(
     editDialog.getByText('Number purchasing is unavailable', { exact: false }),
   ).toBeVisible()
