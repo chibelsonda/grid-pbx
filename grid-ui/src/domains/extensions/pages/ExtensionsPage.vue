@@ -101,7 +101,7 @@ function recoverOperation(
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / People & Extensions</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">People & Extensions</h1>
-        <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Switch.</p>
+        <p class="mt-1 text-xs text-heading-description">Fast projection of users managed by Switch.</p>
       </div>
       <div class="flex flex-col items-start gap-1 xl:ml-auto xl:items-end">
         <div class="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -146,7 +146,7 @@ function recoverOperation(
       <div>
         <UserGroupIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
-        <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
+        <p class="mt-2 max-w-md text-xs leading-5 text-heading-description">
           Set SWITCH_ACCOUNT_ID and seed the API database, then return here to run the first
           projection sync.
         </p>

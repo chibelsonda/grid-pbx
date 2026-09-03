@@ -4,12 +4,14 @@ use App\Domains\SwitchSynchronization\Commands\PollExtensionProjectionsCommand;
 use App\Support\Http\ApiResponse;
 use App\Support\Http\SwitchExceptionResponseFactory;
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -39,6 +41,18 @@ return Application::configure(basePath: dirname(__DIR__))
             $errorReferences[$exception] ??= (string) Str::uuid();
 
             return ['error_id' => $errorReferences[$exception]];
+        });
+
+        $exceptions->render(function (NotFoundHttpException $exception, Request $request) {
+            if (! $request->is('api/*')
+                || ! $exception->getPrevious() instanceof ModelNotFoundException) {
+                return null;
+            }
+
+            return ApiResponse::error(
+                'The requested resource was not found.',
+                SymfonyResponse::HTTP_NOT_FOUND,
+            );
         });
 
         $exceptions->render(function (SwitchRequestException $exception, Request $request) {

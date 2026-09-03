@@ -133,7 +133,7 @@ function clearFaxBoxQuery(): void {
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Fax</p>
         <h1 class="text-xl font-semibold text-slate-800">Fax boxes & history</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Configure inbound fax boxes and securely access projected message documents.
         </p>
       </div>
@@ -167,7 +167,7 @@ function clearFaxBoxQuery(): void {
     <section v-if="operationEntries.length" class="card-surface overflow-hidden">
       <header class="border-b border-slate-100 px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700">Fax message operations</h2>
-        <p class="mt-1 text-[10px] text-slate-400">
+        <p class="mt-1 text-[10px] text-heading-description">
           Installed Switch operations remain unavailable until their safety policies are approved.
         </p>
       </header>

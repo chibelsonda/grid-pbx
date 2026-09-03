@@ -65,7 +65,7 @@ function submit(): void {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Inbound call protection</h2>
-              <p class="text-[10px] text-slate-400">
+              <p class="text-[10px] text-heading-description">
                 Activation is an account setting and is synchronized separately.
               </p>
             </div>

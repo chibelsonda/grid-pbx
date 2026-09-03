@@ -122,7 +122,7 @@ function setOrdinal(value: ListboxValue): void {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Schedule rule</h2>
-              <p class="text-[10px] text-slate-500">
+              <p class="text-[10px] text-heading-description">
                 Times are seconds after midnight in the account routing timezone.
               </p>
             </div>

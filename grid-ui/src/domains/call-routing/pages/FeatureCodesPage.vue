@@ -68,7 +68,7 @@ async function handleRowAction(actionId: string, id: string, dialCode: string): 
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Feature Codes</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Active account star codes projected from Switch callflows.
         </p>
       </div>

@@ -43,7 +43,7 @@ function signIn(): void {
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Active hotdesk users</h2>
-        <p class="text-[10px] text-slate-400">
+        <p class="text-[10px] text-heading-description">
           Sign projected extensions in or out of this endpoint without exposing Switch IDs.
         </p>
       </div>

@@ -27,7 +27,7 @@ const confirmation = ref('')
           ><ExclamationTriangleIcon class="size-5"
         /></span>
         <h2 class="mt-4 text-sm font-semibold text-slate-800">Delete {{ record.name }}?</h2>
-        <p class="mt-2 text-xs leading-5 text-slate-500">
+        <p class="mt-2 text-xs leading-5 text-heading-description">
           This operation is blocked while the media is selected for music on hold, attached as a
           voicemail greeting, or referenced by a projected callflow.
         </p>

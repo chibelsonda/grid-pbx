@@ -155,7 +155,7 @@ async function handleSetAction(actionId: string, id: string): Promise<void> {
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Routing</p>
         <h1 class="text-xl font-semibold text-slate-800">Business Hours & Schedules</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Build recurring rules and reusable rule sets for time-based routing.
         </p>
       </div>

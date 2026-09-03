@@ -36,7 +36,7 @@ function move(index: number, direction: -1 | 1): void {
   <section class="grid gap-4">
     <div>
       <h3 class="text-xs font-semibold text-slate-700">{{ label }}</h3>
-      <p class="mt-1 text-[10px] leading-4 text-slate-400">{{ description }}</p>
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">{{ description }}</p>
     </div>
 
     <div

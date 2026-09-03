@@ -88,12 +88,12 @@ function update(event: Event): void {
         <span class="block text-xs font-semibold text-slate-700" :class="hideLabel && 'sr-only'">{{
           label
         }}</span>
-        <span v-if="description" class="mt-0.5 block text-[10px] leading-4 text-slate-500">
+        <span v-if="description" class="mt-0.5 block text-[11px] leading-4 text-slate-500">
           {{ description }}
         </span>
       </span>
     </label>
-    <p v-if="errorMessage" class="mt-1 text-[10px] leading-4 text-danger">
+    <p v-if="errorMessage" class="mt-1 text-[11px] leading-4 text-danger">
       {{ errorMessage }}
     </p>
   </div>

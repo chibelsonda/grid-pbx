@@ -86,8 +86,8 @@ function submit(): void {
               </span>
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Media metadata</h2>
-                <p class="text-[10px] text-slate-400">
-                  Only public metadata is projected to MySQL.
+                <p class="text-[10px] text-heading-description">
+                  Only public metadata is retained in GridPBX.
                 </p>
               </div>
             </header>
@@ -133,7 +133,7 @@ function submit(): void {
           <article class="card-surface overflow-hidden">
             <header class="border-b border-slate-100 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Playback options</h2>
-              <p class="mt-1 text-[10px] text-slate-400">
+              <p class="mt-1 text-[10px] text-heading-description">
                 Streaming behavior from the installed Media schema.
               </p>
             </header>

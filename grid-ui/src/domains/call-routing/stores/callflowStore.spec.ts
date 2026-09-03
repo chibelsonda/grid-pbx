@@ -410,8 +410,8 @@ describe('callflow store', () => {
     expect(callflowApi.createEditor).toHaveBeenCalledWith('account-1')
     expect(callflowApi.startProjectionSync).toHaveBeenCalledWith('account-1', false)
     expect(callflowApi.create).toHaveBeenCalledWith('account-1', input)
-    expect(callflowApi.startProjectionSync.mock.invocationCallOrder[0]!).toBeLessThan(
-      callflowApi.create.mock.invocationCallOrder[0]!,
+    expect(vi.mocked(callflowApi.startProjectionSync).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(callflowApi.create).mock.invocationCallOrder[0]!,
     )
     expect(callflowApi.delete).toHaveBeenCalledWith('account-1', callflow.id)
     expect(deleted).toBe(true)

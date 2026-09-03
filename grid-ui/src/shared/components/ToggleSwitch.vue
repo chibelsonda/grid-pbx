@@ -24,7 +24,7 @@ const emit = defineEmits<{ 'update:modelValue': [value: boolean] }>()
       <SwitchDescription
         v-if="description"
         as="span"
-        class="mt-0.5 block text-[10px] leading-4 text-slate-400"
+        class="mt-0.5 block text-[11px] leading-4 text-slate-400"
       >
         {{ description }}
       </SwitchDescription>

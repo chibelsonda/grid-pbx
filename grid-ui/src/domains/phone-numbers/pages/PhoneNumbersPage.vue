@@ -86,7 +86,7 @@ function humanize(value: string | null): string {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Phone Numbers</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Phone Numbers</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Carrier inventory, feature state, and incoming callflow assignments projected from Switch.
         </p>
       </div>

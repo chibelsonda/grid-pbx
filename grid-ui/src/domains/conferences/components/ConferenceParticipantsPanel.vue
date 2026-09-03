@@ -164,7 +164,7 @@ function duration(seconds: number): string {
   <CrudSlideOver
     :title="conference.name"
     eyebrow="GridPBX / Conferences / Live room"
-    description="Runtime participants are read directly from Switch and are never persisted in MySQL."
+    description="Runtime participants are read directly from Switch and are never persisted by GridPBX."
     width="medium"
     @close="emit('close')"
   >

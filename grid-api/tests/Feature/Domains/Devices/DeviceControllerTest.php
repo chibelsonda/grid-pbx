@@ -118,7 +118,11 @@ class DeviceControllerTest extends TestCase
 
         $this->actingAs($user)
             ->getJson("/api/v1/accounts/{$account->id}/devices/{$otherDevice->id}")
-            ->assertNotFound();
+            ->assertNotFound()
+            ->assertJsonPath('message', 'The requested resource was not found.')
+            ->assertJsonMissingPath('exception')
+            ->assertJsonMissingPath('trace')
+            ->assertDontSee(SwitchDevice::class);
     }
 
     public function test_it_returns_safe_device_form_options_with_dynamic_restrictions(): void

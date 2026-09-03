@@ -175,7 +175,7 @@ async function handleRowAction(actionId: string, record: Conference): Promise<vo
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Conferences</p>
         <h1 class="text-xl font-semibold text-slate-800">Conferences</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Manage conference rooms, role-based access, and last-observed runtime status.
         </p>
       </div>

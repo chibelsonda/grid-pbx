@@ -35,7 +35,7 @@ const amount = (value: number): string =>
             <div class="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 class="text-sm font-semibold text-slate-800">Billing workspace</h2>
-                <p class="mt-1 text-[11px] leading-4 text-slate-500">
+                <p class="mt-1 text-[11px] leading-4 text-heading-description">
                   Invoice sources, payment confirmations, reconciliation details, and Switch
                   transactions now have a dedicated read-only workspace.
                 </p>

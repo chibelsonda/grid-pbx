@@ -51,7 +51,7 @@ async function submit(): Promise<void> {
         <LockClosedIcon class="size-5" />
       </span>
       <h2 class="mt-6 text-2xl font-semibold tracking-tight text-slate-800">Welcome back</h2>
-      <p class="mt-2 text-sm text-slate-500">Sign in to manage your mapped PBX accounts.</p>
+      <p class="mt-2 text-sm text-heading-description">Sign in to manage your mapped PBX accounts.</p>
 
       <AppAlert
         v-if="route.query.reset === 'success'"

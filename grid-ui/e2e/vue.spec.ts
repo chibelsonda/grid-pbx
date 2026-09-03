@@ -763,6 +763,13 @@ test('edits and creates projected callflows in the full-page workspace', async (
   const otherCallflowId = '9f9f9689-cc90-47c6-bce5-c721c694bbd1'
   let savedRoutePayload: Record<string, unknown> | null = null
   let createdRoutePayload: Record<string, unknown> | null = null
+  let phoneNumberInventoryRefreshed = false
+  const captureDirectory = process.env.GRID_E2E_CAPTURE_DIRECTORY
+  const captureVisual = async (filename: string): Promise<void> => {
+    if (!captureDirectory) return
+
+    await page.screenshot({ path: `${captureDirectory}/${filename}` })
+  }
   const editorState = {
     editable: true,
     blocked_reason: null,
@@ -870,8 +877,105 @@ test('edits and creates projected callflows in the full-page workspace', async (
       }),
     }),
   )
+  await page.route(`**/api/v1/accounts/${accountId}/sync/phone-numbers**`, (route) => {
+    if (route.request().method() === 'POST') {
+      return route.fulfill({
+        status: 202,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            id: 'phone-number-sync-run',
+            resource_type: 'phone_numbers',
+            status: 'pending',
+            error_message: null,
+          },
+        }),
+      })
+    }
+
+    phoneNumberInventoryRefreshed = true
+
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'phone-number-sync-run',
+          resource_type: 'phone_numbers',
+          status: 'succeeded',
+          error_message: null,
+        },
+      }),
+    })
+  })
+  await page.route(`**/api/v1/accounts/${accountId}/sync/extensions**`, (route) =>
+    route.fulfill({
+      status: route.request().method() === 'POST' ? 202 : 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        data: {
+          id: 'extension-sync-run',
+          resource_type: 'extensions',
+          status: 'succeeded',
+          error_message: null,
+        },
+      }),
+    }),
+  )
   await page.route(`**/api/v1/accounts/${accountId}/callflows**`, (route) => {
-    const path = new URL(route.request().url()).pathname
+    const url = new URL(route.request().url())
+    const path = url.pathname
+
+    if (path.endsWith('/callflows/extension-directory')) {
+      const search = url.searchParams.get('search')?.toLowerCase() ?? ''
+      const entries = [
+        {
+          number: '2001',
+          source: 'managed_extension',
+          label: 'Reception',
+          callflow: null,
+          current: false,
+        },
+        {
+          number: '3000',
+          source: 'callflow',
+          label: 'Support route',
+          callflow: { id: otherCallflowId, name: 'Support route' },
+          current: false,
+        },
+      ].filter(({ number, label }) => `${number} ${label}`.toLowerCase().includes(search))
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ data: { entries, suggested_extension: '3001' } }),
+      })
+    }
+
+    if (path.endsWith('/callflows/extension-availability')) {
+      const number = url.searchParams.get('number') ?? ''
+      const occupied = number === '3000'
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          data: {
+            number,
+            available: !occupied,
+            reason: occupied ? 'Extension 3000 is already used by Support route.' : null,
+            conflict: occupied
+              ? {
+                  source: 'callflow',
+                  label: 'Support route',
+                  callflow: { id: otherCallflowId, name: 'Support route' },
+                }
+              : null,
+            suggested_extension: occupied ? '3001' : '3002',
+          },
+        }),
+      })
+    }
 
     if (path.endsWith('/callflows/editor')) {
       return route.fulfill({
@@ -897,6 +1001,13 @@ test('edits and creates projected callflows in the full-page workspace', async (
                 assigned_callflow: null,
               },
             ],
+            phone_number_inventory: {
+              status: 'healthy',
+              last_successful_at: '2026-08-28T10:00:00+08:00',
+              error_message: null,
+              total_count: 1,
+              unassigned_count: 1,
+            },
           },
         }),
       })
@@ -964,7 +1075,28 @@ test('edits and creates projected callflows in the full-page workspace', async (
                 available: false,
                 assigned_callflow: { id: otherCallflowId, name: 'Support queue' },
               },
+              ...(phoneNumberInventoryRefreshed
+                ? [
+                    {
+                      id: newNumberId,
+                      number: '+15559876543',
+                      state: 'in_service',
+                      selected: false,
+                      available: true,
+                      assigned_callflow: null,
+                    },
+                  ]
+                : []),
             ],
+            phone_number_inventory: {
+              status: phoneNumberInventoryRefreshed ? 'healthy' : 'stale',
+              last_successful_at: phoneNumberInventoryRefreshed
+                ? '2026-08-28T10:05:00+08:00'
+                : null,
+              error_message: null,
+              total_count: phoneNumberInventoryRefreshed ? 3 : 2,
+              unassigned_count: phoneNumberInventoryRefreshed ? 1 : 0,
+            },
           },
         }),
       })
@@ -1026,10 +1158,10 @@ test('edits and creates projected callflows in the full-page workspace', async (
 
   await expect(page.getByRole('heading', { name: 'Callflows', exact: true })).toBeVisible()
   await expect(page.getByText('Main Reception')).toBeVisible()
-  await page.getByRole('button', { name: 'View Main Reception' }).click()
+  await page.getByRole('button', { name: 'Main Reception', exact: true }).click()
 
   const workspace = page.getByRole('region', { name: 'Callflow workspace' })
-  await expect(workspace.getByRole('heading', { name: 'Main Reception' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Main Reception', exact: true })).toBeVisible()
   await expect(workspace.getByRole('treeitem', { name: 'Ring Group', exact: true })).toBeVisible()
   await expect(workspace.getByRole('treeitem', { name: 'Voicemail', exact: true })).toBeVisible()
   await expect(
@@ -1037,24 +1169,68 @@ test('edits and creates projected callflows in the full-page workspace', async (
   ).toBeVisible()
   await expect(workspace).not.toContainText('private-switch-id')
 
-  await workspace.getByRole('button', { name: 'Edit callflow' }).click()
+  await workspace.getByRole('button', { name: 'Add callflow entry number' }).click()
+  const editEntryDialog = page.getByRole('dialog', { name: 'Add number' })
+  const editEntryDialogPanel = editEntryDialog
+    .getByRole('heading', { name: 'Add number' })
+    .locator('xpath=../../..')
+  await expect(editEntryDialog.getByRole('heading', { name: 'Add number' })).toBeVisible()
+  await expect(editEntryDialogPanel).toHaveCSS('opacity', '1')
+  await editEntryDialog.getByRole('radio', { name: 'Spare number' }).click()
+  await expect(editEntryDialog.getByText('No spare numbers are projected')).toBeVisible()
+  await expect(
+    editEntryDialog.getByText('Phone-number inventory has not been synchronized yet.'),
+  ).toBeVisible()
+  await expect(
+    editEntryDialog.getByText('Number purchasing is unavailable', { exact: false }),
+  ).toBeVisible()
+  await captureVisual('callflow-edit-empty-inventory.png')
+  await editEntryDialog.getByRole('button', { name: 'Refresh inventory' }).click()
+  await expect(editEntryDialog.getByLabel('Available account number')).toHaveText('+15559876543')
+
+  await editEntryDialog.getByRole('radio', { name: 'Extension' }).click()
+  await editEntryDialog.getByLabel('Extension number').fill('3000')
+  await expect(
+    editEntryDialog.getByText('Extension 3000 is already used by Support route.'),
+  ).toBeVisible()
+  await expect(editEntryDialog.getByLabel('Extension number')).toHaveAttribute(
+    'aria-invalid',
+    'true',
+  )
+  await editEntryDialog.getByRole('button', { name: 'Browse extensions already in use' }).click()
+  await editEntryDialog.getByLabel('Search used extensions').fill('Support')
+  await expect(editEntryDialog.getByText('Support route')).toBeVisible()
+  await expect(editEntryDialog.getByText('3000', { exact: true })).toBeVisible()
+  await captureVisual('callflow-edit-extension-conflict.png')
+  expect(
+    await editEntryDialogPanel.evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true)
+  await editEntryDialog.getByRole('button', { name: 'Use suggested extension 3001' }).click()
+  await expect(editEntryDialog.getByText('Extension 3001 is available.')).toBeVisible()
+  await expect(editEntryDialog.getByRole('alert')).toHaveCount(0)
+  await editEntryDialog.getByRole('button', { name: 'Cancel' }).click()
+  await expect(editEntryDialog).toBeHidden()
+
+  await page.getByRole('button', { name: 'Edit callflow', exact: true }).click()
   const editor = page.getByRole('dialog', { name: 'Edit callflow' })
   await expect(editor.getByRole('heading', { name: 'Edit callflow', exact: true })).toBeVisible()
   await expect(editor.getByText('Resolved GridPBX target')).toBeVisible()
-  await expect(editor.getByText('Currently enters this route')).toBeVisible()
+  await expect(editor.getByText('Currently enters this callflow')).toBeVisible()
   await expect(editor.getByText('Assigned to Support queue')).toBeVisible()
   await editor.getByLabel('Route name').fill('Updated reception route')
   await editor.getByRole('button', { name: 'Save route' }).click()
 
   await expect(editor.getByRole('heading', { name: 'Edit callflow', exact: true })).toHaveCount(0)
-  await expect(workspace.getByRole('heading', { name: 'Updated reception route' })).toBeVisible()
+  await expect(
+    page.getByRole('heading', { name: 'Updated reception route', exact: true }),
+  ).toBeVisible()
   expect(savedRoutePayload).toEqual({
     name: 'Updated reception route',
     destination_type: 'extension',
     destination_id: extensionId,
-    temporal_rule_ids: [],
-    temporal_rule_routes: [],
     phone_number_ids: [numberId],
+    extension_numbers: [],
+    root_action: null,
     manage_fallback: true,
     fallback_destination_type: null,
     fallback_destination_id: null,
@@ -1065,11 +1241,27 @@ test('edits and creates projected callflows in the full-page workspace', async (
     temporal_match_destination_id: null,
   })
 
-  await workspace.getByRole('button', { name: 'Back to callflows' }).click()
+  await page.getByRole('button', { name: 'Back to callflows' }).click()
 
   await page.getByRole('button', { name: 'Create callflow' }).click()
   const creator = page.getByRole('region', { name: 'Create callflow' })
   await expect(page.getByRole('dialog', { name: 'Create callflow' })).toHaveCount(0)
+  await creator.getByRole('button', { name: 'Add callflow entry number' }).first().click()
+  const createEntryDialog = page.getByRole('dialog', { name: 'Add number' })
+  const createEntryDialogPanel = createEntryDialog
+    .getByRole('heading', { name: 'Add number' })
+    .locator('xpath=../../..')
+  await expect(createEntryDialog.getByRole('heading', { name: 'Add number' })).toBeVisible()
+  await expect(createEntryDialogPanel).toHaveCSS('opacity', '1')
+  await expect(createEntryDialog.getByLabel('Available account number')).toHaveText('+15559876543')
+  await expect(
+    createEntryDialog.getByText('Number purchasing is unavailable', { exact: false }),
+  ).toBeVisible()
+  await captureVisual('callflow-create-spare-number.png')
+  expect(
+    await createEntryDialogPanel.evaluate((element) => element.scrollWidth <= element.clientWidth),
+  ).toBe(true)
+  await createEntryDialog.getByRole('button', { name: 'Cancel' }).click()
   await creator.getByRole('button', { name: 'Edit callflow name and numbers' }).click()
   const metadata = page.getByRole('dialog', { name: 'Callflow' })
   await metadata.getByLabel('Callflow name').fill('After hours route')
@@ -1081,22 +1273,18 @@ test('edits and creates projected callflows in the full-page workspace', async (
     .getByRole('dialog', { name: 'Configure User' })
     .getByRole('button', { name: 'Use action' })
     .click()
-  await creator.getByRole('button', { name: 'Create callflow' }).click()
+  await page.getByRole('button', { name: 'Create callflow', exact: true }).click()
 
   await expect(creator).toHaveCount(0)
-  await expect(
-    page
-      .getByRole('region', { name: 'Callflow workspace' })
-      .getByRole('heading', { name: 'After hours route' }),
-  ).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'After hours route', exact: true })).toBeVisible()
   expect(createdRoutePayload).toEqual({
     name: 'After hours route',
     destination_type: 'extension',
     destination_id: extensionId,
-    temporal_rule_ids: [],
-    temporal_rule_routes: [],
     phone_number_ids: [newNumberId],
-    manage_fallback: false,
+    extension_numbers: [],
+    root_action: null,
+    manage_fallback: true,
     fallback_destination_type: null,
     fallback_destination_id: null,
     manage_menu_branches: false,

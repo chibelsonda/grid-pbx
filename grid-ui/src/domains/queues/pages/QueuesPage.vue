@@ -192,7 +192,7 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Queues</p>
         <h1 class="text-xl font-semibold text-slate-800">Queues & Agents</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Manage ACDc caller queues, projected rosters, and live agent state.
         </p>
       </div>

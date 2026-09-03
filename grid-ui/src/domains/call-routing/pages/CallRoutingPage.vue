@@ -139,6 +139,13 @@ function refreshCallflowNodes(): void {
   void callflows.refreshDetail(accounts.selectedId, callflows.detail.id)
 }
 
+async function refreshEntryPointOptions(): Promise<void> {
+  if (!accounts.selectedId) return
+
+  const callflowId = creatingRoute.value ? null : (callflows.detail?.id ?? null)
+  await callflows.refreshCapabilityOptions(accounts.selectedId, callflowId)
+}
+
 async function openDetail(id: string): Promise<void> {
   if (accounts.selectedId) {
     await Promise.all([
@@ -389,7 +396,7 @@ function routeIdentifier(route: Callflow): string {
           <template v-else>{{ pageEyebrow }}</template>
         </p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">{{ pageTitle }}</h1>
-        <p class="mt-1 text-xs text-slate-500">{{ pageDescription }}</p>
+        <p class="mt-1 text-xs text-heading-description">{{ pageDescription }}</p>
       </div>
       <div class="flex w-full flex-wrap justify-end gap-3 sm:ml-auto sm:w-auto">
         <button
@@ -473,6 +480,7 @@ function routeIdentifier(route: Callflow): string {
       <CallflowEditorPanel
         v-if="creatingRoute"
         workspace
+        :account-id="accounts.selectedId ?? ''"
         :record="null"
         :editor="callflows.editor"
         :loading="callflows.editorLoading"
@@ -483,6 +491,7 @@ function routeIdentifier(route: Callflow): string {
         @close="requestCloseWorkspace"
         @save="saveRoute"
         @dirty-change="createDraftDirty = $event"
+        @refresh-entry-options="refreshEntryPointOptions"
       />
       <template v-else>
         <CallflowDetailPanel
@@ -724,6 +733,7 @@ function routeIdentifier(route: Callflow): string {
   </div>
   <CallflowEditorPanel
     v-if="callflows.editorOpen && callflows.editor?.mode === 'update'"
+    :account-id="accounts.selectedId ?? ''"
     :record="callflows.detail"
     :editor="callflows.editor"
     :loading="callflows.editorLoading"
@@ -737,7 +747,10 @@ function routeIdentifier(route: Callflow): string {
   <CallflowAddEntryNumberDialog
     v-if="callflows.treeEditor"
     :open="entryNumberOpen"
+    :account-id="accounts.selectedId ?? ''"
+    :callflow-id="callflows.detail?.id ?? null"
     :phone-numbers="callflows.treeEditor.phone_numbers"
+    :phone-number-inventory="callflows.treeEditor.phone_number_inventory"
     :phone-number-ids="
       callflows.treeEditor.phone_numbers.filter(({ selected }) => selected).map(({ id }) => id)
     "
@@ -748,6 +761,7 @@ function routeIdentifier(route: Callflow): string {
     :field-errors="callflows.entryPointFieldErrors"
     @close="entryNumberOpen = false"
     @add="addEntryNumber"
+    @inventory-refreshed="refreshEntryPointOptions"
   />
   <CallflowNodeEditorPanel
     v-if="

@@ -37,7 +37,7 @@ const label = computed(() => {
 <template>
   <p
     data-testid="projection-freshness"
-    class="inline-flex items-center gap-1.5 text-[10px] leading-4 font-medium"
+    class="inline-flex items-center gap-1.5 text-[11px] leading-4 font-medium"
     :class="failed ? 'text-danger' : 'text-slate-500'"
     role="status"
     aria-live="polite"

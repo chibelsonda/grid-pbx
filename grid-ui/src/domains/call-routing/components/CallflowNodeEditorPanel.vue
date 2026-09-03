@@ -110,7 +110,7 @@ function submit(): void {
             <h2 class="text-sm font-semibold text-slate-700">
               {{ action?.label ?? context.module }}
             </h2>
-            <p class="mt-0.5 font-mono text-[10px] text-slate-500">{{ context.module }}</p>
+            <p class="mt-0.5 font-mono text-[10px] text-heading-description">{{ context.module }}</p>
           </div>
         </header>
         <div class="grid gap-5 p-5">

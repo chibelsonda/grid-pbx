@@ -1943,6 +1943,44 @@ reservation, and release to false. Strict Zod and browser assertions reject
 carrier catalogs/modules, creation states, available numbers, quotes, charges,
 and `accept_charges`. No search or mutation was executed during the live audit.
 
+### Provider-backed acquisition boundary
+
+Number purchasing remains disabled until one approved carrier/provider contract
+and its sandbox credentials establish all of these responsibilities end to end:
+
+- Inventory search must be account-scoped, bounded by country/prefix/quantity,
+  time-limited as a server-owned selection, and reduced to public candidate
+  tokens. Raw carrier modules, provider payloads, credentials, and Switch query
+  identifiers never enter the browser or MySQL projection.
+- Pricing must come from an authoritative, short-lived provider quote with
+  currency, recurring and one-time amounts, expiry, and an immutable quote
+  reference retained only server-side. GridPBX must not infer price from
+  availability or reuse a stale quote.
+- Activation requires an explicit review screen and exact-number confirmation.
+  Laravel must revalidate candidate ownership, quote expiry, account capability,
+  and number availability immediately before submitting the provider command.
+- Billing authorization must be a distinct server-side decision tied to the
+  acting account and user. A carrier quote or Switch HTTP 402 response is not
+  itself permission to accept charges, and payment credentials or billing
+  provider details must not cross the public API.
+- Idempotency must bind the account, actor, candidate, quote, and intended
+  operation to one stable server-generated key. Retries must return the same
+  outcome or remain indeterminate; they must never start a second purchase.
+- Compensation and recovery must persist safe operation state before the
+  external call, distinguish rejected, confirmed, and indeterminate outcomes,
+  and define provider-specific release/refund or manual-recovery procedures for
+  partial success. The UI must not report success from request acceptance alone.
+- MySQL synchronization occurs only after authoritative provider/Switch
+  confirmation. The acquired number receives an account-scoped public UUID,
+  the existing phone-number synchronization pipeline hydrates its redacted
+  `switch_json`, and reconciliation repairs projection failure without repeating
+  the purchase.
+
+No search, quote, charge acceptance, activation, purchase, reservation, or
+release control may be enabled from carrier-info availability alone. The
+boundary remains externally blocked until the provider contract, credentials,
+billing authority, and disposable sandbox acceptance procedure are approved.
+
 The 2026-09-01 installed-runtime re-audit corrected the effective carrier set,
 reconfirmed the live carrier-info shape, and observed only fixed false values
 for operational capabilities; it did not execute search or mutation. Focused

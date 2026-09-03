@@ -63,7 +63,7 @@ async function changeStatus(): Promise<void> {
     <div class="page-container">
       <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Accounts</p>
       <h1 class="text-xl font-semibold tracking-tight text-slate-800">Accounts</h1>
-      <p class="mt-1 text-xs text-slate-600">
+      <p class="mt-1 text-xs text-heading-description">
         Safe account projections, tenancy context, and configuration boundaries.
       </p>
     </div>

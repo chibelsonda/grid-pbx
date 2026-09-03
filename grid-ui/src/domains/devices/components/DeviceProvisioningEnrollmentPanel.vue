@@ -28,7 +28,7 @@ function formatDate(value: string | null): string {
       </span>
       <div class="min-w-0 flex-1">
         <h2 class="text-sm font-semibold text-slate-700">Manufacturer provisioning enrollment</h2>
-        <p class="text-[10px] text-slate-500">
+        <p class="text-[10px] text-heading-description">
           Enrollment state only—provider credentials and access tokens are never stored here.
         </p>
       </div>

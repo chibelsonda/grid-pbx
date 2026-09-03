@@ -38,7 +38,7 @@ const visible = computed(() => Boolean(props.error) || messages.value.length > 0
         <ul v-if="messages.length" class="mt-1.5 list-disc space-y-1 pl-4 text-xs leading-5">
           <li v-for="message in messages" :key="message">{{ message }}</li>
         </ul>
-        <p v-if="errorId" class="mt-2 text-[10px] font-medium text-red-700">
+        <p v-if="errorId" class="mt-2 text-[11px] font-medium text-red-700">
           Support reference: {{ errorId }}
         </p>
       </div>

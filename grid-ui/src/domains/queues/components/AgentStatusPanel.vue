@@ -114,7 +114,7 @@ function submit(): void {
   <CrudSlideOver
     title="Agent status"
     eyebrow="GridPBX / Queues / Agents"
-    description="Live ACDc state is read from Switch and is not treated as durable MySQL configuration."
+    description="Live ACDc state is read from Switch and is not treated as durable GridPBX configuration."
     width="medium"
     @close="emit('close')"
   >
@@ -131,7 +131,7 @@ function submit(): void {
           /></span>
           <div>
             <h2 class="text-sm font-semibold text-slate-700">{{ agent.name }}</h2>
-            <p class="text-xs text-slate-400">Extension {{ agent.extension ?? 'not assigned' }}</p>
+            <p class="text-xs text-heading-description">Extension {{ agent.extension ?? 'not assigned' }}</p>
           </div>
         </div>
         <div class="mt-5 rounded-md bg-slate-50 p-4">
@@ -200,7 +200,7 @@ function submit(): void {
           <BoltIcon class="size-5 text-amber-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Request status change</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               Recommended actions follow the observed state. Other REST commands remain available
               because Switch can defer them while an Agent is on a call.
             </p>

@@ -269,7 +269,7 @@ function submit(): void {
           /></span>
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Provisioning identity</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               {{
                 [preview.device.make, preview.device.endpoint_family, preview.device.model]
                   .filter(Boolean)
@@ -306,7 +306,7 @@ function submit(): void {
         <header class="border-b border-slate-100 px-4 py-3">
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Key assignments</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               <template v-if="preview.capability.model.matched">
                 {{ preview.capability.model.max_keys ?? 0 }} main-unit keys
                 <template v-if="preview.capability.model.max_expansion_modules">
@@ -328,7 +328,7 @@ function submit(): void {
             >
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">{{ group.label }}</h3>
-                <p class="text-[10px] text-slate-400">{{ group.description }}</p>
+                <p class="text-[10px] text-heading-description">{{ group.description }}</p>
               </div>
               <button
                 v-if="canManage"

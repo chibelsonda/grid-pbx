@@ -47,7 +47,7 @@ function error(target: string, direction: string, network: string, field: string
     <template #header>
       <header class="border-b border-slate-200 px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700">Call-recording defaults</h2>
-        <p class="mt-1 text-[10px] leading-4 text-slate-500">
+        <p class="mt-1 text-[10px] leading-4 text-heading-description">
           Configure account and endpoint inheritance without exposing external storage URLs.
         </p>
       </header>

@@ -87,7 +87,7 @@ async function signOut(): Promise<void> {
               <span class="app-header-foreground block max-w-36 truncate text-xs font-semibold">{{
                 auth.user?.name
               }}</span>
-              <span class="app-header-muted block max-w-36 truncate text-[10px]">
+              <span class="app-header-muted block max-w-36 truncate text-[11px]">
                 {{ userContext }}
               </span>
             </span>
@@ -116,7 +116,7 @@ async function signOut(): Promise<void> {
                     <p class="truncate text-xs font-semibold text-slate-700">
                       {{ auth.user?.name ?? 'Grid Admin' }}
                     </p>
-                    <p class="mt-0.5 truncate text-[10px] text-slate-500">
+                    <p class="mt-0.5 truncate text-[11px] text-slate-500">
                       {{ auth.user?.email ?? 'Signed in to GridPBX' }}
                     </p>
                   </div>
@@ -127,13 +127,13 @@ async function signOut(): Promise<void> {
                 >
                   <BuildingOffice2Icon class="mt-0.5 size-4 shrink-0 text-brand-500" />
                   <div class="min-w-0">
-                    <p class="text-[9px] font-bold tracking-wide text-slate-400 uppercase">
+                    <p class="text-[10px] font-bold tracking-wide text-slate-400 uppercase">
                       Current account
                     </p>
                     <p class="truncate text-[11px] font-semibold text-slate-700">
                       {{ accounts.selected.name }}
                     </p>
-                    <p class="truncate text-[10px] text-slate-500">{{ userContext }}</p>
+                    <p class="truncate text-[11px] text-slate-500">{{ userContext }}</p>
                   </div>
                 </div>
               </div>
@@ -148,7 +148,7 @@ async function signOut(): Promise<void> {
                     <UserCircleIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                     <span class="min-w-0">
                       <span class="block text-xs font-semibold">Profile & settings</span>
-                      <span class="mt-0.5 block text-[10px] text-slate-500">
+                      <span class="mt-0.5 block text-[11px] text-slate-500">
                         Identity, appearance, and workspace
                       </span>
                     </span>
@@ -163,7 +163,7 @@ async function signOut(): Promise<void> {
                     <ShieldCheckIcon class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
                     <span class="min-w-0">
                       <span class="block text-xs font-semibold">Access & security</span>
-                      <span class="mt-0.5 block text-[10px] text-slate-500">
+                      <span class="mt-0.5 block text-[11px] text-slate-500">
                         Role and granted capabilities
                       </span>
                     </span>

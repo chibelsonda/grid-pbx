@@ -224,7 +224,7 @@ async function signOut(): Promise<void> {
     <div class="page-container">
       <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Settings</p>
       <h1 class="text-xl font-semibold tracking-tight text-slate-800">Settings</h1>
-      <p class="mt-1 text-xs text-slate-600">
+      <p class="mt-1 text-xs text-heading-description">
         Personal identity, browser appearance, workspace defaults, and safe administration links.
       </p>
     </div>
@@ -275,7 +275,7 @@ async function signOut(): Promise<void> {
               <UserCircleIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Profile</h2>
-                <p class="mt-0.5 text-[10px] text-slate-500">Your GridPBX application identity.</p>
+                <p class="mt-0.5 text-[10px] text-heading-description">Your GridPBX application identity.</p>
               </div>
               <button
                 v-if="!editingProfile"
@@ -361,7 +361,7 @@ async function signOut(): Promise<void> {
               <PhotoIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Organization branding</h2>
-                <p class="mt-0.5 text-[10px] text-slate-500">
+                <p class="mt-0.5 text-[10px] text-heading-description">
                   A private GridPBX logo for the selected organization.
                 </p>
               </div>
@@ -473,7 +473,7 @@ async function signOut(): Promise<void> {
               <SwatchIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Appearance</h2>
-                <p class="mt-0.5 text-[10px] text-slate-500">
+                <p class="mt-0.5 text-[10px] text-heading-description">
                   Stored only in this browser; no account configuration is changed.
                 </p>
               </div>
@@ -552,7 +552,7 @@ async function signOut(): Promise<void> {
               <ComputerDesktopIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Workspace preferences</h2>
-                <p class="mt-0.5 text-[10px] text-slate-500">
+                <p class="mt-0.5 text-[10px] text-heading-description">
                   Browser-local defaults for the GridPBX shell.
                 </p>
               </div>
@@ -606,7 +606,7 @@ async function signOut(): Promise<void> {
           >
             <header class="border-b border-slate-200 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Administration</h2>
-              <p class="mt-1 text-[10px] text-slate-500">
+              <p class="mt-1 text-[10px] text-heading-description">
                 Account-wide PBX settings and operational diagnostics remain in their owning
                 domains.
               </p>
@@ -682,7 +682,7 @@ async function signOut(): Promise<void> {
               <ShieldCheckIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Access and security</h2>
-                <p class="mt-0.5 text-[10px] text-slate-500">
+                <p class="mt-0.5 text-[10px] text-heading-description">
                   Account-scoped access from the authenticated session.
                 </p>
               </div>

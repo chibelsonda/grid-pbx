@@ -66,7 +66,7 @@ function removeExtension(extension: string): void {
   >
     <header class="border-b border-slate-200 bg-slate-50 px-4 py-3">
       <h2 class="text-xs font-semibold text-slate-700">Callflow entry numbers</h2>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Add an unused internal extension or choose an inventory-backed phone number.
       </p>
     </header>
@@ -126,7 +126,7 @@ function removeExtension(extension: string): void {
     <div>
       <header class="border-b border-slate-200 bg-white px-4 py-3">
         <h3 class="text-xs font-semibold text-slate-700">Phone-number entry points</h3>
-        <p class="mt-1 text-[10px] text-slate-500">
+        <p class="mt-1 text-[10px] text-heading-description">
           Choose from the account's projected phone-number inventory.
         </p>
       </header>

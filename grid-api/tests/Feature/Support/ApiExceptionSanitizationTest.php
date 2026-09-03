@@ -3,6 +3,7 @@
 namespace Tests\Feature\Support;
 
 use GridPbx\Switch\Shared\Exceptions\SwitchRequestException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -43,6 +44,26 @@ class ApiExceptionSanitizationTest extends TestCase
         $this->getJson('/api/_test/intentional-error')
             ->assertConflict()
             ->assertJsonPath('message', 'Refresh the candidate list and try again.');
+    }
+
+    public function test_model_not_found_error_does_not_expose_backend_model_details(): void
+    {
+        Route::get('/api/_test/missing-model', static function (): never {
+            throw (new ModelNotFoundException)->setModel(
+                'App\\Domains\\Devices\\Models\\SwitchDevice',
+                ['private-device-identifier'],
+            );
+        });
+
+        $this->getJson('/api/_test/missing-model')
+            ->assertNotFound()
+            ->assertExactJson([
+                'message' => 'The requested resource was not found.',
+            ])
+            ->assertDontSee('SwitchDevice')
+            ->assertDontSee('private-device-identifier')
+            ->assertJsonMissingPath('exception')
+            ->assertJsonMissingPath('trace');
     }
 
     public function test_switch_callflow_number_conflict_returns_safe_actionable_field_error(): void

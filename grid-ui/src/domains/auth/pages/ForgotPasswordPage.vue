@@ -36,7 +36,7 @@ async function submit(): Promise<void> {
         <EnvelopeIcon class="size-5" aria-hidden="true" />
       </span>
       <h2 class="mt-6 text-2xl font-semibold tracking-tight text-slate-800">Reset your password</h2>
-      <p class="mt-2 text-sm leading-6 text-slate-500">
+      <p class="mt-2 text-sm leading-6 text-heading-description">
         Enter your sign-in email and we’ll send reset instructions if an account exists.
       </p>
 

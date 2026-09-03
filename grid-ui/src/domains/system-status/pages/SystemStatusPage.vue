@@ -46,7 +46,7 @@ watch(
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Operations</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">System status</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Safe, read-only capabilities reported by the selected Switch account.
         </p>
       </div>

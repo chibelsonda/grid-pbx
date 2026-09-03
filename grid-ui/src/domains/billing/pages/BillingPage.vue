@@ -56,6 +56,8 @@ const label = (value: string): string =>
     .replaceAll('-', ' ')
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase())
+const sourceLabel = (value: string): string =>
+  value.toLowerCase().includes('mysql') ? 'GridPBX projection' : label(value)
 
 function showInvoice(index: number): void {
   const item = invoices.value[index]
@@ -154,7 +156,7 @@ watch(
       <div>
         <p class="mb-1 text-[11px] text-slate-500">GridPBX / Account</p>
         <h1 class="text-xl font-semibold text-slate-800">Billing</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Source-aware invoices, payment confirmations, and Switch billing activity.
         </p>
       </div>
@@ -321,7 +323,7 @@ watch(
                   <DocumentTextIcon class="size-5 text-brand-600" />
                   <div>
                     <h2 class="text-sm font-semibold text-slate-800">Billing sources</h2>
-                    <p class="mt-0.5 text-[10px] text-slate-500">
+                    <p class="mt-0.5 text-[10px] text-heading-description">
                       Availability and authority are reported independently for each document type.
                     </p>
                   </div>
@@ -361,7 +363,7 @@ watch(
                       <div class="flex justify-between gap-4">
                         <dt class="text-slate-500">Source</dt>
                         <dd class="text-right font-semibold text-slate-800">
-                          {{ label(overview.documents.invoices.source) }}
+                          {{ sourceLabel(overview.documents.invoices.source) }}
                         </dd>
                       </div>
                     </dl>
@@ -402,7 +404,7 @@ watch(
                       <div class="flex justify-between gap-4">
                         <dt class="text-slate-500">Source</dt>
                         <dd class="text-right font-semibold text-slate-800">
-                          {{ label(overview.documents.receipts.source) }}
+                          {{ sourceLabel(overview.documents.receipts.source) }}
                         </dd>
                       </div>
                     </dl>
@@ -420,7 +422,7 @@ watch(
                   <DocumentTextIcon class="size-5 text-indigo-600" />
                   <div>
                     <h2 class="text-sm font-semibold text-slate-800">Invoices</h2>
-                    <p class="mt-1 text-xs text-slate-500">
+                    <p class="mt-1 text-xs text-heading-description">
                       Authoritative summaries only. PDF download appears only after provider detail
                       passes the safe document contract.
                     </p>
@@ -487,7 +489,7 @@ watch(
                   <ReceiptPercentIcon class="size-5 text-violet-600" />
                   <div>
                     <h2 class="text-sm font-semibold text-slate-800">Receipts</h2>
-                    <p class="mt-1 text-xs text-slate-500">
+                    <p class="mt-1 text-xs text-heading-description">
                       Provider-issued receipts only. GridPBX payment confirmations remain separate.
                     </p>
                   </div>
@@ -545,7 +547,7 @@ watch(
               <section class="card-surface overflow-hidden">
                 <header class="border-b border-slate-200 p-5">
                   <h2 class="text-sm font-semibold text-slate-800">Payment confirmations</h2>
-                  <p class="mt-1 text-xs text-slate-500">
+                  <p class="mt-1 text-xs text-heading-description">
                     {{ overview.documents.payment_confirmations.guidance }}
                   </p>
                 </header>
@@ -584,7 +586,7 @@ watch(
                   <h2 class="text-sm font-semibold text-slate-800">
                     Recent Switch billing activity
                   </h2>
-                  <p class="mt-1 text-xs text-slate-500">
+                  <p class="mt-1 text-xs text-heading-description">
                     Operational transaction projection; not an invoice or provider receipt.
                   </p>
                 </header>
@@ -621,7 +623,7 @@ watch(
               <section class="overflow-hidden">
                 <header class="border-b border-slate-200 p-5">
                   <h2 class="text-sm font-semibold text-slate-800">Reconciliation health</h2>
-                  <p class="mt-1 text-xs text-slate-500">
+                  <p class="mt-1 text-xs text-heading-description">
                     {{ attentionChecks.length }} checks require attention.
                   </p>
                 </header>

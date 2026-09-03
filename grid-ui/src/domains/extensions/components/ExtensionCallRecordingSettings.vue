@@ -26,7 +26,7 @@ function error(direction: string, network: string, field: string): string | null
   <article class="card-surface overflow-hidden">
     <header class="border-b border-slate-200 px-5 py-4">
       <h2 class="text-sm font-semibold text-slate-700">User call recording</h2>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Switch recording rules are editable; storage URLs remain server-owned and hidden.
       </p>
     </header>

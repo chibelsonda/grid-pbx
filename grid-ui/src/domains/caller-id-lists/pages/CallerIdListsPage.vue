@@ -118,7 +118,7 @@ function clearCallerIdListQuery(): void {
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-500">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold text-slate-800">Caller-ID Lists</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Reusable caller-number and pattern matches for visual Callflow branches.
         </p>
       </div>

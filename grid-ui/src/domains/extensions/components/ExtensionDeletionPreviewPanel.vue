@@ -68,7 +68,7 @@ const confirmed = computed(
             <h2 class="mt-1 text-sm font-semibold text-slate-700">
               {{ preview.can_delete ? 'No known blockers' : 'Deletion is blocked' }}
             </h2>
-            <p class="mt-2 text-xs leading-5 text-slate-500">
+            <p class="mt-2 text-xs leading-5 text-heading-description">
               {{
                 preview.can_delete
                   ? 'The current projection is eligible for a future managed deletion workflow.'
@@ -101,7 +101,7 @@ const confirmed = computed(
           <ServerStackIcon class="size-5 text-brand-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Managed resources</h2>
-            <p class="text-[10px] text-slate-400">Resources owned by extension provisioning</p>
+            <p class="text-[10px] text-heading-description">Resources owned by extension provisioning</p>
           </div>
         </header>
         <div class="grid grid-cols-3 divide-x divide-slate-100 p-5 text-center">

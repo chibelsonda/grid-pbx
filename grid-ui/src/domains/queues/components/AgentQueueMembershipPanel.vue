@@ -86,7 +86,7 @@ function change(input: AgentQueueMembershipInput): void {
         <QueueListIcon class="size-5 text-brand-500" aria-hidden="true" />
         <div>
           <h2 class="text-sm font-semibold text-slate-700">Queue memberships</h2>
-          <p class="text-[10px] text-slate-500">Authoritative Switch assignments for this Agent.</p>
+          <p class="text-[10px] text-heading-description">Authoritative Switch assignments for this Agent.</p>
         </div>
       </div>
       <button

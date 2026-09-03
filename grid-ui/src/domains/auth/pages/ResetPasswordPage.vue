@@ -57,7 +57,7 @@ async function submit(): Promise<void> {
       <h2 class="mt-6 text-2xl font-semibold tracking-tight text-slate-800">
         Choose a new password
       </h2>
-      <p class="mt-2 text-sm leading-6 text-slate-500">
+      <p class="mt-2 text-sm leading-6 text-heading-description">
         Use a unique password you do not use for another service.
       </p>
 

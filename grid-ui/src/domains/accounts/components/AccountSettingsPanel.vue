@@ -279,7 +279,7 @@ function selectRestriction(key: string, value: ListboxValue): void {
           <article class="card-surface overflow-hidden">
             <header class="border-b border-slate-200 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Default caller identity</h2>
-              <p class="mt-1 text-[10px] text-slate-500">
+              <p class="mt-1 text-[10px] text-heading-description">
                 External choices are account-owned numbers. Emergency choices require E911.
               </p>
             </header>
@@ -358,7 +358,7 @@ function selectRestriction(key: string, value: ListboxValue): void {
               <ShieldExclamationIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Account call restrictions</h2>
-                <p class="mt-1 text-[10px] text-slate-500">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Classifications are discovered from the connected Switch deployment.
                 </p>
               </div>

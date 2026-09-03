@@ -41,8 +41,8 @@ function submit(): void {
           ><ArrowUpTrayIcon class="size-5"
         /></span>
         <h2 class="mt-4 text-sm font-semibold text-slate-700">New audio file</h2>
-        <p class="mt-1 text-xs leading-5 text-slate-500">
-          The Switch replaces the binary. MySQL stores only the refreshed content metadata.
+        <p class="mt-1 text-xs leading-5 text-heading-description">
+          The Switch replaces the binary. GridPBX retains only the refreshed content metadata.
         </p>
         <FormFileInput
           v-model="audio"

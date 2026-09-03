@@ -30,7 +30,7 @@ function error(direction: string, network: string, field: string): string | null
     >
       <div>
         <h3 class="text-xs font-semibold text-slate-700">{{ direction.label }}</h3>
-        <p class="mt-1 text-[10px] text-slate-400">{{ direction.description }}</p>
+        <p class="mt-1 text-[10px] text-heading-description">{{ direction.description }}</p>
       </div>
 
       <div class="grid gap-4 xl:grid-cols-3">

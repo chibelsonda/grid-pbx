@@ -191,7 +191,7 @@ function headerRows(direction: 'in' | 'out'): DeviceSipHeader[] {
                 <h4 class="text-xs font-semibold text-slate-700">
                   {{ direction === 'in' ? 'Inbound to Switch' : 'Outbound to endpoint' }}
                 </h4>
-                <p class="mt-1 text-[10px] text-slate-400">INVITE headers for this direction.</p>
+                <p class="mt-1 text-[10px] text-heading-description">INVITE headers for this direction.</p>
               </div>
               <button
                 type="button"

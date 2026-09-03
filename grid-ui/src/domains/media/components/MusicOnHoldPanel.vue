@@ -56,7 +56,7 @@ function submit(): void {
           ><SpeakerWaveIcon class="size-5"
         /></span>
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Account default</h2>
-        <p class="mt-1 text-xs leading-5 text-slate-500">
+        <p class="mt-1 text-xs leading-5 text-heading-description">
           The account stores a reference to the selected Switch media. Audio remains in the Switch.
         </p>
         <label class="mt-5 grid gap-2">

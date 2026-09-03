@@ -48,7 +48,7 @@ async function handleRowAction(
         <h2 id="queue-statistics-title" class="text-sm font-semibold text-slate-700">
           Live queue activity
         </h2>
-        <p class="mt-0.5 text-[11px] text-slate-500">
+        <p class="mt-0.5 text-[11px] text-heading-description">
           Aggregated from the connected Switch's current statistics window. No caller or agent
           details are exposed.
         </p>

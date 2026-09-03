@@ -121,7 +121,7 @@ onBeforeUnmount(stopPositioning)
         data-form-listbox-trigger
         :aria-label="ariaLabel"
         :aria-invalid="invalid || undefined"
-        class="relative w-full rounded-md border border-slate-300 bg-white pr-9 pl-3 text-left text-xs text-slate-700 shadow-sm transition hover:border-slate-400 focus:border-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60"
+        class="relative w-full rounded-md border border-slate-300 bg-white pr-9 pl-3 text-left text-xs text-slate-700 shadow-sm transition hover:border-slate-300 focus:border-brand-500 focus:outline-none disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60"
         :class="[size === 'small' ? 'h-9' : 'h-10', buttonClass, validationControlClass(invalid)]"
         @click="startPositioning"
         @keydown="startPositioning"
@@ -165,7 +165,7 @@ onBeforeUnmount(stopPositioning)
                 </span>
                 <span
                   v-if="option.description"
-                  class="mt-0.5 block truncate text-[10px] text-slate-500"
+                  class="mt-0.5 block truncate text-[11px] text-slate-500"
                 >
                   {{ option.description }}
                 </span>

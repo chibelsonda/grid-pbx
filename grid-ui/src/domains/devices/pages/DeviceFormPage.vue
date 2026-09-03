@@ -137,7 +137,7 @@ function close(): void {
   <CrudSlideOver
     :title="title"
     :eyebrow="`GridPBX / Devices / ${title}`"
-    description="Configuration is written to Switch and immediately projected into MySQL."
+    description="Configuration is written to Switch and immediately projected into GridPBX."
     @close="close"
   >
     <div
@@ -147,7 +147,7 @@ function close(): void {
       <div>
         <KeyIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           Your organization role can view devices but cannot change Switch configuration.
         </p>
       </div>

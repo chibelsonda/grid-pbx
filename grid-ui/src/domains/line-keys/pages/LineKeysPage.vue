@@ -59,7 +59,7 @@ async function save(keys: LineKeyInput[]): Promise<void> {
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Provisioning</p>
         <h1 class="text-xl font-semibold text-slate-800">Line keys</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Preview and manage device combo and feature keys without exposing SIP credentials.
         </p>
       </div>

@@ -326,7 +326,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">
           {{ accounts.selected?.name ?? 'Operational dashboard' }}
         </h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Account health, projected inventory, and today's call activity.
         </p>
       </div>
@@ -371,7 +371,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
       <div>
         <CloudArrowDownIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Select a Switch account</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           The dashboard is scoped to the active account and its authorized projections.
         </p>
       </div>
@@ -414,7 +414,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
               <h2 id="dashboard-quick-actions" class="text-sm font-semibold text-slate-800">
                 Quick actions
               </h2>
-              <p class="mt-0.5 text-[11px] text-slate-500">Start a common account workflow.</p>
+              <p class="mt-0.5 text-[11px] text-heading-description">Start a common account workflow.</p>
             </div>
           </div>
           <div class="grid gap-2 sm:grid-cols-3 lg:ml-auto lg:flex">
@@ -457,7 +457,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-800">Call activity trend</h2>
-              <p class="text-[11px] text-slate-500">
+              <p class="text-[11px] text-heading-description">
                 Inbound and outbound calls in the account timezone
               </p>
             </div>
@@ -650,7 +650,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-800">Today's call activity</h2>
-              <p class="text-[11px] text-slate-500">Calculated in the account timezone</p>
+              <p class="text-[11px] text-heading-description">Calculated in the account timezone</p>
             </div>
             <RouterLink
               :to="{ name: 'call-history' }"
@@ -708,7 +708,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-800">Projection health</h2>
-              <p class="text-[11px] text-slate-500">
+              <p class="text-[11px] text-heading-description">
                 {{ dashboard.overview.value.synchronization.checkpoints.total }} resource
                 checkpoints
               </p>
@@ -795,7 +795,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-800">Needs attention</h2>
-              <p class="text-[11px] text-slate-500">
+              <p class="text-[11px] text-heading-description">
                 Safe guidance from projected operational state
               </p>
             </div>
@@ -820,7 +820,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
               />
               <div class="min-w-0 flex-1">
                 <h3 class="text-xs font-semibold text-slate-800">{{ item.label }}</h3>
-                <p class="mt-1 text-[11px] leading-5 text-slate-600">{{ item.message }}</p>
+                <p class="mt-1 text-[11px] leading-5 text-heading-description">{{ item.message }}</p>
                 <p class="mt-1 text-[11px] leading-5 text-slate-500">{{ item.guidance }}</p>
               </div>
               <ChevronRightIcon
@@ -833,7 +833,7 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
         <article class="card-surface overflow-hidden">
           <header class="border-b border-slate-200/80 px-5 py-4">
             <h2 class="text-sm font-semibold text-slate-800">Recent synchronization</h2>
-            <p class="mt-1 text-[11px] text-slate-500">Latest safe projection activity</p>
+            <p class="mt-1 text-[11px] text-heading-description">Latest safe projection activity</p>
           </header>
           <div
             v-if="dashboard.overview.value.synchronization.recent_runs.length === 0"

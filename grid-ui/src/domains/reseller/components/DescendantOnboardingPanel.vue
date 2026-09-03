@@ -127,7 +127,7 @@ watch(
           <BuildingOffice2Icon class="size-5 text-brand-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-800">Target organization</h2>
-            <p class="mt-0.5 text-xs text-slate-600">{{ data.target_organization.name }}</p>
+            <p class="mt-0.5 text-xs text-heading-description">{{ data.target_organization.name }}</p>
           </div>
         </header>
         <div class="p-5 text-xs leading-5 text-slate-700">
@@ -207,7 +207,7 @@ watch(
       <article v-if="selectedCandidate" class="card-surface grid gap-4 p-5">
         <div>
           <h2 class="text-sm font-semibold text-slate-800">Confirm account mapping</h2>
-          <p class="mt-1 text-xs leading-5 text-slate-600">
+          <p class="mt-1 text-xs leading-5 text-heading-description">
             Enter <strong>{{ selectedCandidate.name }}</strong> exactly. GridPBX will project
             account metadata only; it will not promote, demote, or modify the Switch account.
           </p>

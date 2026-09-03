@@ -203,7 +203,7 @@ watch(
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Workspace</p>
         <h1 class="text-xl font-semibold text-slate-800">Reseller administration</h1>
-        <p class="mt-1 text-xs text-slate-600">
+        <p class="mt-1 text-xs text-heading-description">
           Read-only Switch hierarchy, billing ownership, and projection coverage.
         </p>
       </div>
@@ -409,7 +409,7 @@ watch(
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 class="text-sm font-semibold text-slate-800">Hierarchy service totals</h2>
-                  <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                  <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                     Aggregated only from the selected account and its managed descendants. Quantity
                     scopes remain separate to preserve their Switch billing meaning.
                   </p>
@@ -505,7 +505,7 @@ watch(
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 class="text-xs font-semibold text-slate-800">Projected quantities</h3>
-                    <p class="mt-1 text-[11px] text-slate-600">
+                    <p class="mt-1 text-[11px] text-heading-description">
                       Grouped by Switch scope and service category.
                     </p>
                   </div>
@@ -591,7 +591,7 @@ watch(
             >
               <div class="border-b border-slate-200 px-5 py-5">
                 <h2 class="text-sm font-semibold text-slate-800">Account hierarchy</h2>
-                <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                   Only accounts projected into the current GridPBX organization are shown.
                 </p>
               </div>
@@ -679,7 +679,7 @@ watch(
               <section v-if="activeAdministrationIndex === 2" class="card-surface overflow-hidden">
                 <div class="border-b border-slate-200 px-5 py-5">
                   <h2 class="text-sm font-semibold text-slate-800">Billing ownership</h2>
-                  <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                  <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                     Resolved from the Switch service projection.
                   </p>
                 </div>
@@ -736,7 +736,7 @@ watch(
                       <h2 class="text-sm font-semibold text-slate-800">
                         Lifecycle and billing operations
                       </h2>
-                      <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                      <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                         Switch account and billing mutations remain unavailable until their
                         security, confirmation, audit, and recovery contracts are complete.
                       </p>
@@ -852,7 +852,7 @@ watch(
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 class="text-sm font-semibold text-slate-800">Descendant service ownership</h2>
-                  <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                  <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                     Billing reseller resolution and service-projection health for every managed
                     descendant.
                   </p>

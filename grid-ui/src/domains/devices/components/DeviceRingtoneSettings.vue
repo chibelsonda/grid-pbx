@@ -18,7 +18,7 @@ function error(field: 'internal' | 'external'): string | null {
       <MusicalNoteIcon class="size-4 text-brand-500" />
       <div>
         <h3 class="text-xs font-semibold text-slate-700">Ringtone headers</h3>
-        <p class="mt-0.5 text-[10px] text-slate-400">
+        <p class="mt-0.5 text-[10px] text-heading-description">
           Optional Alert-Info values sent to endpoints for internal and external calls.
         </p>
       </div>

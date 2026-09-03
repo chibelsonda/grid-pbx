@@ -99,7 +99,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Write-only credential</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Replacing a policy requires a new PIN. Existing PINs are never returned to the browser.
           </p>
         </header>
@@ -132,7 +132,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Bounded native policy</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Account call restrictions are always enforced and the original caller ID is always
             retained.
           </p>

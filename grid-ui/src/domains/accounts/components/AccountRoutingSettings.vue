@@ -27,7 +27,7 @@ function addRule(): void {
   <article class="card-surface overflow-hidden">
     <header class="border-b border-slate-200 px-5 py-4">
       <h2 class="text-sm font-semibold text-slate-700">Dial plan and formatters</h2>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Advanced transformations are validated and written as typed Switch objects.
       </p>
     </header>

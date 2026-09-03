@@ -106,7 +106,7 @@ function formatDuration(seconds: number): string {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Calls</p>
         <h1 class="text-xl font-semibold text-slate-800">Recordings</h1>
-        <p class="mt-1 text-xs text-slate-600">
+        <p class="mt-1 text-xs text-heading-description">
           Metadata projection with protected, audited playback and downloads.
         </p>
       </div>

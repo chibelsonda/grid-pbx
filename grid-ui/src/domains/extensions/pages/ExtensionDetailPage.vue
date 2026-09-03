@@ -134,7 +134,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ extension?.display_name ?? 'Extension details' }}
         </h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Projected identity, endpoints, voicemail, and routing from Switch.
         </p>
       </div>
@@ -192,7 +192,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
       <div>
         <IdentificationIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Extension unavailable</h2>
-        <p class="mt-2 text-xs text-slate-500">{{ extensions.detailError }}</p>
+        <p class="mt-2 text-xs text-heading-description">{{ extensions.detailError }}</p>
         <RouterLink
           to="/extensions"
           class="mt-5 inline-flex h-9 items-center rounded-md bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
@@ -258,7 +258,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
               <h2 class="mt-1 text-sm font-semibold text-slate-700">
                 {{ humanize(extension.sync_status) }}
               </h2>
-              <p class="mt-2 text-[11px] leading-5 text-slate-500">
+              <p class="mt-2 text-[11px] leading-5 text-heading-description">
                 {{ formatDate(extension.last_synced_at) }}
               </p>
             </div>
@@ -294,7 +294,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Assigned devices</h2>
-              <p class="text-[10px] text-slate-400">Desk phones, softphones, and SIP endpoints</p>
+              <p class="text-[10px] text-heading-description">Desk phones, softphones, and SIP endpoints</p>
             </div>
           </header>
           <div
@@ -344,7 +344,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Voicemail boxes</h2>
-              <p class="text-[10px] text-slate-400">Mailboxes owned by this Switch user</p>
+              <p class="text-[10px] text-heading-description">Mailboxes owned by this Switch user</p>
             </div>
           </header>
           <div
@@ -399,7 +399,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Callflows</h2>
-              <p class="text-[10px] text-slate-400">Callflows matched to this extension number</p>
+              <p class="text-[10px] text-heading-description">Callflows matched to this extension number</p>
             </div>
           </header>
           <div
@@ -444,7 +444,7 @@ async function updateExtension(input: ExtensionUpdate): Promise<void> {
       </div>
 
       <div class="mt-5 flex items-center gap-2 text-[10px] text-slate-400">
-        <UserIcon class="size-3.5" /> Data is served from the MySQL projection; Switch remains the
+        <UserIcon class="size-3.5" /> Data is served from the GridPBX projection; Switch remains the
         system of record.
       </div>
     </template>

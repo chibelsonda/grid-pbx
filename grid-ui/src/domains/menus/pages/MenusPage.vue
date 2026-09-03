@@ -63,7 +63,7 @@ async function handleRowAction(actionId: string, id: string): Promise<void> {
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Menus</p>
         <h1 class="text-xl font-semibold text-slate-800">Menus & IVR</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Manage voice menus, digit collection, prompts, and call-routing destinations.
         </p>
       </div>

@@ -15,7 +15,7 @@ const isActive = defineModel<boolean>('isActive', { required: true })
   <article class="card-surface overflow-hidden">
     <header class="border-b border-slate-200 px-5 py-4">
       <h2 class="text-sm font-semibold text-slate-700">Profile identity</h2>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Callflow editors use the public profile name; private endpoint values stay server-side.
       </p>
     </header>

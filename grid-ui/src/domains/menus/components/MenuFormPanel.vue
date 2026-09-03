@@ -187,7 +187,7 @@ function submit(): void {
                 /></span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Menu basics</h2>
-                  <p class="text-[10px] text-slate-400">Identity and caller entry points.</p>
+                  <p class="text-[10px] text-heading-description">Identity and caller entry points.</p>
                 </div>
               </header>
               <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -235,7 +235,7 @@ function submit(): void {
                 <MusicalNoteIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Prompts</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Choose projected media or keep the Switch system prompt.
                   </p>
                 </div>
@@ -276,7 +276,7 @@ function submit(): void {
                 <PhoneArrowUpRightIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Extension dialing</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Limit which directly dialed extensions may leave the menu.
                   </p>
                 </div>
@@ -306,7 +306,7 @@ function submit(): void {
                 <Bars3BottomLeftIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Menu options</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Digit timeouts, retries, and recording behavior.
                   </p>
                 </div>
@@ -365,7 +365,7 @@ function submit(): void {
                 <MusicalNoteIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Result prompts</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Invalid-entry, transfer, and exit prompt behavior.
                   </p>
                 </div>

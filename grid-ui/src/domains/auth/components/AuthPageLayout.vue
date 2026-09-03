@@ -29,7 +29,7 @@ import { Squares2X2Icon } from '@heroicons/vue/24/outline'
             Your Switch data,<br />made practical.
           </h1>
           <p class="mt-4 text-sm leading-6 text-white/65">
-            A focused operations console backed by Laravel and a searchable MySQL projection.
+            A focused operations console backed by Laravel and a searchable Switch projection.
           </p>
         </div>
         <p class="text-[11px] text-white/45">Secure first-party session authentication</p>

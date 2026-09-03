@@ -60,7 +60,7 @@ function select(location: CallGeographyLocation): void {
           <h2 id="call-geography-title" class="text-sm font-semibold text-slate-800">
             Call geography
           </h2>
-          <p class="text-[11px] text-slate-500">
+          <p class="text-[11px] text-heading-description">
             Estimated numbering-plan distribution · {{ rangeLabel }}
           </p>
         </div>
@@ -95,7 +95,7 @@ function select(location: CallGeographyLocation): void {
           <LockClosedIcon class="size-5" />
         </span>
         <h3 class="mt-4 text-sm font-semibold text-slate-700">Geography analytics not enabled</h3>
-        <p class="mt-2 text-xs leading-5 text-slate-500">
+        <p class="mt-2 text-xs leading-5 text-heading-description">
           {{ geography.capability.reason }} GridPBX will not geocode phone numbers or contact a map
           provider from this page.
         </p>
@@ -109,7 +109,7 @@ function select(location: CallGeographyLocation): void {
       <div class="max-w-lg">
         <MapPinIcon class="mx-auto size-9 text-slate-400" />
         <h3 class="mt-3 text-sm font-semibold text-slate-700">No estimated locations</h3>
-        <p class="mt-2 text-xs leading-5 text-slate-500">{{ geography.capability.reason }}</p>
+        <p class="mt-2 text-xs leading-5 text-heading-description">{{ geography.capability.reason }}</p>
       </div>
     </div>
 
@@ -204,7 +204,7 @@ function select(location: CallGeographyLocation): void {
       <div class="border-t border-slate-200/80 xl:border-t-0 xl:border-l">
         <div class="border-b border-slate-200/80 px-4 py-3">
           <h3 class="text-xs font-semibold text-slate-700">Location summary</h3>
-          <p class="mt-0.5 text-[10px] text-slate-500">Accessible non-map view of the same data</p>
+          <p class="mt-0.5 text-[10px] text-heading-description">Accessible non-map view of the same data</p>
         </div>
         <div class="max-h-[360px] overflow-y-auto">
           <button

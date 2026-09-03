@@ -66,7 +66,7 @@ function handleRowAction(actionId: string, id: string): void {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Voicemail</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Voicemail boxes</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Mailbox ownership, notifications, and transcription settings projected from Switch.
         </p>
       </div>
@@ -99,7 +99,7 @@ function handleRowAction(actionId: string, id: string): void {
       <div>
         <MicrophoneIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           Map and synchronize an account before viewing voicemail boxes.
         </p>
       </div>

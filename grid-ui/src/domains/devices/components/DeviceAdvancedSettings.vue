@@ -564,7 +564,7 @@ function toggleEncryptionMethod(method: string): void {
         <section class="grid gap-4 rounded-lg border border-slate-200 p-4">
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Internal calling</h3>
-            <p class="mt-1 text-[10px] leading-4 text-slate-400">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Deny calls that are limited to members of the same closed group.
             </p>
           </div>
@@ -579,7 +579,7 @@ function toggleEncryptionMethod(method: string): void {
         <section class="overflow-visible rounded-lg border border-slate-200">
           <header class="border-b border-slate-100 bg-slate-50/70 px-4 py-3">
             <h3 class="text-xs font-semibold text-slate-700">Number classifications</h3>
-            <p class="mt-1 text-[10px] leading-4 text-slate-400">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Classifications come from the connected Switch deployment. Inherit uses the
               account-level policy.
             </p>

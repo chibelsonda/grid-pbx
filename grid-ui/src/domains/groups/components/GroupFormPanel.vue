@@ -149,7 +149,7 @@ function submit(): void {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Group settings</h2>
-              <p class="text-[10px] text-slate-400">
+              <p class="text-[10px] text-heading-description">
                 The order becomes the Switch endpoint weight.
               </p>
             </div>
@@ -178,7 +178,7 @@ function submit(): void {
         <article class="card-surface overflow-hidden">
           <header class="border-b border-slate-100 px-5 py-4">
             <h2 id="group-members-heading" class="text-sm font-semibold text-slate-700">Members</h2>
-            <p class="mt-1 text-[10px] text-slate-400">
+            <p class="mt-1 text-[10px] text-heading-description">
               Users, devices, and nested groups are resolved server-side.
             </p>
           </header>

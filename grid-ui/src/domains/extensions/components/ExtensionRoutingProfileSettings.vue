@@ -92,7 +92,7 @@ function selectPronouncedName(value: unknown): void {
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Routing and directory profile</h2>
-        <p class="text-[10px] leading-4 text-slate-500">
+        <p class="text-[10px] leading-4 text-heading-description">
           Advanced User dial transformations, profile metadata, and spoken-name media.
         </p>
       </div>

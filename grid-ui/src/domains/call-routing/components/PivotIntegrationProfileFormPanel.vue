@@ -125,7 +125,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Private endpoints</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Only public HTTPS destinations are accepted. Redirect and DNS egress controls remain an
             infrastructure responsibility.
           </p>
@@ -156,7 +156,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Allowed callflow choices</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Editors can choose only the methods and response formats approved here.
           </p>
         </header>
@@ -240,7 +240,7 @@ function submit(): void {
         <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Private request headers</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Optional X- prefixed headers. Values are write-only after saving.
             </p>
           </div>

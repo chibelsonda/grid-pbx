@@ -113,7 +113,7 @@ function save(): void {
                 /></span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Fax box</h2>
-                  <p class="text-[10px] text-slate-400">Identity and account ownership.</p>
+                  <p class="text-[10px] text-heading-description">Identity and account ownership.</p>
                 </div>
               </header>
               <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -141,7 +141,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Notification emails</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Recipients for inbound and outbound Fax status.
                 </p>
               </header>
@@ -164,7 +164,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Fax identity</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Caller ID and the identity printed on sent faxes.
                 </p>
               </header>
@@ -201,7 +201,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">SMTP delivery</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   The generated address is read-only; custom addresses must be unique.
                 </p>
               </header>
@@ -231,7 +231,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Fax options</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Retry, timezone, and T.38 behavior from the installed schema.
                 </p>
               </header>

@@ -32,7 +32,7 @@ function keepConfiguredPin(): void {
       </span>
       <div class="min-w-0 flex-1">
         <h2 class="text-sm font-semibold text-slate-700">Hotdesk profile</h2>
-        <p class="text-[10px] text-slate-400">
+        <p class="text-[10px] text-heading-description">
           Let this user sign in to compatible shared devices by dial-pad ID.
         </p>
       </div>

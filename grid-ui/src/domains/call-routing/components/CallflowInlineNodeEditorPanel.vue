@@ -757,7 +757,7 @@ watch(
             <h2 class="text-sm font-semibold text-slate-700">
               {{ action?.label ?? context.module }}
             </h2>
-            <p class="mt-0.5 font-mono text-[10px] text-slate-500">{{ context.module }}</p>
+            <p class="mt-0.5 font-mono text-[10px] text-heading-description">{{ context.module }}</p>
           </div>
         </header>
 
@@ -892,7 +892,7 @@ watch(
           <template v-if="module === 'temporal_route'">
             <div>
               <h3 class="text-xs font-semibold text-slate-700">Affected time-of-day rules</h3>
-              <p class="mt-1 text-[10px] text-slate-500">
+              <p class="mt-1 text-[10px] text-heading-description">
                 Leave all rules clear to apply the Switch operation without a rule filter.
               </p>
             </div>
@@ -1397,7 +1397,7 @@ watch(
             </label>
             <div>
               <h3 class="text-xs font-semibold text-slate-700">Devices</h3>
-              <p class="mt-1 text-[10px] text-slate-500">
+              <p class="mt-1 text-[10px] text-heading-description">
                 Select 1–20 synchronized devices. {{ form.data.device_ids?.length ?? 0 }} selected.
               </p>
             </div>
@@ -1458,7 +1458,7 @@ watch(
             <section class="grid gap-3">
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">Members</h3>
-                <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                <p class="mt-1 text-[10px] leading-4 text-heading-description">
                   Add 1–20 synchronized Extensions, Devices, or Groups. In-order strategy follows
                   the displayed order.
                 </p>
@@ -1582,7 +1582,7 @@ watch(
             <section class="grid gap-3 rounded-md border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">Call handling</h3>
-                <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                <p class="mt-1 text-[10px] leading-4 text-heading-description">
                   Control how device forwarding and individual rejections affect this attempt.
                 </p>
               </div>
@@ -1605,7 +1605,7 @@ watch(
             <section class="grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">Ringback and phone alerts</h3>
-                <p class="mt-1 text-[10px] leading-4 text-slate-500">
+                <p class="mt-1 text-[10px] leading-4 text-heading-description">
                   Ringback is account audio heard while devices ring. Phone alerts are optional SIP
                   Alert-Info values, not audio files.
                 </p>
@@ -1706,7 +1706,7 @@ watch(
             <div class="flex flex-wrap items-center gap-2">
               <div class="mr-auto">
                 <h3 class="text-xs font-semibold text-slate-700">Custom application variables</h3>
-                <p class="mt-0.5 text-[10px] leading-4 text-slate-500">
+                <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                   Set the key/value variables made available to this call and subsequent actions.
                 </p>
               </div>
@@ -1949,7 +1949,7 @@ watch(
             <section class="grid gap-4 rounded-md border border-slate-200 bg-slate-50 p-4">
               <div>
                 <h3 class="text-xs font-semibold text-slate-700">Matched-call identity override</h3>
-                <p class="mt-0.5 text-[10px] leading-4 text-slate-500">
+                <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                   Optional. Switch applies the override only when owner, name, and number are all
                   set.
                 </p>
@@ -2033,7 +2033,7 @@ watch(
             <div class="flex flex-wrap items-center gap-2">
               <div class="mr-auto">
                 <h3 class="text-xs font-semibold text-slate-700">Notification recipients</h3>
-                <p class="mt-0.5 text-[10px] text-slate-500">
+                <p class="mt-0.5 text-[10px] text-heading-description">
                   Public extension IDs are translated to private Switch IDs by the API.
                 </p>
               </div>
@@ -2109,7 +2109,7 @@ watch(
           <section v-if="module === 'tts' || module === 'collect_dtmf'" class="grid gap-3">
             <div>
               <h3 class="text-xs font-semibold text-slate-700">DTMF terminators</h3>
-              <p class="mt-0.5 text-[10px] text-slate-500">
+              <p class="mt-0.5 text-[10px] text-heading-description">
                 These keys stop playback or complete digit collection.
               </p>
             </div>

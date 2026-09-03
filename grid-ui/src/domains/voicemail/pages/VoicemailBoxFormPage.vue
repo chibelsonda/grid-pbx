@@ -113,7 +113,7 @@ async function save(): Promise<void> {
   <CrudSlideOver
     :title="title"
     :eyebrow="`GridPBX / Voicemail / ${title}`"
-    description="Changes are written to Switch first and then projected into MySQL."
+    description="Changes are written to Switch first and then projected into GridPBX."
     @close="close"
   >
     <div
@@ -123,7 +123,7 @@ async function save(): Promise<void> {
       <div>
         <KeyIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           Your organization role can view voicemail boxes but cannot change Switch configuration.
         </p>
         <button

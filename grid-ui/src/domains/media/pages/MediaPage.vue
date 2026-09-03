@@ -166,7 +166,7 @@ function formatSize(bytes: number | null): string {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Media & Music on Hold</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Media & Music on Hold</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Manage Switch-hosted audio through a safe metadata projection.
         </p>
       </div>

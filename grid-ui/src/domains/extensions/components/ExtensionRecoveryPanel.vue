@@ -67,8 +67,8 @@ function canRecover(operation: ExtensionRecoveryOperation): boolean {
       >
         <WrenchScrewdriverIcon class="mt-0.5 size-5 shrink-0" />
         <p>
-          Create failures retry cleanup of leaked managed resources. Update failures reconcile MySQL
-          from Switch before edits continue. Delete failures resume recorded steps only after
+          Create failures retry cleanup of leaked managed resources. Update failures reconcile the
+          GridPBX projection from Switch before edits continue. Delete failures resume recorded steps only after
           exact-number confirmation.
         </p>
       </aside>
@@ -87,7 +87,7 @@ function canRecover(operation: ExtensionRecoveryOperation): boolean {
         <div>
           <CheckCircleIcon class="mx-auto size-10 text-emerald-400" />
           <h2 class="mt-4 text-sm font-semibold text-slate-700">No recovery work pending</h2>
-          <p class="mt-2 text-xs text-slate-500">
+          <p class="mt-2 text-xs text-heading-description">
             Failed and stale managed workflows will appear here.
           </p>
         </div>

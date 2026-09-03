@@ -146,7 +146,7 @@ function submit(): void {
                 /></span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Queue setup</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Identity, routing strategy, and caller hold media.
                   </p>
                 </div>
@@ -195,7 +195,7 @@ function submit(): void {
                   <h2 id="queue-agent-roster-heading" class="text-sm font-semibold text-slate-700">
                     Agent roster
                   </h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Agents are existing extensions; Switch stores queue membership on their User
                     documents.
                   </p>
@@ -229,7 +229,7 @@ function submit(): void {
                 /></span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Queue behavior</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Timing, capacity, exit, recording, and priority controls.
                   </p>
                 </div>
@@ -320,7 +320,7 @@ function submit(): void {
                 <MegaphoneIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Caller announcements</h2>
-                  <p class="text-[10px] text-slate-500">
+                  <p class="text-[10px] text-heading-description">
                     Connection and periodic position or estimated-wait prompts.
                   </p>
                 </div>

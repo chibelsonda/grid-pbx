@@ -197,7 +197,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ voicemail.detail?.name ?? 'Voicemail box' }}
         </h1>
-        <p class="mt-1 font-mono text-xs text-slate-500">
+        <p class="mt-1 font-mono text-xs text-heading-description">
           Mailbox {{ voicemail.detail?.mailbox ?? '—' }}
         </p>
       </div>
@@ -275,7 +275,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
               /></span>
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Mailbox configuration</h2>
-                <p class="text-[10px] text-slate-400">Normalized Switch projection</p>
+                <p class="text-[10px] text-heading-description">Normalized Switch projection</p>
               </div>
             </header>
             <dl class="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2">
@@ -346,7 +346,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
             >
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Messages</h2>
-                <p class="text-[10px] text-slate-400">
+                <p class="text-[10px] text-heading-description">
                   Metadata is projected; audio streams from Switch on demand.
                 </p>
               </div>
@@ -607,7 +607,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
               <MicrophoneIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Unavailable greeting</h2>
-                <p class="text-[10px] text-slate-400">Played before callers leave a message</p>
+                <p class="text-[10px] text-heading-description">Played before callers leave a message</p>
               </div>
             </header>
             <div class="grid gap-4 p-5">
@@ -685,7 +685,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
     v-if="greetingPanelOpen"
     title="Upload unavailable greeting"
     eyebrow="GridPBX / Voicemail / Greeting"
-    description="The audio is uploaded to Switch; MySQL stores only its metadata projection."
+    description="The audio is uploaded to Switch; GridPBX stores only its metadata projection."
     width="medium"
     @close="greetingPanelOpen = false"
   >
@@ -695,7 +695,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
           <CloudArrowUpIcon class="size-5 text-brand-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Greeting audio</h2>
-            <p class="text-[10px] text-slate-400">MP3, WAV, or OGG · maximum 10 MB</p>
+            <p class="text-[10px] text-heading-description">MP3, WAV, or OGG · maximum 10 MB</p>
           </div>
         </header>
         <div class="grid gap-5 p-5">

@@ -39,7 +39,7 @@ function error(field: string): string | null {
       <BoltIcon class="size-5 text-brand-500" />
       <div>
         <h2 class="text-sm font-semibold text-slate-700">In-call metaflows</h2>
-        <p class="mt-1 text-[10px] leading-4 text-slate-500">
+        <p class="mt-1 text-[10px] leading-4 text-heading-description">
           Configure account-scoped DTMF actions for this Switch user.
         </p>
       </div>

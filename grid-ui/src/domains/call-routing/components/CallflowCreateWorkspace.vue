@@ -46,16 +46,21 @@ import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
 import CallflowRouteSummary from './CallflowRouteSummary.vue'
 import CallflowWorkspaceLayout from './CallflowWorkspaceLayout.vue'
 
-const props = defineProps<{
-  editor: CallflowEditor
-  saving: boolean
-  error: string | null
-  fieldErrors: Record<string, string[]>
-}>()
+const props = withDefaults(
+  defineProps<{
+    accountId?: string
+    editor: CallflowEditor
+    saving: boolean
+    error: string | null
+    fieldErrors: Record<string, string[]>
+  }>(),
+  { accountId: '' },
+)
 const emit = defineEmits<{
   close: []
   save: [input: CallflowCreateInput]
   'dirty-change': [dirty: boolean]
+  'refresh-entry-options': []
 }>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => null,
@@ -77,6 +82,13 @@ const fallbackOpen = ref(false)
 const fallbackDraftType = ref<CallflowDestinationType>('extension')
 const fallbackDraftId = ref('')
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const pageErrors = computed(() =>
+  Object.fromEntries(
+    Object.entries(errors.value).filter(
+      ([field]) => !['phone_number_ids', 'extension_numbers'].includes(field),
+    ),
+  ),
+)
 const rootActionFieldErrors = computed(() =>
   Object.fromEntries(
     Object.entries(errors.value).flatMap(([field, messages]) =>
@@ -655,7 +667,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
   <form id="callflow-create-form" class="grid gap-4" novalidate @submit.prevent="submit">
     <FormErrorSummary
       :error="Object.keys(errors).length === 0 ? error : null"
-      :field-errors="{}"
+      :field-errors="pageErrors"
       title="Unable to create the callflow"
       class="mx-4 mt-4"
     />
@@ -886,7 +898,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 
         <article class="card-surface p-4">
           <h2 class="text-sm font-semibold text-slate-700">Assignments</h2>
-          <p class="mt-4 text-xs leading-5 text-slate-500">
+          <p class="mt-4 text-xs leading-5 text-heading-description">
             This draft is not assigned until it is created successfully in Switch.
           </p>
         </article>
@@ -942,13 +954,16 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 
   <CallflowAddEntryNumberDialog
     :open="entryNumberOpen"
+    :account-id="accountId"
     :phone-numbers="editor.phone_numbers"
+    :phone-number-inventory="editor.phone_number_inventory"
     :phone-number-ids="form.phone_number_ids"
     :extension-numbers="form.extension_numbers"
     :preserved-numbers="editor.preserved_numbers ?? []"
     :field-errors="errors"
     @close="entryNumberOpen = false"
     @add="addEntryNumber"
+    @inventory-refreshed="emit('refresh-entry-options')"
   />
 
   <CallflowNodeInfoDialog
@@ -991,7 +1006,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
       >
         <header class="border-b border-slate-200 bg-slate-50 px-4 py-3">
           <h3 class="text-xs font-semibold text-slate-700">Schedule routes</h3>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             A matching member follows the literal rule_set branch; no match follows the wildcard
             fallback.
           </p>
@@ -1077,7 +1092,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
       >
         <header class="border-b border-slate-200 bg-slate-50 px-4 py-3">
           <h3 class="text-xs font-semibold text-slate-700">Menu key routes</h3>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Add the Switch keys that should leave this IVR. They appear immediately on the canvas.
           </p>
         </header>

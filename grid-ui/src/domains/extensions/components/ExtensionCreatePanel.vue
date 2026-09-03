@@ -393,7 +393,7 @@ function submit(): void {
           </span>
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Person and extension</h2>
-            <p class="text-[10px] text-slate-400">The Switch user is the aggregate root.</p>
+            <p class="text-[10px] text-heading-description">The Switch user is the aggregate root.</p>
           </div>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -632,7 +632,7 @@ function submit(): void {
           /></span>
           <div class="min-w-0 flex-1">
             <h2 class="text-sm font-semibold text-slate-700">Voicemail fallback</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               Creates an owned mailbox and attaches it to the managed callflow.
             </p>
           </div>
@@ -685,7 +685,7 @@ function submit(): void {
           /></span>
           <div class="min-w-0 flex-1">
             <h2 class="text-sm font-semibold text-slate-700">Initial device</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               Optional endpoint owned by the new Switch user.
             </p>
           </div>

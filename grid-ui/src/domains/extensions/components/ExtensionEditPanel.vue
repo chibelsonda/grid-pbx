@@ -368,7 +368,7 @@ function submit(): void {
           /></span>
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Person and extension</h2>
-            <p class="text-[10px] text-slate-400">The managed user is the aggregate root.</p>
+            <p class="text-[10px] text-heading-description">The managed user is the aggregate root.</p>
           </div>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -618,7 +618,7 @@ function submit(): void {
           /></span>
           <div class="min-w-0 flex-1">
             <h2 class="text-sm font-semibold text-slate-700">Voicemail fallback</h2>
-            <p class="text-[10px] text-slate-400">Managed mailbox and callflow fallback.</p>
+            <p class="text-[10px] text-heading-description">Managed mailbox and callflow fallback.</p>
           </div>
           <ToggleSwitch v-model="form.voicemailEnabled" label="Enabled" />
         </header>

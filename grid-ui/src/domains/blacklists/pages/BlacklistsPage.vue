@@ -103,7 +103,7 @@ function clearBlacklistQuery(): void {
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Security</p>
         <h1 class="text-xl font-semibold text-slate-800">Blacklists</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Protect inbound calls with reusable caller-number lists.
         </p>
       </div>

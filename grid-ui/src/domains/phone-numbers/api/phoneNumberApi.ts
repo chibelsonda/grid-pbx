@@ -38,9 +38,11 @@ export const phoneNumberApi = {
 
     return unwrapApiData(response)
   },
-  async startSync(accountId: string): Promise<SyncRun> {
+  async startSync(accountId: string, globalNotification = true): Promise<SyncRun> {
     const response = await http.post<ApiResponse<SyncRun>>(
       `/api/v1/accounts/${accountId}/sync/phone-numbers`,
+      undefined,
+      { globalNotification },
     )
 
     return unwrapApiData(response)

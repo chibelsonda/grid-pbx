@@ -51,7 +51,7 @@ function detailRoute(call: RecentMissedCall, summary: RecentMissedCalls) {
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-800">Recent missed calls</h2>
-        <p class="text-[11px] text-slate-500">Latest inbound unanswered calls · {{ rangeLabel }}</p>
+        <p class="text-[11px] text-heading-description">Latest inbound unanswered calls · {{ rangeLabel }}</p>
       </div>
       <RouterLink
         v-if="missedCalls"

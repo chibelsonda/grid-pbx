@@ -80,7 +80,7 @@ function submit(): void {
             <CalendarDaysIcon class="size-5 text-brand-500" />
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Rule set</h2>
-              <p class="text-[10px] text-slate-500">
+              <p class="text-[10px] text-heading-description">
                 Rules are evaluated in the order shown below.
               </p>
             </div>

@@ -4186,6 +4186,113 @@ class CallflowControllerTest extends TestCase
             ->assertJsonPath('data.numbers.0', '2999');
     }
 
+    public function test_it_reports_phone_number_inventory_freshness_in_the_callflow_editor(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        $assignedCallflow = SwitchCallflow::factory()->for($account)->create();
+        SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550001001',
+            'assigned_callflow_id' => null,
+        ]);
+        SwitchPhoneNumber::factory()->for($account)->create([
+            'number' => '+15550001002',
+            'assigned_callflow_id' => $assignedCallflow->getKey(),
+        ]);
+        $lastSuccessfulAt = now()->subMinute()->startOfSecond();
+        SyncCheckpoint::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'resource_type' => 'phone_numbers',
+            'status' => ProjectionStatus::Healthy,
+            'last_successful_at' => $lastSuccessfulAt,
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/editor")
+            ->assertOk()
+            ->assertJsonPath('data.phone_number_inventory.status', 'healthy')
+            ->assertJsonPath('data.phone_number_inventory.last_successful_at', $lastSuccessfulAt->toIso8601String())
+            ->assertJsonPath('data.phone_number_inventory.total_count', 2)
+            ->assertJsonPath('data.phone_number_inventory.unassigned_count', 1);
+    }
+
+    public function test_it_does_not_expose_phone_number_synchronization_details_in_the_callflow_editor(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        SyncCheckpoint::query()->create([
+            'switch_account_id' => $account->getKey(),
+            'resource_type' => 'phone_numbers',
+            'status' => ProjectionStatus::Error,
+            'error_message' => 'SQLSTATE[HY000] provider_token=super-secret private-switch-id',
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/editor")
+            ->assertOk()
+            ->assertJsonPath('data.phone_number_inventory.status', 'error')
+            ->assertJsonPath(
+                'data.phone_number_inventory.error_message',
+                'Phone-number inventory synchronization failed. Try refreshing again or contact an administrator.',
+            )
+            ->assertDontSee('SQLSTATE', false)
+            ->assertDontSee('super-secret', false)
+            ->assertDontSee('private-switch-id', false);
+    }
+
+    public function test_it_discovers_occupied_extensions_and_checks_account_scoped_availability(): void
+    {
+        [$user, $account] = $this->accessibleAccount();
+        SwitchExtension::factory()->for($account)->create([
+            'extension' => '2001',
+            'display_name' => 'Reception',
+        ]);
+        $current = SwitchCallflow::factory()->for($account)->create([
+            'name' => 'Current route',
+            'numbers' => ['2999'],
+        ]);
+        SwitchCallflow::factory()->for($account)->create([
+            'name' => 'Support route',
+            'numbers' => ['3000'],
+        ]);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/extension-directory?callflow_id={$current->id}")
+            ->assertOk()
+            ->assertJsonPath('data.entries.0.number', '2001')
+            ->assertJsonPath('data.entries.0.label', 'Reception')
+            ->assertJsonPath('data.entries.1.number', '2999')
+            ->assertJsonPath('data.entries.1.current', true)
+            ->assertJsonPath('data.entries.2.number', '3000')
+            ->assertJsonMissingPath('data.entries.0.switch_resource_id');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/extension-availability?number=2999&callflow_id={$current->id}")
+            ->assertOk()
+            ->assertJsonPath('data.available', true);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/extension-availability?number=3000&callflow_id={$current->id}")
+            ->assertOk()
+            ->assertJsonPath('data.available', false)
+            ->assertJsonPath('data.conflict.label', 'Support route')
+            ->assertJsonPath('data.suggested_extension', '3001');
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/extension-availability?number=4000")
+            ->assertOk()
+            ->assertJsonPath('data.available', true);
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/extension-availability?number=invalid")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('number');
+
+        $foreignCallflow = SwitchCallflow::factory()->create();
+
+        $this->actingAs($user)
+            ->getJson("/api/v1/accounts/{$account->id}/callflows/extension-directory?callflow_id={$foreignCallflow->id}")
+            ->assertNotFound();
+    }
+
     public function test_it_replaces_only_editable_extension_aliases_and_preserves_the_owned_extension(): void
     {
         [$user, $account] = $this->accessibleAccount();

@@ -165,7 +165,7 @@ const confirmation = computed(() => {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Devices</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Devices</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Desk phones, softphones, and SIP endpoints projected from Switch.
         </p>
       </div>
@@ -198,7 +198,7 @@ const confirmation = computed(() => {
       <div>
         <DevicePhoneMobileIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
-        <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
+        <p class="mt-2 max-w-md text-xs leading-5 text-heading-description">
           Map an account and synchronize the extension projection before viewing devices.
         </p>
       </div>

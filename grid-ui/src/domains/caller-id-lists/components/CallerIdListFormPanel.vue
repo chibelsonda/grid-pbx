@@ -95,7 +95,7 @@ function submit(): void {
                 </span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">List identity</h2>
-                  <p class="text-[10px] text-slate-500">Name this reusable matching list.</p>
+                  <p class="text-[10px] text-heading-description">Name this reusable matching list.</p>
                 </div>
               </header>
               <div class="p-5">
@@ -118,7 +118,7 @@ function submit(): void {
                 </span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Match entries</h2>
-                  <p class="text-[10px] text-slate-500">
+                  <p class="text-[10px] text-heading-description">
                     Number entries may be exact values or prefixes. Patterns use Switch regular
                     expressions.
                   </p>
@@ -220,7 +220,7 @@ function submit(): void {
                 </span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">List metadata</h2>
-                  <p class="text-[10px] text-slate-500">
+                  <p class="text-[10px] text-heading-description">
                     Optional metadata from the installed Switch list schema.
                   </p>
                 </div>

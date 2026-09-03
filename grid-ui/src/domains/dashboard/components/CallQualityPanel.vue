@@ -69,7 +69,7 @@ function durationRoute(quality: CallQuality, band: CallDurationBand) {
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-800">Call quality indicators</h2>
-        <p class="text-[11px] text-slate-500">
+        <p class="text-[11px] text-heading-description">
           Answer behavior and call-duration distribution · {{ rangeLabel }}
         </p>
       </div>
@@ -136,7 +136,7 @@ function durationRoute(quality: CallQuality, band: CallDurationBand) {
         <div class="flex flex-wrap items-end justify-between gap-2">
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Call duration distribution</h3>
-            <p class="mt-1 text-[10px] text-slate-500">
+            <p class="mt-1 text-[10px] text-heading-description">
               {{ quality.duration_distribution.total_calls }} calls across total-duration bands
             </p>
           </div>

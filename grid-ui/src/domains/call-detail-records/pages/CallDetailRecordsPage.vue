@@ -270,8 +270,8 @@ function humanize(value: string | null): string {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Call History</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Call History</h1>
-        <p class="mt-1 text-xs text-slate-500">
-          Searchable MySQL projection of approved Switch call-leg metadata.
+        <p class="mt-1 text-xs text-heading-description">
+          Searchable projection of approved Switch call-leg metadata.
         </p>
       </div>
       <div class="flex flex-col items-start gap-1 sm:ml-auto sm:items-end">
