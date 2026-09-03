@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { useUiStore } from '@/app/stores/uiStore'
 import { deviceApi, type DevicePage, type DeviceProvisioningCommand } from '../api/deviceApi'
 import type {
   Device,
@@ -219,6 +220,11 @@ describe('device store', () => {
     expect(succeeded).toBe(true)
     expect(store.operationMessage).toContain('synchronization')
     expect(store.mutationLoading).toBe(false)
+    expect(useUiStore().notification).toMatchObject({
+      title: 'Check-sync sent',
+      message: 'Switch accepted the device synchronization request.',
+      tone: 'success',
+    })
   })
 
   it('loads secure manufacturer provisioning enrollment state', async () => {
@@ -254,5 +260,10 @@ describe('device store', () => {
     expect(store.provisioningEnrollment).toEqual(enrolled)
     expect(store.operationMessage).toBe('Device enrolled for manufacturer provisioning.')
     expect(store.mutationLoading).toBe(false)
+    expect(useUiStore().notification).toMatchObject({
+      title: 'Provisioning updated',
+      message: 'Device enrolled for manufacturer provisioning.',
+      tone: 'success',
+    })
   })
 })

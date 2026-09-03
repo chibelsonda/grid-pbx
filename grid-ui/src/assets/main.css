@@ -168,6 +168,10 @@
     color: var(--app-notification-tone);
   }
 
+  .app-alert-icon {
+    background: color-mix(in srgb, var(--app-notification-tone) 13%, transparent);
+  }
+
   .app-notification-title {
     color: color-mix(in srgb, var(--app-notification-tone) 62%, var(--app-foreground));
   }

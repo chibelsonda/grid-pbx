@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { CheckCircleIcon, HashtagIcon, LinkIcon, MapPinIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import RowActionMenu from '@/shared/components/RowActionMenu.vue'
@@ -188,12 +189,13 @@ function humanize(value: string | null): string {
       </button>
     </form>
 
-    <div
+    <AppAlert
       v-if="phoneNumbers.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ phoneNumbers.error }}
-    </div>
+      :message="phoneNumbers.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="phoneNumbers.error = null"
+    />
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[900px] text-left">

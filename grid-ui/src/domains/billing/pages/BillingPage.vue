@@ -15,6 +15,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import SandboxPaymentPanel from '@/domains/payments/components/SandboxPaymentPanel.vue'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import RowActionMenu from '@/shared/components/RowActionMenu.vue'
 import BillingRecordDetailPanel from '../components/BillingRecordDetailPanel.vue'
@@ -182,12 +183,12 @@ watch(
     >
       Billing information is available only to account, reseller, or platform administrators.
     </div>
-    <div
+    <AppAlert
       v-else-if="billing.error"
-      class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-red-700"
-    >
-      {{ billing.error }}
-    </div>
+      :message="billing.error"
+      tone="error"
+      @dismiss="billing.error = null"
+    />
     <div v-else-if="billing.loading" class="card-surface p-14 text-center text-xs text-slate-500">
       Loading billing information…
     </div>

@@ -49,8 +49,9 @@ function signIn(): void {
       </div>
     </header>
 
-    <div class="grid gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_auto]">
+    <div class="flex flex-col gap-4 p-5 sm:flex-row sm:items-start">
       <FormListbox
+        class="w-full sm:max-w-xl"
         :model-value="selectedExtensionId"
         :options="
           available.map((extension) => ({

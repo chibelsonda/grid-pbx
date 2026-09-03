@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { BookOpenIcon, PlusIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -131,13 +132,13 @@ async function handleRowAction(actionId: string, id: string): Promise<void> {
         Search
       </button>
     </form>
-    <div
+    <AppAlert
       v-if="directories.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      role="alert"
-    >
-      {{ directories.error }}
-    </div>
+      :message="directories.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="directories.error = null"
+    />
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[680px] text-left" :aria-busy="directories.loading">

@@ -10,6 +10,7 @@ import {
   SparklesIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import RowActionMenu from '@/shared/components/RowActionMenu.vue'
@@ -166,12 +167,13 @@ function handleRowAction(actionId: string, id: string): void {
         />
       </div>
 
-      <div
+      <AppAlert
         v-if="voicemail.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ voicemail.error }}
-      </div>
+        :message="voicemail.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="voicemail.error = null"
+      />
 
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">

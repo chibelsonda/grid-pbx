@@ -14,6 +14,7 @@ import {
   SignalIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import OperationalStatusCard from '../components/OperationalStatusCard.vue'
 import { useOperationalStatusStore } from '../stores/operationalStatusStore'
 
@@ -62,12 +63,13 @@ watch(
   </section>
 
   <div class="page-container py-4 sm:py-6 lg:py-8">
-    <div
+    <AppAlert
       v-if="operationalStatus.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ operationalStatus.error }}
-    </div>
+      :message="operationalStatus.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="operationalStatus.error = null"
+    />
     <div
       v-if="operationalStatus.loading"
       class="card-surface p-14 text-center text-xs text-slate-400"

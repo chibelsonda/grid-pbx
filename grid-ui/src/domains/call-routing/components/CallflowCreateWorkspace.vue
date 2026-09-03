@@ -51,7 +51,11 @@ const props = defineProps<{
   error: string | null
   fieldErrors: Record<string, string[]>
 }>()
-const emit = defineEmits<{ close: []; save: [input: CallflowCreateInput] }>()
+const emit = defineEmits<{
+  close: []
+  save: [input: CallflowCreateInput]
+  'dirty-change': [dirty: boolean]
+}>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => null,
   () => props.editor,
@@ -86,6 +90,15 @@ const selectedEntryPoints = computed(() => [
   ...form.extension_numbers.map((value) => ({ value, kind: 'Extension' })),
   ...selectedPhoneNumbers.value.map(({ number: value }) => ({ value, kind: 'Phone number' })),
 ])
+const dirty = computed(
+  () =>
+    form.name.trim() !== '' ||
+    form.phone_number_ids.length > 0 ||
+    form.extension_numbers.length > 0 ||
+    rootActionChosen.value,
+)
+
+watch(dirty, (value) => emit('dirty-change', value), { immediate: true })
 
 function addEntryNumber(addition: CallflowEntryNumberAddition): void {
   if (addition.type === 'phone_number') {
@@ -627,7 +640,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 </script>
 
 <template>
-  <form class="grid gap-4" novalidate @submit.prevent="submit">
+  <form id="callflow-create-form" class="grid gap-4" novalidate @submit.prevent="submit">
     <div
       v-if="error && Object.keys(fieldErrors).length === 0"
       role="alert"
@@ -666,23 +679,6 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
         >
           <CallflowCanvasHeader />
           <div class="mx-auto flex w-max min-w-full flex-col items-center pt-4">
-            <div data-callflow-create-actions class="mb-3 flex w-80 justify-center gap-2">
-              <button
-                type="button"
-                class="h-8 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
-                @click="emit('close')"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                :disabled="saving"
-                class="h-8 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
-              >
-                {{ saving ? 'Creating callflow…' : 'Create callflow' }}
-              </button>
-            </div>
-
             <CallflowEntryNode
               :name="form.name || 'Callflow'"
               :entries="selectedEntryPoints"

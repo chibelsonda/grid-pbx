@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleIcon, KeyIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import { validateForm } from '@/shared/forms/zod'
 import DeviceFormFields from '../components/DeviceFormFields.vue'
@@ -169,13 +170,12 @@ function close(): void {
     </div>
 
     <form v-else class="grid gap-5" novalidate @submit.prevent="save">
-      <div
+      <AppAlert
         v-if="devices.mutationError && Object.keys(devices.fieldErrors).length === 0"
-        role="alert"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ devices.mutationError }}
-      </div>
+        :message="devices.mutationError"
+        tone="error"
+        @dismiss="devices.mutationError = null"
+      />
 
       <DeviceFormFields
         :form="form"

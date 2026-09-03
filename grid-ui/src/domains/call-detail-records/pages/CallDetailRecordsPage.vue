@@ -8,6 +8,7 @@ import {
   PhoneIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -472,12 +473,13 @@ function humanize(value: string | null): string {
       </DisclosureCard>
     </form>
 
-    <div
+    <AppAlert
       v-if="calls.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ calls.error }}
-    </div>
+      :message="calls.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="calls.error = null"
+    />
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[980px] text-left">

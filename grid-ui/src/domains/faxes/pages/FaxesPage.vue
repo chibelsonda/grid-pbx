@@ -9,6 +9,7 @@ import {
   PrinterIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
@@ -157,12 +158,12 @@ function clearFaxBoxQuery(): void {
     </div>
   </section>
   <div class="page-container grid gap-6 py-4 sm:py-6 lg:py-8">
-    <div
+    <AppAlert
       v-if="faxes.error"
-      class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ faxes.error }}
-    </div>
+      :message="faxes.error"
+      tone="error"
+      @dismiss="faxes.error = null"
+    />
     <section v-if="operationEntries.length" class="card-surface overflow-hidden">
       <header class="border-b border-slate-100 px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700">Fax message operations</h2>

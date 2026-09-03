@@ -13,6 +13,7 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import LineKeyPanel from '@/domains/line-keys/components/LineKeyPanel.vue'
 import { useLineKeyStore } from '@/domains/line-keys/stores/lineKeyStore'
 import type { LineKeyInput } from '@/domains/line-keys/types/lineKey'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -269,38 +270,21 @@ const confirmation = computed(() => {
         />
       </div>
 
-      <div
+      <AppAlert
         v-if="devices.error"
-        role="alert"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ devices.error }}
-      </div>
+        :message="devices.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="devices.error = null"
+      />
 
-      <p
-        v-if="devices.operationMessage"
-        role="status"
-        aria-live="polite"
-        class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
-      >
-        {{ devices.operationMessage }}
-      </p>
-
-      <p
-        v-if="devices.mutationError"
-        role="alert"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ devices.mutationError }}
-      </p>
-
-      <p
+      <AppAlert
         v-if="lineKeys.mutationError && !lineKeyPanelOpen"
-        role="alert"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ lineKeys.mutationError }}
-      </p>
+        :message="lineKeys.mutationError"
+        tone="error"
+        class="mb-4"
+        @dismiss="lineKeys.mutationError = null"
+      />
 
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">

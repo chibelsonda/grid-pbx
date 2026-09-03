@@ -25,6 +25,7 @@ import { profileFormSchema } from '@/domains/auth/schemas/profileFormSchema'
 import { useAuthStore } from '@/domains/auth/stores/authStore'
 import CallflowIntegrationProfilesPanel from '@/domains/call-routing/components/CallflowIntegrationProfilesPanel.vue'
 import { organizationLogoSchema } from '@/domains/settings/schemas/organizationLogoSchema'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
@@ -320,13 +321,12 @@ async function signOut(): Promise<void> {
                 required
                 autocomplete="name"
               />
-              <p
+              <AppAlert
                 v-if="auth.profileError"
-                role="alert"
-                class="rounded-md border border-red-100 bg-red-50 px-3 py-2 text-[10px] text-danger"
-              >
-                {{ auth.profileError }}
-              </p>
+                :message="auth.profileError"
+                tone="error"
+                @dismiss="auth.profileError = null"
+              />
               <div class="flex flex-wrap gap-2">
                 <button
                   type="submit"

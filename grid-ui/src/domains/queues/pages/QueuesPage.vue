@@ -4,6 +4,7 @@ import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import { PlusIcon, QueueListIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -317,13 +318,13 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
           </button></Tab
         >
       </TabList>
-      <div
+      <AppAlert
         v-if="queues.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ queues.error }}
-      </div>
+        :message="queues.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="queues.error = null"
+      />
       <TabPanels>
         <TabPanel class="focus:outline-none">
           <form
@@ -431,13 +432,13 @@ async function changeAgentQueueMembership(input: AgentQueueMembershipInput): Pro
             The connected Switch did not report aggregate agent statistics as available. Agent
             inventory and any separately available live status controls remain accessible.
           </div>
-          <div
+          <AppAlert
             v-if="queues.agentAvailabilityError"
-            class="mb-4 rounded-md border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800"
-            role="alert"
-          >
-            {{ queues.agentAvailabilityError }} The last observed availability remains displayed.
-          </div>
+            :message="`${queues.agentAvailabilityError} The last observed availability remains displayed.`"
+            tone="warning"
+            class="mb-4"
+            @dismiss="queues.agentAvailabilityError = null"
+          />
           <div
             v-if="queues.agentAvailability?.unresolved_agents"
             class="mb-4 rounded-md border border-slate-200 bg-white p-4 text-xs text-slate-600"

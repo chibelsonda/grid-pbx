@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
+import { useUiStore } from '@/app/stores/uiStore'
 import { deviceApi } from '../api/deviceApi'
 import type { DeviceProvisioningCommand } from '../api/deviceApi'
 import type {
@@ -62,6 +63,7 @@ export const useDeviceStore = defineStore('devices', {
     ) as DeviceSchemaCompatibility,
     hotdeskMemberships: { users: [], unresolved_count: 0 } as DeviceHotdeskMemberships,
     hotdeskLoading: false,
+    hotdeskError: null as string | null,
     provisioningEnrollment: { ...defaultProvisioningEnrollment },
     provisioningEnrollmentLoading: false,
   }),
@@ -91,6 +93,7 @@ export const useDeviceStore = defineStore('devices', {
       this.schemaCompatibility = structuredClone(legacyDeviceSchemaCompatibility)
       this.hotdeskMemberships = { users: [], unresolved_count: 0 }
       this.hotdeskLoading = false
+      this.hotdeskError = null
       this.provisioningEnrollment = { ...defaultProvisioningEnrollment }
       this.provisioningEnrollmentLoading = false
     },
@@ -190,10 +193,20 @@ export const useDeviceStore = defineStore('devices', {
       try {
         const result = await deviceApi.syncProvisioning(accountId, deviceId, command)
         this.operationMessage = result.message
+        useUiStore().notify({
+          title: command === 'reprovision' ? 'Reprovision requested' : 'Check-sync sent',
+          message: result.message,
+          tone: 'success',
+        })
 
         return true
       } catch (error) {
         this.captureMutationError(error, 'Unable to send the provisioning command.')
+        useUiStore().notify({
+          title: 'Device command failed',
+          message: this.mutationError ?? 'Unable to send the provisioning command.',
+          tone: 'error',
+        })
 
         return false
       } finally {
@@ -240,10 +253,20 @@ export const useDeviceStore = defineStore('devices', {
         const result = await operation()
         this.provisioningEnrollment = result.enrollment
         this.operationMessage = result.message
+        useUiStore().notify({
+          title: 'Provisioning updated',
+          message: result.message,
+          tone: 'success',
+        })
 
         return true
       } catch (error) {
         this.captureMutationError(error, 'Unable to update provisioning enrollment.')
+        useUiStore().notify({
+          title: 'Provisioning update failed',
+          message: this.mutationError ?? 'Unable to update provisioning enrollment.',
+          tone: 'error',
+        })
 
         return false
       } finally {
@@ -252,11 +275,14 @@ export const useDeviceStore = defineStore('devices', {
     },
     async loadHotdeskUsers(accountId: string, deviceId: string): Promise<void> {
       this.hotdeskLoading = true
+      this.hotdeskError = null
 
       try {
         this.hotdeskMemberships = await deviceApi.hotdeskUsers(accountId, deviceId)
       } catch (error) {
-        this.captureMutationError(error, 'Unable to load active hotdesk users.')
+        this.hotdeskError = axios.isAxiosError(error)
+          ? (error.response?.data?.message ?? 'Unable to load active hotdesk users.')
+          : 'Unable to load active hotdesk users.'
       } finally {
         this.hotdeskLoading = false
       }
@@ -285,10 +311,20 @@ export const useDeviceStore = defineStore('devices', {
       try {
         this.hotdeskMemberships = await operation()
         this.operationMessage = 'Hotdesk session updated.'
+        useUiStore().notify({
+          title: 'Hotdesk updated',
+          message: this.operationMessage,
+          tone: 'success',
+        })
 
         return true
       } catch (error) {
         this.captureMutationError(error, 'Unable to update the hotdesk session.')
+        useUiStore().notify({
+          title: 'Hotdesk update failed',
+          message: this.mutationError ?? 'Unable to update the hotdesk session.',
+          tone: 'error',
+        })
 
         return false
       } finally {

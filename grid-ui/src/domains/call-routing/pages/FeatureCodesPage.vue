@@ -9,6 +9,7 @@ import {
   MagnifyingGlassIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import RowActionMenu from '@/shared/components/RowActionMenu.vue'
@@ -145,13 +146,13 @@ async function handleRowAction(actionId: string, id: string, dialCode: string): 
       />
     </div>
 
-    <div
+    <AppAlert
       v-if="featureCodes.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      role="alert"
-    >
-      {{ featureCodes.error }}
-    </div>
+      :message="featureCodes.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="featureCodes.error = null"
+    />
 
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">

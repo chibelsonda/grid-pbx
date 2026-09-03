@@ -18,6 +18,7 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import LineKeyPanel from '@/domains/line-keys/components/LineKeyPanel.vue'
 import { useLineKeyStore } from '@/domains/line-keys/stores/lineKeyStore'
 import type { LineKeyInput } from '@/domains/line-keys/types/lineKey'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import PageBackLink from '@/shared/components/PageBackLink.vue'
 import DeviceHotdeskPanel from '../components/DeviceHotdeskPanel.vue'
@@ -244,28 +245,20 @@ const confirmation = computed(() => {
   </section>
 
   <div class="page-container py-4 sm:py-6 lg:py-8">
-    <p
-      v-if="devices.operationMessage"
-      role="status"
-      aria-live="polite"
-      class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
-    >
-      {{ devices.operationMessage }}
-    </p>
-    <p
-      v-if="devices.mutationError"
-      role="alert"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ devices.mutationError }}
-    </p>
-    <p
+    <AppAlert
+      v-if="devices.hotdeskError"
+      :message="devices.hotdeskError"
+      tone="error"
+      class="mb-4"
+      @dismiss="devices.hotdeskError = null"
+    />
+    <AppAlert
       v-if="lineKeys.mutationError && !lineKeyPanelOpen"
-      role="alert"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ lineKeys.mutationError }}
-    </p>
+      :message="lineKeys.mutationError"
+      tone="error"
+      class="mb-4"
+      @dismiss="lineKeys.mutationError = null"
+    />
     <div
       v-if="devices.detailLoading"
       role="status"

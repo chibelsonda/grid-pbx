@@ -1,14 +1,22 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import { sessionApi } from '../api/sessionApi'
+import type { PasswordResetMessage } from '../api/sessionApi'
+import type { ForgotPasswordInput } from '../schemas/forgotPasswordFormSchema'
+import type { LoginCredentials } from '../schemas/loginFormSchema'
+import type { ProfileInput } from '../schemas/profileFormSchema'
+import type { ResetPasswordInput } from '../schemas/resetPasswordFormSchema'
+import type { Session } from '../types/session'
 import { useAuthStore } from './authStore'
 
 vi.mock('../api/sessionApi', () => ({
   sessionApi: {
-    current: vi.fn(),
-    login: vi.fn(),
-    logout: vi.fn(),
-    updateProfile: vi.fn(),
+    current: vi.fn<() => Promise<Session>>(),
+    login: vi.fn<(credentials: LoginCredentials) => Promise<Session>>(),
+    logout: vi.fn<() => Promise<void>>(),
+    requestPasswordReset: vi.fn<(input: ForgotPasswordInput) => Promise<PasswordResetMessage>>(),
+    resetPassword: vi.fn<(input: ResetPasswordInput) => Promise<PasswordResetMessage>>(),
+    updateProfile: vi.fn<(input: ProfileInput) => Promise<Session>>(),
   },
 }))
 
@@ -54,5 +62,46 @@ describe('useAuthStore profile updates', () => {
     expect(auth.user.name).toBe('Grid Admin')
     expect(auth.profileFieldErrors).toEqual({ name: ['Enter your display name.'] })
     expect(auth.profileError).toBeNull()
+  })
+})
+
+describe('useAuthStore password reset', () => {
+  beforeEach(() => {
+    setActivePinia(createPinia())
+    vi.clearAllMocks()
+  })
+
+  it('exposes the generic forgot-password confirmation', async () => {
+    vi.mocked(sessionApi.requestPasswordReset).mockResolvedValue({
+      message: 'If an account exists, a link has been sent.',
+    })
+    const auth = useAuthStore()
+
+    const successful = await auth.requestPasswordReset({ email: 'owner@example.test' })
+
+    expect(successful).toBe(true)
+    expect(sessionApi.requestPasswordReset).toHaveBeenCalledWith({ email: 'owner@example.test' })
+    expect(auth.passwordResetMessage).toBe('If an account exists, a link has been sent.')
+    expect(auth.passwordResetLoading).toBe(false)
+  })
+
+  it('exposes reset validation errors without a generic error', async () => {
+    vi.mocked(sessionApi.resetPassword).mockRejectedValue({
+      isAxiosError: true,
+      response: { data: { errors: { password: ['Use a stronger password.'] } } },
+    })
+    const auth = useAuthStore()
+
+    const successful = await auth.resetPassword({
+      email: 'owner@example.test',
+      token: 'reset-token',
+      password: 'New-password2!',
+      password_confirmation: 'New-password2!',
+    })
+
+    expect(successful).toBe(false)
+    expect(auth.passwordResetFieldErrors).toEqual({ password: ['Use a stronger password.'] })
+    expect(auth.passwordResetError).toBeNull()
+    expect(auth.passwordResetLoading).toBe(false)
   })
 })

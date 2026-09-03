@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { SquaresPlusIcon, WrenchScrewdriverIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
@@ -101,18 +102,20 @@ async function save(keys: LineKeyInput[]): Promise<void> {
         </div>
       </article>
     </div>
-    <div
+    <AppAlert
       v-if="lineKeys.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ lineKeys.error }}
-    </div>
-    <div
+      :message="lineKeys.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="lineKeys.error = null"
+    />
+    <AppAlert
       v-if="lineKeys.mutationError && !panel"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ lineKeys.mutationError }}
-    </div>
+      :message="lineKeys.mutationError"
+      tone="error"
+      class="mb-4"
+      @dismiss="lineKeys.mutationError = null"
+    />
     <form
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && lineKeys.load(accounts.selectedId)"

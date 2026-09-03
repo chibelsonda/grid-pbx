@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Bars3BottomLeftIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -98,12 +99,13 @@ async function handleRowAction(actionId: string, id: string): Promise<void> {
         </p>
       </div>
     </article>
-    <div
+    <AppAlert
       v-if="menus.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ menus.error }}
-    </div>
+      :message="menus.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="menus.error = null"
+    />
     <form
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && menus.load(accounts.selectedId)"

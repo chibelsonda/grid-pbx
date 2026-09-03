@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { PlusIcon, UserGroupIcon, UsersIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -133,13 +134,13 @@ async function handleRowAction(actionId: string, id: string): Promise<void> {
         Search
       </button>
     </form>
-    <div
+    <AppAlert
       v-if="groups.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      role="alert"
-    >
-      {{ groups.error }}
-    </div>
+      :message="groups.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="groups.error = null"
+    />
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[600px] text-left" :aria-busy="groups.loading">

@@ -15,6 +15,7 @@ import {
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import CircularCountBadge from '@/shared/components/CircularCountBadge.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -229,37 +230,23 @@ watch(
     </div>
 
     <template v-else>
-      <div
+      <AppAlert
         v-if="reseller.error"
-        class="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700"
-      >
-        {{ reseller.error }}
-      </div>
+        :message="reseller.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="reseller.error = null"
+      />
 
-      <div
-        v-if="reseller.onboardingNotice"
-        class="mb-4 flex items-start gap-3 rounded-md border p-4 text-xs font-medium"
-        :class="
-          reseller.onboardingNoticeTone === 'success'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : 'border-amber-200 bg-amber-50 text-amber-900'
-        "
+      <AppAlert
+        v-if="reseller.onboardingNotice && reseller.onboardingNoticeTone === 'warning'"
+        title="Follow-up required"
+        :message="reseller.onboardingNotice"
+        tone="warning"
+        class="mb-4"
         data-testid="reseller-onboarding-notice"
-      >
-        <CheckCircleIcon
-          v-if="reseller.onboardingNoticeTone === 'success'"
-          class="size-5 shrink-0 text-emerald-600"
-        />
-        <ExclamationTriangleIcon v-else class="size-5 shrink-0 text-amber-700" />
-        <span class="leading-5">{{ reseller.onboardingNotice }}</span>
-        <button
-          type="button"
-          class="ml-auto shrink-0 text-current underline decoration-current/40 underline-offset-2"
-          @click="reseller.onboardingNotice = null"
-        >
-          Dismiss
-        </button>
-      </div>
+        @dismiss="reseller.onboardingNotice = null"
+      />
 
       <div v-if="reseller.loading" class="card-surface p-14 text-center text-xs text-slate-500">
         Loading reseller administration…
@@ -878,12 +865,13 @@ watch(
               </div>
             </div>
 
-            <div
+            <AppAlert
               v-if="reseller.descendantSyncError"
-              class="border-b border-red-200 bg-red-50 px-5 py-3 text-xs font-medium text-red-700"
-            >
-              {{ reseller.descendantSyncError }}
-            </div>
+              :message="reseller.descendantSyncError"
+              tone="error"
+              class="m-5"
+              @dismiss="reseller.descendantSyncError = null"
+            />
 
             <div class="divide-y divide-slate-200">
               <article

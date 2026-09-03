@@ -162,7 +162,7 @@ describe('CallflowCreateWorkspace', () => {
     expect(wrapper.text()).toContain('Extension 2999 already enters another callflow.')
   })
 
-  it('keeps compact create actions directly above the callflow parent node', () => {
+  it('exposes the create form to persistent page-header actions', () => {
     const wrapper = mount(CallflowCreateWorkspace, {
       props: {
         editor: createEditor(),
@@ -173,16 +173,35 @@ describe('CallflowCreateWorkspace', () => {
     })
 
     const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
-    const cancel = canvas.findAll('button').find((button) => button.text() === 'Cancel')
-    const create = canvas.findAll('button').find((button) => button.text() === 'Create callflow')
+    expect(wrapper.get('form').attributes('id')).toBe('callflow-create-form')
+    expect(canvas.text()).not.toContain('Create callflow')
+    expect(canvas.text()).not.toContain('Cancel')
+  })
 
-    expect(
-      canvas.element.querySelector(
-        '[data-callflow-create-actions] + article[aria-label="Callflow entry"]',
-      ),
-    ).not.toBeNull()
-    expect(cancel?.classes()).toContain('h-8')
-    expect(create?.classes()).toContain('h-8')
+  it('reports whether the create workspace has an unsaved draft', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.emitted('dirty-change')).toEqual([[false]])
+
+    await wrapper.get('input[type="search"]').setValue('user')
+    await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
+
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([true])
   })
 
   it('lets the action palette float and return to its dock without affecting action dragging', async () => {

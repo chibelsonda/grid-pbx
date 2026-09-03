@@ -40,7 +40,11 @@ const props = withDefaults(
   }>(),
   { workspace: false },
 )
-const emit = defineEmits<{ close: []; save: [input: CallflowCreateInput] }>()
+const emit = defineEmits<{
+  close: []
+  save: [input: CallflowCreateInput]
+  'dirty-change': [dirty: boolean]
+}>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => props.record,
   () => props.editor,
@@ -222,6 +226,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
       :field-errors="fieldErrors"
       @close="emit('close')"
       @save="emit('save', $event)"
+      @dirty-change="emit('dirty-change', $event)"
     />
 
     <form v-else-if="editor" class="grid gap-5" novalidate @submit.prevent="submit">

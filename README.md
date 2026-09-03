@@ -25,7 +25,7 @@ All published ports bind to `127.0.0.1`.
 
 ```bash
 cp .env.example .env
-docker compose up -d mysql redis provisioner-catalog grid-api grid-worker grid-ui
+docker compose up -d mysql redis mailpit provisioner-catalog grid-api grid-worker grid-ui
 bash scripts/status.sh
 ```
 
@@ -40,6 +40,8 @@ environment or relying on durable sessions.
 | Vue UI | http://localhost:5173 |
 | Laravel API | http://localhost:8081 |
 | API health | http://localhost:8081/api/v1/health |
+| Mailpit inbox | http://localhost:8026 |
+| Mailpit SMTP | `127.0.0.1:1026` |
 | Local provisioning catalog | http://localhost:8082/api/phones |
 | MySQL | `127.0.0.1:3309` (`gridpbx` database) |
 
@@ -77,7 +79,9 @@ The initial local Laravel account is:
 
 The current vertical slice includes secure UI login, tenant-scoped account
 selection, a searchable MySQL extension projection, manual Switch sync, sync
-status, and a dedicated Redis queue worker.
+status, a dedicated Redis queue worker, and Mailpit for local email capture.
+Password-reset notifications are queued, so `GRID_API_APP_KEY` must be the same
+non-empty value for both the API and worker containers.
 
 ## Start or resume
 
@@ -201,7 +205,7 @@ phone configuration.
 ```bash
 docker compose down
 docker compose ps
-docker compose logs -f grid-api grid-worker grid-ui provisioner-catalog mysql
+docker compose logs -f grid-api grid-worker grid-ui mailpit provisioner-catalog mysql
 ```
 
 `docker compose down` preserves MySQL and Redis volumes. Running

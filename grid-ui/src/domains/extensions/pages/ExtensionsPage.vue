@@ -5,6 +5,7 @@ import { PlusIcon, UserGroupIcon, WrenchScrewdriverIcon } from '@heroicons/vue/2
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useDeviceStore } from '@/domains/devices/stores/deviceStore'
 import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
@@ -166,13 +167,13 @@ function recoverOperation(
         </form>
       </div>
 
-      <div
+      <AppAlert
         v-if="extensions.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-        role="alert"
-      >
-        {{ extensions.error }}
-      </div>
+        :message="extensions.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="extensions.error = null"
+      />
 
       <div class="card-surface min-w-0 max-w-full overflow-hidden" :aria-busy="extensions.loading">
         <div class="max-w-full overflow-x-auto overscroll-x-contain">

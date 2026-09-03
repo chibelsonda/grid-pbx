@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleIcon, KeyIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import { validateForm } from '@/shared/forms/zod'
 import VoicemailBoxFormFields from '../components/VoicemailBoxFormFields.vue'
@@ -159,12 +160,12 @@ async function save(): Promise<void> {
         :pin-configured="pinConfigured"
       />
 
-      <div
+      <AppAlert
         v-if="voicemail.mutationError"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ voicemail.mutationError }}
-      </div>
+        :message="voicemail.mutationError"
+        tone="error"
+        @dismiss="voicemail.mutationError = null"
+      />
       <div class="slide-over-actions flex justify-end">
         <button
           type="submit"

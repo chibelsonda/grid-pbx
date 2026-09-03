@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { PlusIcon, ShieldCheckIcon, ShieldExclamationIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -152,13 +153,13 @@ function clearBlacklistQuery(): void {
         </div>
       </article>
     </div>
-    <div
+    <AppAlert
       v-if="blacklists.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      role="alert"
-    >
-      {{ blacklists.error }}
-    </div>
+      :message="blacklists.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="blacklists.error = null"
+    />
     <form
       class="mb-4 flex flex-col gap-3 sm:flex-row"
       @submit.prevent="accounts.selectedId && blacklists.load(accounts.selectedId)"

@@ -3,6 +3,7 @@ import { computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ClockIcon, MicrophoneIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import DisclosureCard from '@/shared/components/DisclosureCard.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -242,12 +243,13 @@ function formatDuration(seconds: number): string {
       </DisclosureCard>
     </form>
 
-    <div
+    <AppAlert
       v-if="recordings.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ recordings.error }}
-    </div>
+      :message="recordings.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="recordings.error = null"
+    />
 
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">

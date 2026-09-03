@@ -12,7 +12,7 @@ https://localhost:5443 {
 
 	@grid_auth {
 		method POST
-		path /login /logout
+		path /login /logout /forgot-password /reset-password
 	}
 	handle @grid_auth {
 		reverse_proxy grid-api:8081

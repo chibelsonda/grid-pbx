@@ -2,6 +2,7 @@
 
 namespace App\Domains\IdentityAccess\Models;
 
+use App\Domains\IdentityAccess\Notifications\PasswordResetNotification;
 use App\Domains\Organizations\Models\Organization;
 use App\Shared\Models\Concerns\HasPublicUuid;
 use Database\Factories\UserFactory;
@@ -37,6 +38,11 @@ class User extends Authenticatable
     protected static function newFactory(): UserFactory
     {
         return UserFactory::new();
+    }
+
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new PasswordResetNotification($token));
     }
 
     /** @return array<string, string> */

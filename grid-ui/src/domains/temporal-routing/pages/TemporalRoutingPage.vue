@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import { CalendarDaysIcon, ClockIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -238,13 +239,13 @@ async function handleSetAction(actionId: string, id: string): Promise<void> {
         >
       </TabList>
 
-      <div
+      <AppAlert
         v-if="temporal.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ temporal.error }}
-      </div>
+        :message="temporal.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="temporal.error = null"
+      />
       <form
         class="mb-4 flex flex-col gap-3 sm:flex-row"
         @submit.prevent="accounts.selectedId && temporal.load(accounts.selectedId)"

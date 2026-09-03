@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import {
   ArrowDownLeftIcon,
   ArrowPathIcon,
@@ -345,12 +346,13 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
   </section>
 
   <div class="page-container py-4 sm:py-6 lg:py-8">
-    <div
+    <AppAlert
       v-if="dashboard.error.value"
-      class="mb-5 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-red-700"
-    >
-      {{ dashboard.error.value }}
-    </div>
+      :message="dashboard.error.value"
+      tone="error"
+      class="mb-5"
+      @dismiss="dashboard.error.value = null"
+    />
 
     <div
       v-if="dashboard.loading.value && !dashboard.overview.value"
@@ -494,12 +496,13 @@ function activityDrilldownLabel(point: CallActivityPoint): string {
           </div>
         </header>
 
-        <div
+        <AppAlert
           v-if="activity.error.value"
-          class="border-b border-red-100 bg-red-50 px-5 py-3 text-xs text-red-700"
-        >
-          {{ activity.error.value }}
-        </div>
+          :message="activity.error.value"
+          tone="error"
+          class="m-5"
+          @dismiss="activity.error.value = null"
+        />
 
         <div
           v-if="activity.loading.value && !activity.activity.value"
