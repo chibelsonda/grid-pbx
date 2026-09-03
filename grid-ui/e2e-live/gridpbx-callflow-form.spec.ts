@@ -601,10 +601,7 @@ test('creates and reopens live ACDC Queue feature actions', async ({ page }) => 
   }
 })
 
-test('classifies every installed palette action and opens every available modal', async ({
-  page,
-}) => {
-  test.setTimeout(120_000)
+test('classifies every installed palette action without planned gaps', async ({ page }) => {
   const issues = collectPageIssues(page)
   const mutations: string[] = []
   page.on('request', (request) => {
@@ -637,29 +634,82 @@ test('classifies every installed palette action and opens every available modal'
     )
     actionTitles.push(...visibleTitles)
 
-    for (const title of visibleTitles) {
-      const actionButton = palette.getByTitle(title, { exact: true })
-      if (title.includes(' · Capability required')) {
-        await expect(actionButton).toBeDisabled()
-        continue
-      }
+    for (const title of visibleTitles.filter((value) => value.includes(' · Capability required'))) {
+      await expect(palette.getByTitle(title, { exact: true })).toBeDisabled()
+    }
+  }
 
+  expect(new Set(actionTitles).size).toBe(49)
+  const guidedCount = actionTitles.filter((title) => title.includes(' · Guided now')).length
+  const restrictedCount = actionTitles.filter((title) =>
+    title.includes(' · Capability required'),
+  ).length
+  expect(guidedCount).toBeGreaterThanOrEqual(44)
+  expect(restrictedCount).toBeLessThanOrEqual(5)
+  expect(guidedCount + restrictedCount).toBe(49)
+  expect(actionTitles.filter((title) => title.includes(' · Visual editor planned'))).toEqual([])
+  expect(mutations).toEqual([])
+  expect(issues).toEqual([])
+})
+
+test('opens every guided palette modal dropped onto a saved callflow node', async ({ page }) => {
+  test.setTimeout(120_000)
+  const issues = collectPageIssues(page)
+  const mutations: string[] = []
+  page.on('request', (request) => {
+    if (
+      request.url().includes('/callflows') &&
+      !['GET', 'HEAD', 'OPTIONS'].includes(request.method())
+    ) {
+      mutations.push(`${request.method()} ${request.url()}`)
+    }
+  })
+
+  const editCallflow = await openMockedCallflowEditor(page, {
+    id: '61784fea-cfce-4e76-98df-1db0b3ca05e1',
+    name: 'Palette modal route',
+    rootModule: 'user',
+    target: {
+      type: 'extension',
+      id: '16f95ac5-243c-476a-b238-9f51108f82e1',
+      label: 'Reception',
+    },
+    editor: { ...isolatedCreateEditor(), mode: 'update' },
+  })
+  await editCallflow.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(editCallflow).toHaveCount(0)
+
+  const workspace = page.getByRole('region', { name: 'Callflow workspace' })
+  const palette = workspace.getByRole('region', { name: 'Callflow action catalog' })
+  const targetNode = workspace.getByRole('treeitem', { name: /^User: Reception/ })
+  const categories = palette.locator('button[aria-expanded]')
+  const openedActions: string[] = []
+
+  await expect(categories).toHaveCount(9)
+  for (let categoryIndex = 0; categoryIndex < (await categories.count()); categoryIndex += 1) {
+    const category = categories.nth(categoryIndex)
+    if ((await category.getAttribute('aria-expanded')) !== 'true') await category.click()
+    await expect(category).toHaveAttribute('aria-expanded', 'true')
+
+    const guidedActions = palette.locator('button[title*=" · Guided now"]:visible')
+    const guidedTitles = await guidedActions.evaluateAll((actions) =>
+      actions.map((action) => action.getAttribute('title') ?? ''),
+    )
+
+    for (const title of guidedTitles) {
       const actionLabel = title.split(' · ')[0]!
+      const actionButton = palette.getByTitle(title, { exact: true })
       await expect(actionButton).toBeEnabled()
-      await actionButton.click()
-
-      const replacement = page.getByRole('dialog', { name: 'Replace root action?' })
-      if (await replacement.isVisible()) {
-        await replacement.getByRole('button', { name: 'Replace root action' }).click()
-      }
+      await expect(actionButton).toHaveAttribute('draggable', 'true')
+      await actionButton.dragTo(targetNode)
 
       const actionDialog = page.getByRole('dialog', {
-        name: `Configure ${actionLabel}`,
+        name: `Add ${actionLabel}`,
         exact: true,
       })
       await expect(actionDialog).toHaveAttribute('data-headlessui-state', 'open')
       await expect(
-        actionDialog.getByRole('heading', { name: `Configure ${actionLabel}`, exact: true }),
+        actionDialog.getByRole('heading', { name: `Add ${actionLabel}`, exact: true }),
       ).toBeVisible()
       await expect(
         actionDialog.locator('input, textarea, button, [role="combobox"]').first(),
@@ -680,20 +730,13 @@ test('classifies every installed palette action and opens every available modal'
         await expect(closeResourceActions).toHaveCount(0)
       }
 
-      await page.keyboard.press('Escape')
+      await actionDialog.getByRole('button', { name: 'Cancel', exact: true }).click()
       await expect(actionDialog).toHaveCount(0)
+      openedActions.push(title)
     }
   }
 
-  expect(new Set(actionTitles).size).toBe(49)
-  const guidedCount = actionTitles.filter((title) => title.includes(' · Guided now')).length
-  const restrictedCount = actionTitles.filter((title) =>
-    title.includes(' · Capability required'),
-  ).length
-  expect(guidedCount).toBeGreaterThanOrEqual(44)
-  expect(restrictedCount).toBeLessThanOrEqual(5)
-  expect(guidedCount + restrictedCount).toBe(49)
-  expect(actionTitles.filter((title) => title.includes(' · Visual editor planned'))).toEqual([])
+  expect(new Set(openedActions).size).toBe(44)
   expect(mutations).toEqual([])
   expect(issues).toEqual([])
 })
