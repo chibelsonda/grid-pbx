@@ -56,4 +56,14 @@ describe('FormSelect', () => {
     expect(button.attributes('aria-invalid')).toBe('true')
     expect(button.classes()).toContain('!border-red-400')
   })
+
+  it('keeps the hover border consistent with text inputs', () => {
+    const wrapper = mount(FormSelect, {
+      props: { modelValue: '' },
+      slots: { default: '<option value="">Select one</option>' },
+    })
+
+    expect(wrapper.get('button').classes()).toContain('hover:border-slate-300')
+    expect(wrapper.get('button').classes()).not.toContain('hover:border-slate-400')
+  })
 })

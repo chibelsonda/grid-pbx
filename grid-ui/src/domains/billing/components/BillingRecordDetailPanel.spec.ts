@@ -34,7 +34,8 @@ describe('BillingRecordDetailPanel', () => {
     })
 
     expect(wrapper.text()).toContain('Authoritative summary')
-    expect(wrapper.text()).toContain('Legacy Gridpbx Mysql')
+    expect(wrapper.text()).toContain('GridPBX projection')
+    expect(wrapper.text()).not.toMatch(/mysql/i)
     expect(wrapper.text()).toContain('100.25')
     expect(wrapper.text()).toContain('No authoritative invoice document is available')
     expect(wrapper.find('a[download]').exists()).toBe(false)

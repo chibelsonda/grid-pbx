@@ -243,10 +243,40 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
 
     expect(wrapper.text()).toContain('Stop Call Recording')
+    expect(wrapper.text()).not.toContain('Recording action')
+    expect(wrapper.text()).not.toContain('Time limit (seconds)')
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       module: 'record_call',
       data: { action: 'stop' },
+    })
+  })
+
+  it('keeps Reset Prepend fixed and hides fields that Switch does not use', async () => {
+    const context: CallflowNodeEditorContext = {
+      operation: 'create',
+      path: [],
+      module: 'prepend_cid',
+      preset: { action: 'reset' },
+      node: {
+        module: 'user',
+        target: null,
+        reference_status: 'not_applicable',
+        children: {},
+      },
+    }
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: { context, saving: false, error: null, fieldErrors: {} },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('Reset Prepend')
+    expect(wrapper.text()).not.toContain('Name prefix')
+    expect(wrapper.text()).not.toContain('Caller ID prefix action')
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      module: 'prepend_cid',
+      data: { action: 'reset' },
     })
   })
 
@@ -491,7 +521,8 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
   })
 
-  it('validates Response codes without exposing Switch-managed media', async () => {
+  it('validates Response fields and submits only a public media UUID', async () => {
+    const mediaId = 'f00c9f55-f58c-4430-bdf1-18c171c545a5'
     const context: CallflowNodeEditorContext = {
       operation: 'update',
       path: ['_'],
@@ -504,19 +535,34 @@ describe('CallflowInlineNodeEditorPanel', () => {
           code: 486,
           message: 'Busy here',
           media: 'private-media-id',
+          media_id: mediaId,
           skip_module: false,
         },
         children: {},
       },
     }
     const wrapper = mount(CallflowInlineNodeEditorPanel, {
-      props: { context, saving: false, error: null, fieldErrors: {} },
+      props: {
+        context,
+        editor: {
+          destinations: {
+            media: [{ id: mediaId, label: 'Busy announcement', detail: 'audio/wav' }],
+          },
+        } as CallflowEditor,
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
       global: { stubs },
     })
     const code = wrapper.get('input[aria-label="SIP response code"]')
 
     expect(wrapper.text()).not.toContain('private-media-id')
-    await code.setValue('399')
+    const media = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Response media')
+    expect(media?.props('modelValue')).toBe(mediaId)
+    await code.setValue('99')
     await wrapper.get('form').trigger('submit')
     expect(code.attributes('aria-invalid')).toBe('true')
     expect(code.classes()).toContain('!border-red-400')
@@ -525,9 +571,41 @@ describe('CallflowInlineNodeEditorPanel', () => {
     await wrapper.get('form').trigger('submit')
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       module: 'response',
-      data: { code: 603, message: 'Busy here', skip_module: false },
+      data: { code: 603, message: 'Busy here', media_id: mediaId, skip_module: false },
     })
     expect(wrapper.emitted('save')?.[0]?.[0]).not.toHaveProperty('data.media')
+  })
+
+  it('keeps Response nodes with unresolved media read-only', () => {
+    const wrapper = mount(CallflowInlineNodeEditorPanel, {
+      props: {
+        context: {
+          operation: 'update',
+          path: ['_'],
+          module: 'response',
+          node: {
+            module: 'response',
+            target: null,
+            reference_status: 'not_applicable',
+            settings: {
+              code: 486,
+              message: null,
+              media_id: null,
+              media_reference_status: 'unresolved',
+              skip_module: false,
+            },
+            children: {},
+          },
+        },
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: { stubs },
+    })
+
+    expect(wrapper.text()).toContain('preserves the raw media reference')
+    expect(wrapper.find('form').exists()).toBe(false)
   })
 
   it('requires explicit confirmation before replacing an occupied continuation with Response', async () => {
@@ -1075,7 +1153,7 @@ describe('CallflowInlineNodeEditorPanel', () => {
     expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-support-queue')
   })
 
-  it('selects bounded public Device UUIDs for a Page Group', async () => {
+  it('configures public Device, Extension, and Group endpoints for a Page Group', async () => {
     const deviceId = '33333333-3333-4333-8333-333333333333'
     const context: CallflowNodeEditorContext = {
       operation: 'create',
@@ -1091,6 +1169,8 @@ describe('CallflowInlineNodeEditorPanel', () => {
     const editor = {
       destinations: {
         device: [{ id: deviceId, label: 'Warehouse speaker', detail: 'SIP paging device' }],
+        extension: [{ id: '44444444-4444-4444-8444-444444444444', label: 'Warehouse user' }],
+        group: [{ id: '55555555-5555-4555-8555-555555555555', label: 'Warehouse team' }],
       },
     } as CallflowEditor
     const wrapper = mount(CallflowInlineNodeEditorPanel, {
@@ -1099,20 +1179,35 @@ describe('CallflowInlineNodeEditorPanel', () => {
     })
 
     await wrapper.get('form').trigger('submit')
-    expect(wrapper.text()).toContain('Select at least one device.')
-    expect(wrapper.text()).toContain('1–20 synchronized devices')
+    expect(wrapper.text()).toContain('Select at least one endpoint.')
+    expect(wrapper.text()).toContain('Extensions, Devices, or Groups')
 
     const audio = wrapper
       .findAllComponents(FormListbox)
       .find((listbox) => listbox.props('ariaLabel') === 'Page audio')
     expect(audio?.props('options')).toHaveLength(2)
     audio!.vm.$emit('update:modelValue', 'two-way')
-    await wrapper.get('input[aria-label="Warehouse speaker"]').setValue(true)
+    const endpoint = wrapper
+      .findAllComponents(FormListbox)
+      .find((listbox) => listbox.props('ariaLabel') === 'Add Page Group endpoint')
+    expect(endpoint?.props('options')).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ value: `device:${deviceId}` }),
+        expect.objectContaining({ value: 'extension:44444444-4444-4444-8444-444444444444' }),
+        expect.objectContaining({ value: 'group:55555555-5555-4555-8555-555555555555' }),
+      ]),
+    )
+    endpoint!.vm.$emit('update:modelValue', `device:${deviceId}`)
+    await wrapper.vm.$nextTick()
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
       module: 'page_group',
-      data: { audio: 'two-way', device_ids: [deviceId], skip_module: false },
+      data: {
+        audio: 'two-way',
+        endpoints: [{ device_id: deviceId, delay: 0, timeout: 20 }],
+        skip_module: false,
+      },
     })
     expect(JSON.stringify(wrapper.emitted('save'))).not.toContain('switch-page-device')
   })
@@ -1184,6 +1279,9 @@ describe('CallflowInlineNodeEditorPanel', () => {
     expect(strategy?.props('options')).toHaveLength(3)
     expect(addMember?.props('options')).toHaveLength(3)
     expect(ringback?.props('options')).toHaveLength(2)
+    expect(
+      wrapper.findAll('button').some((button) => button.text().includes('Media links / actions')),
+    ).toBe(true)
     expect(JSON.stringify(ringback?.props('options'))).toContain('Support ringback')
     expect(JSON.stringify(ringback?.props('options'))).not.toContain('Private document')
     expect(JSON.stringify(addMember?.props('options'))).toContain('Reception user')

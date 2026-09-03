@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -82,13 +83,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <p
-        v-if="error"
-        role="alert"
-        class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ error }}
-      </p>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the DISA integration"
+      />
 
       <CallflowIntegrationProfileIdentityFields
         v-model:name="form.name"
@@ -100,7 +99,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Write-only credential</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Replacing a policy requires a new PIN. Existing PINs are never returned to the browser.
           </p>
         </header>
@@ -133,7 +132,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Bounded native policy</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Account call restrictions are always enforced and the original caller ID is always
             retained.
           </p>

@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { BanknotesIcon, CircleStackIcon, ServerStackIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
@@ -45,7 +46,7 @@ const amount = (value: number): string =>
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Account</p>
         <h1 class="text-xl font-semibold text-slate-800">Services & limits</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Read-only service plans, quantities, limits, and billing-impact summary.
         </p>
       </div>
@@ -80,12 +81,13 @@ const amount = (value: number): string =>
       administrators.
     </div>
     <template v-else
-      ><div
+      ><AppAlert
         v-if="services.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      >
-        {{ services.error }}
-      </div>
+        :message="services.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="services.error = null"
+      />
       <div v-if="services.loading" class="card-surface p-14 text-center text-xs text-slate-400">
         Loading service information…
       </div>

@@ -7,6 +7,7 @@ import {
   ShieldCheckIcon,
 } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -36,11 +37,17 @@ const props = withDefaults(
     error: string | null
     fieldErrors: Record<string, string[]>
     canManage: boolean
+    accountId?: string
     workspace?: boolean
   }>(),
-  { workspace: false },
+  { accountId: '', workspace: false },
 )
-const emit = defineEmits<{ close: []; save: [input: CallflowCreateInput] }>()
+const emit = defineEmits<{
+  close: []
+  save: [input: CallflowCreateInput]
+  'dirty-change': [dirty: boolean]
+  'refresh-entry-options': []
+}>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => props.record,
   () => props.editor,
@@ -185,13 +192,11 @@ function setTemporalMatchDestination(value: ListboxValue): void {
       Loading routing targets…
     </div>
 
-    <div
+    <FormErrorSummary
       v-else-if="error && !editor"
-      role="alert"
-      class="rounded-md border border-red-100 bg-red-50 p-5 text-xs text-danger"
-    >
-      {{ error }}
-    </div>
+      :error="error"
+      title="Unable to load the callflow editor"
+    />
 
     <div
       v-else-if="!canManage"
@@ -200,7 +205,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
       <div>
         <ShieldCheckIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           Your organization role can inspect routing but cannot change Switch configuration.
         </p>
       </div>
@@ -216,23 +221,24 @@ function setTemporalMatchDestination(value: ListboxValue): void {
 
     <CallflowCreateWorkspace
       v-else-if="editor?.mode === 'create'"
+      :account-id="accountId"
       :editor="editor"
       :saving="saving"
       :error="error"
       :field-errors="fieldErrors"
       @close="emit('close')"
       @save="emit('save', $event)"
+      @dirty-change="emit('dirty-change', $event)"
+      @refresh-entry-options="emit('refresh-entry-options')"
     />
 
     <form v-else-if="editor" class="grid gap-5" novalidate @submit.prevent="submit">
       <div class="grid min-w-0 gap-5">
-        <div
-          v-if="error && Object.keys(fieldErrors).length === 0"
-          role="alert"
-          class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-        >
-          {{ error }}
-        </div>
+        <FormErrorSummary
+          :error="Object.keys(fieldErrors).length === 0 ? error : null"
+          :field-errors="errors"
+          title="Unable to save the callflow"
+        />
 
         <fieldset :disabled="saving" class="grid gap-5 disabled:opacity-75">
           <article class="card-surface overflow-hidden">
@@ -242,7 +248,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
               </span>
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Route identity</h2>
-                <p class="text-[10px] text-slate-400">
+                <p class="text-[10px] text-heading-description">
                   {{ record ? 'Name and non-phone entry points' : 'Name shown throughout GridPBX' }}
                 </p>
               </div>
@@ -284,7 +290,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
           <article class="card-surface overflow-hidden">
             <header class="border-b border-slate-100 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Root destination</h2>
-              <p class="mt-1 text-[10px] text-slate-400">
+              <p class="mt-1 text-[10px] text-heading-description">
                 Only projected, account-scoped targets are available.
               </p>
             </header>
@@ -355,7 +361,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
           >
             <header class="border-b border-slate-100 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Temporal Rule match routes</h2>
-              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+              <p class="mt-1 text-[10px] leading-4 text-heading-description">
                 Each direct rule uses its own Switch branch. A rule that does not match continues to
                 the next rule; if none match, the fallback destination runs.
               </p>
@@ -373,7 +379,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
           <article class="card-surface overflow-hidden">
             <header class="border-b border-slate-100 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Fallback destination</h2>
-              <p class="mt-1 text-[10px] leading-4 text-slate-400">
+              <p class="mt-1 text-[10px] leading-4 text-heading-description">
                 The wildcard branch runs when the root destination does not complete the call.
               </p>
             </header>
@@ -435,7 +441,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
           >
             <header class="border-b border-slate-100 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Menu key routes</h2>
-              <p class="mt-1 text-[10px] leading-4 text-slate-400">
+              <p class="mt-1 text-[10px] leading-4 text-heading-description">
                 Route digits, Star, or timeout. Configure the default action in the fallback
                 section.
               </p>
@@ -462,7 +468,7 @@ function setTemporalMatchDestination(value: ListboxValue): void {
           >
             <header class="border-b border-slate-100 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Schedule routes</h2>
-              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+              <p class="mt-1 text-[10px] leading-4 text-heading-description">
                 Switch evaluates the selected Rule Set in its configured order. A match follows the
                 route below; no match follows the fallback destination.
               </p>

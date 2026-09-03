@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
@@ -108,13 +109,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <p
-        v-if="error"
-        role="alert"
-        class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ error }}
-      </p>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the Pivot integration"
+      />
 
       <CallflowIntegrationProfileIdentityFields
         v-model:name="form.name"
@@ -126,7 +125,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Private endpoints</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Only public HTTPS destinations are accepted. Redirect and DNS egress controls remain an
             infrastructure responsibility.
           </p>
@@ -157,7 +156,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Allowed callflow choices</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Editors can choose only the methods and response formats approved here.
           </p>
         </header>
@@ -241,7 +240,7 @@ function submit(): void {
         <header class="flex items-center gap-3 border-b border-slate-200 px-5 py-4">
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Private request headers</h2>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Optional X- prefixed headers. Values are write-only after saving.
             </p>
           </div>

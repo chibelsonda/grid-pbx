@@ -9,6 +9,7 @@ use App\Domains\CallDetailRecords\Controllers\CallDetailRecordSyncController;
 use App\Domains\CallerIdLists\Controllers\CallerIdListController;
 use App\Domains\CallerIdLists\Controllers\CallerIdListSyncController;
 use App\Domains\CallRouting\Controllers\CallflowController;
+use App\Domains\CallRouting\Controllers\CallflowEntryPointController;
 use App\Domains\CallRouting\Controllers\CallflowIntegrationProfileController;
 use App\Domains\Conferences\Controllers\ConferenceController;
 use App\Domains\Conferences\Controllers\ConferenceOperationalControlController;
@@ -239,6 +240,8 @@ Route::prefix('v1')->group(function (): void {
             Route::delete('/callflow-integration-profiles/{profile}', [CallflowIntegrationProfileController::class, 'destroy'])
                 ->middleware('throttle:sensitive-mutation');
             Route::get('/callflows/editor', [CallflowController::class, 'createOptions']);
+            Route::get('/callflows/extension-directory', [CallflowEntryPointController::class, 'index']);
+            Route::get('/callflows/extension-availability', [CallflowEntryPointController::class, 'availability']);
             Route::post('/callflows', [CallflowController::class, 'store']);
             Route::get('/callflows/{callflow}/editor', [CallflowController::class, 'edit']);
             Route::get('/callflows/{callflow}', [CallflowController::class, 'show']);

@@ -11,6 +11,7 @@ import {
   ArrowPathIcon,
   PencilSquareIcon,
 } from '@heroicons/vue/24/outline'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import AccountSettingsPanel from '../components/AccountSettingsPanel.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import { useAccountStore } from '../stores/accountStore'
@@ -62,7 +63,7 @@ async function changeStatus(): Promise<void> {
     <div class="page-container">
       <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Accounts</p>
       <h1 class="text-xl font-semibold tracking-tight text-slate-800">Accounts</h1>
-      <p class="mt-1 text-xs text-slate-600">
+      <p class="mt-1 text-xs text-heading-description">
         Safe account projections, tenancy context, and configuration boundaries.
       </p>
     </div>
@@ -109,12 +110,12 @@ async function changeStatus(): Promise<void> {
       >
         Loading account projection…
       </div>
-      <div
+      <AppAlert
         v-else-if="accounts.detailError"
-        class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger"
-      >
-        {{ accounts.detailError }}
-      </div>
+        :message="accounts.detailError"
+        tone="error"
+        @dismiss="accounts.detailError = null"
+      />
       <div v-else-if="accounts.detail" class="grid gap-5">
         <article class="card-surface p-5">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -232,12 +233,12 @@ async function changeStatus(): Promise<void> {
             </div>
           </div>
         </article>
-        <p
+        <AppAlert
           v-if="accounts.mutationError"
-          class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger"
-        >
-          {{ accounts.mutationError }}
-        </p>
+          :message="accounts.mutationError"
+          tone="error"
+          @dismiss="accounts.mutationError = null"
+        />
       </div>
     </main>
   </div>

@@ -1,31 +1,49 @@
 import { chromium, type FullConfig } from '@playwright/test'
-import { mkdir, writeFile } from 'node:fs/promises'
+import { access, mkdir, writeFile } from 'node:fs/promises'
 import process from 'node:process'
 
 const authDirectory = '.playwright/.auth'
+const gridPbxStorageState = `${authDirectory}/gridpbx.json`
 const emptyStorageState = JSON.stringify({ cookies: [], origins: [] })
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path)
+    return true
+  } catch {
+    return false
+  }
+}
 
 async function saveGridPbxSession(baseURL: string): Promise<void> {
   const browser = await chromium.launch({ headless: true })
   const context = await browser.newContext({
     baseURL,
     ignoreHTTPSErrors: process.env.GRID_E2E_IGNORE_HTTPS_ERRORS === 'true',
+    storageState: (await fileExists(gridPbxStorageState)) ? gridPbxStorageState : undefined,
   })
   const page = await context.newPage()
 
   try {
     await page.goto('/login')
+    await page.waitForFunction(
+      () =>
+        !window.location.pathname.includes('/login') ||
+        document.querySelector('input[type="email"]') !== null,
+    )
 
     if (new URL(page.url()).pathname.includes('/login')) {
       await page
         .getByLabel('Email address')
         .fill(process.env.GRID_E2E_EMAIL ?? 'admin@gridpbx.local')
-      await page.getByLabel('Password').fill(process.env.GRID_E2E_PASSWORD ?? 'admin-change-me')
+      await page
+        .getByLabel('Password', { exact: true })
+        .fill(process.env.GRID_E2E_PASSWORD ?? 'admin-change-me')
       await page.getByRole('button', { name: 'Sign in' }).click()
       await page.waitForURL((url) => !url.pathname.includes('/login'))
     }
 
-    await context.storageState({ path: `${authDirectory}/gridpbx.json` })
+    await context.storageState({ path: gridPbxStorageState })
   } finally {
     await browser.close()
   }
@@ -67,7 +85,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   if (gridProject) {
     await saveGridPbxSession(String(gridProject.use.baseURL))
   } else {
-    await writeFile(`${authDirectory}/gridpbx.json`, emptyStorageState)
+    await writeFile(gridPbxStorageState, emptyStorageState)
   }
 
   if (switchProject) {

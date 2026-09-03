@@ -20,7 +20,7 @@ function selectDeviceType(value: DeviceType): void {
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Device type</h2>
-        <p class="text-[10px] text-slate-400">
+        <p class="text-[10px] text-heading-description">
           The selected endpoint type controls the available tabs and configuration.
         </p>
       </div>

@@ -107,7 +107,7 @@ async function openRoute(page: Page, routeName: string): Promise<void> {
   const routeSearch = page.getByRole('searchbox', { name: 'Search callflows' })
   await routeSearch.fill(routeName)
   await page.getByRole('button', { name: 'Apply filters' }).click()
-  await page.getByRole('button', { name: `View ${routeName}` }).click()
+  await page.getByRole('button', { name: routeName, exact: true }).click()
 }
 
 async function deleteRoute(page: Page, routeName: string): Promise<void> {

@@ -108,6 +108,11 @@ class CallflowTreeNodeWriteValidator
             $this->fail('node_path', 'Synchronize the Caller-ID List before editing this match action.');
         }
 
+        if ($currentModule === 'response'
+            && ($node['settings']['media_reference_status'] ?? 'not_applicable') === 'unresolved') {
+            $this->fail('node_path', 'Synchronize the response media before editing this action.');
+        }
+
         if ($currentModule === 'set_variable'
             && ($node['settings']['supported_variable'] ?? false) !== true) {
             $this->fail('node_path', 'This existing channel variable is not supported by the guided editor.');

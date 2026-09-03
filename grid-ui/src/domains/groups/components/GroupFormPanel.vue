@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue'
 import { ArrowDownIcon, ArrowUpIcon, TrashIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -135,13 +136,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the group"
+      />
       <fieldset :disabled="!canManage || saving" class="grid gap-5 disabled:opacity-75">
         <article class="card-surface overflow-hidden">
           <header class="flex items-center gap-3 border-b border-slate-100 px-5 py-4">
@@ -150,7 +149,7 @@ function submit(): void {
             /></span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Group settings</h2>
-              <p class="text-[10px] text-slate-400">
+              <p class="text-[10px] text-heading-description">
                 The order becomes the Switch endpoint weight.
               </p>
             </div>
@@ -179,7 +178,7 @@ function submit(): void {
         <article class="card-surface overflow-hidden">
           <header class="border-b border-slate-100 px-5 py-4">
             <h2 id="group-members-heading" class="text-sm font-semibold text-slate-700">Members</h2>
-            <p class="mt-1 text-[10px] text-slate-400">
+            <p class="mt-1 text-[10px] text-heading-description">
               Users, devices, and nested groups are resolved server-side.
             </p>
           </header>

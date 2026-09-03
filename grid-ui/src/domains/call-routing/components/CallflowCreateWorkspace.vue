@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
-import { ShieldCheckIcon, XMarkIcon } from '@heroicons/vue/24/outline'
+import { computed, nextTick, ref, watch } from 'vue'
+import { LinkIcon, ShieldCheckIcon, XMarkIcon } from '@heroicons/vue/24/outline'
 import FormInput from '@/shared/components/FormInput.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormListbox, {
   type ListboxOptionValue,
   type ListboxValue,
@@ -43,15 +44,25 @@ import CallflowMenuBranchesField from './CallflowMenuBranchesField.vue'
 import CallflowNodeCard from './CallflowNodeCard.vue'
 import CallflowNodeInfoDialog from './CallflowNodeInfoDialog.vue'
 import CallflowRouteSummary from './CallflowRouteSummary.vue'
+import CallflowResourceActionsDialog from './CallflowResourceActionsDialog.vue'
 import CallflowWorkspaceLayout from './CallflowWorkspaceLayout.vue'
 
-const props = defineProps<{
-  editor: CallflowEditor
-  saving: boolean
-  error: string | null
-  fieldErrors: Record<string, string[]>
+const props = withDefaults(
+  defineProps<{
+    accountId?: string
+    editor: CallflowEditor
+    saving: boolean
+    error: string | null
+    fieldErrors: Record<string, string[]>
+  }>(),
+  { accountId: '' },
+)
+const emit = defineEmits<{
+  close: []
+  save: [input: CallflowCreateInput]
+  'dirty-change': [dirty: boolean]
+  'refresh-entry-options': []
 }>()
-const emit = defineEmits<{ close: []; save: [input: CallflowCreateInput] }>()
 const { form, validate, validationErrors } = useCallflowForm(
   () => null,
   () => props.editor,
@@ -59,6 +70,8 @@ const { form, validate, validationErrors } = useCallflowForm(
 const metadataOpen = ref(false)
 const entryNumberOpen = ref(false)
 const actionOpen = ref(false)
+const resourceActionsOpen = ref(false)
+let suppressActionClose = false
 const selectedAction = ref<CallflowAction | null>(null)
 const rootActionChosen = ref(false)
 const rootActionError = ref<string | null>(null)
@@ -72,6 +85,13 @@ const fallbackOpen = ref(false)
 const fallbackDraftType = ref<CallflowDestinationType>('extension')
 const fallbackDraftId = ref('')
 const errors = computed(() => ({ ...props.fieldErrors, ...validationErrors.value }))
+const pageErrors = computed(() =>
+  Object.fromEntries(
+    Object.entries(errors.value).filter(
+      ([field]) => !['phone_number_ids', 'extension_numbers'].includes(field),
+    ),
+  ),
+)
 const rootActionFieldErrors = computed(() =>
   Object.fromEntries(
     Object.entries(errors.value).flatMap(([field, messages]) =>
@@ -86,6 +106,15 @@ const selectedEntryPoints = computed(() => [
   ...form.extension_numbers.map((value) => ({ value, kind: 'Extension' })),
   ...selectedPhoneNumbers.value.map(({ number: value }) => ({ value, kind: 'Phone number' })),
 ])
+const dirty = computed(
+  () =>
+    form.name.trim() !== '' ||
+    form.phone_number_ids.length > 0 ||
+    form.extension_numbers.length > 0 ||
+    rootActionChosen.value,
+)
+
+watch(dirty, (value) => emit('dirty-change', value), { immediate: true })
 
 function addEntryNumber(addition: CallflowEntryNumberAddition): void {
   if (addition.type === 'phone_number') {
@@ -138,6 +167,12 @@ const temporalMatchDestinationOptions = computed<ListboxOptionValue[]>(() =>
 const selectedDestination = computed(() =>
   props.editor.destinations[form.destination_type].find(({ id }) => id === form.destination_id),
 )
+const selectedActionDestinationType = computed(() =>
+  selectedAction.value ? callflowActionDestinationType(selectedAction.value.module) : null,
+)
+const hasEndpointSettings = computed(() =>
+  ['user', 'device'].includes(selectedAction.value?.module ?? ''),
+)
 const selectedTemporalRules = computed(
   () => props.editor.temporal_rule_sets[form.destination_id] ?? [],
 )
@@ -157,7 +192,22 @@ watch(
       )
     ) {
       openFallbackConfiguration()
-    } else if (fields.some((field) => field.startsWith('root_action.'))) {
+    } else if (
+      (isInlineRootModule(selectedAction.value?.module) &&
+        fields.some((field) => field.startsWith('root_action.'))) ||
+      (hasEndpointSettings.value &&
+        fields.some(
+          (field) => field.startsWith('destination_data.') || field.startsWith('destination_'),
+        )) ||
+      (form.destination_type === 'temporal_rules' &&
+        fields.some(
+          (field) => field === 'temporal_rule_ids' || field.startsWith('temporal_rule_routes'),
+        )) ||
+      (selectedAction.value?.module === 'menu' &&
+        fields.some((field) => field.startsWith('menu_branches'))) ||
+      (selectedAction.value?.module === 'temporal_route' &&
+        fields.some((field) => field.startsWith('temporal_match_')))
+    ) {
       actionOpen.value = true
     }
   },
@@ -268,6 +318,19 @@ function fieldError(field: string): string | null {
   return errors.value[field]?.[0] ?? null
 }
 
+function closeResourceActions(): void {
+  suppressActionClose = true
+  resourceActionsOpen.value = false
+  void nextTick(() => {
+    suppressActionClose = false
+  })
+}
+
+function closeActionDialog(): void {
+  if (resourceActionsOpen.value || suppressActionClose) return
+  actionOpen.value = false
+}
+
 function isInlineRootModule(module: string | undefined): module is CallflowInlineRootModule {
   return callflowInlineRootModules.includes(module as CallflowInlineRootModule)
 }
@@ -297,6 +360,8 @@ function applyRootAction(action: CallflowAction): void {
   rootActionChosen.value = true
   rootActionError.value = null
   rootActionData.value = null
+  form.destination_timeout = 20
+  form.destination_can_call_self = false
   if (destinationType) {
     form.destination_type = destinationType
     form.destination_id = props.editor.destinations[destinationType][0]?.id ?? ''
@@ -627,14 +692,13 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 </script>
 
 <template>
-  <form class="grid gap-4" novalidate @submit.prevent="submit">
-    <div
-      v-if="error && Object.keys(fieldErrors).length === 0"
-      role="alert"
-      class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ error }}
-    </div>
+  <form id="callflow-create-form" class="grid gap-4" novalidate @submit.prevent="submit">
+    <FormErrorSummary
+      :error="Object.keys(errors).length === 0 ? error : null"
+      :field-errors="pageErrors"
+      title="Unable to create the callflow"
+      class="mx-4 mt-4"
+    />
 
     <CallflowWorkspaceLayout
       data-callflow-create-workspace
@@ -666,23 +730,6 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
         >
           <CallflowCanvasHeader />
           <div class="mx-auto flex w-max min-w-full flex-col items-center pt-4">
-            <div data-callflow-create-actions class="mb-3 flex w-80 justify-center gap-2">
-              <button
-                type="button"
-                class="h-8 rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50"
-                @click="emit('close')"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                :disabled="saving"
-                class="h-8 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
-              >
-                {{ saving ? 'Creating callflow…' : 'Create callflow' }}
-              </button>
-            </div>
-
             <CallflowEntryNode
               :name="form.name || 'Callflow'"
               :entries="selectedEntryPoints"
@@ -879,7 +926,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 
         <article class="card-surface p-4">
           <h2 class="text-sm font-semibold text-slate-700">Assignments</h2>
-          <p class="mt-4 text-xs leading-5 text-slate-500">
+          <p class="mt-4 text-xs leading-5 text-heading-description">
             This draft is not assigned until it is created successfully in Switch.
           </p>
         </article>
@@ -935,21 +982,23 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
 
   <CallflowAddEntryNumberDialog
     :open="entryNumberOpen"
+    :account-id="accountId"
     :phone-numbers="editor.phone_numbers"
+    :phone-number-inventory="editor.phone_number_inventory"
     :phone-number-ids="form.phone_number_ids"
     :extension-numbers="form.extension_numbers"
     :preserved-numbers="editor.preserved_numbers ?? []"
-    :error="error"
     :field-errors="errors"
     @close="entryNumberOpen = false"
     @add="addEntryNumber"
+    @inventory-refreshed="emit('refresh-entry-options')"
   />
 
   <CallflowNodeInfoDialog
     :open="actionOpen && selectedAction !== null && !isInlineRootModule(selectedAction.module)"
     :title="selectedAction ? `Configure ${selectedAction.label}` : 'Configure action'"
     breadcrumb="Create callflow / Root action"
-    @close="actionOpen = false"
+    @close="closeActionDialog"
   >
     <div v-if="selectedAction" class="grid gap-5">
       <div class="rounded-md border border-slate-200 bg-slate-50 px-4 py-3">
@@ -974,6 +1023,44 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
           {{ fieldError('destination_id') }}
         </span>
       </label>
+      <button
+        v-if="selectedActionDestinationType"
+        type="button"
+        class="inline-flex h-9 w-fit items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:border-brand-300 hover:text-brand-700"
+        @click="resourceActionsOpen = true"
+      >
+        <LinkIcon class="size-4" />
+        Links / actions
+      </button>
+      <div v-if="hasEndpointSettings" class="grid gap-4 border-t border-slate-100 pt-5">
+        <FormInput
+          :model-value="form.destination_timeout"
+          label="Timeout"
+          description="Seconds to wait for the extension or device to answer."
+          type="number"
+          min="1"
+          max="600"
+          required
+          :error="fieldError('destination_timeout') ?? fieldError('destination_data.timeout')"
+          :model-modifiers="{ number: true }"
+          @update:model-value="form.destination_timeout = Number($event)"
+        />
+        <ToggleSwitch
+          v-model="form.destination_can_call_self"
+          label="Allow calls to self"
+          :description="
+            selectedAction.module === 'user'
+              ? 'Allow devices assigned to this extension to call one another.'
+              : 'Allow devices owned by the same extension to call one another.'
+          "
+          :invalid="
+            Boolean(
+              fieldError('destination_can_call_self') ??
+              fieldError('destination_data.can_call_self'),
+            )
+          "
+        />
+      </div>
       <p v-if="selectedAction.module !== 'menu'" class="text-[10px] leading-4 text-slate-500">
         Additional branches and inline actions become available on the visual canvas immediately
         after this callflow is created in Switch.
@@ -985,7 +1072,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
       >
         <header class="border-b border-slate-200 bg-slate-50 px-4 py-3">
           <h3 class="text-xs font-semibold text-slate-700">Schedule routes</h3>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             A matching member follows the literal rule_set branch; no match follows the wildcard
             fallback.
           </p>
@@ -1071,7 +1158,7 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
       >
         <header class="border-b border-slate-200 bg-slate-50 px-4 py-3">
           <h3 class="text-xs font-semibold text-slate-700">Menu key routes</h3>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Add the Switch keys that should leave this IVR. They appear immediately on the canvas.
           </p>
         </header>
@@ -1211,6 +1298,14 @@ function branchPreview(key: string, type: CallflowDestinationType, id: string, f
     :field-errors="rootActionFieldErrors"
     @close="actionOpen = false"
     @save="saveInlineRootAction"
+  />
+  <CallflowResourceActionsDialog
+    v-if="resourceActionsOpen && selectedActionDestinationType"
+    :open="true"
+    :type="selectedActionDestinationType"
+    :selected-id="selectedDestination?.id ?? null"
+    :selected-label="selectedDestination?.label ?? null"
+    @close="closeResourceActions"
   />
 </template>
 

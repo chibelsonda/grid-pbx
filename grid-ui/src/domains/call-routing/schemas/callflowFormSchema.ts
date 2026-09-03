@@ -31,6 +31,8 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
       name: z.string().trim().min(1, 'Enter a route name.').max(128),
       destination_type: z.enum(callflowDestinationTypes),
       destination_id: z.string(),
+      destination_timeout: z.number().int().min(1).max(600).default(20),
+      destination_can_call_self: z.boolean().default(false),
       root_action: z
         .object({
           module: z.enum(callflowInlineRootModules),
@@ -279,55 +281,74 @@ export function createCallflowFormSchema(editor: CallflowEditor) {
         })
       }
     })
-    .transform(({ fallback_enabled, temporal_match_enabled, ...input }): CallflowCreateInput => {
-      const output = {
-        ...input,
-        destination_type: input.root_action ? null : input.destination_type,
-        destination_id:
-          input.root_action || input.destination_type === 'temporal_rules'
-            ? null
-            : input.destination_id,
-        temporal_rule_ids:
-          input.destination_type === 'temporal_rules' ? input.temporal_rule_ids : [],
-        temporal_rule_routes:
-          input.destination_type === 'temporal_rules' ? input.temporal_rule_routes : [],
-        fallback_destination_type:
-          input.manage_fallback && fallback_enabled ? input.fallback_destination_type : null,
-        fallback_destination_id:
-          input.manage_fallback && fallback_enabled ? input.fallback_destination_id : null,
-        manage_menu_branches: input.manage_menu_branches && input.destination_type === 'menu',
-        menu_branches:
-          input.manage_menu_branches && input.destination_type === 'menu'
-            ? input.menu_branches
-            : [],
-        manage_temporal_match:
-          input.manage_temporal_match && input.destination_type === 'temporal_rule_set',
-        temporal_match_destination_type:
-          input.manage_temporal_match &&
-          input.destination_type === 'temporal_rule_set' &&
-          temporal_match_enabled
-            ? input.temporal_match_destination_type
-            : null,
-        temporal_match_destination_id:
-          input.manage_temporal_match &&
-          input.destination_type === 'temporal_rule_set' &&
-          temporal_match_enabled
-            ? input.temporal_match_destination_id
-            : null,
-      }
+    .transform(
+      ({
+        destination_timeout,
+        destination_can_call_self,
+        fallback_enabled,
+        temporal_match_enabled,
+        temporal_rule_ids,
+        temporal_rule_routes,
+        ...input
+      }): CallflowCreateInput => {
+        const output = {
+          ...input,
+          destination_type: input.root_action ? null : input.destination_type,
+          destination_id:
+            input.root_action || input.destination_type === 'temporal_rules'
+              ? null
+              : input.destination_id,
+          ...(editor.mode === 'create' &&
+          !input.root_action &&
+          ['extension', 'device'].includes(input.destination_type)
+            ? {
+                destination_data: {
+                  timeout: destination_timeout,
+                  can_call_self: destination_can_call_self,
+                },
+              }
+            : {}),
+          ...(input.destination_type === 'temporal_rules'
+            ? { temporal_rule_ids, temporal_rule_routes }
+            : {}),
+          fallback_destination_type:
+            input.manage_fallback && fallback_enabled ? input.fallback_destination_type : null,
+          fallback_destination_id:
+            input.manage_fallback && fallback_enabled ? input.fallback_destination_id : null,
+          manage_menu_branches: input.manage_menu_branches && input.destination_type === 'menu',
+          menu_branches:
+            input.manage_menu_branches && input.destination_type === 'menu'
+              ? input.menu_branches
+              : [],
+          manage_temporal_match:
+            input.manage_temporal_match && input.destination_type === 'temporal_rule_set',
+          temporal_match_destination_type:
+            input.manage_temporal_match &&
+            input.destination_type === 'temporal_rule_set' &&
+            temporal_match_enabled
+              ? input.temporal_match_destination_type
+              : null,
+          temporal_match_destination_id:
+            input.manage_temporal_match &&
+            input.destination_type === 'temporal_rule_set' &&
+            temporal_match_enabled
+              ? input.temporal_match_destination_id
+              : null,
+        }
 
-      if (input.root_action) {
-        return {
-          ...output,
-          destination_type: null,
-          destination_id: null,
-          root_action: {
-            module: input.root_action.module,
-            data: input.root_action.data as CallflowInlineNodeData,
-          },
-        } as CallflowInlineRootCreateInput
-      }
+        if (input.root_action) {
+          return {
+            ...output,
+            destination_type: null,
+            destination_id: null,
+            root_action: {
+              module: input.root_action.module,
+              data: input.root_action.data as CallflowInlineNodeData,
+            },
+          } as CallflowInlineRootCreateInput
+        }
 
-      return output as CallflowUpdate
-    })
+        return output as CallflowUpdate
+      },
+    )
 }

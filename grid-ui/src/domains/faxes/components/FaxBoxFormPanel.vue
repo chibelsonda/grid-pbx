@@ -4,6 +4,7 @@ import { PrinterIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import BasicAdvancedFormTabs from '@/shared/components/BasicAdvancedFormTabs.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, { type ListboxValue } from '@/shared/components/FormListbox.vue'
 import FormTextarea from '@/shared/components/FormTextarea.vue'
@@ -97,9 +98,11 @@ function save(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="save">
-      <div v-if="error" class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the fax box"
+      />
       <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">
         <BasicAdvancedFormTabs v-model="selectedTab">
           <template #basic>
@@ -110,7 +113,7 @@ function save(): void {
                 /></span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Fax box</h2>
-                  <p class="text-[10px] text-slate-400">Identity and account ownership.</p>
+                  <p class="text-[10px] text-heading-description">Identity and account ownership.</p>
                 </div>
               </header>
               <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -138,7 +141,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Notification emails</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Recipients for inbound and outbound Fax status.
                 </p>
               </header>
@@ -161,7 +164,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Fax identity</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Caller ID and the identity printed on sent faxes.
                 </p>
               </header>
@@ -198,7 +201,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">SMTP delivery</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   The generated address is read-only; custom addresses must be unique.
                 </p>
               </header>
@@ -228,7 +231,7 @@ function save(): void {
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Fax options</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Retry, timezone, and T.38 behavior from the installed schema.
                 </p>
               </header>

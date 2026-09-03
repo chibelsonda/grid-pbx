@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/vue'
 import { CalendarDaysIcon, ClockIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -154,7 +155,7 @@ async function handleSetAction(actionId: string, id: string): Promise<void> {
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Routing</p>
         <h1 class="text-xl font-semibold text-slate-800">Business Hours & Schedules</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Build recurring rules and reusable rule sets for time-based routing.
         </p>
       </div>
@@ -238,13 +239,13 @@ async function handleSetAction(actionId: string, id: string): Promise<void> {
         >
       </TabList>
 
-      <div
+      <AppAlert
         v-if="temporal.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ temporal.error }}
-      </div>
+        :message="temporal.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="temporal.error = null"
+      />
       <form
         class="mb-4 flex flex-col gap-3 sm:flex-row"
         @submit.prevent="accounts.selectedId && temporal.load(accounts.selectedId)"

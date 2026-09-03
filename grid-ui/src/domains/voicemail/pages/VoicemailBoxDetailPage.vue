@@ -13,6 +13,7 @@ import {
   CloudArrowUpIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormFileInput from '@/shared/components/FormFileInput.vue'
@@ -196,7 +197,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ voicemail.detail?.name ?? 'Voicemail box' }}
         </h1>
-        <p class="mt-1 font-mono text-xs text-slate-500">
+        <p class="mt-1 font-mono text-xs text-heading-description">
           Mailbox {{ voicemail.detail?.mailbox ?? '—' }}
         </p>
       </div>
@@ -229,12 +230,13 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
       {{ voicemail.detailError }}
     </div>
     <template v-else-if="voicemail.detail">
-      <div
+      <AppAlert
         v-if="voicemail.mutationError"
-        class="mb-5 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ voicemail.mutationError }}
-      </div>
+        :message="voicemail.mutationError"
+        tone="error"
+        class="mb-5"
+        @dismiss="voicemail.mutationError = null"
+      />
       <div class="mb-5 grid gap-4 sm:grid-cols-4">
         <article
           v-for="count in [
@@ -273,7 +275,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
               /></span>
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Mailbox configuration</h2>
-                <p class="text-[10px] text-slate-400">Normalized Switch projection</p>
+                <p class="text-[10px] text-heading-description">Normalized Switch projection</p>
               </div>
             </header>
             <dl class="grid gap-x-8 gap-y-5 p-5 sm:grid-cols-2">
@@ -344,7 +346,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
             >
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Messages</h2>
-                <p class="text-[10px] text-slate-400">
+                <p class="text-[10px] text-heading-description">
                   Metadata is projected; audio streams from Switch on demand.
                 </p>
               </div>
@@ -369,18 +371,20 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
                 <option value="deleted">Deleted</option>
               </FormSelect>
             </header>
-            <div
+            <AppAlert
               v-if="voicemail.messagesError"
-              class="border-b border-red-100 bg-red-50 px-5 py-3 text-xs text-danger"
-            >
-              {{ voicemail.messagesError }}
-            </div>
-            <div
+              :message="voicemail.messagesError"
+              tone="error"
+              class="m-5"
+              @dismiss="voicemail.messagesError = null"
+            />
+            <AppAlert
               v-if="voicemail.messageMutationError"
-              class="border-b border-red-100 bg-red-50 px-5 py-3 text-xs text-danger"
-            >
-              {{ voicemail.messageMutationError }}
-            </div>
+              :message="voicemail.messageMutationError"
+              tone="error"
+              class="m-5"
+              @dismiss="voicemail.messageMutationError = null"
+            />
             <div
               v-if="canManage && voicemail.messages.length > 0"
               class="flex flex-wrap items-center gap-2 border-b border-slate-100 bg-slate-50/70 px-5 py-3"
@@ -603,7 +607,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
               <MicrophoneIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Unavailable greeting</h2>
-                <p class="text-[10px] text-slate-400">Played before callers leave a message</p>
+                <p class="text-[10px] text-heading-description">Played before callers leave a message</p>
               </div>
             </header>
             <div class="grid gap-4 p-5">
@@ -681,7 +685,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
     v-if="greetingPanelOpen"
     title="Upload unavailable greeting"
     eyebrow="GridPBX / Voicemail / Greeting"
-    description="The audio is uploaded to Switch; MySQL stores only its metadata projection."
+    description="The audio is uploaded to Switch; GridPBX stores only its metadata projection."
     width="medium"
     @close="greetingPanelOpen = false"
   >
@@ -691,7 +695,7 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
           <CloudArrowUpIcon class="size-5 text-brand-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Greeting audio</h2>
-            <p class="text-[10px] text-slate-400">MP3, WAV, or OGG · maximum 10 MB</p>
+            <p class="text-[10px] text-heading-description">MP3, WAV, or OGG · maximum 10 MB</p>
           </div>
         </header>
         <div class="grid gap-5 p-5">
@@ -718,12 +722,12 @@ async function bulkChangeMessageFolder(folder: VoicemailMessageFolder): Promise<
           </div>
         </div>
       </article>
-      <div
+      <AppAlert
         v-if="voicemail.greetingMutationError"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ voicemail.greetingMutationError }}
-      </div>
+        :message="voicemail.greetingMutationError"
+        tone="error"
+        @dismiss="voicemail.greetingMutationError = null"
+      />
       <div class="slide-over-actions flex justify-end">
         <button
           type="submit"

@@ -34,6 +34,19 @@ describe('uiStore theme preferences', () => {
     )
   })
 
+  it('applies the clearer default typography colors across content and navigation', () => {
+    const ui = useUiStore()
+
+    ui.initializeTheme()
+
+    expect(document.documentElement.style.getPropertyValue('--color-ink')).toBe('#000000')
+    expect(document.documentElement.style.getPropertyValue('--color-muted')).toBe('#111827')
+    expect(document.documentElement.style.getPropertyValue('--app-header-foreground')).toBe(
+      '#030712',
+    )
+    expect(document.documentElement.style.getPropertyValue('--app-sidebar-muted')).toBe('#111827')
+  })
+
   it('applies and persists validated header and sidebar themes', () => {
     const ui = useUiStore()
 

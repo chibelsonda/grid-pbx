@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { onBeforeRouteLeave, useRoute } from 'vue-router'
 import {
   ArrowPathIcon,
   ArrowPathRoundedSquareIcon,
@@ -9,9 +9,9 @@ import {
   PencilSquareIcon,
   QueueListIcon,
   PlusIcon,
-  XMarkIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import PageBackLink from '@/shared/components/PageBackLink.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -53,6 +53,8 @@ const callflows = useCallflowStore()
 const nodeEditorContext = ref<CallflowNodeEditorContext | null>(null)
 const entryNumberOpen = ref(false)
 const confirmRouteDelete = ref(false)
+const confirmDiscardCreate = ref(false)
+const createDraftDirty = ref(false)
 let stopCapabilityListener: (() => void) | null = null
 
 function nodeEditorAction(context: CallflowNodeEditorContext): unknown {
@@ -137,6 +139,13 @@ function refreshCallflowNodes(): void {
   void callflows.refreshDetail(accounts.selectedId, callflows.detail.id)
 }
 
+async function refreshEntryPointOptions(): Promise<void> {
+  if (!accounts.selectedId) return
+
+  const callflowId = creatingRoute.value ? null : (callflows.detail?.id ?? null)
+  await callflows.refreshCapabilityOptions(accounts.selectedId, callflowId)
+}
+
 async function openDetail(id: string): Promise<void> {
   if (accounts.selectedId) {
     await Promise.all([
@@ -147,8 +156,24 @@ async function openDetail(id: string): Promise<void> {
 }
 
 function closeWorkspace(): void {
-  if (creatingRoute.value) callflows.closeEditor()
-  else callflows.closeDetail()
+  if (creatingRoute.value) {
+    createDraftDirty.value = false
+    callflows.closeEditor()
+  } else callflows.closeDetail()
+}
+
+function requestCloseWorkspace(): void {
+  if (creatingRoute.value && createDraftDirty.value) {
+    confirmDiscardCreate.value = true
+    return
+  }
+
+  closeWorkspace()
+}
+
+function discardCreateDraft(): void {
+  confirmDiscardCreate.value = false
+  closeWorkspace()
 }
 
 function openEditor(): void {
@@ -194,7 +219,10 @@ async function addEntryNumber(addition: CallflowEntryNumberAddition): Promise<vo
 }
 
 function openCreateEditor(): void {
-  if (accounts.selectedId) void callflows.openCreateEditor(accounts.selectedId)
+  if (accounts.selectedId) {
+    createDraftDirty.value = false
+    void callflows.openCreateEditor(accounts.selectedId)
+  }
 }
 
 function refreshCapabilities(change: CallflowCapabilitiesChanged): void {
@@ -206,11 +234,26 @@ function refreshCapabilities(change: CallflowCapabilitiesChanged): void {
 
 onMounted(() => {
   stopCapabilityListener = listenForCallflowCapabilitiesChanged(refreshCapabilities)
+  window.addEventListener('beforeunload', preventUnsavedCreateUnload)
 })
 
 onBeforeUnmount(() => {
   stopCapabilityListener?.()
   stopCapabilityListener = null
+  window.removeEventListener('beforeunload', preventUnsavedCreateUnload)
+})
+
+function preventUnsavedCreateUnload(event: BeforeUnloadEvent): void {
+  if (!creatingRoute.value || !createDraftDirty.value) return
+
+  event.preventDefault()
+  event.returnValue = ''
+}
+
+onBeforeRouteLeave(() => {
+  if (!creatingRoute.value || !createDraftDirty.value) return true
+
+  return window.confirm('Discard this unsaved callflow draft?')
 })
 
 function saveRoute(input: CallflowCreateInput): void {
@@ -320,10 +363,25 @@ function routeTitle(route: {
 }): string {
   return route.name ?? route.feature_code?.name ?? route.numbers[0] ?? 'Unnamed route'
 }
+
+function routeIdentifier(route: Callflow): string {
+  return (
+    route.feature_code?.number ??
+    route.phone_numbers[0]?.number ??
+    route.linked_extension?.extension ??
+    route.numbers[0] ??
+    route.patterns[0] ??
+    'Unassigned'
+  )
+}
 </script>
 
 <template>
-  <section data-callflow-page-header class="border-b border-slate-200/80 bg-white py-5">
+  <section
+    data-callflow-page-header
+    class="border-b border-slate-200/80 bg-white py-5"
+    :class="creatingRoute && 'sticky top-[60px] z-20 shadow-sm'"
+  >
     <div
       class="flex w-full flex-col gap-4 sm:flex-row sm:items-center"
       :class="workspaceOpen ? 'px-4 sm:px-6 lg:px-8' : 'page-container'"
@@ -338,7 +396,7 @@ function routeTitle(route: {
           <template v-else>{{ pageEyebrow }}</template>
         </p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">{{ pageTitle }}</h1>
-        <p class="mt-1 text-xs text-slate-500">{{ pageDescription }}</p>
+        <p class="mt-1 text-xs text-heading-description">{{ pageDescription }}</p>
       </div>
       <div class="flex w-full flex-wrap justify-end gap-3 sm:ml-auto sm:w-auto">
         <button
@@ -379,15 +437,31 @@ function routeTitle(route: {
             <PencilSquareIcon class="size-4" /> Edit callflow
           </button>
         </template>
-        <button
-          v-else
-          type="button"
-          class="grid size-9 place-items-center rounded-md border border-slate-200 bg-white text-slate-500 shadow-sm hover:border-brand-200 hover:bg-brand-50 hover:text-brand-600"
-          aria-label="Close create callflow"
-          @click="closeWorkspace"
-        >
-          <XMarkIcon class="size-5" />
-        </button>
+        <template v-else>
+          <button
+            type="button"
+            :disabled="callflows.saving"
+            class="inline-flex h-9 items-center justify-center rounded-md border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+            @click="requestCloseWorkspace"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="callflow-create-form"
+            :disabled="callflows.saving || !canManage || !callflows.editor?.editable"
+            class="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-brand-500 px-4 text-xs font-semibold text-white shadow-sm hover:bg-brand-600 disabled:opacity-50"
+          >
+            <PlusIcon class="size-4" />
+            {{
+              callflows.preparingCreation
+                ? 'Checking conflicts…'
+                : callflows.saving
+                  ? 'Creating callflow…'
+                  : 'Create callflow'
+            }}
+          </button>
+        </template>
         <ProjectionFreshness
           v-if="!workspaceOpen"
           class="w-full justify-end"
@@ -406,6 +480,7 @@ function routeTitle(route: {
       <CallflowEditorPanel
         v-if="creatingRoute"
         workspace
+        :account-id="accounts.selectedId ?? ''"
         :record="null"
         :editor="callflows.editor"
         :loading="callflows.editorLoading"
@@ -413,8 +488,10 @@ function routeTitle(route: {
         :error="callflows.editorError"
         :field-errors="callflows.fieldErrors"
         :can-manage="canManage"
-        @close="closeWorkspace"
+        @close="requestCloseWorkspace"
         @save="saveRoute"
+        @dirty-change="createDraftDirty = $event"
+        @refresh-entry-options="refreshEntryPointOptions"
       />
       <template v-else>
         <CallflowDetailPanel
@@ -529,16 +606,16 @@ function routeTitle(route: {
         </button>
       </form>
 
-      <div
+      <AppAlert
         v-if="callflows.error"
-        role="alert"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ callflows.error }}
-      </div>
+        :message="callflows.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="callflows.error = null"
+      />
       <div class="card-surface overflow-hidden">
         <div class="overflow-x-auto">
-          <table class="w-full min-w-[900px] text-left" :aria-busy="callflows.loading">
+          <table class="w-full min-w-[1050px] text-left" :aria-busy="callflows.loading">
             <caption class="sr-only">
               Projected callflows for the selected Switch account
             </caption>
@@ -546,6 +623,7 @@ function routeTitle(route: {
               class="border-b border-slate-100 bg-slate-50/70 text-[10px] font-bold tracking-wider text-slate-400 uppercase"
             >
               <tr>
+                <th scope="col" class="px-5 py-3.5">Name</th>
                 <th scope="col" class="px-5 py-3.5">Route</th>
                 <th scope="col" class="px-5 py-3.5">Entry points</th>
                 <th scope="col" class="px-5 py-3.5">Type</th>
@@ -556,12 +634,12 @@ function routeTitle(route: {
             </thead>
             <tbody class="divide-y divide-slate-100 text-xs">
               <tr v-if="callflows.loading">
-                <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+                <td colspan="7" class="px-5 py-14 text-center text-slate-400">
                   <span role="status">Loading projected callflows…</span>
                 </td>
               </tr>
               <tr v-else-if="callflows.records.length === 0">
-                <td colspan="6" class="px-5 py-14 text-center text-slate-400">
+                <td colspan="7" class="px-5 py-14 text-center text-slate-400">
                   <ArrowPathRoundedSquareIcon class="mx-auto mb-3 size-8 text-slate-400" />No call
                   routes match this account and filter.
                 </td>
@@ -573,7 +651,7 @@ function routeTitle(route: {
                 class="cursor-pointer hover:bg-slate-50/60"
                 @click="openDetail(route.id)"
               >
-                <td class="px-5 py-3.5">
+                <td class="px-5 py-3.5" :data-callflow-name="route.id">
                   <button
                     type="button"
                     class="font-semibold text-slate-700 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
@@ -581,6 +659,11 @@ function routeTitle(route: {
                   >
                     {{ routeTitle(route) }}
                   </button>
+                </td>
+                <td class="px-5 py-3.5">
+                  <p class="font-mono text-[11px] font-semibold text-slate-600">
+                    {{ routeIdentifier(route) }}
+                  </p>
                   <p class="mt-1 font-mono text-[10px] text-slate-400">
                     {{ route.root_module ?? 'No root module' }}
                   </p>
@@ -650,6 +733,7 @@ function routeTitle(route: {
   </div>
   <CallflowEditorPanel
     v-if="callflows.editorOpen && callflows.editor?.mode === 'update'"
+    :account-id="accounts.selectedId ?? ''"
     :record="callflows.detail"
     :editor="callflows.editor"
     :loading="callflows.editorLoading"
@@ -663,7 +747,10 @@ function routeTitle(route: {
   <CallflowAddEntryNumberDialog
     v-if="callflows.treeEditor"
     :open="entryNumberOpen"
+    :account-id="accounts.selectedId ?? ''"
+    :callflow-id="callflows.detail?.id ?? null"
     :phone-numbers="callflows.treeEditor.phone_numbers"
+    :phone-number-inventory="callflows.treeEditor.phone_number_inventory"
     :phone-number-ids="
       callflows.treeEditor.phone_numbers.filter(({ selected }) => selected).map(({ id }) => id)
     "
@@ -674,6 +761,7 @@ function routeTitle(route: {
     :field-errors="callflows.entryPointFieldErrors"
     @close="entryNumberOpen = false"
     @add="addEntryNumber"
+    @inventory-refreshed="refreshEntryPointOptions"
   />
   <CallflowNodeEditorPanel
     v-if="
@@ -695,7 +783,6 @@ function routeTitle(route: {
       isGuidedInlineCallflowModule(nodeEditorContext.module, nodeEditorAction(nodeEditorContext))
     "
     :context="nodeEditorContext"
-    :root-configuration="nodeEditorContext.path.length === 0"
     :editor="callflows.treeEditor"
     :loading="callflows.treeEditorLoading"
     :saving="callflows.treeNodeSaving"
@@ -703,6 +790,15 @@ function routeTitle(route: {
     :field-errors="callflows.treeNodeFieldErrors"
     @close="closeNodeEditor"
     @save="saveTreeNode"
+  />
+  <ConfirmDialog
+    :open="confirmDiscardCreate"
+    title="Discard callflow draft?"
+    description="Your unsaved callflow name, entry points, and route actions will be lost."
+    confirm-label="Discard draft"
+    tone="warning"
+    @close="confirmDiscardCreate = false"
+    @confirm="discardCreateDraft"
   />
   <ConfirmDialog
     :open="confirmRouteDelete"

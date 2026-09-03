@@ -446,12 +446,20 @@ class CallflowReferenceResolverTest extends TestCase
     }
 
     #[Test]
-    public function it_resolves_safe_page_group_devices_without_exposing_switch_endpoint_data(): void
+    public function it_resolves_safe_page_group_endpoints_without_exposing_switch_endpoint_data(): void
     {
         $account = SwitchAccount::factory()->create();
         $device = SwitchDevice::factory()->for($account)->create([
             'switch_resource_id' => 'switch-page-device',
             'name' => 'Warehouse speaker',
+        ]);
+        $extension = SwitchExtension::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-page-user',
+            'display_name' => 'Warehouse user',
+        ]);
+        $group = SwitchGroup::factory()->for($account)->create([
+            'switch_resource_id' => 'switch-page-group',
+            'name' => 'Warehouse team',
         ]);
         $flow = app(CallflowReferenceResolver::class)->resolve($account, [
             'module' => 'page_group',
@@ -464,6 +472,16 @@ class CallflowReferenceResolverTest extends TestCase
                     'delay' => 0,
                     'timeout' => 20,
                     'server_owned' => 'secret',
+                ], [
+                    'endpoint_type' => 'user',
+                    'id' => 'switch-page-user',
+                    'delay' => 2,
+                    'timeout' => 25,
+                ], [
+                    'endpoint_type' => 'group',
+                    'id' => 'switch-page-group',
+                    'delay' => 4,
+                    'timeout' => 30,
                 ]],
                 'skip_module' => true,
             ],
@@ -475,7 +493,11 @@ class CallflowReferenceResolverTest extends TestCase
         $this->assertSame([
             'supported_configuration' => true,
             'audio' => 'two-way',
-            'device_ids' => [(string) $device->id],
+            'endpoints' => [
+                ['device_id' => (string) $device->id, 'delay' => 0, 'timeout' => 20],
+                ['extension_id' => (string) $extension->id, 'delay' => 2, 'timeout' => 25],
+                ['group_id' => (string) $group->id, 'delay' => 4, 'timeout' => 30],
+            ],
             'reference_status' => 'resolved',
             'skip_module' => true,
         ], $flow['settings']);
@@ -493,7 +515,7 @@ class CallflowReferenceResolverTest extends TestCase
         ]);
 
         $this->assertFalse($unsafe['settings']['supported_configuration']);
-        $this->assertSame([], $unsafe['settings']['device_ids']);
+        $this->assertSame([], $unsafe['settings']['endpoints']);
     }
 
     #[Test]

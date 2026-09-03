@@ -61,6 +61,7 @@ interface SwitchCallflowGateway
         ?string $branch,
         string $module,
         string $targetResourceId,
+        ?array $settings = null,
     ): array;
 
     /** @param list<string> $path @return array<string, mixed> */

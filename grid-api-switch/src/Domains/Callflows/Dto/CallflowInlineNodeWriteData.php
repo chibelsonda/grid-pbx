@@ -28,7 +28,7 @@ final readonly class CallflowInlineNodeWriteData
         'flush_dtmf' => ['collection_name', 'skip_module'],
         'dead_air' => ['skip_module'],
         'language' => ['language', 'skip_module'],
-        'response' => ['code', 'message', 'skip_module'],
+        'response' => ['code', 'message', 'media', 'skip_module'],
         'hangup' => ['skip_module'],
         'set_variable' => ['variable', 'value', 'channel', 'skip_module'],
         'set_variables' => ['custom_application_vars', 'export', 'skip_module'],
@@ -430,8 +430,9 @@ final readonly class CallflowInlineNodeWriteData
 
     private function assertResponse(): void
     {
-        $this->integer('code', 400, 699);
+        $this->integer('code', 100, 699);
         $this->nullableString('message', 128);
+        $this->nullableString('media', 2048);
     }
 
     private function assertSetVariable(): void
@@ -518,16 +519,22 @@ final readonly class CallflowInlineNodeWriteData
 
         foreach ($endpoints as $endpoint) {
             if (! is_array($endpoint)
-                || array_diff(array_keys($endpoint), ['endpoint_type', 'id']) !== []
-                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || array_diff(array_keys($endpoint), ['endpoint_type', 'id', 'delay', 'timeout']) !== []
+                || ! in_array($endpoint['endpoint_type'] ?? null, ['device', 'user', 'group'], true)
                 || ! is_string($endpoint['id'] ?? null)
                 || $endpoint['id'] === ''
                 || strlen($endpoint['id']) > 128
-                || in_array($endpoint['id'], $ids, true)) {
+                || ! is_int($endpoint['delay'] ?? null)
+                || $endpoint['delay'] < 0
+                || $endpoint['delay'] > 60
+                || ! is_int($endpoint['timeout'] ?? null)
+                || $endpoint['timeout'] < 1
+                || $endpoint['timeout'] > 60
+                || in_array(($endpoint['endpoint_type'])."\0".$endpoint['id'], $ids, true)) {
                 throw new InvalidArgumentException('The inline Page Group endpoint selection is invalid.');
             }
 
-            $ids[] = $endpoint['id'];
+            $ids[] = ($endpoint['endpoint_type'])."\0".$endpoint['id'];
         }
     }
 
@@ -550,18 +557,18 @@ final readonly class CallflowInlineNodeWriteData
 
         foreach ($endpoints as $endpoint) {
             if (! is_array($endpoint)
-                || ($endpoint['endpoint_type'] ?? null) !== 'device'
+                || ! in_array($endpoint['endpoint_type'] ?? null, ['device', 'user', 'group'], true)
                 || ! is_string($endpoint['id'] ?? null)
                 || $endpoint['id'] === ''
                 || strlen($endpoint['id']) > 128
-                || ! $this->optionalIntegerInRange($endpoint, 'delay', 0, 30)
-                || ! $this->optionalIntegerInRange($endpoint, 'timeout', 1, 30)
+                || ! $this->optionalIntegerInRange($endpoint, 'delay', 0, 60)
+                || ! $this->optionalIntegerInRange($endpoint, 'timeout', 1, 60)
                 || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
-                || in_array($endpoint['id'], $ids, true)) {
+                || in_array(($endpoint['endpoint_type'])."\0".$endpoint['id'], $ids, true)) {
                 throw new InvalidArgumentException('The existing Page Group configuration is not supported.');
             }
 
-            $ids[] = $endpoint['id'];
+            $ids[] = ($endpoint['endpoint_type'])."\0".$endpoint['id'];
         }
     }
 
@@ -1204,6 +1211,12 @@ final readonly class CallflowInlineNodeWriteData
     private function settingsForWrite(array $current): array
     {
         foreach (self::MANAGED_KEYS[$this->module] as $key) {
+            if ($this->module === 'response'
+                && $key === 'media'
+                && ! array_key_exists($key, $this->settings)) {
+                continue;
+            }
+
             if (! array_key_exists($key, $this->settings) || $this->settings[$key] === null) {
                 unset($current[$key]);
             } elseif ($this->module === 'receive_fax' && $key === 'media') {

@@ -33,7 +33,7 @@ const emit = defineEmits<{ close: [] }>()
       <div class="min-w-0">
         <p class="mb-1 text-[11px] font-medium text-slate-400">{{ eyebrow }}</p>
         <h2 class="text-xl font-semibold tracking-tight text-slate-800">{{ title }}</h2>
-        <p v-if="description" class="mt-1 text-xs leading-5 text-slate-500">
+        <p v-if="description" class="mt-1 text-xs leading-5 text-heading-description">
           {{ description }}
         </p>
       </div>

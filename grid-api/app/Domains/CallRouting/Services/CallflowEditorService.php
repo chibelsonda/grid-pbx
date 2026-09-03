@@ -4,6 +4,8 @@ namespace App\Domains\CallRouting\Services;
 
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\Organizations\Models\SwitchAccount;
+use App\Domains\SwitchSynchronization\Enums\ProjectionStatus;
+use App\Domains\SwitchSynchronization\Models\SyncCheckpoint;
 use Illuminate\Validation\ValidationException;
 
 class CallflowEditorService
@@ -60,6 +62,10 @@ class CallflowEditorService
             ->with('assignedCallflow:callflow_id,id,name')
             ->orderBy('number')
             ->get();
+        $phoneNumberCheckpoint = SyncCheckpoint::query()
+            ->where('switch_account_id', $account->getKey())
+            ->where('resource_type', 'phone_numbers')
+            ->first();
         [$extensionNumbers, $preservedNumbers] = $this->entryNumbers(
             $callflow,
             $phoneNumbers->pluck('number')->filter(fn (mixed $number): bool => is_string($number))->all(),
@@ -215,6 +221,15 @@ class CallflowEditorService
                     'name' => $item->assignedCallflow->name,
                 ],
             ])->values()->all(),
+            'phone_number_inventory' => [
+                'status' => $phoneNumberCheckpoint?->status->value ?? 'stale',
+                'last_successful_at' => $phoneNumberCheckpoint?->last_successful_at?->toIso8601String(),
+                'error_message' => $phoneNumberCheckpoint?->status === ProjectionStatus::Error
+                    ? 'Phone-number inventory synchronization failed. Try refreshing again or contact an administrator.'
+                    : null,
+                'total_count' => $phoneNumbers->count(),
+                'unassigned_count' => $phoneNumbers->whereNull('assigned_callflow_id')->count(),
+            ],
         ];
     }
 

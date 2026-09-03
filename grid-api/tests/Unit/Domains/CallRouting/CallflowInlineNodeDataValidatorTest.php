@@ -10,6 +10,26 @@ use Tests\TestCase;
 class CallflowInlineNodeDataValidatorTest extends TestCase
 {
     #[Test]
+    public function it_accepts_the_full_switch_response_code_range(): void
+    {
+        $validator = app(CallflowInlineNodeDataValidator::class);
+
+        $this->assertSame(
+            ['code' => 200, 'message' => 'OK', 'skip_module' => false],
+            $validator->validate('response', ['code' => 200, 'message' => 'OK', 'skip_module' => false]),
+        );
+
+        foreach ([99, 700] as $code) {
+            try {
+                $validator->validate('response', ['code' => $code, 'message' => null, 'skip_module' => false]);
+                $this->fail('Response code must stay within the installed Switch range.');
+            } catch (ValidationException) {
+                $this->assertTrue(true);
+            }
+        }
+    }
+
+    #[Test]
     public function it_accepts_only_schema_backed_operational_action_payloads(): void
     {
         $validator = app(CallflowInlineNodeDataValidator::class);
@@ -186,25 +206,33 @@ class CallflowInlineNodeDataValidatorTest extends TestCase
     }
 
     #[Test]
-    public function it_accepts_only_bounded_public_device_page_groups(): void
+    public function it_accepts_only_bounded_public_page_group_endpoints(): void
     {
         $validator = app(CallflowInlineNodeDataValidator::class);
         $deviceId = '11111111-1111-4111-8111-111111111111';
 
         $this->assertSame(
-            ['audio' => 'two-way', 'device_ids' => [$deviceId], 'skip_module' => false],
+            [
+                'audio' => 'two-way',
+                'endpoints' => [['device_id' => $deviceId, 'delay' => 0, 'timeout' => 20]],
+                'skip_module' => false,
+            ],
             $validator->validate('page_group', [
                 'audio' => 'two-way',
-                'device_ids' => [$deviceId],
+                'endpoints' => [['device_id' => $deviceId, 'delay' => 0, 'timeout' => 20]],
                 'skip_module' => false,
             ]),
         );
 
         foreach ([
-            ['audio' => 'one-way', 'device_ids' => [], 'skip_module' => false],
-            ['audio' => 'barge', 'device_ids' => [$deviceId], 'skip_module' => false],
-            ['audio' => 'one-way', 'device_ids' => [$deviceId, $deviceId], 'skip_module' => false],
-            ['audio' => 'one-way', 'device_ids' => ['raw-switch-device'], 'skip_module' => false],
+            ['audio' => 'one-way', 'endpoints' => [], 'skip_module' => false],
+            ['audio' => 'barge', 'endpoints' => [['device_id' => $deviceId, 'delay' => 0, 'timeout' => 20]], 'skip_module' => false],
+            ['audio' => 'one-way', 'endpoints' => [
+                ['device_id' => $deviceId, 'delay' => 0, 'timeout' => 20],
+                ['device_id' => $deviceId, 'delay' => 1, 'timeout' => 20],
+            ], 'skip_module' => false],
+            ['audio' => 'one-way', 'endpoints' => [['device_id' => 'raw-switch-device', 'delay' => 0, 'timeout' => 20]], 'skip_module' => false],
+            ['audio' => 'one-way', 'endpoints' => [['device_id' => $deviceId, 'group_id' => $deviceId, 'delay' => 0, 'timeout' => 20]], 'skip_module' => false],
         ] as $data) {
             try {
                 $validator->validate('page_group', $data);

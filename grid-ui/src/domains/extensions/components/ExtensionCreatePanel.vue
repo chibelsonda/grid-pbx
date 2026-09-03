@@ -15,6 +15,7 @@ import type { VoicemailBoxInput, VoicemailFormOptions } from '@/domains/voicemai
 import { defaultVoicemailFormOptions } from '@/domains/voicemail/voicemailForm'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
 import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelector.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
@@ -374,13 +375,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form v-show="panelView === 'extension'" class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="displayErrors"
+        title="Unable to create the extension"
+      />
 
       <BasicAdvancedTabSelector
         v-model="selectedFormSection"
@@ -394,7 +393,7 @@ function submit(): void {
           </span>
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Person and extension</h2>
-            <p class="text-[10px] text-slate-400">The Switch user is the aggregate root.</p>
+            <p class="text-[10px] text-heading-description">The Switch user is the aggregate root.</p>
           </div>
         </header>
         <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -633,7 +632,7 @@ function submit(): void {
           /></span>
           <div class="min-w-0 flex-1">
             <h2 class="text-sm font-semibold text-slate-700">Voicemail fallback</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               Creates an owned mailbox and attaches it to the managed callflow.
             </p>
           </div>
@@ -686,7 +685,7 @@ function submit(): void {
           /></span>
           <div class="min-w-0 flex-1">
             <h2 class="text-sm font-semibold text-slate-700">Initial device</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               Optional endpoint owned by the new Switch user.
             </p>
           </div>

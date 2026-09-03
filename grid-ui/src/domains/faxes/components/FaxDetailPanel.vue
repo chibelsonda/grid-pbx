@@ -25,7 +25,7 @@ const format = (value: number | null): string =>
             <h2 class="text-sm font-semibold text-slate-700">
               {{ record.folder === 'inbox' ? 'Received fax' : 'Sent fax' }}
             </h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               {{
                 record.created_at
                   ? new Date(record.created_at).toLocaleString()
@@ -101,7 +101,7 @@ const format = (value: number | null): string =>
       </button>
       <p class="text-[10px] text-slate-400">
         Document access is authenticated and audited. The binary is streamed from Switch and is not
-        stored in MySQL.
+        stored by GridPBX.
       </p>
     </div></CrudSlideOver
   >

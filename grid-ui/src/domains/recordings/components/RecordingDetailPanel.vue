@@ -59,7 +59,7 @@ const duration = computed(() => {
             <h2 class="text-base font-semibold text-slate-800">
               {{ record.name ?? 'Call recording' }}
             </h2>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-heading-description">
               {{ new Date(record.started_at).toLocaleString() }} · {{ duration }}
             </p>
           </div>

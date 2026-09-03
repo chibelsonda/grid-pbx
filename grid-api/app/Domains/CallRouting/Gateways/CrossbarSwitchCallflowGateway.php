@@ -2,8 +2,8 @@
 
 namespace App\Domains\CallRouting\Gateways;
 
-use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\Organizations\Models\SwitchAccount;
 use GridPbx\Switch\Domains\Accounts\AccountResource;
 use GridPbx\Switch\Domains\Accounts\AccountResourceClient;
@@ -20,7 +20,7 @@ use GridPbx\Switch\Domains\Callflows\Dto\CallflowTreeReorderData;
 use GridPbx\Switch\Domains\Callflows\Dto\CallflowWriteData;
 use UnexpectedValueException;
 
-class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway, SwitchCallflowEntryPointGateway
+class CrossbarSwitchCallflowGateway implements SwitchCallflowEntryPointGateway, SwitchCallflowGateway
 {
     public function __construct(
         private readonly AccountResourceClient $resources,
@@ -167,6 +167,7 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway, SwitchCall
         ?string $branch,
         string $module,
         string $targetResourceId,
+        ?array $settings = null,
     ): array {
         $current = $this->resources->find(
             $account->switch_account_id,
@@ -185,12 +186,14 @@ class CrossbarSwitchCallflowGateway implements SwitchCallflowGateway, SwitchCall
                 branch: (string) $branch,
                 module: $module,
                 resourceId: $targetResourceId,
+                settings: $settings,
             )
             : CallflowTreeNodeWriteData::update(
                 current: $current->toArray(),
                 nodePath: $path,
                 module: $module,
                 resourceId: $targetResourceId,
+                settings: $settings,
             );
 
         return $this->callflows->writeTreeNode(

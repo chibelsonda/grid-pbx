@@ -210,7 +210,7 @@ final readonly class LegacyBillingInvoiceDiagnosticService
         }
 
         $guidance = match ($status) {
-            'provider_not_selected' => 'Select the legacy GridPBX MySQL invoice provider only after confirming it is the billing authority.',
+            'provider_not_selected' => 'Select the legacy GridPBX invoice provider only after confirming it is the billing authority.',
             'adapter_disabled' => 'The legacy invoice adapter is disabled. Keep it disabled until authority and read-only access are confirmed.',
             'authority_unconfirmed' => 'Confirm that the legacy database is the authoritative invoice source before enabling reads.',
             'read_only_unconfirmed' => 'Confirm that the configured database account is dedicated and read-only before enabling reads.',

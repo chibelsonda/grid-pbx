@@ -31,6 +31,16 @@ services:
       timeout: 3s
       retries: 30
 
+  mailpit:
+    image: axllent/mailpit:v1.30.6
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: 500
+      MP_MAX_AGE: 24h
+    ports:
+      - "127.0.0.1:${GRID_MAILPIT_UI_PORT:-8026}:8025"
+      - "127.0.0.1:${GRID_MAILPIT_SMTP_PORT:-1026}:1025"
+
   provisioner-catalog:
     image: nginx:1.27-alpine
     restart: unless-stopped
@@ -70,6 +80,11 @@ services:
       SESSION_DRIVER: redis
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_FROM_ADDRESS: no-reply@gridpbx.local
+      MAIL_FROM_NAME: GridPBX
       REDIS_HOST: redis
       REDIS_PORT: 6379
       SANCTUM_STATEFUL_DOMAINS: localhost:${GRID_UI_PORT:-5173},127.0.0.1:${GRID_UI_PORT:-5173},localhost:*,127.0.0.1:*
@@ -102,6 +117,8 @@ services:
       mysql:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
       provisioner-catalog:
         condition: service_healthy
@@ -202,6 +219,11 @@ services:
       SESSION_DRIVER: redis
       CACHE_STORE: redis
       QUEUE_CONNECTION: redis
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_FROM_ADDRESS: no-reply@gridpbx.local
+      MAIL_FROM_NAME: GridPBX
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_QUEUE_RETRY_AFTER: 150
@@ -228,6 +250,8 @@ services:
       grid-api:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mailpit:
         condition: service_healthy
     command:
       - sh

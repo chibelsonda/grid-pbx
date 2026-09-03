@@ -373,7 +373,7 @@ function toggleCategory(categoryId: string): void {
                 <h4 class="truncate text-[11px] font-semibold text-slate-700">
                   {{ action.label }}
                 </h4>
-                <p class="mt-0.5 truncate font-mono text-[9px] text-slate-500">
+                <p class="mt-0.5 truncate font-mono text-[9px] text-heading-description">
                   {{ action.module }}
                 </p>
               </div>

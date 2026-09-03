@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
+import { useUiStore } from '@/app/stores/uiStore'
 import { serviceApi } from '@/domains/services/api/serviceApi'
 import { resellerApi } from '../api/resellerApi'
 import type {
@@ -97,6 +98,13 @@ export const useResellerStore = defineStore('reseller', {
         this.onboardingNotice = serviceProjectionStarted
           ? 'Descendant onboarded. Service ownership synchronization has started.'
           : 'Descendant onboarded, but service ownership synchronization could not start. Retry it from Services.'
+        if (serviceProjectionStarted) {
+          useUiStore().notify({
+            title: 'Descendant onboarded',
+            message: this.onboardingNotice,
+            tone: 'success',
+          })
+        }
         return true
       } catch (error) {
         this.fieldErrors = axios.isAxiosError(error) ? (error.response?.data?.errors ?? {}) : {}

@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { HashtagIcon, IdentificationIcon, PlusIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -117,7 +118,7 @@ function clearCallerIdListQuery(): void {
       <div class="min-w-0 flex-1">
         <p class="mb-1 text-[11px] text-slate-500">GridPBX / Callflows</p>
         <h1 class="text-xl font-semibold text-slate-800">Caller-ID Lists</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Reusable caller-number and pattern matches for visual Callflow branches.
         </p>
       </div>
@@ -169,13 +170,13 @@ function clearCallerIdListQuery(): void {
       </article>
     </div>
 
-    <div
+    <AppAlert
       v-if="lists.error"
-      class="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger"
-      role="alert"
-    >
-      {{ lists.error }}
-    </div>
+      :message="lists.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="lists.error = null"
+    />
 
     <form
       class="mb-4 flex flex-col gap-3 sm:flex-row"

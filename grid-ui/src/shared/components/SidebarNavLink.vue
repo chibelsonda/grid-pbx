@@ -19,7 +19,7 @@ defineEmits<{ select: [] }>()
     :to="item.to"
     :title="collapsed ? item.label : undefined"
     :aria-label="collapsed ? item.label : undefined"
-    class="sidebar-nav-item mb-1 flex h-10 items-center rounded-md text-[13px] font-medium transition-colors"
+    class="sidebar-nav-item mb-1 flex h-10 items-center rounded-md text-[13px] leading-5 font-medium transition-colors"
     :class="[
       collapsed ? 'justify-center px-2' : child ? 'px-2.5' : 'px-3',
       active ? 'sidebar-nav-item-active' : 'sidebar-nav-item-idle',

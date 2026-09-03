@@ -9,6 +9,7 @@ import {
   PrinterIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
@@ -132,7 +133,7 @@ function clearFaxBoxQuery(): void {
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Fax</p>
         <h1 class="text-xl font-semibold text-slate-800">Fax boxes & history</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Configure inbound fax boxes and securely access projected message documents.
         </p>
       </div>
@@ -157,16 +158,16 @@ function clearFaxBoxQuery(): void {
     </div>
   </section>
   <div class="page-container grid gap-6 py-4 sm:py-6 lg:py-8">
-    <div
+    <AppAlert
       v-if="faxes.error"
-      class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ faxes.error }}
-    </div>
+      :message="faxes.error"
+      tone="error"
+      @dismiss="faxes.error = null"
+    />
     <section v-if="operationEntries.length" class="card-surface overflow-hidden">
       <header class="border-b border-slate-100 px-5 py-4">
         <h2 class="text-sm font-semibold text-slate-700">Fax message operations</h2>
-        <p class="mt-1 text-[10px] text-slate-400">
+        <p class="mt-1 text-[10px] text-heading-description">
           Installed Switch operations remain unavailable until their safety policies are approved.
         </p>
       </header>

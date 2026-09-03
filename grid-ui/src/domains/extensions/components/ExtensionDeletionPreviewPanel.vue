@@ -7,6 +7,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { computed, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import type { ExtensionDeletionPreview } from '../types/extension'
 
@@ -39,12 +40,7 @@ const confirmed = computed(
     >
       Inspecting extension dependencies…
     </div>
-    <div
-      v-else-if="error"
-      class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ error }}
-    </div>
+    <FormErrorSummary v-else-if="error" :error="error" title="Unable to review the deletion" />
     <div v-else-if="preview" class="grid gap-5">
       <aside
         v-if="preview.recovery"
@@ -72,7 +68,7 @@ const confirmed = computed(
             <h2 class="mt-1 text-sm font-semibold text-slate-700">
               {{ preview.can_delete ? 'No known blockers' : 'Deletion is blocked' }}
             </h2>
-            <p class="mt-2 text-xs leading-5 text-slate-500">
+            <p class="mt-2 text-xs leading-5 text-heading-description">
               {{
                 preview.can_delete
                   ? 'The current projection is eligible for a future managed deletion workflow.'
@@ -105,7 +101,7 @@ const confirmed = computed(
           <ServerStackIcon class="size-5 text-brand-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Managed resources</h2>
-            <p class="text-[10px] text-slate-400">Resources owned by extension provisioning</p>
+            <p class="text-[10px] text-heading-description">Resources owned by extension provisioning</p>
           </div>
         </header>
         <div class="grid grid-cols-3 divide-x divide-slate-100 p-5 text-center">
@@ -192,12 +188,12 @@ const confirmed = computed(
             input-class="font-mono"
             :error="fieldErrors.confirmation"
           />
-          <div
-            v-if="deletionError"
-            class="mt-2 rounded-md border border-red-100 bg-red-50 p-3 text-xs leading-5 text-danger"
-          >
-            {{ deletionError }}
-          </div>
+          <FormErrorSummary
+            :error="Object.keys(fieldErrors).length === 0 ? deletionError : null"
+            :field-errors="fieldErrors"
+            title="Unable to delete the extension"
+            class="mt-2"
+          />
         </div>
       </article>
 

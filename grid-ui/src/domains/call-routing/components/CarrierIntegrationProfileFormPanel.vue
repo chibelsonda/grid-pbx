@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
 import {
@@ -78,13 +79,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <p
-        v-if="error"
-        role="alert"
-        class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ error }}
-      </p>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the carrier integration"
+      />
 
       <CallflowIntegrationProfileIdentityFields
         v-model:name="form.name"
@@ -96,7 +95,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Routing authorization</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             GridPBX stores no dial target, carrier identifier, or raw Switch account identifier in
             this profile.
           </p>

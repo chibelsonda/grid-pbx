@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, reactive, ref } from 'vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import { validateForm, type FormErrors } from '@/shared/forms/zod'
@@ -74,13 +75,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <p
-        v-if="error"
-        role="alert"
-        class="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ error }}
-      </p>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the Webhook integration"
+      />
 
       <CallflowIntegrationProfileIdentityFields
         v-model:name="form.name"
@@ -100,7 +99,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Private destination</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Use a controlled public HTTPS receiver. The Switch sends call context to this endpoint;
             DNS, redirects, TLS verification, and egress filtering must also be enforced by the
             deployment.
@@ -123,7 +122,7 @@ function submit(): void {
       <article class="card-surface overflow-hidden">
         <header class="border-b border-slate-200 px-5 py-4">
           <h2 class="text-sm font-semibold text-slate-700">Allowed callflow choices</h2>
-          <p class="mt-1 text-[10px] leading-4 text-slate-500">
+          <p class="mt-1 text-[10px] leading-4 text-heading-description">
             Editors can use only the methods and retry ceiling approved here.
           </p>
         </header>

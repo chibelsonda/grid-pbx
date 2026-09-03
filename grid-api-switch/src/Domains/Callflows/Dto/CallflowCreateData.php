@@ -164,7 +164,17 @@ final readonly class CallflowCreateData
             return ['rules' => array_values($this->destinationTemporalRuleIds)];
         }
 
-        return $this->destinationData($this->destinationModule, (string) $this->destinationResourceId);
+        $data = $this->destinationData(
+            $this->destinationModule,
+            (string) $this->destinationResourceId,
+        );
+
+        if ($this->destinationSettings !== null) {
+            $data['timeout'] = $this->destinationSettings['timeout'];
+            $data['can_call_self'] = $this->destinationSettings['can_call_self'];
+        }
+
+        return $data;
     }
 
     private function assertDestinationConfiguration(): void
@@ -185,7 +195,11 @@ final readonly class CallflowCreateData
         }
 
         if ($this->destinationSettings !== null) {
-            throw new InvalidArgumentException('Resource-backed callflow destinations cannot contain inline settings.');
+            if (! in_array($this->destinationModule, ['user', 'device'], true)) {
+                throw new InvalidArgumentException('This resource-backed callflow destination cannot contain settings.');
+            }
+
+            $this->assertEndpointSettings($this->destinationSettings);
         }
 
         if ($this->destinationTemporalRuleIds !== []) {
@@ -208,6 +222,20 @@ final readonly class CallflowCreateData
 
         if ($this->destinationResourceId === null || trim($this->destinationResourceId) === '') {
             throw new InvalidArgumentException('Switch callflow destination identifier is required.');
+        }
+    }
+
+    /** @param array<string, mixed> $settings */
+    private function assertEndpointSettings(array $settings): void
+    {
+        if (count($settings) !== 2
+            || ! array_key_exists('timeout', $settings)
+            || ! array_key_exists('can_call_self', $settings)
+            || ! is_int($settings['timeout'])
+            || $settings['timeout'] < 1
+            || $settings['timeout'] > 600
+            || ! is_bool($settings['can_call_self'])) {
+            throw new InvalidArgumentException('The guided endpoint action settings are invalid.');
         }
     }
 

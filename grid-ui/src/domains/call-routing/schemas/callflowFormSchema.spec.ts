@@ -130,6 +130,8 @@ describe('callflow form schema', () => {
     expect(result.success).toBe(true)
     if (!result.success) return
     expect(result.data.extension_numbers).toEqual(['2999'])
+    expect(result.data).not.toHaveProperty('temporal_rule_ids')
+    expect(result.data).not.toHaveProperty('temporal_rule_routes')
   })
 
   it('accepts an installed Call Forwarding operation as a typed root action', () => {

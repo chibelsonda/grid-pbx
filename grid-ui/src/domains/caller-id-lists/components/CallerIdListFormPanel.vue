@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { HashtagIcon, IdentificationIcon, PlusIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import BasicAdvancedFormTabs from '@/shared/components/BasicAdvancedFormTabs.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, { type ListboxOptionValue } from '@/shared/components/FormListbox.vue'
 import { useCallerIdListForm, type CallerIdEntryMode } from '../composables/useCallerIdListForm'
@@ -78,13 +79,11 @@ function submit(): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error"
-        class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the caller-ID list"
+      />
 
       <fieldset :disabled="!canManage || saving" class="disabled:opacity-75">
         <BasicAdvancedFormTabs v-model="selectedTab">
@@ -96,7 +95,7 @@ function submit(): void {
                 </span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">List identity</h2>
-                  <p class="text-[10px] text-slate-500">Name this reusable matching list.</p>
+                  <p class="text-[10px] text-heading-description">Name this reusable matching list.</p>
                 </div>
               </header>
               <div class="p-5">
@@ -119,7 +118,7 @@ function submit(): void {
                 </span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Match entries</h2>
-                  <p class="text-[10px] text-slate-500">
+                  <p class="text-[10px] text-heading-description">
                     Number entries may be exact values or prefixes. Patterns use Switch regular
                     expressions.
                   </p>
@@ -221,7 +220,7 @@ function submit(): void {
                 </span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">List metadata</h2>
-                  <p class="text-[10px] text-slate-500">
+                  <p class="text-[10px] text-heading-description">
                     Optional metadata from the installed Switch list schema.
                   </p>
                 </div>

@@ -40,6 +40,7 @@ final readonly class CallflowTreeNodeWriteData
         public ?string $branch,
         public string $module,
         public string $resourceId,
+        private ?array $settings,
     ) {
         if (! is_array($this->current['flow'] ?? null)) {
             throw new InvalidArgumentException('Switch callflow must contain a root flow node before its tree can be edited.');
@@ -52,6 +53,8 @@ final readonly class CallflowTreeNodeWriteData
         if (trim($this->resourceId) === '') {
             throw new InvalidArgumentException('The Switch callflow action identifier is required.');
         }
+
+        $this->assertSettings();
 
         $this->assertPublicPath($this->nodePath);
         $this->assertPublicPath($this->parentPath);
@@ -78,8 +81,9 @@ final readonly class CallflowTreeNodeWriteData
         string $branch,
         string $module,
         string $resourceId,
+        ?array $settings = null,
     ): self {
-        return new self($current, 'create', [], $parentPath, $branch, $module, $resourceId);
+        return new self($current, 'create', [], $parentPath, $branch, $module, $resourceId, $settings);
     }
 
     /**
@@ -91,8 +95,9 @@ final readonly class CallflowTreeNodeWriteData
         array $nodePath,
         string $module,
         string $resourceId,
+        ?array $settings = null,
     ): self {
-        return new self($current, 'update', $nodePath, [], null, $module, $resourceId);
+        return new self($current, 'update', $nodePath, [], null, $module, $resourceId, $settings);
     }
 
     /** @return array<string, mixed> */
@@ -261,7 +266,30 @@ final readonly class CallflowTreeNodeWriteData
             $current['id'] = $this->resourceId;
         }
 
+        if ($this->settings !== null) {
+            $current['timeout'] = $this->settings['timeout'];
+            $current['can_call_self'] = $this->settings['can_call_self'];
+        }
+
         return $current;
+    }
+
+    private function assertSettings(): void
+    {
+        if ($this->settings === null) {
+            return;
+        }
+
+        if (! in_array($this->module, ['user', 'device'], true)
+            || count($this->settings) !== 2
+            || ! array_key_exists('timeout', $this->settings)
+            || ! array_key_exists('can_call_self', $this->settings)
+            || ! is_int($this->settings['timeout'])
+            || $this->settings['timeout'] < 1
+            || $this->settings['timeout'] > 600
+            || ! is_bool($this->settings['can_call_self'])) {
+            throw new InvalidArgumentException('The guided endpoint action settings are invalid.');
+        }
     }
 
     /** @param array<string, mixed> $data @return array<string, mixed> */

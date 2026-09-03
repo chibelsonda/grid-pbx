@@ -112,10 +112,10 @@ function drop(event: DragEvent): void {
       <div class="pointer-events-none grid justify-items-center gap-2">
         <ArrowUpTrayIcon class="size-7 text-brand-500" aria-hidden="true" />
         <p class="text-xs font-semibold text-slate-700">{{ dropPrompt }}</p>
-        <p class="text-[10px] text-slate-500">or choose a file from your device</p>
+        <p class="text-[11px] text-slate-500">or choose a file from your device</p>
         <p
           v-if="modelValue"
-          class="max-w-full truncate rounded-md bg-white px-3 py-1.5 text-[10px] font-semibold text-brand-700 shadow-sm"
+          class="max-w-full truncate rounded-md bg-white px-3 py-1.5 text-[11px] font-semibold text-brand-700 shadow-sm"
         >
           {{ modelValue.name }}
         </p>
@@ -135,10 +135,10 @@ function drop(event: DragEvent): void {
       :class="validationControlClass(errorMessage)"
       @change="update"
     />
-    <p v-if="description" :id="descriptionId" class="text-[10px] leading-4 text-slate-500">
+    <p v-if="description" :id="descriptionId" class="text-[11px] leading-4 text-slate-500">
       {{ description }}
     </p>
-    <p v-if="errorMessage" :id="errorId" class="text-[10px] leading-4 text-danger">
+    <p v-if="errorMessage" :id="errorId" class="text-[11px] leading-4 text-danger">
       {{ errorMessage }}
     </p>
   </div>

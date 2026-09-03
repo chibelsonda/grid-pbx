@@ -113,17 +113,24 @@ export type CallflowTreeNodeDeleteInput = {
   confirm_subtree: true
 }
 
+export type CallflowReferenceNodeData = {
+  timeout: number
+  can_call_self: boolean
+}
+
 export type CallflowTreeNodeCreateInput = {
   parent_path: string[]
   branch: CallflowTreeBranchKey
   destination_type: CallflowDestinationType
   destination_id: string
+  data?: CallflowReferenceNodeData
 }
 
 export type CallflowTreeNodeUpdateInput = {
   node_path: string[]
   destination_type: CallflowDestinationType
   destination_id: string
+  data?: CallflowReferenceNodeData
 }
 
 export const callflowInlineModules = [
@@ -211,6 +218,7 @@ export type CallflowInlineNodeData = {
   duration_ms?: number
   code?: number
   message?: string | null
+  media_id?: string | null
   variable?: 'call_priority'
   value?: string
   channel?: 'a' | 'both'
@@ -221,7 +229,6 @@ export type CallflowInlineNodeData = {
   target_type?: 'extension' | 'device' | 'group'
   target_id?: string
   audio?: 'one-way' | 'two-way'
-  device_ids?: string[]
   strategy?: 'simultaneous' | 'single' | 'weighted_random'
   endpoints?: CallflowRingGroupEndpoint[]
   repeats?: number
@@ -452,8 +459,35 @@ export type CallflowEditor = {
     available: boolean
     assigned_callflow: { id: string; name: string | null } | null
   }>
+  phone_number_inventory?: {
+    status: 'healthy' | 'syncing' | 'stale' | 'error'
+    last_successful_at: string | null
+    error_message: string | null
+    total_count: number
+    unassigned_count: number
+  }
   extension_numbers?: string[]
   preserved_numbers?: string[]
+}
+
+export type CallflowExtensionDirectoryEntry = {
+  number: string
+  source: 'managed_extension' | 'callflow'
+  label: string
+  callflow: { id: string; name: string | null } | null
+  current: boolean
+}
+
+export type CallflowExtensionAvailability = {
+  number: string
+  available: boolean
+  reason: string | null
+  conflict: {
+    source: 'managed_extension' | 'callflow'
+    label: string
+    callflow: { id: string; name: string | null } | null
+  } | null
+  suggested_extension: string | null
 }
 
 export type CallflowActionCapability = {
@@ -509,6 +543,7 @@ export type CallflowUpdate = {
   name: string
   destination_type: CallflowDestinationType
   destination_id: string | null
+  destination_data?: CallflowReferenceNodeData
   temporal_rule_ids?: string[]
   temporal_rule_routes?: CallflowTemporalRuleRouteInput[]
   phone_number_ids: string[]

@@ -30,7 +30,7 @@ function addFormatter(): void {
   <div class="flex items-start justify-between gap-4">
     <div>
       <h3 class="text-xs font-semibold text-slate-700">Request formatters</h3>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Transform allowlisted Switch request fields without editing raw JSON.
       </p>
     </div>

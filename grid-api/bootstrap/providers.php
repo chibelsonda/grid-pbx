@@ -5,6 +5,7 @@ use App\Providers\BillingDocumentServiceProvider;
 use App\Providers\CallRoutingServiceProvider;
 use App\Providers\DashboardServiceProvider;
 use App\Providers\GlobalSearchServiceProvider;
+use App\Providers\IdentityAccessServiceProvider;
 use App\Providers\PaymentServiceProvider;
 use App\Providers\SecurityServiceProvider;
 use App\Providers\SwitchServiceProvider;
@@ -15,6 +16,7 @@ return [
     CallRoutingServiceProvider::class,
     DashboardServiceProvider::class,
     GlobalSearchServiceProvider::class,
+    IdentityAccessServiceProvider::class,
     PaymentServiceProvider::class,
     SecurityServiceProvider::class,
     SwitchServiceProvider::class,

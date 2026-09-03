@@ -44,7 +44,7 @@ function toggleEncryptionMethod(method: 'srtp' | 'zrtp'): void {
         <h2 class="text-sm font-semibold text-slate-700">
           {{ section === 'music-on-hold' ? 'Music on hold' : 'Media and endpoint audio' }}
         </h2>
-        <p class="text-[10px] leading-4 text-slate-500">
+        <p class="text-[10px] leading-4 text-heading-description">
           {{
             section === 'music-on-hold'
               ? 'Select the audio callers hear while this user places them on hold.'

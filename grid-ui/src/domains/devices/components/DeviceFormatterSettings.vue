@@ -29,7 +29,7 @@ function addFormatter(): void {
   <div class="flex items-start justify-between gap-4">
     <div>
       <h4 class="text-xs font-semibold text-slate-700">SIP field formatters</h4>
-      <p class="mt-1 text-[10px] leading-4 text-slate-400">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Transform supported Switch fields without exposing raw JSON.
       </p>
     </div>

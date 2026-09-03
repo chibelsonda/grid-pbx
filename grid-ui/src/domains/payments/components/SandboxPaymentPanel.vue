@@ -228,7 +228,7 @@ watch(
       </span>
       <div class="min-w-0 flex-1">
         <h2 class="text-sm font-semibold text-slate-700">Sandbox payment verification</h2>
-        <p class="mt-1 text-[10px] leading-4 text-slate-500">
+        <p class="mt-1 text-[10px] leading-4 text-heading-description">
           Authorize.Net hosts the card fields. GridPBX receives only a one-time opaque token.
         </p>
       </div>
@@ -285,7 +285,7 @@ watch(
         <div class="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Sandbox transaction controls</h3>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Uses the stored GridPBX attempt reference. Provider transaction identifiers and card
               data are never accepted from the browser.
             </p>
@@ -374,7 +374,7 @@ watch(
           <IdentificationIcon class="mt-0.5 size-5 shrink-0 text-brand-500" />
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Saved payment profiles</h3>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Safe account-level inventory only. Provider profile identifiers remain encrypted and
               private.
             </p>
@@ -426,7 +426,7 @@ watch(
             <ShieldCheckIcon class="mt-0.5 size-5 shrink-0 text-brand-500" />
             <div>
               <h3 class="text-xs font-semibold text-slate-700">Webhook reconciliation health</h3>
-              <p class="mt-1 text-[10px] leading-4 text-slate-500">
+              <p class="mt-1 text-[10px] leading-4 text-heading-description">
                 Sanitized delivery state only. Provider references and signed payloads are never
                 exposed.
               </p>
@@ -535,7 +535,7 @@ watch(
           <ClockIcon class="mt-0.5 size-5 shrink-0 text-brand-500" />
           <div>
             <h3 class="text-xs font-semibold text-slate-700">Recent payment activity</h3>
-            <p class="mt-1 text-[10px] leading-4 text-slate-500">
+            <p class="mt-1 text-[10px] leading-4 text-heading-description">
               Account-scoped, immutable state transitions without provider references or raw gateway
               data.
             </p>

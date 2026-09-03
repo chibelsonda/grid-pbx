@@ -13,6 +13,8 @@ import type {
   CallflowTreeNodeUpdateInput,
   CallflowInlineNodeCreateInput,
   CallflowInlineNodeUpdateInput,
+  CallflowExtensionAvailability,
+  CallflowExtensionDirectoryEntry,
   SyncRun,
   SyncState,
 } from '../types/callRouting'
@@ -27,6 +29,11 @@ export type CallflowPage = {
     total: number
     sync: SyncState
   }
+}
+
+export type CallflowExtensionDirectory = {
+  entries: CallflowExtensionDirectoryEntry[]
+  suggested_extension: string | null
 }
 
 export const callflowApi = {
@@ -60,6 +67,30 @@ export const callflowApi = {
   async createEditor(accountId: string): Promise<CallflowEditor> {
     const response = await http.get<ApiResponse<CallflowEditor>>(
       `/api/v1/accounts/${accountId}/callflows/editor`,
+    )
+
+    return unwrapApiData(response)
+  },
+  async extensionDirectory(
+    accountId: string,
+    search = '',
+    callflowId: string | null = null,
+  ): Promise<CallflowExtensionDirectory> {
+    const response = await http.get<ApiResponse<CallflowExtensionDirectory>>(
+      `/api/v1/accounts/${accountId}/callflows/extension-directory`,
+      { params: { search: search || undefined, callflow_id: callflowId || undefined } },
+    )
+
+    return unwrapApiData(response)
+  },
+  async extensionAvailability(
+    accountId: string,
+    number: string,
+    callflowId: string | null = null,
+  ): Promise<CallflowExtensionAvailability> {
+    const response = await http.get<ApiResponse<CallflowExtensionAvailability>>(
+      `/api/v1/accounts/${accountId}/callflows/extension-availability`,
+      { params: { number, callflow_id: callflowId || undefined } },
     )
 
     return unwrapApiData(response)
@@ -179,9 +210,11 @@ export const callflowApi = {
   async delete(accountId: string, callflowId: string): Promise<void> {
     await http.delete(`/api/v1/accounts/${accountId}/callflows/${callflowId}`)
   },
-  async startProjectionSync(accountId: string): Promise<SyncRun> {
+  async startProjectionSync(accountId: string, globalNotification = true): Promise<SyncRun> {
     const response = await http.post<ApiResponse<SyncRun>>(
       `/api/v1/accounts/${accountId}/sync/extensions`,
+      undefined,
+      { globalNotification },
     )
 
     return unwrapApiData(response)

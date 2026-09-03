@@ -2,6 +2,7 @@
 import { computed, watch } from 'vue'
 import { ArrowPathIcon, BoltIcon, UserCircleIcon } from '@heroicons/vue/24/outline'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -113,18 +114,16 @@ function submit(): void {
   <CrudSlideOver
     title="Agent status"
     eyebrow="GridPBX / Queues / Agents"
-    description="Live ACDc state is read from Switch and is not treated as durable MySQL configuration."
+    description="Live ACDc state is read from Switch and is not treated as durable GridPBX configuration."
     width="medium"
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to update the agent status"
+      />
       <article class="card-surface p-5">
         <div class="flex items-center gap-4">
           <span class="grid size-11 place-items-center rounded-full bg-brand-50 text-brand-600"
@@ -132,7 +131,7 @@ function submit(): void {
           /></span>
           <div>
             <h2 class="text-sm font-semibold text-slate-700">{{ agent.name }}</h2>
-            <p class="text-xs text-slate-400">Extension {{ agent.extension ?? 'not assigned' }}</p>
+            <p class="text-xs text-heading-description">Extension {{ agent.extension ?? 'not assigned' }}</p>
           </div>
         </div>
         <div class="mt-5 rounded-md bg-slate-50 p-4">
@@ -201,7 +200,7 @@ function submit(): void {
           <BoltIcon class="size-5 text-amber-500" />
           <div>
             <h2 class="text-sm font-semibold text-slate-700">Request status change</h2>
-            <p class="text-[10px] text-slate-400">
+            <p class="text-[10px] text-heading-description">
               Recommended actions follow the observed state. Other REST commands remain available
               because Switch can defer them while an Agent is on a call.
             </p>

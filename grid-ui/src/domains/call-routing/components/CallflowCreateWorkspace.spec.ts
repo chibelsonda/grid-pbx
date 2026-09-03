@@ -1,7 +1,9 @@
 import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
+import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
 import CallflowCreateWorkspace from './CallflowCreateWorkspace.vue'
 import type { CallflowEditor } from '../types/callRouting'
 
@@ -159,10 +161,13 @@ describe('CallflowCreateWorkspace', () => {
     })
 
     expect(wrapper.get('input[placeholder="e.g. 2999"]').attributes('aria-invalid')).toBe('true')
-    expect(wrapper.text()).toContain('Extension 2999 already enters another callflow.')
+    expect(wrapper.text().match(/Extension 2999 already enters another callflow\./g)).toHaveLength(
+      1,
+    )
+    expect(wrapper.find('[data-testid="form-error-summary"]').exists()).toBe(false)
   })
 
-  it('keeps compact create actions directly above the callflow parent node', () => {
+  it('exposes the create form to persistent page-header actions', () => {
     const wrapper = mount(CallflowCreateWorkspace, {
       props: {
         editor: createEditor(),
@@ -173,16 +178,95 @@ describe('CallflowCreateWorkspace', () => {
     })
 
     const canvas = wrapper.get('[aria-label="Create callflow canvas"]')
-    const cancel = canvas.findAll('button').find((button) => button.text() === 'Cancel')
-    const create = canvas.findAll('button').find((button) => button.text() === 'Create callflow')
+    expect(wrapper.get('form').attributes('id')).toBe('callflow-create-form')
+    expect(canvas.text()).not.toContain('Create callflow')
+    expect(canvas.text()).not.toContain('Cancel')
+  })
 
-    expect(
-      canvas.element.querySelector(
-        '[data-callflow-create-actions] + article[aria-label="Callflow entry"]',
-      ),
-    ).not.toBeNull()
-    expect(cancel?.classes()).toContain('h-8')
-    expect(create?.classes()).toContain('h-8')
+  it('reports whether the create workspace has an unsaved draft', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    expect(wrapper.emitted('dirty-change')).toEqual([[false]])
+
+    await wrapper.get('input[type="search"]').setValue('user')
+    await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
+
+    expect(wrapper.emitted('dirty-change')?.at(-1)).toEqual([true])
+  })
+
+  it('configures Switch User fields and resource actions in the dropped root modal', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+          CallflowResourceActionsDialog: {
+            name: 'CallflowResourceActionsDialog',
+            props: ['open', 'type', 'selectedId', 'selectedLabel'],
+            template: '<div data-resource-actions-dialog />',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('[aria-label="Edit callflow name and numbers"]').trigger('click')
+    await wrapper.get('input[required]').setValue('Reception route')
+    await wrapper.get('input[type="checkbox"]').setValue(true)
+    await wrapper.get('input[type="search"]').setValue('user')
+    await wrapper.get('[aria-label="Use User as root action"]').trigger('click')
+
+    const timeout = wrapper
+      .findAllComponents(FormInput)
+      .find((input) => input.props('label') === 'Timeout')
+    const canCallSelf = wrapper
+      .findAllComponents(ToggleSwitch)
+      .find((toggle) => toggle.props('label') === 'Allow calls to self')
+    expect(timeout?.props('modelValue')).toBe(20)
+    expect(canCallSelf?.props('modelValue')).toBe(false)
+
+    timeout!.vm.$emit('update:modelValue', 45)
+    canCallSelf!.vm.$emit('update:modelValue', true)
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Links / actions'))!
+      .trigger('click')
+
+    expect(wrapper.findComponent({ name: 'CallflowResourceActionsDialog' }).props()).toMatchObject({
+      open: true,
+      type: 'extension',
+      selectedId: extensionId,
+      selectedLabel: 'Reception',
+    })
+
+    await wrapper.get('form').trigger('submit')
+    expect(wrapper.emitted('save')?.[0]?.[0]).toMatchObject({
+      destination_type: 'extension',
+      destination_id: extensionId,
+      destination_data: { timeout: 45, can_call_self: true },
+    })
   })
 
   it('lets the action palette float and return to its dock without affecting action dragging', async () => {
@@ -569,6 +653,86 @@ describe('CallflowCreateWorkspace', () => {
       ],
       phone_number_ids: [phoneNumberId],
     })
+  })
+
+  it('reopens the root action editor for validation belonging to the selected action', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('menu')
+    await wrapper.get('[aria-label="Use Menu as root action"]').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Use action')!
+      .trigger('click')
+
+    expect(wrapper.text()).not.toContain('Menu key routes')
+
+    await wrapper.setProps({
+      error: 'The submitted callflow is invalid.',
+      fieldErrors: {
+        menu_branches: ['Configure the menu branches.'],
+      },
+    })
+
+    const summary = wrapper.get('[data-testid="form-error-summary"]')
+    expect(summary.text()).toContain('Configure the menu branches.')
+    expect(wrapper.text()).toContain('Menu key routes')
+  })
+
+  it('does not reopen a Voicemail editor for unrelated Temporal Rule errors', async () => {
+    const wrapper = mount(CallflowCreateWorkspace, {
+      props: {
+        editor: createEditor(),
+        saving: false,
+        error: null,
+        fieldErrors: {},
+      },
+      global: {
+        stubs: {
+          CallflowNodeInfoDialog: {
+            props: ['open'],
+            template: '<div v-if="open"><slot /></div>',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('input[type="search"]').setValue('voicemail')
+    await wrapper.get('[aria-label="Use Voicemail as root action"]').trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((button) => button.text() === 'Use action')!
+      .trigger('click')
+
+    expect(wrapper.text()).not.toContain('Send the caller to a voicemail box.')
+
+    await wrapper.setProps({
+      error: 'The submitted callflow is invalid.',
+      fieldErrors: {
+        temporal_rule_ids: ['Select at least one temporal rule.'],
+        temporal_rule_routes: ['Configure at least one temporal route.'],
+      },
+    })
+
+    expect(wrapper.get('[data-testid="form-error-summary"]').text()).toContain(
+      'Select at least one temporal rule.',
+    )
+    expect(wrapper.text()).not.toContain('Send the caller to a voicemail box.')
   })
 
   it('drops a guided palette action onto the next editable Menu key with a public UUID', async () => {

@@ -5,6 +5,7 @@ import { PlusIcon, UserGroupIcon, WrenchScrewdriverIcon } from '@heroicons/vue/2
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useDeviceStore } from '@/domains/devices/stores/deviceStore'
 import { useVoicemailStore } from '@/domains/voicemail/stores/voicemailStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
@@ -100,7 +101,7 @@ function recoverOperation(
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / People & Extensions</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">People & Extensions</h1>
-        <p class="mt-1 text-xs text-slate-500">Fast MySQL projection of users managed by Switch.</p>
+        <p class="mt-1 text-xs text-heading-description">Fast projection of users managed by Switch.</p>
       </div>
       <div class="flex flex-col items-start gap-1 xl:ml-auto xl:items-end">
         <div class="flex w-full flex-wrap gap-2 sm:w-auto">
@@ -145,7 +146,7 @@ function recoverOperation(
       <div>
         <UserGroupIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">No Switch account is mapped</h2>
-        <p class="mt-2 max-w-md text-xs leading-5 text-slate-500">
+        <p class="mt-2 max-w-md text-xs leading-5 text-heading-description">
           Set SWITCH_ACCOUNT_ID and seed the API database, then return here to run the first
           projection sync.
         </p>
@@ -166,13 +167,13 @@ function recoverOperation(
         </form>
       </div>
 
-      <div
+      <AppAlert
         v-if="extensions.error"
-        class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-        role="alert"
-      >
-        {{ extensions.error }}
-      </div>
+        :message="extensions.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="extensions.error = null"
+      />
 
       <div class="card-surface min-w-0 max-w-full overflow-hidden" :aria-busy="extensions.loading">
         <div class="max-w-full overflow-x-auto overscroll-x-contain">

@@ -53,7 +53,7 @@ function hasOverride(region: ShellThemeRegion): boolean {
       <header class="flex items-center gap-3 border-b border-slate-200 px-4 py-3">
         <div>
           <h2 class="text-sm font-semibold text-slate-700">Application theme</h2>
-          <p class="mt-0.5 text-[10px] text-slate-500">
+          <p class="mt-0.5 text-[10px] text-heading-description">
             One choice coordinates navigation, accents, and the workspace.
           </p>
         </div>
@@ -188,7 +188,7 @@ function hasOverride(region: ShellThemeRegion): boolean {
         <AdjustmentsHorizontalIcon class="size-4 text-brand-500" />
         <div>
           <h2 class="text-sm font-semibold text-slate-700">Advanced overrides</h2>
-          <p class="mt-0.5 text-[10px] text-slate-500">
+          <p class="mt-0.5 text-[10px] text-heading-description">
             Fine-tune header or sidebar independently.
           </p>
         </div>
@@ -212,7 +212,7 @@ function hasOverride(region: ShellThemeRegion): boolean {
           <div class="mb-3 flex items-center gap-2">
             <div>
               <h3 class="text-xs font-semibold text-slate-700 capitalize">{{ region }} style</h3>
-              <p class="text-[9px] text-slate-500">
+              <p class="text-[9px] text-heading-description">
                 {{ selectedTheme(region).label }}
                 <template v-if="hasOverride(region)"> · custom override</template>
               </p>

@@ -87,7 +87,8 @@ vi.mock('../api/callflowApi', () => ({
         ) => Promise<Callflow>
       >(),
     delete: vi.fn<(accountId: string, callflowId: string) => Promise<void>>(),
-    startProjectionSync: vi.fn<(accountId: string) => Promise<SyncRun>>(),
+    startProjectionSync:
+      vi.fn<(accountId: string, globalNotification?: boolean) => Promise<SyncRun>>(),
     syncStatus: vi.fn<(accountId: string, runId: string) => Promise<SyncRun>>(),
   },
 }))
@@ -127,6 +128,12 @@ describe('callflow store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
+    vi.mocked(callflowApi.startProjectionSync).mockResolvedValue({
+      id: 'pre-create-sync',
+      resource_type: 'extensions',
+      status: 'succeeded',
+      error_message: null,
+    })
   })
 
   it('loads filtered routing projections and freshness metadata', async () => {
@@ -164,6 +171,25 @@ describe('callflow store', () => {
 
     expect(callflowApi.detail).toHaveBeenCalledWith('account-1', callflow.id)
     expect(store.detail?.flow?.children._?.module).toBe('voicemail')
+  })
+
+  it('does not reopen a route after it is closed while detail loading is in flight', async () => {
+    let resolveDetail!: (value: Callflow) => void
+    vi.mocked(callflowApi.detail).mockReturnValue(
+      new Promise((resolve) => {
+        resolveDetail = resolve
+      }),
+    )
+    const store = useCallflowStore()
+
+    const loading = store.loadDetail('account-1', callflow.id)
+    expect(store.detailLoading).toBe(true)
+    store.closeDetail()
+    resolveDetail(callflow)
+    await loading
+
+    expect(store.detail).toBeNull()
+    expect(store.detailLoading).toBe(false)
   })
 
   it('reloads routes after the shared PBX projection sync completes', async () => {
@@ -401,10 +427,72 @@ describe('callflow store', () => {
     const deleted = await store.destroy('account-1', callflow.id)
 
     expect(callflowApi.createEditor).toHaveBeenCalledWith('account-1')
+    expect(callflowApi.startProjectionSync).toHaveBeenCalledWith('account-1', false)
     expect(callflowApi.create).toHaveBeenCalledWith('account-1', input)
+    expect(vi.mocked(callflowApi.startProjectionSync).mock.invocationCallOrder[0]!).toBeLessThan(
+      vi.mocked(callflowApi.create).mock.invocationCallOrder[0]!,
+    )
     expect(callflowApi.delete).toHaveBeenCalledWith('account-1', callflow.id)
     expect(deleted).toBe(true)
     expect(store.records).toEqual([])
+  })
+
+  it('does not attempt a Switch write when the pre-create projection sync fails', async () => {
+    vi.mocked(callflowApi.startProjectionSync).mockResolvedValue({
+      id: 'failed-pre-create-sync',
+      resource_type: 'extensions',
+      status: 'failed',
+      error_message: 'Unable to refresh the callflow projection.',
+    })
+    const store = useCallflowStore()
+
+    const created = await store.create('account-1', {
+      name: 'Support',
+      destination_type: 'extension',
+      destination_id: 'extension-public-id',
+      phone_number_ids: [],
+      extension_numbers: ['1234'],
+    })
+
+    expect(created).toBeNull()
+    expect(callflowApi.startProjectionSync).toHaveBeenCalledWith('account-1', false)
+    expect(callflowApi.create).not.toHaveBeenCalled()
+    expect(store.editorError).toBe('Unable to refresh the callflow projection.')
+    expect(store.preparingCreation).toBe(false)
+    expect(store.saving).toBe(false)
+  })
+
+  it('surfaces an extension conflict found after the pre-create projection sync', async () => {
+    vi.mocked(callflowApi.create).mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 422,
+        data: {
+          message: 'Extension 1234 is already assigned to another callflow.',
+          code: 'callflow_number_conflict',
+          errors: {
+            extension_numbers: ['Extension 1234 is already assigned to another callflow.'],
+          },
+        },
+      },
+    })
+    const store = useCallflowStore()
+
+    const created = await store.create('account-1', {
+      name: 'Support',
+      destination_type: 'extension',
+      destination_id: 'extension-public-id',
+      phone_number_ids: [],
+      extension_numbers: ['1234'],
+    })
+
+    expect(created).toBeNull()
+    expect(callflowApi.startProjectionSync).toHaveBeenCalledWith('account-1', false)
+    expect(callflowApi.create).toHaveBeenCalledOnce()
+    expect(store.fieldErrors.extension_numbers).toEqual([
+      'Extension 1234 is already assigned to another callflow.',
+    ])
+    expect(store.editorError).toBeNull()
   })
 
   it('refreshes create capabilities without replacing the editor that owns an unsaved draft', async () => {

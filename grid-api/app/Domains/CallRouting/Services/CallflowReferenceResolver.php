@@ -160,6 +160,13 @@ class CallflowReferenceResolver
         array $data,
         array $targets,
     ): ?array {
+        if (in_array($module, ['user', 'device'], true)) {
+            return [
+                'timeout' => is_int($data['timeout'] ?? null) ? $data['timeout'] : 20,
+                'can_call_self' => ($data['can_call_self'] ?? false) === true,
+            ];
+        }
+
         if ($module === 'dynamic_cid') {
             $callerId = is_array($data['caller_id'] ?? null) ? $data['caller_id'] : [];
             $number = is_string($callerId['number'] ?? null) ? $callerId['number'] : null;
@@ -345,6 +352,24 @@ class CallflowReferenceResolver
             ];
         }
 
+        if ($module === 'response') {
+            $resourceId = is_string($data['media'] ?? null) && $data['media'] !== ''
+                ? $data['media']
+                : null;
+            $media = $resourceId === null ? null : ($targets['media'][$resourceId] ?? null);
+
+            return [
+                'code' => is_int($data['code'] ?? null) ? $data['code'] : 486,
+                'message' => is_string($data['message'] ?? null) ? $data['message'] : null,
+                'media_id' => $media['id'] ?? null,
+                'media_label' => $media['label'] ?? null,
+                'media_reference_status' => $resourceId === null
+                    ? 'not_applicable'
+                    : ($media === null ? 'unresolved' : 'resolved'),
+                'skip_module' => (bool) ($data['skip_module'] ?? false),
+            ];
+        }
+
         if ($module === 'branch_variable') {
             return $this->publicBranchVariableSettings($data);
         }
@@ -375,7 +400,6 @@ class CallflowReferenceResolver
             'flush_dtmf' => ['collection_name', 'skip_module'],
             'dead_air' => ['skip_module'],
             'language' => ['language', 'skip_module'],
-            'response' => ['code', 'message', 'skip_module'],
             'hangup' => ['skip_module'],
             'set_cid' => ['caller_id_name', 'caller_id_number', 'skip_module'],
             'prepend_cid' => [
@@ -418,34 +442,47 @@ class CallflowReferenceResolver
             && array_is_list($endpoints)
             && $endpoints !== []
             && count($endpoints) <= 20;
-        $deviceIds = [];
+        $publicEndpoints = [];
         $seen = [];
 
         foreach ($supported ? $endpoints : [] as $endpoint) {
             $resourceId = is_array($endpoint) && is_string($endpoint['id'] ?? null)
                 ? $endpoint['id']
                 : null;
-            $device = $resourceId === null ? null : ($targets['device'][$resourceId] ?? null);
+            $switchType = is_array($endpoint) ? ($endpoint['endpoint_type'] ?? null) : null;
+            $publicType = match ($switchType) {
+                'device' => 'device',
+                'user' => 'extension',
+                'group' => 'group',
+                default => null,
+            };
+            $target = $resourceId === null || $publicType === null
+                ? null
+                : ($targets[$publicType][$resourceId] ?? null);
+            $identity = $publicType.':'.$resourceId;
 
             if (! is_array($endpoint)
-                || ($endpoint['endpoint_type'] ?? null) !== 'device'
-                || ! $this->optionalIntegerInRange($endpoint, 'delay', 0, 30)
-                || ! $this->optionalIntegerInRange($endpoint, 'timeout', 1, 30)
+                || ! $this->optionalIntegerInRange($endpoint, 'delay', 0, 60)
+                || ! $this->optionalIntegerInRange($endpoint, 'timeout', 1, 60)
                 || ! $this->optionalIntegerInRange($endpoint, 'weight', 1, 100)
-                || $device === null
-                || isset($seen[$resourceId])) {
+                || $target === null
+                || isset($seen[$identity])) {
                 $supported = false;
                 break;
             }
 
-            $seen[$resourceId] = true;
-            $deviceIds[] = $device['id'];
+            $seen[$identity] = true;
+            $publicEndpoints[] = [
+                $publicType.'_id' => $target['id'],
+                'delay' => is_int($endpoint['delay'] ?? null) ? $endpoint['delay'] : 0,
+                'timeout' => is_int($endpoint['timeout'] ?? null) ? $endpoint['timeout'] : 20,
+            ];
         }
 
         return [
             'supported_configuration' => $supported,
             'audio' => $supported ? $audio : null,
-            'device_ids' => $supported ? $deviceIds : [],
+            'endpoints' => $supported ? $publicEndpoints : [],
             'reference_status' => $supported ? 'resolved' : 'unresolved',
             'skip_module' => (bool) ($data['skip_module'] ?? false),
         ];

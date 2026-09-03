@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleIcon, KeyIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import { validateForm } from '@/shared/forms/zod'
 import DeviceFormFields from '../components/DeviceFormFields.vue'
 import {
@@ -136,7 +137,7 @@ function close(): void {
   <CrudSlideOver
     :title="title"
     :eyebrow="`GridPBX / Devices / ${title}`"
-    description="Configuration is written to Switch and immediately projected into MySQL."
+    description="Configuration is written to Switch and immediately projected into GridPBX."
     @close="close"
   >
     <div
@@ -146,7 +147,7 @@ function close(): void {
       <div>
         <KeyIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           Your organization role can view devices but cannot change Switch configuration.
         </p>
       </div>
@@ -169,13 +170,11 @@ function close(): void {
     </div>
 
     <form v-else class="grid gap-5" novalidate @submit.prevent="save">
-      <div
-        v-if="devices.mutationError && Object.keys(devices.fieldErrors).length === 0"
-        role="alert"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ devices.mutationError }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(devices.fieldErrors).length === 0 ? devices.mutationError : null"
+        :field-errors="devices.fieldErrors"
+        :title="isEditing ? 'Unable to save the device' : 'Unable to create the device'"
+      />
 
       <DeviceFormFields
         :form="form"

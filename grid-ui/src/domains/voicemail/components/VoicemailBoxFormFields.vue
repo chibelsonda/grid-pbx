@@ -124,7 +124,7 @@ function fieldError(field: string): string | null {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Mailbox identity</h2>
-              <p class="text-[10px] text-slate-500">
+              <p class="text-[10px] text-heading-description">
                 {{
                   lockIdentity
                     ? 'Managed by the parent Extension workflow'
@@ -163,7 +163,7 @@ function fieldError(field: string): string | null {
             <EnvelopeIcon class="size-5 text-emerald-500" />
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Notifications</h2>
-              <p class="text-[10px] text-slate-500">One email address per line, up to ten</p>
+              <p class="text-[10px] text-heading-description">One email address per line, up to ten</p>
             </div>
           </header>
           <div class="p-5">
@@ -417,7 +417,7 @@ function fieldError(field: string): string | null {
             <KeyIcon class="size-5 text-amber-500" />
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Mailbox PIN</h2>
-              <p class="text-[10px] text-slate-500">Optional and write-only</p>
+              <p class="text-[10px] text-heading-description">Optional and write-only</p>
             </div>
           </header>
           <div class="p-5">

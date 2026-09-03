@@ -9,7 +9,14 @@ $localOriginPatterns = env('APP_ENV', 'production') === 'local'
     : [];
 
 return [
-    'paths' => ['api/*', 'login', 'logout', 'sanctum/csrf-cookie'],
+    'paths' => [
+        'api/*',
+        'login',
+        'logout',
+        'forgot-password',
+        'reset-password',
+        'sanctum/csrf-cookie',
+    ],
     'allowed_methods' => ['*'],
     'allowed_origins' => $frontendOrigins,
     'allowed_origins_patterns' => $localOriginPatterns,

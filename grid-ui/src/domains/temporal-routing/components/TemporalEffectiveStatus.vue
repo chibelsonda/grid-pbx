@@ -47,7 +47,7 @@ function confirm(): void {
       <BoltIcon class="size-5 text-amber-500" />
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Effective status</h2>
-        <p class="text-[10px] text-slate-400">Evaluated in {{ status.timezone }}.</p>
+        <p class="text-[10px] text-heading-description">Evaluated in {{ status.timezone }}.</p>
       </div>
       <span
         class="ml-auto rounded-full px-2.5 py-1 text-[10px] font-semibold"

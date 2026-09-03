@@ -16,17 +16,26 @@ class StoreCallflowRequest extends FormRequest
     public function rules(): array
     {
         $usesInlineRoot = fn (): bool => is_array($this->input('root_action'));
+        $hasEndpointSettings = in_array($this->input('destination_type'), ['extension', 'device'], true);
+        $strictBoolean = static function (string $attribute, mixed $value, \Closure $fail): void {
+            if (! is_bool($value)) {
+                $fail("The {$attribute} field must be true or false.");
+            }
+        };
 
         return [
             'name' => ['required', 'string', 'max:128'],
             'destination_type' => [Rule::requiredIf(fn (): bool => ! $usesInlineRoot()), Rule::prohibitedIf($usesInlineRoot), 'nullable', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set', 'temporal_rules'])],
             'destination_id' => [Rule::requiredIf(fn (): bool => ! $usesInlineRoot() && $this->input('destination_type') !== 'temporal_rules'), Rule::prohibitedIf($usesInlineRoot), 'nullable', 'uuid'],
+            'destination_data' => ['sometimes', Rule::prohibitedIf(! $hasEndpointSettings), 'array:timeout,can_call_self'],
+            'destination_data.timeout' => ['required_with:destination_data', 'integer', 'min:1', 'max:600'],
+            'destination_data.can_call_self' => ['required_with:destination_data', $strictBoolean],
             'root_action' => ['nullable', 'array:module,data'],
             'root_action.module' => ['required_with:root_action', 'string', Rule::in(['ring_group', 'call_forward', 'dynamic_cid', 'pivot'])],
             'root_action.data' => ['required_with:root_action', 'array'],
-            'temporal_rule_ids' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],
+            'temporal_rule_ids' => ['exclude_unless:destination_type,temporal_rules', 'required', 'array', 'min:1', 'max:50'],
             'temporal_rule_ids.*' => ['required', 'uuid', 'distinct'],
-            'temporal_rule_routes' => ['required_if:destination_type,temporal_rules', 'array', 'min:1', 'max:50'],
+            'temporal_rule_routes' => ['exclude_unless:destination_type,temporal_rules', 'required', 'array', 'min:1', 'max:50'],
             'temporal_rule_routes.*.rule_id' => ['required', 'uuid', 'distinct'],
             'temporal_rule_routes.*.destination_type' => ['required', Rule::in(['extension', 'device', 'voicemail', 'callflow', 'media', 'directory', 'group', 'queue', 'menu', 'conference', 'fax_box', 'temporal_rule_set'])],
             'temporal_rule_routes.*.destination_id' => ['required', 'uuid'],

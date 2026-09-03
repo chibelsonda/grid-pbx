@@ -15,6 +15,7 @@ import {
   UserGroupIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import CircularCountBadge from '@/shared/components/CircularCountBadge.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -202,7 +203,7 @@ watch(
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-500">GridPBX / Workspace</p>
         <h1 class="text-xl font-semibold text-slate-800">Reseller administration</h1>
-        <p class="mt-1 text-xs text-slate-600">
+        <p class="mt-1 text-xs text-heading-description">
           Read-only Switch hierarchy, billing ownership, and projection coverage.
         </p>
       </div>
@@ -229,37 +230,23 @@ watch(
     </div>
 
     <template v-else>
-      <div
+      <AppAlert
         v-if="reseller.error"
-        class="mb-4 rounded-md border border-red-200 bg-red-50 p-4 text-xs font-medium text-red-700"
-      >
-        {{ reseller.error }}
-      </div>
+        :message="reseller.error"
+        tone="error"
+        class="mb-4"
+        @dismiss="reseller.error = null"
+      />
 
-      <div
-        v-if="reseller.onboardingNotice"
-        class="mb-4 flex items-start gap-3 rounded-md border p-4 text-xs font-medium"
-        :class="
-          reseller.onboardingNoticeTone === 'success'
-            ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-            : 'border-amber-200 bg-amber-50 text-amber-900'
-        "
+      <AppAlert
+        v-if="reseller.onboardingNotice && reseller.onboardingNoticeTone === 'warning'"
+        title="Follow-up required"
+        :message="reseller.onboardingNotice"
+        tone="warning"
+        class="mb-4"
         data-testid="reseller-onboarding-notice"
-      >
-        <CheckCircleIcon
-          v-if="reseller.onboardingNoticeTone === 'success'"
-          class="size-5 shrink-0 text-emerald-600"
-        />
-        <ExclamationTriangleIcon v-else class="size-5 shrink-0 text-amber-700" />
-        <span class="leading-5">{{ reseller.onboardingNotice }}</span>
-        <button
-          type="button"
-          class="ml-auto shrink-0 text-current underline decoration-current/40 underline-offset-2"
-          @click="reseller.onboardingNotice = null"
-        >
-          Dismiss
-        </button>
-      </div>
+        @dismiss="reseller.onboardingNotice = null"
+      />
 
       <div v-if="reseller.loading" class="card-surface p-14 text-center text-xs text-slate-500">
         Loading reseller administration…
@@ -422,7 +409,7 @@ watch(
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 class="text-sm font-semibold text-slate-800">Hierarchy service totals</h2>
-                  <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                  <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                     Aggregated only from the selected account and its managed descendants. Quantity
                     scopes remain separate to preserve their Switch billing meaning.
                   </p>
@@ -518,7 +505,7 @@ watch(
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <h3 class="text-xs font-semibold text-slate-800">Projected quantities</h3>
-                    <p class="mt-1 text-[11px] text-slate-600">
+                    <p class="mt-1 text-[11px] text-heading-description">
                       Grouped by Switch scope and service category.
                     </p>
                   </div>
@@ -604,7 +591,7 @@ watch(
             >
               <div class="border-b border-slate-200 px-5 py-5">
                 <h2 class="text-sm font-semibold text-slate-800">Account hierarchy</h2>
-                <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                   Only accounts projected into the current GridPBX organization are shown.
                 </p>
               </div>
@@ -692,7 +679,7 @@ watch(
               <section v-if="activeAdministrationIndex === 2" class="card-surface overflow-hidden">
                 <div class="border-b border-slate-200 px-5 py-5">
                   <h2 class="text-sm font-semibold text-slate-800">Billing ownership</h2>
-                  <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                  <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                     Resolved from the Switch service projection.
                   </p>
                 </div>
@@ -749,7 +736,7 @@ watch(
                       <h2 class="text-sm font-semibold text-slate-800">
                         Lifecycle and billing operations
                       </h2>
-                      <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                      <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                         Switch account and billing mutations remain unavailable until their
                         security, confirmation, audit, and recovery contracts are complete.
                       </p>
@@ -865,7 +852,7 @@ watch(
               <div class="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <h2 class="text-sm font-semibold text-slate-800">Descendant service ownership</h2>
-                  <p class="mt-0.5 text-[10px] leading-4 text-slate-600">
+                  <p class="mt-0.5 text-[10px] leading-4 text-heading-description">
                     Billing reseller resolution and service-projection health for every managed
                     descendant.
                   </p>
@@ -878,12 +865,13 @@ watch(
               </div>
             </div>
 
-            <div
+            <AppAlert
               v-if="reseller.descendantSyncError"
-              class="border-b border-red-200 bg-red-50 px-5 py-3 text-xs font-medium text-red-700"
-            >
-              {{ reseller.descendantSyncError }}
-            </div>
+              :message="reseller.descendantSyncError"
+              tone="error"
+              class="m-5"
+              @dismiss="reseller.descendantSyncError = null"
+            />
 
             <div class="divide-y divide-slate-200">
               <article

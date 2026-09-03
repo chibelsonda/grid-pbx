@@ -88,9 +88,10 @@ class CallflowInlineNodeDataValidator
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'response' => [
-                'data' => ['required', 'array:code,message,skip_module'],
-                'data.code' => ['required', 'integer', 'min:400', 'max:699'],
+                'data' => ['required', 'array:code,message,media_id,skip_module'],
+                'data.code' => ['required', 'integer', 'min:100', 'max:699'],
                 'data.message' => ['present', 'nullable', 'string', 'max:128'],
+                'data.media_id' => ['sometimes', 'nullable', 'uuid'],
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'hangup' => [
@@ -124,10 +125,15 @@ class CallflowInlineNodeDataValidator
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'page_group' => [
-                'data' => ['required', 'array:audio,device_ids,skip_module'],
+                'data' => ['required', 'array:audio,endpoints,skip_module'],
                 'data.audio' => ['required', 'string', Rule::in(['one-way', 'two-way'])],
-                'data.device_ids' => ['required', 'array', 'min:1', 'max:20'],
-                'data.device_ids.*' => ['required', 'uuid', 'distinct:strict'],
+                'data.endpoints' => ['required', 'array', 'min:1', 'max:20'],
+                'data.endpoints.*' => ['required', 'array:device_id,extension_id,group_id,delay,timeout'],
+                'data.endpoints.*.device_id' => ['nullable', 'uuid'],
+                'data.endpoints.*.extension_id' => ['nullable', 'uuid'],
+                'data.endpoints.*.group_id' => ['nullable', 'uuid'],
+                'data.endpoints.*.delay' => ['required', 'integer', 'min:0', 'max:60'],
+                'data.endpoints.*.timeout' => ['required', 'integer', 'min:1', 'max:60'],
                 'data.skip_module' => ['required', 'boolean'],
             ],
             'ring_group' => [
@@ -343,6 +349,10 @@ class CallflowInlineNodeDataValidator
             $this->validateRingGroup($settings);
         }
 
+        if ($module === 'page_group') {
+            $this->validatePageGroup($settings);
+        }
+
         return $settings;
     }
 
@@ -406,6 +416,40 @@ class CallflowInlineNodeDataValidator
             $errors['data.endpoints'] = [
                 'Keep the total Ring Group attempt duration within 120 seconds.',
             ];
+        }
+
+        if ($errors !== []) {
+            throw ValidationException::withMessages($errors);
+        }
+    }
+
+    /** @param array<string, mixed> $settings */
+    private function validatePageGroup(array $settings): void
+    {
+        $errors = [];
+        $identities = [];
+
+        foreach ($settings['endpoints'] as $index => $endpoint) {
+            $targets = array_filter([
+                'device' => $endpoint['device_id'] ?? null,
+                'extension' => $endpoint['extension_id'] ?? null,
+                'group' => $endpoint['group_id'] ?? null,
+            ], static fn (mixed $id): bool => is_string($id) && $id !== '');
+
+            if (count($targets) !== 1) {
+                $errors["data.endpoints.$index"] = [
+                    'Select exactly one synchronized Device, Extension, or Group.',
+                ];
+
+                continue;
+            }
+
+            $type = array_key_first($targets);
+            $identities[] = $type.':'.$targets[$type];
+        }
+
+        if (count(array_unique($identities)) !== count($identities)) {
+            $errors['data.endpoints'] = ['Choose each endpoint once.'];
         }
 
         if ($errors !== []) {

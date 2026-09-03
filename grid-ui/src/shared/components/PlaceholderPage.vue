@@ -9,7 +9,7 @@ defineProps<{ title: string; description: string }>()
     <div class="page-container">
       <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / {{ title }}</p>
       <h1 class="text-xl font-semibold tracking-tight text-slate-800">{{ title }}</h1>
-      <p class="mt-1 text-xs text-slate-500">{{ description }}</p>
+      <p class="mt-1 text-xs text-heading-description">{{ description }}</p>
     </div>
   </section>
   <div class="page-container py-4 sm:py-6 lg:py-8">
@@ -21,7 +21,7 @@ defineProps<{ title: string; description: string }>()
           <WrenchScrewdriverIcon class="size-6" />
         </span>
         <h2 class="mt-4 text-sm font-semibold text-slate-800">Scheduled for a later slice</h2>
-        <p class="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-500">
+        <p class="mx-auto mt-2 max-w-md text-xs leading-5 text-heading-description">
           This module has a bounded place in the new UI and will be connected to its Switch
           projection incrementally.
         </p>

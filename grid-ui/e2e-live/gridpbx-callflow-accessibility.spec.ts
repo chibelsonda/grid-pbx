@@ -57,7 +57,7 @@ test('keeps Call Routing inventory, workspace, palette, and node dialog usable o
 
   for (const action of [
     page.getByRole('button', { name: 'Create callflow' }),
-    page.getByRole('button', { name: 'Synchronize routing' }),
+    page.getByRole('button', { name: 'Sync from Switch' }),
   ]) {
     await expect(action).toBeVisible()
     await expectInsideViewport(page, action)
@@ -69,7 +69,7 @@ test('keeps Call Routing inventory, workspace, palette, and node dialog usable o
     name: 'Projected callflows for the selected Switch account',
   })
   await expect(table).toBeVisible()
-  await expect(table.getByRole('columnheader')).toHaveCount(6)
+  await expect(table.getByRole('columnheader')).toHaveCount(7)
   await expectNoDocumentOverflow(page)
   await page.screenshot({
     path: testInfo.outputPath('callflows-mobile-inventory.png'),
@@ -110,8 +110,8 @@ test('keeps Call Routing inventory, workspace, palette, and node dialog usable o
   await closeDialog.click()
   await expect(dialog).toHaveCount(0)
 
-  await expect(page.getByRole('button', { name: 'Close create callflow' })).toBeVisible()
-  await expectInsideViewport(page, page.getByRole('button', { name: 'Close create callflow' }))
+  await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible()
+  await expectInsideViewport(page, page.getByRole('button', { name: 'Cancel', exact: true }))
   await page.screenshot({
     path: testInfo.outputPath('callflow-mobile-create.png'),
     fullPage: true,

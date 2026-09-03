@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { BuildingOffice2Icon, ShieldExclamationIcon } from '@heroicons/vue/24/outline'
 import BasicAdvancedFormTabs from '@/shared/components/BasicAdvancedFormTabs.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox from '@/shared/components/FormListbox.vue'
 import ToggleSwitch from '@/shared/components/ToggleSwitch.vue'
@@ -175,9 +176,11 @@ function selectRestriction(key: string, value: ListboxValue): void {
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div v-if="error" class="rounded-md border border-red-200 bg-red-50 p-4 text-xs text-danger">
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the account settings"
+      />
       <BasicAdvancedFormTabs v-model="selectedTab">
         <template #basic>
           <article class="card-surface overflow-hidden">
@@ -276,7 +279,7 @@ function selectRestriction(key: string, value: ListboxValue): void {
           <article class="card-surface overflow-hidden">
             <header class="border-b border-slate-200 px-5 py-4">
               <h2 class="text-sm font-semibold text-slate-700">Default caller identity</h2>
-              <p class="mt-1 text-[10px] text-slate-500">
+              <p class="mt-1 text-[10px] text-heading-description">
                 External choices are account-owned numbers. Emergency choices require E911.
               </p>
             </header>
@@ -355,7 +358,7 @@ function selectRestriction(key: string, value: ListboxValue): void {
               <ShieldExclamationIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Account call restrictions</h2>
-                <p class="mt-1 text-[10px] text-slate-500">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Classifications are discovered from the connected Switch deployment.
                 </p>
               </div>

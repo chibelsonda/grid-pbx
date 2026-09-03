@@ -108,10 +108,10 @@ function change(event: Event): void {
       @input="update"
       @change="change"
     />
-    <p v-if="description" :id="descriptionId" class="text-[10px] leading-4 text-slate-500">
+    <p v-if="description" :id="descriptionId" class="text-[11px] leading-4 text-slate-500">
       {{ description }}
     </p>
-    <p v-if="errorMessage" :id="errorId" class="text-[10px] leading-4 text-danger">
+    <p v-if="errorMessage" :id="errorId" class="text-[11px] leading-4 text-danger">
       {{ errorMessage }}
     </p>
   </div>

@@ -6,7 +6,7 @@
 		reverse_proxy @backend grid-api:8081
 
 		@session_mutation {
-			path /login /logout
+			path /login /logout /forgot-password /reset-password
 			method POST OPTIONS
 		}
 		reverse_proxy @session_mutation grid-api:8081

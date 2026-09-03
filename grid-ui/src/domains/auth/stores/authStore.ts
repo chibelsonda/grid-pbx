@@ -1,9 +1,11 @@
 import axios from 'axios'
 import { defineStore } from 'pinia'
 import { sessionApi } from '../api/sessionApi'
+import type { ForgotPasswordInput } from '../schemas/forgotPasswordFormSchema'
 import type { LoginCredentials } from '../schemas/loginFormSchema'
 import type { PasswordInput } from '../schemas/passwordFormSchema'
 import type { ProfileInput } from '../schemas/profileFormSchema'
+import type { ResetPasswordInput } from '../schemas/resetPasswordFormSchema'
 import type { SessionUser } from '../types/session'
 
 export const useAuthStore = defineStore('auth', {
@@ -12,6 +14,10 @@ export const useAuthStore = defineStore('auth', {
     initialized: false,
     loading: false,
     error: null as string | null,
+    passwordResetLoading: false,
+    passwordResetMessage: null as string | null,
+    passwordResetError: null as string | null,
+    passwordResetFieldErrors: {} as Record<string, string[]>,
     profileSaving: false,
     profileError: null as string | null,
     profileFieldErrors: {} as Record<string, string[]>,
@@ -57,6 +63,55 @@ export const useAuthStore = defineStore('auth', {
       } finally {
         this.user = null
         this.initialized = true
+      }
+    },
+    clearPasswordResetState(): void {
+      this.passwordResetMessage = null
+      this.passwordResetError = null
+      this.passwordResetFieldErrors = {}
+    },
+    async requestPasswordReset(input: ForgotPasswordInput): Promise<boolean> {
+      this.passwordResetLoading = true
+      this.clearPasswordResetState()
+
+      try {
+        this.passwordResetMessage = (await sessionApi.requestPasswordReset(input)).message
+        return true
+      } catch (error) {
+        this.passwordResetFieldErrors = axios.isAxiosError(error)
+          ? (error.response?.data?.errors ?? {})
+          : {}
+        this.passwordResetError =
+          Object.keys(this.passwordResetFieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to request a reset link right now.')
+              : 'Unable to request a reset link right now.'
+        return false
+      } finally {
+        this.passwordResetLoading = false
+      }
+    },
+    async resetPassword(input: ResetPasswordInput): Promise<boolean> {
+      this.passwordResetLoading = true
+      this.clearPasswordResetState()
+
+      try {
+        this.passwordResetMessage = (await sessionApi.resetPassword(input)).message
+        return true
+      } catch (error) {
+        this.passwordResetFieldErrors = axios.isAxiosError(error)
+          ? (error.response?.data?.errors ?? {})
+          : {}
+        this.passwordResetError =
+          Object.keys(this.passwordResetFieldErrors).length > 0
+            ? null
+            : axios.isAxiosError(error)
+              ? (error.response?.data?.message ?? 'Unable to reset your password right now.')
+              : 'Unable to reset your password right now.'
+        return false
+      } finally {
+        this.passwordResetLoading = false
       }
     },
     clearProfileError(): void {

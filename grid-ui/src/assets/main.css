@@ -12,12 +12,19 @@
   --color-warning: #f7b924;
   --color-danger: #d92550;
   --color-canvas: #f1f4f6;
-  --color-ink: #343a40;
-  --color-muted: #6c757d;
+  --color-ink: #000000;
+  --color-muted: #111827;
+  --color-heading-description: #3f4a5a;
   --color-slate-100: #edf0f4;
   --color-slate-200: #dce2ea;
   --color-slate-300: #c8d1dc;
-  --color-slate-400: #5f6f85;
+  --color-slate-400: #1f2937;
+  --color-slate-500: #172033;
+  --color-slate-600: #111827;
+  --color-slate-700: #0b1120;
+  --color-slate-800: #030712;
+  --font-weight-semibold: 500;
+  --font-weight-bold: 600;
   --shadow-shell:
     0 0.46875rem 2.1875rem rgb(4 9 20 / 3%), 0 0.9375rem 1.40625rem rgb(4 9 20 / 3%),
     0 0.25rem 0.53125rem rgb(4 9 20 / 5%), 0 0.125rem 0.1875rem rgb(4 9 20 / 3%);
@@ -30,21 +37,21 @@
     --app-surface: #ffffff;
     --app-surface-muted: #f8fafc;
     --app-border: #dce2ea;
-    --app-foreground: #343a40;
-    --app-muted: #5f6f85;
+    --app-foreground: #000000;
+    --app-muted: #111827;
     --app-focus: rgb(63 106 216 / 24%);
     --app-header-background: #ffffff;
     --app-header-border: #e2e8f0;
-    --app-header-foreground: #334155;
-    --app-header-muted: #64748b;
+    --app-header-foreground: #030712;
+    --app-header-muted: #111827;
     --app-header-hover: #f8fafc;
     --app-header-active-background: #eef2ff;
     --app-header-active-foreground: #3255ad;
     --app-header-accent: #3f6ad8;
     --app-sidebar-background: #ffffff;
     --app-sidebar-border: #e2e8f0;
-    --app-sidebar-foreground: #334155;
-    --app-sidebar-muted: #64748b;
+    --app-sidebar-foreground: #030712;
+    --app-sidebar-muted: #111827;
     --app-sidebar-hover: #f8fafc;
     --app-sidebar-active-background: #eef2ff;
     --app-sidebar-active-foreground: #3255ad;
@@ -66,7 +73,10 @@
     background: var(--color-canvas);
     color: var(--color-ink);
     font-family:
-      Inter,
+      'Plus Jakarta Sans',
+      'Helvetica Neue',
+      Helvetica,
+      Arial,
       ui-sans-serif,
       system-ui,
       -apple-system,
@@ -74,6 +84,7 @@
       'Segoe UI',
       sans-serif;
     font-size: 0.875rem;
+    font-variant-numeric: tabular-nums;
     -webkit-font-smoothing: antialiased;
   }
 
@@ -166,6 +177,10 @@
 
   .app-notification-accent {
     color: var(--app-notification-tone);
+  }
+
+  .app-alert-icon {
+    background: color-mix(in srgb, var(--app-notification-tone) 13%, transparent);
   }
 
   .app-notification-title {
@@ -290,7 +305,7 @@
   }
 
   .field-control {
-    @apply h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
+    @apply h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-xs text-slate-700 outline-none transition hover:border-slate-300 focus:border-brand-500 focus:ring-2 focus:ring-brand-100;
   }
 
   /* Keep mixed input, select, and listbox stacks aligned when a neighboring field has help text. */

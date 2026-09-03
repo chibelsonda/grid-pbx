@@ -42,6 +42,7 @@ export const resellerApi = {
       await http.post<ApiResponse<DescendantOnboardingResult>>(
         `/api/v1/accounts/${accountId}/descendant-onboarding`,
         input,
+        { globalNotification: false },
       ),
     )
   },

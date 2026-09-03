@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { CheckCircleIcon, KeyIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import { validateForm } from '@/shared/forms/zod'
 import VoicemailBoxFormFields from '../components/VoicemailBoxFormFields.vue'
 import { voicemailBoxFormSchemaFor } from '../schemas/voicemailBoxFormSchema'
@@ -112,7 +113,7 @@ async function save(): Promise<void> {
   <CrudSlideOver
     :title="title"
     :eyebrow="`GridPBX / Voicemail / ${title}`"
-    description="Changes are written to Switch first and then projected into MySQL."
+    description="Changes are written to Switch first and then projected into GridPBX."
     @close="close"
   >
     <div
@@ -122,7 +123,7 @@ async function save(): Promise<void> {
       <div>
         <KeyIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Read-only account access</h2>
-        <p class="mt-2 text-xs text-slate-500">
+        <p class="mt-2 text-xs text-heading-description">
           Your organization role can view voicemail boxes but cannot change Switch configuration.
         </p>
         <button
@@ -147,6 +148,12 @@ async function save(): Promise<void> {
       {{ voicemail.detailError }}
     </div>
     <form v-else class="grid gap-5" novalidate @submit.prevent="save">
+      <FormErrorSummary
+        :error="Object.keys(voicemail.fieldErrors).length === 0 ? voicemail.mutationError : null"
+        :field-errors="voicemail.fieldErrors"
+        :title="isEditing ? 'Unable to save the voicemail box' : 'Unable to create the voicemail box'"
+      />
+
       <VoicemailBoxFormFields
         v-model:form="form"
         v-model:configuration="configuration"
@@ -159,12 +166,6 @@ async function save(): Promise<void> {
         :pin-configured="pinConfigured"
       />
 
-      <div
-        v-if="voicemail.mutationError"
-        class="rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-      >
-        {{ voicemail.mutationError }}
-      </div>
       <div class="slide-over-actions flex justify-end">
         <button
           type="submit"

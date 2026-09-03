@@ -53,6 +53,8 @@ const label = (value: string): string =>
     .replaceAll('-', ' ')
     .replaceAll('_', ' ')
     .replace(/\b\w/g, (character) => character.toUpperCase())
+const sourceLabel = (value: string): string =>
+  value.toLowerCase().includes('mysql') ? 'GridPBX projection' : label(value)
 
 const title =
   props.record.kind === 'invoice'
@@ -80,9 +82,9 @@ const title =
           </span>
           <div>
             <h2 class="text-sm font-semibold text-slate-800">Invoice summary</h2>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-heading-description">
               {{ record.authoritative ? 'Authoritative summary' : 'Informational summary' }} from
-              {{ label(record.source) }}.
+              {{ sourceLabel(record.source) }}.
             </p>
           </div>
         </div>
@@ -157,9 +159,9 @@ const title =
           </span>
           <div>
             <h2 class="text-sm font-semibold text-slate-800">Receipt summary</h2>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-heading-description">
               {{ record.authoritative ? 'Authoritative receipt' : 'Informational receipt' }} from
-              {{ label(record.source) }}.
+              {{ sourceLabel(record.source) }}.
             </p>
           </div>
         </div>
@@ -220,7 +222,7 @@ const title =
           </span>
           <div>
             <h2 class="text-sm font-semibold text-slate-800">Payment confirmation</h2>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-heading-description">
               A successful GridPBX payment operation recorded through
               {{ label(record.item.provider) }}.
             </p>
@@ -256,7 +258,7 @@ const title =
           </span>
           <div>
             <h2 class="text-sm font-semibold text-slate-800">Switch transaction projection</h2>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-heading-description">
               Read-only operational activity reported by Switch.
             </p>
           </div>

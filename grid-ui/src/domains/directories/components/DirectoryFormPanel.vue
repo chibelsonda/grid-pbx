@@ -4,6 +4,7 @@ import { BookOpenIcon, TrashIcon } from '@heroicons/vue/24/outline'
 import BasicAdvancedFormTabs from '@/shared/components/BasicAdvancedFormTabs.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormCheckbox from '@/shared/components/FormCheckbox.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
@@ -80,13 +81,11 @@ function submit(): void {
     @close="confirmDelete ? undefined : emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-        role="alert"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the directory"
+      />
       <BasicAdvancedFormTabs v-model="selectedTab">
         <template #basic>
           <article v-show="selectedTab === 0" class="card-surface overflow-hidden">
@@ -96,7 +95,7 @@ function submit(): void {
               /></span>
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Directory identity</h2>
-                <p class="text-[10px] text-slate-400">Name shown to account operators.</p>
+                <p class="text-[10px] text-heading-description">Name shown to account operators.</p>
               </div>
             </header>
             <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -117,7 +116,7 @@ function submit(): void {
               <BookOpenIcon class="size-5 text-brand-500" />
               <div>
                 <h2 class="text-sm font-semibold text-slate-700">Dial-by-name options</h2>
-                <p class="text-[10px] text-slate-400">Caller search and confirmation behavior.</p>
+                <p class="text-[10px] text-heading-description">Caller search and confirmation behavior.</p>
               </div>
             </header>
             <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -169,7 +168,7 @@ function submit(): void {
           <h2 id="directory-members-heading" class="text-sm font-semibold text-slate-700">
             Directory members
           </h2>
-          <p class="mt-1 text-[10px] text-slate-400">
+          <p class="mt-1 text-[10px] text-heading-description">
             Only extensions with a projected callflow are selectable.
           </p>
         </header>

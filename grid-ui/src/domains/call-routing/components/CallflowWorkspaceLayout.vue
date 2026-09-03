@@ -101,7 +101,7 @@ onBeforeUnmount(stopMovingPalette)
       >
         <div class="mr-auto">
           <h2 class="text-sm font-semibold text-slate-700">{{ title }}</h2>
-          <p v-if="description" class="mt-0.5 text-[10px] text-slate-500">{{ description }}</p>
+          <p v-if="description" class="mt-0.5 text-[10px] text-heading-description">{{ description }}</p>
         </div>
         <slot name="summary" />
       </header>

@@ -84,7 +84,7 @@ function defaults(
       data = { language: 'en', skip_module: false }
       break
     case 'response':
-      data = { code: 486, message: null, skip_module: false }
+      data = { code: 486, message: null, media_id: null, skip_module: false }
       break
     case 'hangup':
       data = { skip_module: false }
@@ -102,7 +102,7 @@ function defaults(
       data = { target_type: 'extension', target_id: '', skip_module: false }
       break
     case 'page_group':
-      data = { audio: 'one-way', device_ids: [], skip_module: false }
+      data = { audio: 'one-way', endpoints: [], skip_module: false }
       break
     case 'ring_group':
       data = {

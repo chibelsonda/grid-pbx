@@ -14,6 +14,7 @@ import {
   SignalIcon,
 } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import OperationalStatusCard from '../components/OperationalStatusCard.vue'
 import { useOperationalStatusStore } from '../stores/operationalStatusStore'
 
@@ -45,7 +46,7 @@ watch(
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Operations</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">System status</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Safe, read-only capabilities reported by the selected Switch account.
         </p>
       </div>
@@ -62,12 +63,13 @@ watch(
   </section>
 
   <div class="page-container py-4 sm:py-6 lg:py-8">
-    <div
+    <AppAlert
       v-if="operationalStatus.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ operationalStatus.error }}
-    </div>
+      :message="operationalStatus.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="operationalStatus.error = null"
+    />
     <div
       v-if="operationalStatus.loading"
       class="card-surface p-14 text-center text-xs text-slate-400"

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { LockClosedIcon, PlusIcon, UserGroupIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import { useGlobalSearchListQuery } from '@/domains/global-search/composables/useGlobalSearchListQuery'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
@@ -174,7 +175,7 @@ async function handleRowAction(actionId: string, record: Conference): Promise<vo
       <div>
         <p class="mb-1 text-[11px] text-slate-400">GridPBX / Conferences</p>
         <h1 class="text-xl font-semibold text-slate-800">Conferences</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Manage conference rooms, role-based access, and last-observed runtime status.
         </p>
       </div>
@@ -236,12 +237,13 @@ async function handleRowAction(actionId: string, record: Conference): Promise<vo
         </div>
       </article>
     </div>
-    <div
+    <AppAlert
       v-if="conferences.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ conferences.error }}
-    </div>
+      :message="conferences.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="conferences.error = null"
+    />
     <form
       class="mb-4 flex gap-3"
       @submit.prevent="accounts.selectedId && conferences.load(accounts.selectedId)"

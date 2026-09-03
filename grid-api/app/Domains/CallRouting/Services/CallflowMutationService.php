@@ -3,8 +3,8 @@
 namespace App\Domains\CallRouting\Services;
 
 use App\Domains\Auditing\Services\AuditService;
-use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Contracts\SwitchCallflowEntryPointGateway;
+use App\Domains\CallRouting\Contracts\SwitchCallflowGateway;
 use App\Domains\CallRouting\Models\SwitchCallflow;
 use App\Domains\IdentityAccess\Models\User;
 use App\Domains\Organizations\Models\SwitchAccount;
@@ -358,6 +358,7 @@ class CallflowMutationService
             $data['branch'],
             $module,
             $resourceId,
+            is_array($data['data'] ?? null) ? $data['data'] : null,
             $data,
             $ipAddress,
         );
@@ -693,6 +694,30 @@ class CallflowMutationService
             return $this->receiveFaxSettingsForSwitch($account, $settings);
         }
 
+        if ($module === 'response') {
+            if (! array_key_exists('media_id', $settings)) {
+                return $settings;
+            }
+
+            $mediaId = $settings['media_id'];
+            $mediaResourceId = $mediaId === null
+                ? null
+                : $account->media()->where('id', $mediaId)->value('switch_resource_id');
+
+            if ($mediaId !== null && (! is_string($mediaResourceId) || $mediaResourceId === '')) {
+                throw ValidationException::withMessages([
+                    'data.media_id' => ['Select synchronized media owned by this account.'],
+                ]);
+            }
+
+            return [
+                'code' => $settings['code'],
+                'message' => $settings['message'],
+                'media' => $mediaResourceId,
+                'skip_module' => $settings['skip_module'],
+            ];
+        }
+
         if ($module === 'conference') {
             return ['skip_module' => $settings['skip_module']];
         }
@@ -774,27 +799,32 @@ class CallflowMutationService
     /** @param array<string, mixed> $settings @return array<string, mixed> */
     private function pageGroupSettingsForSwitch(SwitchAccount $account, array $settings): array
     {
-        $publicIds = collect($settings['device_ids'])->unique()->values();
-        $resources = $account->devices()
-            ->whereIn('id', $publicIds)
-            ->get()
-            ->mapWithKeys(fn ($device): array => [(string) $device->id => $device->switch_resource_id]);
-        $missing = $publicIds->reject(
-            fn (string $id): bool => is_string($resources->get($id)) && $resources->get($id) !== '',
-        );
+        $endpoints = collect($settings['endpoints'])->map(function (array $endpoint) use ($account): array {
+            [$publicType, $publicId] = $this->ringGroupPublicTarget($endpoint);
+            [$relation, $switchType] = match ($publicType) {
+                'device' => [$account->devices(), 'device'],
+                'extension' => [$account->extensions(), 'user'],
+                'group' => [$account->groups(), 'group'],
+            };
+            $resourceId = $relation->where('id', $publicId)->value('switch_resource_id');
 
-        if ($missing->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'data.device_ids' => ['Select only synchronized devices in this account.'],
-            ]);
-        }
+            if (! is_string($resourceId) || $resourceId === '') {
+                throw ValidationException::withMessages([
+                    'data.endpoints' => ['Select only synchronized Devices, Extensions, or Groups in this account.'],
+                ]);
+            }
+
+            return [
+                'endpoint_type' => $switchType,
+                'id' => $resourceId,
+                'delay' => $endpoint['delay'],
+                'timeout' => $endpoint['timeout'],
+            ];
+        });
 
         return [
             'audio' => $settings['audio'],
-            'endpoints' => $publicIds->map(fn (string $id): array => [
-                'endpoint_type' => 'device',
-                'id' => $resources->get($id),
-            ])->all(),
+            'endpoints' => $endpoints->all(),
             'skip_module' => $settings['skip_module'],
         ];
     }
@@ -1064,6 +1094,7 @@ class CallflowMutationService
             null,
             $module,
             $resourceId,
+            is_array($data['data'] ?? null) ? $data['data'] : null,
             $data,
             $ipAddress,
         );
@@ -1082,6 +1113,7 @@ class CallflowMutationService
         ?string $branch,
         string $module,
         string $resourceId,
+        ?array $settings,
         array $auditData,
         ?string $ipAddress,
     ): SwitchCallflow {
@@ -1094,6 +1126,7 @@ class CallflowMutationService
                 $branch,
                 $module,
                 $resourceId,
+                $settings,
             ));
 
             return DB::transaction(function () use (
@@ -1307,7 +1340,12 @@ class CallflowMutationService
             $data['destination_id'],
         );
 
-        return [$module, $resourceId, [], null];
+        $destinationSettings = in_array($data['destination_type'], ['extension', 'device'], true)
+            && is_array($data['destination_data'] ?? null)
+                ? $data['destination_data']
+                : null;
+
+        return [$module, $resourceId, [], $destinationSettings];
     }
 
     /** @return array{?string, ?string} */

@@ -107,7 +107,7 @@ function itemKey(item: SidebarItem): string {
     </span>
     <div v-if="showBrandName" class="ml-3 min-w-0 flex-1" data-sidebar-brand-name>
       <div class="sidebar-foreground truncate text-[15px] font-bold">{{ organizationName }}</div>
-      <div class="sidebar-muted text-[10px] font-semibold tracking-widest uppercase">
+      <div class="sidebar-muted text-[11px] font-semibold tracking-widest uppercase">
         Phone system
       </div>
     </div>
@@ -136,7 +136,7 @@ function itemKey(item: SidebarItem): string {
     <section class="mb-4" :aria-label="sectionLabel('Overview')">
       <h2
         v-if="!collapsed"
-        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[11px] font-bold tracking-wider uppercase"
       >
         Overview
       </h2>
@@ -153,7 +153,7 @@ function itemKey(item: SidebarItem): string {
     <section class="mb-4" :aria-label="sectionLabel('Cloud phone system')">
       <h2
         v-if="!collapsed"
-        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[11px] font-bold tracking-wider uppercase"
       >
         Cloud phone system
       </h2>
@@ -176,7 +176,7 @@ function itemKey(item: SidebarItem): string {
       <div v-for="group in cloudPhoneGroups" v-else :key="group.id" class="mb-1">
         <button
           type="button"
-          class="sidebar-nav-item flex h-10 w-full items-center rounded-md px-3 text-left text-[12px] font-semibold transition-colors"
+          class="sidebar-nav-item flex h-10 w-full items-center rounded-md px-3 text-left text-[13px] leading-5 font-semibold transition-colors"
           :class="groupActive(group) ? 'sidebar-nav-item-active' : 'sidebar-nav-item-idle'"
           :aria-expanded="openGroupId === group.id"
           :aria-controls="`sidebar-group-${group.id}`"
@@ -216,7 +216,7 @@ function itemKey(item: SidebarItem): string {
     <section class="mb-4" :aria-label="sectionLabel('Business')">
       <h2
         v-if="!collapsed"
-        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[11px] font-bold tracking-wider uppercase"
       >
         Business
       </h2>
@@ -233,7 +233,7 @@ function itemKey(item: SidebarItem): string {
     <section :aria-label="sectionLabel('Workspace')">
       <h2
         v-if="!collapsed"
-        class="sidebar-section-label mb-2 px-3 text-[10px] font-bold tracking-wider uppercase"
+        class="sidebar-section-label mb-2 px-3 text-[11px] font-bold tracking-wider uppercase"
       >
         Workspace
       </h2>
@@ -248,7 +248,7 @@ function itemKey(item: SidebarItem): string {
     </section>
   </nav>
 
-  <div class="sidebar-border sidebar-muted border-t p-4 text-center text-[10px] font-semibold">
+  <div class="sidebar-border sidebar-muted border-t p-4 text-center text-[11px] font-semibold">
     {{ collapsed ? 'PBX' : 'SWITCH PROJECTION CONSOLE' }}
   </div>
 </template>

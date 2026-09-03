@@ -57,7 +57,7 @@ function keepCredentials(): void {
       </span>
       <div class="min-w-0 flex-1">
         <h2 class="text-sm font-semibold text-slate-700">Switch portal login</h2>
-        <p class="text-[10px] text-slate-400">
+        <p class="text-[10px] text-heading-description">
           Optional credentials for this user to sign in to Switch applications.
         </p>
       </div>
@@ -117,7 +117,7 @@ function keepCredentials(): void {
       <LockClosedIcon class="size-5 text-emerald-600" />
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Password management</h2>
-        <p class="text-[10px] text-slate-400">
+        <p class="text-[10px] text-heading-description">
           Passwords are sent once to Switch and are never returned to GridPBX.
         </p>
       </div>

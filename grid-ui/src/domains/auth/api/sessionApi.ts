@@ -1,8 +1,14 @@
 import { http, unwrapApiData, type ApiResponse } from '@/shared/api/http'
+import type { ForgotPasswordInput } from '../schemas/forgotPasswordFormSchema'
 import type { LoginCredentials } from '../schemas/loginFormSchema'
 import type { PasswordInput } from '../schemas/passwordFormSchema'
 import type { ProfileInput } from '../schemas/profileFormSchema'
+import type { ResetPasswordInput } from '../schemas/resetPasswordFormSchema'
 import type { Session } from '../types/session'
+
+export type PasswordResetMessage = {
+  message: string
+}
 
 export const sessionApi = {
   async current(): Promise<Session> {
@@ -22,6 +28,26 @@ export const sessionApi = {
 
   async logout(): Promise<void> {
     await http.post('/logout', undefined, { globalNotification: false })
+  },
+
+  async requestPasswordReset(input: ForgotPasswordInput): Promise<PasswordResetMessage> {
+    await http.get('/sanctum/csrf-cookie')
+
+    return unwrapApiData(
+      await http.post<ApiResponse<PasswordResetMessage>>('/forgot-password', input, {
+        globalNotification: false,
+      }),
+    )
+  },
+
+  async resetPassword(input: ResetPasswordInput): Promise<PasswordResetMessage> {
+    await http.get('/sanctum/csrf-cookie')
+
+    return unwrapApiData(
+      await http.post<ApiResponse<PasswordResetMessage>>('/reset-password', input, {
+        globalNotification: false,
+      }),
+    )
   },
 
   async updateProfile(input: ProfileInput): Promise<Session> {

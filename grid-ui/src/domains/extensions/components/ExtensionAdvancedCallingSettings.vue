@@ -64,7 +64,7 @@ function setRestrictionAction(key: string, value: unknown): void {
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Caller ID</h2>
-        <p class="text-[10px] leading-4 text-slate-500">
+        <p class="text-[10px] leading-4 text-heading-description">
           Guided public Switch fields; asserted identity remains Switch-managed.
         </p>
       </div>
@@ -131,7 +131,7 @@ function setRestrictionAction(key: string, value: unknown): void {
       <PhoneArrowUpRightIcon class="size-5 text-indigo-600" />
       <div>
         <h2 class="text-sm font-semibold text-slate-700">Call forwarding</h2>
-        <p class="text-[10px] leading-4 text-slate-500">
+        <p class="text-[10px] leading-4 text-heading-description">
           Route direct calls or use this destination as an unavailable endpoint.
         </p>
       </div>
@@ -187,7 +187,7 @@ function setRestrictionAction(key: string, value: unknown): void {
   >
     <header class="border-b border-slate-200 px-5 py-4">
       <h2 class="text-sm font-semibold text-slate-700">Call restrictions</h2>
-      <p class="mt-1 text-[10px] leading-4 text-slate-500">
+      <p class="mt-1 text-[10px] leading-4 text-heading-description">
         Classifications are discovered from the connected Switch deployment.
       </p>
     </header>

@@ -60,7 +60,7 @@ function removeAction(index: number): void {
     <div class="flex items-center justify-between">
       <div>
         <h4 class="text-xs font-semibold text-slate-700">Guided action trees</h4>
-        <p class="mt-1 text-[10px] text-slate-400">
+        <p class="mt-1 text-[10px] text-heading-description">
           Build recursive branches and select projected resources without raw Switch identifiers.
         </p>
       </div>

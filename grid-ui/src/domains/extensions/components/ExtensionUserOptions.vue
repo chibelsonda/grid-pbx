@@ -30,7 +30,7 @@ const configuration = defineModel<ExtensionUserConfiguration>({ required: true }
         <h2 class="text-sm font-semibold text-slate-700">
           {{ section === 'presence-id' ? 'Presence identity' : 'User calling options' }}
         </h2>
-        <p class="text-[10px] text-slate-400">
+        <p class="text-[10px] text-heading-description">
           {{
             section === 'presence-id'
               ? 'The account-scoped identity used for presence subscriptions.'

@@ -44,7 +44,7 @@ async function handleRowAction(
         <h2 id="agent-statistics-title" class="text-sm font-semibold text-slate-700">
           Live agent performance
         </h2>
-        <p class="mt-0.5 text-[11px] text-slate-500">
+        <p class="mt-0.5 text-[11px] text-heading-description">
           Account-scoped call totals from the Switch statistics window. Caller, call, Queue, and raw
           agent identifiers are not exposed.
         </p>

@@ -18,6 +18,7 @@ import { useAccountStore } from '@/domains/accounts/stores/accountStore'
 import LineKeyPanel from '@/domains/line-keys/components/LineKeyPanel.vue'
 import { useLineKeyStore } from '@/domains/line-keys/stores/lineKeyStore'
 import type { LineKeyInput } from '@/domains/line-keys/types/lineKey'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import PageBackLink from '@/shared/components/PageBackLink.vue'
 import DeviceHotdeskPanel from '../components/DeviceHotdeskPanel.vue'
@@ -30,10 +31,14 @@ const router = useRouter()
 const accounts = useAccountStore()
 const devices = useDeviceStore()
 const lineKeys = useLineKeyStore()
-const deviceId = computed(() => String(route.params.deviceId))
+const deviceId = computed(() =>
+  typeof route.params.deviceId === 'string' ? route.params.deviceId : '',
+)
 const device = computed(() => devices.detail)
 const lineKeyPanelOpen = ref(false)
 const pendingAction = ref<'delete' | 'sync' | 'reprovision' | 'enroll' | 'detach' | null>(null)
+let loadedAccountId: string | null = null
+let activeDetailContext: string | null = null
 const modelLabel = computed(() => {
   if (!device.value) return 'Unknown hardware'
 
@@ -42,15 +47,29 @@ const modelLabel = computed(() => {
 
 watch(
   [() => accounts.selectedId, deviceId],
-  ([accountId, selectedDeviceId]) => {
-    if (accountId && selectedDeviceId) {
-      void Promise.all([
-        devices.loadDetail(accountId, selectedDeviceId),
-        devices.loadOptions(accountId),
-        devices.loadHotdeskUsers(accountId, selectedDeviceId),
-        devices.loadProvisioningEnrollment(accountId, selectedDeviceId),
-      ])
+  async ([accountId, selectedDeviceId]) => {
+    if (!accountId || !selectedDeviceId) return
+
+    if (loadedAccountId && loadedAccountId !== accountId) {
+      loadedAccountId = accountId
+      activeDetailContext = null
+      await router.replace({ name: 'devices' })
+
+      return
     }
+
+    loadedAccountId = accountId
+    const detailContext = `${accountId}:${selectedDeviceId}`
+    activeDetailContext = detailContext
+    await devices.loadDetail(accountId, selectedDeviceId)
+
+    if (activeDetailContext !== detailContext || !devices.detail) return
+
+    void Promise.all([
+      devices.loadOptions(accountId),
+      devices.loadHotdeskUsers(accountId, selectedDeviceId),
+      devices.loadProvisioningEnrollment(accountId, selectedDeviceId),
+    ])
   },
   { immediate: true },
 )
@@ -178,7 +197,7 @@ const confirmation = computed(() => {
         <h1 class="truncate text-xl font-semibold tracking-tight text-slate-800">
           {{ device?.name ?? 'Device details' }}
         </h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Projected endpoint hardware, assignment, and synchronization state.
         </p>
       </div>
@@ -244,28 +263,20 @@ const confirmation = computed(() => {
   </section>
 
   <div class="page-container py-4 sm:py-6 lg:py-8">
-    <p
-      v-if="devices.operationMessage"
-      role="status"
-      aria-live="polite"
-      class="mb-4 rounded-md border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs text-emerald-700"
-    >
-      {{ devices.operationMessage }}
-    </p>
-    <p
-      v-if="devices.mutationError"
-      role="alert"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ devices.mutationError }}
-    </p>
-    <p
+    <AppAlert
+      v-if="devices.hotdeskError"
+      :message="devices.hotdeskError"
+      tone="error"
+      class="mb-4"
+      @dismiss="devices.hotdeskError = null"
+    />
+    <AppAlert
       v-if="lineKeys.mutationError && !lineKeyPanelOpen"
-      role="alert"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 px-4 py-3 text-xs text-danger"
-    >
-      {{ lineKeys.mutationError }}
-    </p>
+      :message="lineKeys.mutationError"
+      tone="error"
+      class="mb-4"
+      @dismiss="lineKeys.mutationError = null"
+    />
     <div
       v-if="devices.detailLoading"
       role="status"
@@ -282,7 +293,7 @@ const confirmation = computed(() => {
       <div>
         <DevicePhoneMobileIcon class="mx-auto size-10 text-slate-400" />
         <h2 class="mt-4 text-sm font-semibold text-slate-700">Device unavailable</h2>
-        <p class="mt-2 text-xs text-slate-500">{{ devices.detailError }}</p>
+        <p class="mt-2 text-xs text-heading-description">{{ devices.detailError }}</p>
         <RouterLink
           to="/devices"
           class="mt-5 inline-flex h-9 items-center rounded-md bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
@@ -345,7 +356,7 @@ const confirmation = computed(() => {
               <h2 class="mt-1 text-sm font-semibold text-slate-700">
                 {{ humanize(device.sync_status) }}
               </h2>
-              <p class="mt-2 inline-flex items-center gap-2 text-[11px] text-slate-500">
+              <p class="mt-2 inline-flex items-center gap-2 text-[11px] text-heading-description">
                 <ClockIcon class="size-4" /> {{ formatDate(device.last_synced_at) }}
               </p>
             </div>
@@ -381,7 +392,9 @@ const confirmation = computed(() => {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Endpoint hardware</h2>
-              <p class="text-[10px] text-slate-400">Normalized Switch device information</p>
+              <p class="text-[10px] text-heading-description">
+                Normalized Switch device information
+              </p>
             </div>
           </header>
           <dl class="grid gap-4 p-5 text-xs sm:grid-cols-2">
@@ -419,7 +432,9 @@ const confirmation = computed(() => {
             </span>
             <div>
               <h2 class="text-sm font-semibold text-slate-700">Extension assignment</h2>
-              <p class="text-[10px] text-slate-400">Person or extension linked to this endpoint</p>
+              <p class="text-[10px] text-heading-description">
+                Person or extension linked to this endpoint
+              </p>
             </div>
           </header>
           <div v-if="device.assigned_extension" class="p-5">

@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { MusicalNoteIcon, PlusIcon, SpeakerWaveIcon } from '@heroicons/vue/24/outline'
 import { useAccountStore } from '@/domains/accounts/stores/accountStore'
+import AppAlert from '@/shared/components/AppAlert.vue'
 import ProjectionFreshness from '@/shared/components/ProjectionFreshness.vue'
 import ProjectionSyncButton from '@/shared/components/ProjectionSyncButton.vue'
 import SearchInput from '@/shared/components/SearchInput.vue'
@@ -165,7 +166,7 @@ function formatSize(bytes: number | null): string {
       <div>
         <p class="mb-1 text-[11px] font-medium text-slate-400">GridPBX / Media & Music on Hold</p>
         <h1 class="text-xl font-semibold tracking-tight text-slate-800">Media & Music on Hold</h1>
-        <p class="mt-1 text-xs text-slate-500">
+        <p class="mt-1 text-xs text-heading-description">
           Manage Switch-hosted audio through a safe metadata projection.
         </p>
       </div>
@@ -267,12 +268,13 @@ function formatSize(bytes: number | null): string {
         Apply filters
       </button>
     </form>
-    <div
+    <AppAlert
       v-if="media.error"
-      class="mb-4 rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-    >
-      {{ media.error }}
-    </div>
+      :message="media.error"
+      tone="error"
+      class="mb-4"
+      @dismiss="media.error = null"
+    />
     <div class="card-surface overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full min-w-[820px] text-left">

@@ -70,7 +70,7 @@ function destinationRoute(destination: TopCallDestination, summary: TopCallDesti
       </span>
       <div>
         <h2 class="text-sm font-semibold text-slate-800">Call insights</h2>
-        <p class="text-[11px] text-slate-500">
+        <p class="text-[11px] text-heading-description">
           Busiest period and most-called destinations · {{ rangeLabel }}
         </p>
       </div>

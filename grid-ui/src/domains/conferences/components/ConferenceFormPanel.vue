@@ -12,6 +12,7 @@ import BasicAdvancedTabSelector from '@/shared/components/BasicAdvancedTabSelect
 import AdvancedFormTabs from '@/shared/components/AdvancedFormTabs.vue'
 import ConfirmDialog from '@/shared/components/ConfirmDialog.vue'
 import CrudSlideOver from '@/shared/components/CrudSlideOver.vue'
+import FormErrorSummary from '@/shared/components/FormErrorSummary.vue'
 import FormInput from '@/shared/components/FormInput.vue'
 import FormListbox, {
   type ListboxOptionValue,
@@ -184,12 +185,11 @@ function setToneMode(
     @close="emit('close')"
   >
     <form class="grid gap-5" novalidate @submit.prevent="submit">
-      <div
-        v-if="error && Object.keys(fieldErrors).length === 0"
-        class="rounded-md border border-red-100 bg-red-50 p-4 text-xs text-danger"
-      >
-        {{ error }}
-      </div>
+      <FormErrorSummary
+        :error="Object.keys(fieldErrors).length === 0 ? error : null"
+        :field-errors="errors"
+        title="Unable to save the conference"
+      />
       <fieldset :disabled="!canManage" class="grid gap-5 disabled:opacity-75">
         <BasicAdvancedTabSelector v-model="selectedView" />
         <AdvancedFormTabs
@@ -206,7 +206,7 @@ function setToneMode(
                 /></span>
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Conference identity</h2>
-                  <p class="text-[10px] text-slate-400">Name and account-scoped owner.</p>
+                  <p class="text-[10px] text-heading-description">Name and account-scoped owner.</p>
                 </div>
               </header>
               <div class="grid gap-4 p-5 sm:grid-cols-2">
@@ -240,7 +240,7 @@ function setToneMode(
                 <KeyIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Member access</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     PINs are write-only and never returned by the API.
                   </p>
                 </div>
@@ -283,7 +283,7 @@ function setToneMode(
                 <KeyIcon class="size-5 text-brand-500" />
                 <div>
                   <h2 class="text-sm font-semibold text-slate-700">Moderator access</h2>
-                  <p class="text-[10px] text-slate-400">
+                  <p class="text-[10px] text-heading-description">
                     Moderator PINs are write-only and never returned by the API.
                   </p>
                 </div>
@@ -327,7 +327,7 @@ function setToneMode(
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Member behavior</h2>
-                <p class="mt-1 text-[10px] text-slate-500">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Initial audio state and entry-prompt behavior.
                 </p>
               </header>
@@ -353,7 +353,7 @@ function setToneMode(
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Moderator behavior</h2>
-                <p class="mt-1 text-[10px] text-slate-400">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Moderator audio state and room-start behavior.
                 </p>
               </header>
@@ -398,7 +398,7 @@ function setToneMode(
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Conference sounds</h2>
-                <p class="mt-1 text-[10px] text-slate-500">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Current-schema capacity and participant entry/exit audio behavior.
                 </p>
               </header>
@@ -481,7 +481,7 @@ function setToneMode(
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Conference server</h2>
-                <p class="mt-1 text-[10px] text-slate-500">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Access identifiers, room capacity, and prompt language.
                 </p>
               </header>
@@ -517,7 +517,7 @@ function setToneMode(
             <article class="card-surface overflow-hidden">
               <header class="border-b border-slate-100 px-5 py-4">
                 <h2 class="text-sm font-semibold text-slate-700">Switch profiles</h2>
-                <p class="mt-1 text-[10px] text-slate-500">
+                <p class="mt-1 text-[10px] text-heading-description">
                   Named conference profiles and control sets from the installed Switch schema.
                 </p>
               </header>

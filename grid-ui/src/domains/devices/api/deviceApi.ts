@@ -64,7 +64,11 @@ export const deviceApi = {
   ): Promise<{ message: string; command: DeviceProvisioningCommand }> {
     const response = await http.post<
       ApiResponse<{ message: string; command: DeviceProvisioningCommand }>
-    >(`/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-sync`, { command })
+    >(
+      `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-sync`,
+      { command },
+      { globalNotification: false },
+    )
 
     return unwrapApiData(response)
   },
@@ -85,6 +89,7 @@ export const deviceApi = {
     const response = await http.post<ApiResponse<DeviceProvisioningEnrollmentMutation>>(
       `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-enrollment`,
       { confirmed: true },
+      { globalNotification: false },
     )
 
     return unwrapApiData(response)
@@ -95,7 +100,7 @@ export const deviceApi = {
   ): Promise<DeviceProvisioningEnrollmentMutation> {
     const response = await http.delete<ApiResponse<DeviceProvisioningEnrollmentMutation>>(
       `/api/v1/accounts/${accountId}/devices/${deviceId}/provisioning-enrollment`,
-      { data: { confirmed: true } },
+      { data: { confirmed: true }, globalNotification: false },
     )
 
     return unwrapApiData(response)
@@ -121,6 +126,8 @@ export const deviceApi = {
   ): Promise<DeviceHotdeskMemberships> {
     const response = await http.put<ApiResponse<DeviceHotdeskMemberships>>(
       `/api/v1/accounts/${accountId}/devices/${deviceId}/hotdesk-users/${extensionId}`,
+      undefined,
+      { globalNotification: false },
     )
 
     return unwrapApiData(response)
@@ -132,6 +139,7 @@ export const deviceApi = {
   ): Promise<DeviceHotdeskMemberships> {
     const response = await http.delete<ApiResponse<DeviceHotdeskMemberships>>(
       `/api/v1/accounts/${accountId}/devices/${deviceId}/hotdesk-users/${extensionId}`,
+      { globalNotification: false },
     )
 
     return unwrapApiData(response)

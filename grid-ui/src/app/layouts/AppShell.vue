@@ -13,15 +13,6 @@ const ui = useUiStore()
 const accounts = useAccountStore()
 const route = useRoute()
 const pageMinimumHeight = ref<number | null>(null)
-let notificationTimer: ReturnType<typeof window.setTimeout> | null = null
-
-function clearNotificationTimer(): void {
-  if (notificationTimer === null) return
-
-  window.clearTimeout(notificationTimer)
-  notificationTimer = null
-}
-
 ui.initializeTheme()
 onMounted(() => accounts.load())
 watch(
@@ -46,27 +37,12 @@ watch(
   },
 )
 watch(
-  () => ui.notification?.id,
-  (notificationId) => {
-    clearNotificationTimer()
-    if (notificationId === undefined) return
-
-    notificationTimer = window.setTimeout(() => {
-      ui.dismissNotification(notificationId)
-      notificationTimer = null
-    }, 4_000)
-  },
-)
-watch(
   () => route.fullPath,
   () => {
     pageMinimumHeight.value = null
   },
 )
-onBeforeUnmount(() => {
-  clearNotificationTimer()
-  accounts.releaseOrganizationLogo()
-})
+onBeforeUnmount(() => accounts.releaseOrganizationLogo())
 </script>
 
 <template>
@@ -115,6 +91,7 @@ onBeforeUnmount(() => {
       :title="ui.notification?.title ?? ''"
       :message="ui.notification?.message ?? ''"
       :tone="ui.notification?.tone"
+      :notification-key="ui.notification?.id"
       @dismiss="ui.dismissNotification()"
     />
   </div>
